@@ -5,8 +5,12 @@ import {
   MeshRenderer,
   Node,
   utils,
+  Vec3,
 } from 'cc';
-import { type GeometryBounds, type PositionBufferGeometry } from '../geometry/buffer-geometry';
+import {
+  type GeometryBounds,
+  type SurfaceBufferGeometry,
+} from '../geometry/buffer-geometry';
 
 enum DynamicMeshBatchState {
   Created,
@@ -15,7 +19,8 @@ enum DynamicMeshBatchState {
 }
 
 /**
- * 管理一个固定索引拓扑、动态位置流的 Cocos MeshRenderer。
+ * 管理一个固定索引拓扑、动态位置与颜色流的 Cocos MeshRenderer。
+ * 法线仅供 CPU 顶点着色使用，不上传给 Unlit 渲染管线。
  */
 export class DynamicMeshBatch {
   private state = DynamicMeshBatchState.Created;
@@ -23,8 +28,13 @@ export class DynamicMeshBatch {
   private renderer: MeshRenderer | null = null;
   private mesh: Mesh | null = null;
   private positionBuffer: gfx.Buffer | null = null;
+  private colorBuffer: gfx.Buffer | null = null;
   private positionSource: ArrayBuffer | null = null;
+  private colorSource: ArrayBuffer | null = null;
   private positionByteLength = 0;
+  private colorByteLength = 0;
+  private readonly minimumPosition = new Vec3();
+  private readonly maximumPosition = new Vec3();
 
   /**
    * 初始化动态网格并上传固定索引拓扑。
@@ -32,7 +42,7 @@ export class DynamicMeshBatch {
   public initialize(
     parent: Node,
     name: string,
-    geometry: PositionBufferGeometry,
+    geometry: SurfaceBufferGeometry,
     material: Material,
     bounds: GeometryBounds,
   ): void {
@@ -44,6 +54,7 @@ export class DynamicMeshBatch {
     }
 
     const positions = geometry.getPositionView();
+    const colors = geometry.getColorView();
     const indices = geometry.getIndexView();
     if (!(positions.buffer instanceof ArrayBuffer)) {
       throw new Error('动态位置流必须由 ArrayBuffer 支持。');
@@ -51,9 +62,16 @@ export class DynamicMeshBatch {
     if (positions.byteOffset !== 0 || positions.byteLength !== positions.buffer.byteLength) {
       throw new Error('动态位置流必须完整覆盖其底层 ArrayBuffer。');
     }
+    if (!(colors.buffer instanceof ArrayBuffer)) {
+      throw new Error('动态颜色流必须由 ArrayBuffer 支持。');
+    }
+    if (colors.byteOffset !== 0 || colors.byteLength !== colors.buffer.byteLength) {
+      throw new Error('动态颜色流必须完整覆盖其底层 ArrayBuffer。');
+    }
 
     const commonGeometry = {
       positions,
+      colors,
       minPos: { x: bounds.minX, y: bounds.minY, z: bounds.minZ },
       maxPos: { x: bounds.maxX, y: bounds.maxY, z: bounds.maxZ },
     };
@@ -67,9 +85,10 @@ export class DynamicMeshBatch {
     });
     const renderingSubMesh = mesh.renderingSubMeshes[0];
     const vertexBuffer = renderingSubMesh?.vertexBuffers[0];
-    if (vertexBuffer === undefined) {
+    const colorBuffer = renderingSubMesh?.vertexBuffers[1];
+    if (vertexBuffer === undefined || colorBuffer === undefined) {
       mesh.destroy();
-      throw new Error('动态网格没有可更新的位置顶点缓冲。');
+      throw new Error('动态网格没有可更新的位置或颜色顶点缓冲。');
     }
 
     const node = new Node(name);
@@ -83,20 +102,41 @@ export class DynamicMeshBatch {
     this.renderer = renderer;
     this.mesh = mesh;
     this.positionBuffer = vertexBuffer;
+    this.colorBuffer = colorBuffer;
     this.positionSource = positions.buffer;
+    this.colorSource = colors.buffer;
     this.positionByteLength = positions.byteLength;
+    this.colorByteLength = colors.byteLength;
     this.state = DynamicMeshBatchState.Initialized;
   }
 
-  /** 将完整有效位置流上传到 GPU。 */
-  public uploadPositions(): void {
+  /** 将完整有效位置流与颜色流上传到 GPU。 */
+  public uploadVertexAttributes(): void {
     if (this.state !== DynamicMeshBatchState.Initialized
       || this.positionBuffer === null
-      || this.positionSource === null) {
+      || this.colorBuffer === null
+      || this.positionSource === null
+      || this.colorSource === null) {
       throw new Error('动态网格批次尚未初始化或已经释放。');
     }
 
     this.positionBuffer.update(this.positionSource, this.positionByteLength);
+    this.colorBuffer.update(this.colorSource, this.colorByteLength);
+  }
+
+  /** 刷新动态网格用于视锥裁剪的模型空间包围盒。 */
+  public updateBounds(bounds: GeometryBounds): void {
+    if (this.state !== DynamicMeshBatchState.Initialized
+      || this.mesh === null
+      || this.renderer === null) {
+      throw new Error('动态网格批次尚未初始化或已经释放。');
+    }
+
+    this.minimumPosition.set(bounds.minX, bounds.minY, bounds.minZ);
+    this.maximumPosition.set(bounds.maxX, bounds.maxY, bounds.maxZ);
+    this.mesh.struct.minPosition = this.minimumPosition;
+    this.mesh.struct.maxPosition = this.maximumPosition;
+    this.renderer.onGeometryChanged();
   }
 
   /** 释放 Mesh、Renderer 节点和 GPU 缓冲拥有者。 */
@@ -117,8 +157,11 @@ export class DynamicMeshBatch {
     this.renderer = null;
     this.mesh = null;
     this.positionBuffer = null;
+    this.colorBuffer = null;
     this.positionSource = null;
+    this.colorSource = null;
     this.positionByteLength = 0;
+    this.colorByteLength = 0;
     this.state = DynamicMeshBatchState.Disposed;
   }
 }

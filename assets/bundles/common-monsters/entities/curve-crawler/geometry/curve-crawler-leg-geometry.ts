@@ -1,9 +1,11 @@
-import { SmoothCurveTessellator } from '../../../../../core/geometry/smooth-curve-tessellator';
 import { type TriangleMeshWriter } from '../../../../../core/geometry/triangle-mesh-writer';
+import { VolumetricTessellator } from '../../../../../core/geometry/volumetric-tessellator';
 import { lerp } from '../../../../../core/math/scalar';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
-  CURVE_CRAWLER_FOOT_SEGMENTS,
+  CURVE_CRAWLER_FOOT_LATITUDE_SEGMENTS,
+  CURVE_CRAWLER_FOOT_LONGITUDE_SEGMENTS,
+  CURVE_CRAWLER_LEG_RADIAL_SEGMENTS,
   CURVE_CRAWLER_LEG_SEGMENTS,
 } from './curve-crawler-topology';
 
@@ -44,6 +46,14 @@ export function writeCurveCrawlerLeg(
   let p2y = side * (bodyWidth * 0.42 + legLength * (0.62 - lift * 0.09));
   let p3x = rootAlongBody + forwardFan + stride;
   let p3y = side * (bodyWidth * 0.4 + legLength * 0.78 * outwardScale);
+  const startRadius = legWidth * 0.5;
+  const endRadius = legWidth * 0.29;
+  const footRadius = endRadius * 1.2;
+  const gaitLift = lift * legLength * 0.11;
+  const p0z = bodyWidth * (0.28 - crouchAmount * 0.05);
+  let p1z = p0z + legLength * 0.13;
+  let p2z = footRadius + legLength * 0.08 + gaitLift * 0.55;
+  let p3z = footRadius + gaitLift;
 
   const waveAmount = animation.waveAmount[entityIndex] ?? 0;
   if (legIndex === (behavior.selectedWaveLeg[entityIndex] ?? 0) && waveAmount > 0.001) {
@@ -53,6 +63,9 @@ export function writeCurveCrawlerLeg(
     p3x += waveSwing * waveAmount;
     p2y = lerp(p2y, side * (bodyWidth * 0.75 + legLength * 0.25), waveAmount);
     p3y = lerp(p3y, side * (bodyWidth * 0.65 + legLength * 0.18), waveAmount);
+    p1z = lerp(p1z, p0z + legLength * 0.4, waveAmount);
+    p2z = lerp(p2z, p0z + legLength * 0.64, waveAmount);
+    p3z = lerp(p3z, p0z + legLength * 0.76, waveAmount);
   }
 
   const originX = transform.x[entityIndex] ?? 0;
@@ -66,21 +79,36 @@ export function writeCurveCrawlerLeg(
   const worldP3x = transformX(originX, p3x, p3y, headingCosine, headingSine);
   const worldP3y = transformY(originY, p3x, p3y, headingCosine, headingSine);
 
-  SmoothCurveTessellator.appendCubicRibbon(
+  VolumetricTessellator.appendCubicTube(
     writer,
     worldP0x,
     worldP0y,
+    p0z,
     worldP1x,
     worldP1y,
+    p1z,
     worldP2x,
     worldP2y,
+    p2z,
     worldP3x,
     worldP3y,
-    legWidth,
-    legWidth * 0.58,
+    p3z,
+    startRadius,
+    endRadius,
     CURVE_CRAWLER_LEG_SEGMENTS,
-    CURVE_CRAWLER_FOOT_SEGMENTS,
+    CURVE_CRAWLER_LEG_RADIAL_SEGMENTS,
+  );
+  VolumetricTessellator.appendEllipsoid(
+    writer,
+    worldP3x,
+    worldP3y,
+    p3z,
+    footRadius * 1.1,
+    footRadius,
+    footRadius,
     0,
+    CURVE_CRAWLER_FOOT_LONGITUDE_SEGMENTS,
+    CURVE_CRAWLER_FOOT_LATITUDE_SEGMENTS,
   );
 }
 

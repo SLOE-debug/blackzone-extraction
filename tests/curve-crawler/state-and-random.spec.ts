@@ -5,8 +5,7 @@ import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities
 
 const options = normalizeCurveCrawlerOptions({
   count: 12,
-  batchSize: 8,
-  arena: { width: 320, height: 180 },
+  spawnArea: { width: 320, height: 180 },
   seed: 20260715,
 });
 
@@ -34,12 +33,12 @@ describe('Curve Crawler 状态初始化', () => {
     expect(state.data.identity.randomState[0]).not.toBe(state.data.identity.randomState[1]);
   });
 
-  it('初始化位置位于声明的活动区域内', () => {
+  it('初始化位置位于声明的生成区域内', () => {
     const state = new CurveCrawlerState(options);
 
     for (let index = 0; index < state.count; index++) {
-      expect(Math.abs(state.data.transform.x[index] ?? 0)).toBeLessThan(state.arena.halfWidth);
-      expect(Math.abs(state.data.transform.y[index] ?? 0)).toBeLessThan(state.arena.halfHeight);
+      expect(Math.abs(state.data.transform.x[index] ?? 0)).toBeLessThan(options.spawnArea.width * 0.5);
+      expect(Math.abs(state.data.transform.y[index] ?? 0)).toBeLessThan(options.spawnArea.height * 0.5);
     }
   });
 });

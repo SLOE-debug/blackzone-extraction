@@ -30,7 +30,7 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
   constructor(parent: Node, options: Readonly<CurveCrawlerPopulationOptions>) {
     const normalizedOptions = normalizeCurveCrawlerOptions(options);
     this.state = new CurveCrawlerState(normalizedOptions);
-    this.renderer = new CurveCrawlerRenderer(parent, this.state, normalizedOptions.batchSize);
+    this.renderer = new CurveCrawlerRenderer(parent, this.state);
   }
 
   /** 当前群体包含的 Curve Crawler 数量。 */

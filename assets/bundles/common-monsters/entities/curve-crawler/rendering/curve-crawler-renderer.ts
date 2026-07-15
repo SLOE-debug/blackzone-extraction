@@ -1,45 +1,48 @@
 import { Node } from 'cc';
 import { GeometryIndexFormat } from '../../../../../core/geometry/buffer-geometry';
 import { FixedTopologyBatchRenderer } from '../../../../../core/rendering/fixed-topology-batch-renderer';
-import { curveCrawlerBodyGeometry } from '../geometry/curve-crawler-body-geometry';
-import { curveCrawlerEyeGeometry } from '../geometry/curve-crawler-eye-geometry';
+import { curveCrawlerSurfaceGeometry } from '../geometry/curve-crawler-surface-geometry';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { computeCurveCrawlerBounds } from './curve-crawler-bounds';
+import {
+  createCurveCrawlerBounds,
+  type CurveCrawlerBounds,
+  updateCurveCrawlerBounds,
+} from './curve-crawler-bounds';
 import { CurveCrawlerMaterials } from './curve-crawler-materials';
+import { curveCrawlerVertexShading } from './curve-crawler-vertex-shading';
 
 /** Curve Crawler 使用的固定渲染层标识。 */
 export enum CurveCrawlerRenderLayer {
-  Body = 'body',
-  Eyes = 'eyes',
+  Surface = 'surface',
 }
 
 /** 组合 Curve Crawler 材质和通用固定拓扑批渲染器。 */
 export class CurveCrawlerRenderer {
   private readonly materials = new CurveCrawlerMaterials();
   private readonly batches: FixedTopologyBatchRenderer<CurveCrawlerState, CurveCrawlerRenderLayer>;
+  private readonly bounds: CurveCrawlerBounds;
   private disposed = false;
 
-  constructor(parent: Node, state: CurveCrawlerState, batchSize: number) {
+  constructor(
+    parent: Node,
+    private readonly state: CurveCrawlerState,
+  ) {
+    this.bounds = createCurveCrawlerBounds(state);
     try {
       this.batches = new FixedTopologyBatchRenderer({
         parent,
         source: state,
         entityCount: state.count,
-        requestedBatchSize: batchSize,
-        indexFormat: GeometryIndexFormat.Uint16,
-        bounds: computeCurveCrawlerBounds(state),
+        requestedBatchSize: state.count,
+        indexFormat: GeometryIndexFormat.Uint32,
+        bounds: this.bounds,
+        shading: curveCrawlerVertexShading,
         layers: Object.freeze([
           Object.freeze({
-            id: CurveCrawlerRenderLayer.Body,
-            nodeName: 'CurveCrawlerBodyBatch',
-            material: this.materials.body,
-            geometry: curveCrawlerBodyGeometry,
-          }),
-          Object.freeze({
-            id: CurveCrawlerRenderLayer.Eyes,
-            nodeName: 'CurveCrawlerEyeBatch',
-            material: this.materials.eyes,
-            geometry: curveCrawlerEyeGeometry,
+            id: CurveCrawlerRenderLayer.Surface,
+            nodeName: 'CurveCrawlerSurfaceBatch',
+            material: this.materials.surface,
+            geometry: curveCrawlerSurfaceGeometry,
           }),
         ]),
       });
@@ -54,7 +57,8 @@ export class CurveCrawlerRenderer {
     if (this.disposed) {
       throw new Error('Curve Crawler 渲染器已经释放。');
     }
-    this.batches.update();
+    updateCurveCrawlerBounds(this.state, this.bounds);
+    this.batches.update(this.bounds);
   }
 
   /** 先释放动态网格，再释放其引用的材质。 */

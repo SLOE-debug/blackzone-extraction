@@ -1,12 +1,13 @@
 import { type EntityRange } from '../../../../../core/entities/entity-range';
 import { type FixedTopologyGeometrySource } from '../../../../../core/geometry/fixed-topology';
-import { SmoothCurveTessellator } from '../../../../../core/geometry/smooth-curve-tessellator';
 import { type TriangleMeshWriter } from '../../../../../core/geometry/triangle-mesh-writer';
+import { VolumetricTessellator } from '../../../../../core/geometry/volumetric-tessellator';
 import { CURVE_CRAWLER_LEG_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { writeCurveCrawlerLeg } from './curve-crawler-leg-geometry';
 import {
-  CURVE_CRAWLER_BODY_SEGMENTS,
+  CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
+  CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
   CURVE_CRAWLER_BODY_TOPOLOGY,
 } from './curve-crawler-topology';
 
@@ -31,6 +32,7 @@ implements FixedTopologyGeometrySource<CurveCrawlerState> {
       const legLength = (morphology.legLength[index] ?? 0)
         * (1 + (animation.crouchAmount[index] ?? 0) * 0.08);
       const legWidth = morphology.legWidth[index] ?? 0;
+      const crouchAmount = animation.crouchAmount[index] ?? 0;
 
       for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {
         writeCurveCrawlerLeg(
@@ -54,25 +56,31 @@ implements FixedTopologyGeometrySource<CurveCrawlerState> {
       const thoraxX = originX + headingCosine * bodyLength * 0.28;
       const thoraxY = originY + headingSine * bodyLength * 0.28;
 
-      SmoothCurveTessellator.appendEllipse(
+      const abdomenRadiusZ = bodyWidth * 0.42;
+      VolumetricTessellator.appendEllipsoid(
         writer,
         abdomenX,
         abdomenY,
+        abdomenRadiusZ * (0.92 - crouchAmount * 0.22),
         bodyLength * 0.48,
         bodyWidth * 0.52,
+        abdomenRadiusZ,
         heading,
-        CURVE_CRAWLER_BODY_SEGMENTS,
-        0.05,
+        CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
+        CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
       );
-      SmoothCurveTessellator.appendEllipse(
+      const thoraxRadiusZ = bodyWidth * 0.36;
+      VolumetricTessellator.appendEllipsoid(
         writer,
         thoraxX,
         thoraxY,
+        thoraxRadiusZ * (1.08 - crouchAmount * 0.2),
         bodyLength * 0.3,
         bodyWidth * 0.42,
+        thoraxRadiusZ,
         heading,
-        CURVE_CRAWLER_BODY_SEGMENTS,
-        0.06,
+        CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
+        CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
       );
     }
   }

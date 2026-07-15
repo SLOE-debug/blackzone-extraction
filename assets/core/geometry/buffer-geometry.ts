@@ -25,9 +25,11 @@ export type GeometryAttributeMap = Readonly<
   Record<string, BufferAttribute<NumericTypedArray, number>>
 >;
 
-/** 仅包含三分量位置流的几何属性。 */
-export type PositionGeometryAttributes = Readonly<{
+/** 包含位置、法线和颜色流的表面几何属性。 */
+export type SurfaceGeometryAttributes = Readonly<{
   position: BufferAttribute<Float32Array, 3>;
+  normal: BufferAttribute<Float32Array, 3>;
+  color: BufferAttribute<Float32Array, 4>;
 }>;
 
 /**
@@ -94,22 +96,47 @@ export class BufferGeometry<
 }
 
 /**
- * 针对动态位置流优化的 BufferGeometry。
+ * 针对动态位置、法线与颜色流优化的 BufferGeometry。
  */
-export class PositionBufferGeometry<
+export class SurfaceBufferGeometry<
   TIndex extends GeometryIndexArray = GeometryIndexArray,
-> extends BufferGeometry<PositionGeometryAttributes, TIndex> {
+> extends BufferGeometry<SurfaceGeometryAttributes, TIndex> {
   public readonly positions: Float32Array;
+  public readonly normals: Float32Array;
+  public readonly colors: Float32Array;
 
   constructor(maxVertices: number, maxIndices: number, index: TIndex) {
     const positionAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
-    super(maxVertices, maxIndices, Object.freeze({ position: positionAttribute }), index);
+    const normalAttribute = new BufferAttribute(new Float32Array(maxVertices * 3), 3);
+    const colorAttribute = new BufferAttribute(new Float32Array(maxVertices * 4), 4);
+    super(
+      maxVertices,
+      maxIndices,
+      Object.freeze({
+        position: positionAttribute,
+        normal: normalAttribute,
+        color: colorAttribute,
+      }),
+      index,
+    );
     this.positions = positionAttribute.array;
+    this.normals = normalAttribute.array;
+    this.colors = colorAttribute.array;
   }
 
   /** 返回当前有效位置流的零拷贝视图。 */
   public getPositionView(): Float32Array {
     return this.positions.subarray(0, this.vertexCount * 3);
+  }
+
+  /** 返回当前有效法线流的零拷贝视图。 */
+  public getNormalView(): Float32Array {
+    return this.normals.subarray(0, this.vertexCount * 3);
+  }
+
+  /** 返回当前有效颜色流的零拷贝视图。 */
+  public getColorView(): Float32Array {
+    return this.colors.subarray(0, this.vertexCount * 4);
   }
 
   /** 计算当前有效位置流的包围盒。 */
@@ -143,19 +170,19 @@ export class PositionBufferGeometry<
 }
 
 /**
- * 按显式索引格式创建位置几何。
+ * 按显式索引格式创建动态表面几何。
  */
-export function createPositionGeometry(
+export function createSurfaceGeometry(
   maxVertices: number,
   maxIndices: number,
   indexFormat: GeometryIndexFormat,
-): PositionBufferGeometry {
+): SurfaceBufferGeometry {
   if (indexFormat === GeometryIndexFormat.Uint16) {
     if (maxVertices > 65535) {
       throw new Error('Uint16 索引几何的顶点容量不能超过 65535。');
     }
-    return new PositionBufferGeometry(maxVertices, maxIndices, new Uint16Array(maxIndices));
+    return new SurfaceBufferGeometry(maxVertices, maxIndices, new Uint16Array(maxIndices));
   }
 
-  return new PositionBufferGeometry(maxVertices, maxIndices, new Uint32Array(maxIndices));
+  return new SurfaceBufferGeometry(maxVertices, maxIndices, new Uint32Array(maxIndices));
 }

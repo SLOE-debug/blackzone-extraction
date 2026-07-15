@@ -1,9 +1,9 @@
 import { type Material, Node } from 'cc';
 import {
-  createPositionGeometry,
+  createSurfaceGeometry,
   type GeometryBounds,
   GeometryIndexFormat,
-  type PositionBufferGeometry,
+  type SurfaceBufferGeometry,
 } from '../geometry/buffer-geometry';
 import {
   type FixedTopologyGeometrySource,
@@ -13,6 +13,7 @@ import {
 } from '../geometry/fixed-topology';
 import { TriangleMeshWriter } from '../geometry/triangle-mesh-writer';
 import { partitionBatches } from './batch-partition';
+import { type SurfaceVertexShading } from './directional-vertex-shading';
 import { DynamicMeshBatch } from './dynamic-mesh-batch';
 
 /**
@@ -33,12 +34,13 @@ export interface FixedTopologyBatchRendererOptions<TSource, TLayerId extends str
   readonly requestedBatchSize: number;
   readonly indexFormat: GeometryIndexFormat;
   readonly bounds: GeometryBounds;
+  readonly shading: SurfaceVertexShading;
   readonly layers: readonly RenderLayerDefinition<TSource, TLayerId>[];
 }
 
 interface RenderLayerChunk<TSource, TLayerId extends string> {
   readonly id: TLayerId;
-  readonly geometry: PositionBufferGeometry;
+  readonly geometry: SurfaceBufferGeometry;
   readonly writer: TriangleMeshWriter;
   readonly batch: DynamicMeshBatch;
   readonly source: FixedTopologyGeometrySource<TSource>;
@@ -81,7 +83,7 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
         this.chunks.push({ range: partition.range, layers: layerChunks });
 
         for (const layer of options.layers) {
-          const geometry = createPositionGeometry(
+          const geometry = createSurfaceGeometry(
             getTopologyVertexCount(layer.geometry.metrics, partition.range.count),
             getTopologyIndexCount(layer.geometry.metrics, partition.range.count),
             options.indexFormat,
@@ -90,6 +92,7 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
           writer.reset(true);
           layer.geometry.write(writer, options.source, partition.range);
           writer.commit();
+          options.shading.update(geometry);
 
           const batch = new DynamicMeshBatch();
           batch.initialize(
@@ -114,8 +117,8 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
     }
   }
 
-  /** 重写全部活动批次的位置流并上传到 GPU。 */
-  public update(): void {
+  /** 重写全部活动批次的表面属性、刷新可选包围盒并上传到 GPU。 */
+  public update(bounds?: GeometryBounds): void {
     if (this.disposed) {
       throw new Error('固定拓扑批渲染器已经释放。');
     }
@@ -126,7 +129,11 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
         layer.source.write(layer.writer, this.options.source, chunk.range);
         layer.writer.assertCounts(layer.geometry.vertexCount, layer.geometry.indexCount);
         layer.writer.commit();
-        layer.batch.uploadPositions();
+        this.options.shading.update(layer.geometry);
+        layer.batch.uploadVertexAttributes();
+        if (bounds !== undefined) {
+          layer.batch.updateBounds(bounds);
+        }
       }
     }
   }

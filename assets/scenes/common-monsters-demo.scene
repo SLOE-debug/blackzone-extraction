@@ -83,9 +83,8 @@
     "_enabled": true,
     "__prefab": null,
     "count": 180,
-    "batchSize": 96,
-    "arenaWidth": 320,
-    "arenaHeight": 180,
+    "spawnWidth": 320,
+    "spawnHeight": 180,
     "seed": 20260715,
     "_id": "4dUrmAjv9MKL8NGyRO7Azg"
   },

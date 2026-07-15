@@ -1,5 +1,5 @@
-/** Curve Crawler 群体使用的二维活动区域尺寸。 */
-export interface CurveCrawlerArenaSize {
+/** Curve Crawler 群体使用的二维初始生成区域尺寸。 */
+export interface CurveCrawlerSpawnAreaSize {
   readonly width: number;
   readonly height: number;
 }
@@ -7,16 +7,14 @@ export interface CurveCrawlerArenaSize {
 /** 创建 Curve Crawler 群体所需的公开参数。 */
 export interface CurveCrawlerPopulationOptions {
   readonly count: number;
-  readonly batchSize: number;
-  readonly arena: Readonly<CurveCrawlerArenaSize>;
+  readonly spawnArea: Readonly<CurveCrawlerSpawnAreaSize>;
   readonly seed: number;
 }
 
 /** 完成边界校验后的群体参数。 */
 export interface NormalizedCurveCrawlerPopulationOptions {
   readonly count: number;
-  readonly batchSize: number;
-  readonly arena: Readonly<CurveCrawlerArenaSize>;
+  readonly spawnArea: Readonly<CurveCrawlerSpawnAreaSize>;
   readonly seed: number;
 }
 
@@ -29,12 +27,9 @@ export function normalizeCurveCrawlerOptions(
   if (!Number.isInteger(options.count) || options.count <= 0) {
     throw new Error('Curve Crawler 数量必须是正整数。');
   }
-  if (!Number.isInteger(options.batchSize) || options.batchSize <= 0) {
-    throw new Error('Curve Crawler 批容量必须是正整数。');
-  }
-  if (!Number.isFinite(options.arena.width) || options.arena.width <= 0
-    || !Number.isFinite(options.arena.height) || options.arena.height <= 0) {
-    throw new Error('Curve Crawler 活动区域尺寸必须是有限正数。');
+  if (!Number.isFinite(options.spawnArea.width) || options.spawnArea.width <= 0
+    || !Number.isFinite(options.spawnArea.height) || options.spawnArea.height <= 0) {
+    throw new Error('Curve Crawler 初始生成区域尺寸必须是有限正数。');
   }
   if (!Number.isFinite(options.seed)) {
     throw new Error('Curve Crawler 随机种子必须是有限数值。');
@@ -42,10 +37,9 @@ export function normalizeCurveCrawlerOptions(
 
   return Object.freeze({
     count: options.count,
-    batchSize: options.batchSize,
-    arena: Object.freeze({
-      width: options.arena.width,
-      height: options.arena.height,
+    spawnArea: Object.freeze({
+      width: options.spawnArea.width,
+      height: options.spawnArea.height,
     }),
     seed: Math.trunc(options.seed),
   });

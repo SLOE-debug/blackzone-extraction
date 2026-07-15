@@ -5,12 +5,15 @@ import { CurveCrawlerAction } from '../../assets/bundles/common-monsters/entitie
 import { normalizeCurveCrawlerOptions } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-options';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerMovementSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/movement/curve-crawler-movement-system';
+import {
+  createCurveCrawlerBounds,
+  updateCurveCrawlerBounds,
+} from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-bounds';
 
 function createState(): CurveCrawlerState {
   return new CurveCrawlerState(normalizeCurveCrawlerOptions({
     count: 2,
-    batchSize: 2,
-    arena: { width: 320, height: 180 },
+    spawnArea: { width: 320, height: 180 },
     seed: 7,
   }));
 }
@@ -47,19 +50,26 @@ describe('Curve Crawler 系统', () => {
     );
   });
 
-  it('移动系统将越界实体拉回安全区域', () => {
+  it('移动系统不会把实体拉回初始生成区域', () => {
     const state = createState();
     const movement = new CurveCrawlerMovementSystem();
     const index = 0;
-    const margin = (state.data.morphology.legLength[index] ?? 0) * 1.25;
-    state.data.transform.x[index] = state.arena.halfWidth + 100;
+    state.data.transform.x[index] = 260;
     state.data.intent.targetSpeed[index] = 0;
 
     movement.update(state, 1 / 60);
 
-    expect(state.data.transform.x[index] ?? 0).toBeLessThanOrEqual(
-      state.arena.halfWidth - margin + 0.00001,
-    );
+    expect(state.data.transform.x[index]).toBe(260);
+  });
+
+  it('渲染包围盒会跟随自由移动后的实体位置', () => {
+    const state = createState();
+    const bounds = createCurveCrawlerBounds(state);
+    state.data.transform.x[0] = 1000;
+
+    updateCurveCrawlerBounds(state, bounds);
+
+    expect(bounds.maxX).toBeGreaterThan(1000);
   });
 
   it('动画系统独立混合步态、挥腿和蜷缩姿态', () => {

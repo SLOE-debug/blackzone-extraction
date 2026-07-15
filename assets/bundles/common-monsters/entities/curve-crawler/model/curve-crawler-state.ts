@@ -17,29 +17,17 @@ import {
   type CurveCrawlerTable,
 } from './curve-crawler-schema';
 
-/** Curve Crawler 使用的中心对称矩形活动边界。 */
-export interface CurveCrawlerArenaBounds {
-  readonly halfWidth: number;
-  readonly halfHeight: number;
-}
-
 /**
- * 聚合 Curve Crawler 的 SoA 表与所有系统共享的只读边界。
+ * 聚合 Curve Crawler 的 SoA 表。
  */
 export class CurveCrawlerState {
   public readonly table: CurveCrawlerTable;
   public readonly data: CurveCrawlerData;
-  public readonly arena: CurveCrawlerArenaBounds;
 
   constructor(options: NormalizedCurveCrawlerPopulationOptions) {
     this.table = new EntityTable(CURVE_CRAWLER_SCHEMA, options.count);
     this.table.allocate(options.count);
     this.data = this.table.data;
-    this.arena = Object.freeze({
-      halfWidth: options.arena.width * 0.5,
-      halfHeight: options.arena.height * 0.5,
-    });
-
     initializeCurveCrawlerData(this, options);
   }
 
@@ -57,11 +45,11 @@ function initializeCurveCrawlerData(
   const layoutState = new Uint32Array(1);
   layoutState[0] = normalizeRandomSeed(options.seed ^ 0x51f15e5d);
 
-  const aspect = options.arena.width / Math.max(options.arena.height, 1);
+  const aspect = options.spawnArea.width / Math.max(options.spawnArea.height, 1);
   const columns = Math.max(1, Math.ceil(Math.sqrt(options.count * aspect)));
   const rows = Math.ceil(options.count / columns);
-  const cellWidth = options.arena.width / columns;
-  const cellHeight = options.arena.height / rows;
+  const cellWidth = options.spawnArea.width / columns;
+  const cellHeight = options.spawnArea.height / rows;
 
   for (let index = 0; index < options.count; index++) {
     identity.id[index] = index;
@@ -69,10 +57,10 @@ function initializeCurveCrawlerData(
 
     const column = index % columns;
     const row = Math.floor(index / columns);
-    transform.x[index] = -options.arena.width * 0.5
+    transform.x[index] = -options.spawnArea.width * 0.5
       + (column + 0.5) * cellWidth
       + randomRange(layoutState, 0, -cellWidth * 0.28, cellWidth * 0.28);
-    transform.y[index] = -options.arena.height * 0.5
+    transform.y[index] = -options.spawnArea.height * 0.5
       + (row + 0.5) * cellHeight
       + randomRange(layoutState, 0, -cellHeight * 0.28, cellHeight * 0.28);
 

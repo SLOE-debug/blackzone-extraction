@@ -7,12 +7,13 @@ export interface WritableTriangleGeometry {
   readonly maxVertices: number;
   readonly maxIndices: number;
   readonly positions: Float32Array;
+  readonly normals: Float32Array;
   readonly index: GeometryIndexArray;
   commitCounts(vertexCount: number, indexCount: number): void;
 }
 
 /**
- * 按固定顺序写入三角形位置和索引拓扑。
+ * 按固定顺序写入三角形位置、法线和索引拓扑。
  */
 export class TriangleMeshWriter {
   private writeTopology = true;
@@ -42,8 +43,15 @@ export class TriangleMeshWriter {
     this.indexCursor = 0;
   }
 
-  /** 写入一个三维顶点并返回其索引。 */
-  public vertex(x: number, y: number, z: number): number {
+  /** 写入一个带单位法线的三维顶点并返回其索引。 */
+  public vertex(
+    x: number,
+    y: number,
+    z: number,
+    normalX: number,
+    normalY: number,
+    normalZ: number,
+  ): number {
     if (this.vertexCursor >= this.geometry.maxVertices) {
       throw new Error('三角网格写入器超过了顶点容量。');
     }
@@ -53,6 +61,9 @@ export class TriangleMeshWriter {
     this.geometry.positions[offset] = x;
     this.geometry.positions[offset + 1] = y;
     this.geometry.positions[offset + 2] = z;
+    this.geometry.normals[offset] = normalX;
+    this.geometry.normals[offset + 1] = normalY;
+    this.geometry.normals[offset + 2] = normalZ;
     return vertexIndex;
   }
 

@@ -1,10 +1,11 @@
 import { type EntityRange } from '../../../../../core/entities/entity-range';
 import { type FixedTopologyGeometrySource } from '../../../../../core/geometry/fixed-topology';
-import { SmoothCurveTessellator } from '../../../../../core/geometry/smooth-curve-tessellator';
 import { type TriangleMeshWriter } from '../../../../../core/geometry/triangle-mesh-writer';
+import { VolumetricTessellator } from '../../../../../core/geometry/volumetric-tessellator';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
-  CURVE_CRAWLER_EYE_SEGMENTS,
+  CURVE_CRAWLER_EYE_LATITUDE_SEGMENTS,
+  CURVE_CRAWLER_EYE_LONGITUDE_SEGMENTS,
   CURVE_CRAWLER_EYE_TOPOLOGY,
 } from './curve-crawler-topology';
 
@@ -26,23 +27,29 @@ implements FixedTopologyGeometrySource<CurveCrawlerState> {
       const forward = bodyLength * 0.48;
       const sideOffset = bodyWidth * 0.17;
       const radiusX = morphology.eyeRadius[index] ?? 0;
-      const radiusY = radiusX * Math.max(animation.blinkScale[index] ?? 1, 0.08);
+      const radiusY = radiusX * 0.92;
+      const radiusZ = radiusX * Math.max(animation.blinkScale[index] ?? 1, 0.08);
       const originX = transform.x[index] ?? 0;
       const originY = transform.y[index] ?? 0;
+      const thoraxRadiusZ = bodyWidth * 0.36;
+      const crouchAmount = animation.crouchAmount[index] ?? 0;
+      const eyeCenterZ = thoraxRadiusZ * (1.8 - crouchAmount * 0.2);
 
       for (let side = -1; side <= 1; side += 2) {
         const localY = side * sideOffset;
         const centerX = originX + forward * headingCosine - localY * headingSine;
         const centerY = originY + forward * headingSine + localY * headingCosine;
-        SmoothCurveTessellator.appendEllipse(
+        VolumetricTessellator.appendEllipsoid(
           writer,
           centerX,
           centerY,
+          eyeCenterZ,
           radiusX,
           radiusY,
+          radiusZ,
           heading,
-          CURVE_CRAWLER_EYE_SEGMENTS,
-          0.5,
+          CURVE_CRAWLER_EYE_LONGITUDE_SEGMENTS,
+          CURVE_CRAWLER_EYE_LATITUDE_SEGMENTS,
         );
       }
     }
