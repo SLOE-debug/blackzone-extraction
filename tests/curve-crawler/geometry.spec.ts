@@ -107,7 +107,7 @@ describe('Curve Crawler 固定拓扑', () => {
         + CURVE_CRAWLER_EYE_TOPOLOGY.verticesPerEntity
     ) * state.count * 4;
     expect(geometry.colors[liquidColorOffset] ?? 1).toBeLessThan(0.2);
-    expect(geometry.colors[liquidColorOffset + 1] ?? 0).toBeGreaterThan(0.3);
+    expect(geometry.colors[liquidColorOffset + 1] ?? 0).toBeGreaterThan(0.2);
   });
 
   it('液体沿负 Y 方向收拢后保持固定拓扑并退化为零面积线段', () => {

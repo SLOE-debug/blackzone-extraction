@@ -34,15 +34,15 @@ const HIT_TINT: SurfaceColorTint = Object.freeze({
   alpha: 1,
 });
 const LIQUID_TINT: SurfaceColorTint = Object.freeze({
-  red: 30 * BYTE_COLOR_SCALE,
-  green: 148 * BYTE_COLOR_SCALE,
-  blue: 54 * BYTE_COLOR_SCALE,
+  red: 27 * BYTE_COLOR_SCALE,
+  green: 82 * BYTE_COLOR_SCALE,
+  blue: 45 * BYTE_COLOR_SCALE,
   alpha: 1,
 });
 const DRAINED_LIQUID_TINT: SurfaceColorTint = Object.freeze({
-  red: 9 * BYTE_COLOR_SCALE,
-  green: 48 * BYTE_COLOR_SCALE,
-  blue: 18 * BYTE_COLOR_SCALE,
+  red: 8 * BYTE_COLOR_SCALE,
+  green: 30 * BYTE_COLOR_SCALE,
+  blue: 17 * BYTE_COLOR_SCALE,
   alpha: 1,
 });
 
