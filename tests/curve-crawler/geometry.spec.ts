@@ -8,14 +8,18 @@ import { TriangleMeshWriter } from '../../assets/core/geometry/triangle-mesh-wri
 import { directionalVertexShading } from '../../assets/core/rendering/directional-vertex-shading';
 import { curveCrawlerBodyGeometry } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-body-geometry';
 import { curveCrawlerEyeGeometry } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-eye-geometry';
+import { curveCrawlerLiquidGeometry } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-liquid-geometry';
 import { curveCrawlerSurfaceGeometry } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-surface-geometry';
 import {
   CURVE_CRAWLER_BODY_TOPOLOGY,
   CURVE_CRAWLER_EYE_TOPOLOGY,
+  CURVE_CRAWLER_LIQUID_TOPOLOGY,
   CURVE_CRAWLER_SURFACE_TOPOLOGY,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-topology';
 import { normalizeCurveCrawlerOptions } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-options';
+import { CURVE_CRAWLER_BURST_DURATION } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
+import { CurveCrawlerDeathSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-death-system';
 import { curveCrawlerVertexShading } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-vertex-shading';
 
 function createState(): CurveCrawlerState {
@@ -49,8 +53,8 @@ describe('Curve Crawler 固定拓扑', () => {
     eyeWriter.reset(true);
     curveCrawlerEyeGeometry.write(eyeWriter, state, range);
     eyeWriter.commit();
-    directionalVertexShading.update(body);
-    directionalVertexShading.update(eyes);
+    directionalVertexShading.update(body, state, range);
+    directionalVertexShading.update(eyes, state, range);
 
     expect(body.vertexCount).toBe(506 * state.count);
     expect(body.indexCount).toBe(2256 * state.count);
@@ -74,7 +78,7 @@ describe('Curve Crawler 固定拓扑', () => {
     }
   });
 
-  it('身体和双眼合并为一个带分区顶点色的 Uint32 表面', () => {
+  it('身体、双眼和液体合并为一个带分区顶点色的 Uint32 表面', () => {
     const state = createState();
     const range = createEntityRange(0, state.count, state.count);
     const geometry = createSurfaceGeometry(
@@ -87,16 +91,55 @@ describe('Curve Crawler 固定拓扑', () => {
     writer.reset(true);
     curveCrawlerSurfaceGeometry.write(writer, state, range);
     writer.commit();
-    curveCrawlerVertexShading.update(geometry);
+    curveCrawlerVertexShading.update(geometry, state, range);
 
-    expect(geometry.vertexCount).toBe(562 * state.count);
-    expect(geometry.indexCount).toBe(2472 * state.count);
+    expect(geometry.vertexCount).toBe(581 * state.count);
+    expect(geometry.indexCount).toBe(2526 * state.count);
     expect(geometry.index).toBeInstanceOf(Uint32Array);
 
     const eyeColorOffset = CURVE_CRAWLER_BODY_TOPOLOGY.verticesPerEntity * state.count * 4;
     expect(geometry.colors[0] ?? 0).toBeLessThan(0.1);
     expect(geometry.colors[eyeColorOffset] ?? 0).toBeGreaterThan(0.3);
     expect(geometry.colors[eyeColorOffset + 1] ?? 1).toBeLessThan(0.1);
+
+    const liquidColorOffset = (
+      CURVE_CRAWLER_BODY_TOPOLOGY.verticesPerEntity
+        + CURVE_CRAWLER_EYE_TOPOLOGY.verticesPerEntity
+    ) * state.count * 4;
+    expect(geometry.colors[liquidColorOffset] ?? 1).toBeLessThan(0.2);
+    expect(geometry.colors[liquidColorOffset + 1] ?? 0).toBeGreaterThan(0.3);
+  });
+
+  it('液体沿负 Y 方向收拢后保持固定拓扑并退化为零面积线段', () => {
+    const state = createState();
+    const range = createEntityRange(0, 1, state.count);
+    const geometry = createSurfaceGeometry(
+      CURVE_CRAWLER_LIQUID_TOPOLOGY.verticesPerEntity,
+      CURVE_CRAWLER_LIQUID_TOPOLOGY.indicesPerEntity,
+      GeometryIndexFormat.Uint16,
+    );
+    const writer = new TriangleMeshWriter(geometry);
+    state.data.animation.liquidSpread[0] = 1;
+    state.data.animation.liquidDrain[0] = 0;
+
+    writer.reset(true);
+    curveCrawlerLiquidGeometry.write(writer, state, range);
+    writer.commit();
+    const originalIndices = Array.from(geometry.index);
+    const expandedCenterY = geometry.positions[1] ?? 0;
+
+    state.data.animation.liquidDrain[0] = 1;
+    writer.reset(false);
+    curveCrawlerLiquidGeometry.write(writer, state, range);
+    writer.assertCounts(geometry.vertexCount, geometry.indexCount);
+    writer.commit();
+
+    const drainedY = geometry.positions[1] ?? 0;
+    expect(drainedY).toBeLessThan(expandedCenterY);
+    for (let offset = 1; offset < geometry.vertexCount * 3; offset += 3) {
+      expect(geometry.positions[offset]).toBeCloseTo(drainedY, 5);
+    }
+    expect(Array.from(geometry.index)).toEqual(originalIndices);
   });
 
   it('动态帧只重写位置并保持索引完全不变', () => {
@@ -122,5 +165,28 @@ describe('Curve Crawler 固定拓扑', () => {
 
     expect(Array.from(geometry.index)).toEqual(originalIndices);
     expect(geometry.positions[0]).not.toBe(originalFirstPosition);
+  });
+
+  it('独立飞散中的全部碎块保持有限顶点和固定拓扑', () => {
+    const state = createState();
+    const range = createEntityRange(0, state.count, state.count);
+    const death = new CurveCrawlerDeathSystem();
+    const geometry = createSurfaceGeometry(
+      CURVE_CRAWLER_SURFACE_TOPOLOGY.verticesPerEntity * state.count,
+      CURVE_CRAWLER_SURFACE_TOPOLOGY.indicesPerEntity * state.count,
+      GeometryIndexFormat.Uint32,
+    );
+    const writer = new TriangleMeshWriter(geometry);
+    death.start(state, 0);
+    death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.75);
+
+    writer.reset(true);
+    curveCrawlerSurfaceGeometry.write(writer, state, range);
+    writer.commit();
+
+    expect(writer.vertexCount).toBe(CURVE_CRAWLER_SURFACE_TOPOLOGY.verticesPerEntity * state.count);
+    expect(writer.indexCount).toBe(CURVE_CRAWLER_SURFACE_TOPOLOGY.indicesPerEntity * state.count);
+    expect(Array.from(geometry.getPositionView()).every(Number.isFinite)).toBe(true);
+    expect(Array.from(geometry.getNormalView()).every(Number.isFinite)).toBe(true);
   });
 });

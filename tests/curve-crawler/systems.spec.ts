@@ -2,9 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { CurveCrawlerAnimationSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/animation/curve-crawler-animation-system';
 import { CurveCrawlerBehaviorSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/behavior/curve-crawler-behavior-system';
 import { CurveCrawlerAction } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-action';
+import {
+  CURVE_CRAWLER_BURST_DURATION,
+  CURVE_CRAWLER_LIQUID_DURATION,
+  CurveCrawlerLifePhase,
+} from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
 import { normalizeCurveCrawlerOptions } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-options';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerMovementSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/movement/curve-crawler-movement-system';
+import { CurveCrawlerDeathSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-death-system';
+import { CurveCrawlerHitSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-hit-system';
 import {
   createCurveCrawlerBounds,
   updateCurveCrawlerBounds,
@@ -88,5 +95,40 @@ describe('Curve Crawler 系统', () => {
     expect(state.data.animation.crouchAmount[0] ?? 0).toBeGreaterThan(0);
     expect(state.data.animation.waveAmount[0] ?? 0).toBeGreaterThan(0);
     expect(Number.isFinite(state.data.animation.bodyPulse[0])).toBe(true);
+  });
+
+  it('非致命伤害触发受击闪红但保持存活', () => {
+    const state = createState();
+    const hit = new CurveCrawlerHitSystem();
+
+    expect(hit.damage(state, 0, 25)).toBe(false);
+    hit.update(state, 1 / 60);
+
+    expect(state.data.vitality.health[0]).toBe(75);
+    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Alive);
+    expect(state.data.animation.hitFlash[0] ?? 0).toBeGreaterThan(0);
+  });
+
+  it('致命伤害依次推进爆裂、液化和消失阶段', () => {
+    const state = createState();
+    const hit = new CurveCrawlerHitSystem();
+    const death = new CurveCrawlerDeathSystem();
+
+    expect(hit.damage(state, 0, 100)).toBe(true);
+    death.start(state, 0);
+    death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.75);
+    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Bursting);
+    expect(state.data.animation.liquidSpread[0] ?? 0).toBeGreaterThan(0);
+    const fragmentOffsets = Array.from(state.data.animation.fragmentOffsetX.slice(0, 12));
+    expect(new Set(fragmentOffsets.map((value) => value.toFixed(3))).size).toBeGreaterThan(6);
+    expect(Math.max(...state.data.animation.fragmentOffsetZ.slice(0, 12))).toBeGreaterThan(2);
+
+    death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.25);
+    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Liquefying);
+    expect(state.data.animation.surfaceCollapse[0]).toBe(1);
+
+    death.update(state, CURVE_CRAWLER_LIQUID_DURATION);
+    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Gone);
+    expect(state.data.animation.liquidDrain[0]).toBe(1);
   });
 });

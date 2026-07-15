@@ -2,8 +2,13 @@ import { type EntityRange } from '../../../../../core/entities/entity-range';
 import { type FixedTopologyGeometrySource } from '../../../../../core/geometry/fixed-topology';
 import { type TriangleMeshWriter } from '../../../../../core/geometry/triangle-mesh-writer';
 import { VolumetricTessellator } from '../../../../../core/geometry/volumetric-tessellator';
-import { CURVE_CRAWLER_LEG_COUNT } from '../model/curve-crawler-schema';
+import {
+  CURVE_CRAWLER_FRAGMENT_COUNT,
+  CURVE_CRAWLER_LEG_COUNT,
+  CurveCrawlerFragmentIndex,
+} from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { writeCurveCrawlerDegenerateGeometry } from './curve-crawler-degenerate-geometry';
 import { writeCurveCrawlerLeg } from './curve-crawler-leg-geometry';
 import {
   CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
@@ -21,12 +26,30 @@ implements FixedTopologyGeometrySource<CurveCrawlerState> {
     const { transform, morphology, animation } = state.data;
 
     for (let index = range.start; index < range.end; index++) {
+      const originX = transform.x[index] ?? 0;
+      const originY = transform.y[index] ?? 0;
+      const surfaceCollapse = animation.surfaceCollapse[index] ?? 0;
+      if (surfaceCollapse >= 0.999) {
+        writeCurveCrawlerDegenerateGeometry(
+          writer,
+          CURVE_CRAWLER_BODY_TOPOLOGY.verticesPerEntity,
+          CURVE_CRAWLER_BODY_TOPOLOGY.indicesPerEntity,
+          originX,
+          originY,
+          0,
+        );
+        continue;
+      }
+
       const heading = transform.heading[index] ?? 0;
       const headingCosine = Math.cos(heading);
       const headingSine = Math.sin(heading);
+      const fragmentScale = Math.max(0.0001, 1 - surfaceCollapse);
       const pulse = 1 + (animation.bodyPulse[index] ?? 0);
-      const bodyLength = (morphology.bodyLength[index] ?? 0) * pulse;
-      const bodyWidth = (morphology.bodyWidth[index] ?? 0)
+      const originalBodyLength = morphology.bodyLength[index] ?? 0;
+      const originalBodyWidth = morphology.bodyWidth[index] ?? 0;
+      const bodyLength = originalBodyLength * pulse;
+      const bodyWidth = originalBodyWidth
         * (1 - (animation.bodyPulse[index] ?? 0) * 0.35
           - (animation.crouchAmount[index] ?? 0) * 0.08);
       const legLength = (morphology.legLength[index] ?? 0)
@@ -46,26 +69,33 @@ implements FixedTopologyGeometrySource<CurveCrawlerState> {
           bodyWidth,
           legLength,
           legWidth,
+          fragmentScale,
         );
       }
 
-      const originX = transform.x[index] ?? 0;
-      const originY = transform.y[index] ?? 0;
-      const abdomenX = originX - headingCosine * bodyLength * 0.15;
-      const abdomenY = originY - headingSine * bodyLength * 0.15;
-      const thoraxX = originX + headingCosine * bodyLength * 0.28;
-      const thoraxY = originY + headingSine * bodyLength * 0.28;
+      const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
+      const abdomenFragment = fragmentOffset + CurveCrawlerFragmentIndex.Abdomen;
+      const thoraxFragment = fragmentOffset + CurveCrawlerFragmentIndex.Thorax;
+      const abdomenX = originX - headingCosine * bodyLength * 0.15
+        + (animation.fragmentOffsetX[abdomenFragment] ?? 0);
+      const abdomenY = originY - headingSine * bodyLength * 0.15
+        + (animation.fragmentOffsetY[abdomenFragment] ?? 0);
+      const thoraxX = originX + headingCosine * bodyLength * 0.28
+        + (animation.fragmentOffsetX[thoraxFragment] ?? 0);
+      const thoraxY = originY + headingSine * bodyLength * 0.28
+        + (animation.fragmentOffsetY[thoraxFragment] ?? 0);
 
       const abdomenRadiusZ = bodyWidth * 0.42;
       VolumetricTessellator.appendEllipsoid(
         writer,
         abdomenX,
         abdomenY,
-        abdomenRadiusZ * (0.92 - crouchAmount * 0.22),
-        bodyLength * 0.48,
-        bodyWidth * 0.52,
-        abdomenRadiusZ,
-        heading,
+        abdomenRadiusZ * (0.92 - crouchAmount * 0.22)
+          + (animation.fragmentOffsetZ[abdomenFragment] ?? 0),
+        Math.max(bodyLength * 0.48 * fragmentScale, 0.0001),
+        Math.max(bodyWidth * 0.52 * fragmentScale, 0.0001),
+        Math.max(abdomenRadiusZ * fragmentScale, 0.0001),
+        heading + (animation.fragmentRotation[abdomenFragment] ?? 0),
         CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
         CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
       );
@@ -74,11 +104,12 @@ implements FixedTopologyGeometrySource<CurveCrawlerState> {
         writer,
         thoraxX,
         thoraxY,
-        thoraxRadiusZ * (1.08 - crouchAmount * 0.2),
-        bodyLength * 0.3,
-        bodyWidth * 0.42,
-        thoraxRadiusZ,
-        heading,
+        thoraxRadiusZ * (1.08 - crouchAmount * 0.2)
+          + (animation.fragmentOffsetZ[thoraxFragment] ?? 0),
+        Math.max(bodyLength * 0.3 * fragmentScale, 0.0001),
+        Math.max(bodyWidth * 0.42 * fragmentScale, 0.0001),
+        Math.max(thoraxRadiusZ * fragmentScale, 0.0001),
+        heading + (animation.fragmentRotation[thoraxFragment] ?? 0),
         CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
         CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
       );

@@ -19,6 +19,15 @@ describe('Curve Crawler 状态初始化', () => {
     expect(Array.from(first.data.morphology.legLength)).toEqual(
       Array.from(second.data.morphology.legLength),
     );
+    expect(Array.from(first.data.morphology.liquidRadiusScales)).toEqual(
+      Array.from(second.data.morphology.liquidRadiusScales),
+    );
+    expect(Array.from(first.data.death.fragmentDirectionX)).toEqual(
+      Array.from(second.data.death.fragmentDirectionX),
+    );
+    expect(Array.from(first.data.death.fragmentSpinSpeed)).toEqual(
+      Array.from(second.data.death.fragmentSpinSpeed),
+    );
     expect(Array.from(first.data.animation.legPhaseOffsets)).toEqual(
       Array.from(second.data.animation.legPhaseOffsets),
     );

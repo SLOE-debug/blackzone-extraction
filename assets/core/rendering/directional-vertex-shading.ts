@@ -1,4 +1,5 @@
 import { type SurfaceBufferGeometry } from '../geometry/buffer-geometry';
+import { type EntityRange } from '../entities/entity-range';
 
 const LIGHT_DIRECTION_X = -0.36;
 const LIGHT_DIRECTION_Y = -0.48;
@@ -20,8 +21,8 @@ const WHITE_SURFACE_TINT: SurfaceColorTint = Object.freeze({
 });
 
 /** 根据表面法线刷新动态顶点颜色的策略。 */
-export interface SurfaceVertexShading {
-  update(geometry: SurfaceBufferGeometry): void;
+export interface SurfaceVertexShading<TSource = unknown> {
+  update(geometry: SurfaceBufferGeometry, source: TSource, range: EntityRange): void;
 }
 
 /**
@@ -29,7 +30,7 @@ export interface SurfaceVertexShading {
  *
  * 该策略不依赖场景 Effect 或实时灯光，适合大量程序化动态网格。
  */
-class DirectionalVertexShading implements SurfaceVertexShading {
+class DirectionalVertexShading implements SurfaceVertexShading<unknown> {
   /** 根据当前法线原地更新 RGBA 颜色流。 */
   public update(geometry: SurfaceBufferGeometry): void {
     shadeDirectionalVertexRange(geometry, 0, geometry.vertexCount, WHITE_SURFACE_TINT);
@@ -79,4 +80,4 @@ export function shadeDirectionalVertexRange(
 }
 
 /** 大量动态表面共享的无状态方向光顶点着色器。 */
-export const directionalVertexShading: SurfaceVertexShading = new DirectionalVertexShading();
+export const directionalVertexShading: SurfaceVertexShading<unknown> = new DirectionalVertexShading();

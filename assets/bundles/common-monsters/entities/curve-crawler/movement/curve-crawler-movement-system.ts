@@ -1,14 +1,20 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { damp, dampAngle } from '../../../../../core/math/scalar';
+import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /** 负责速度、朝向和不受区域边界限制的位移。 */
 export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的移动状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { transform, intent, motion } = state.data;
+    const { transform, vitality, intent, motion } = state.data;
 
     for (let index = 0; index < state.count; index++) {
+      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+        motion.currentSpeed[index] = 0;
+        continue;
+      }
+
       const currentSpeed = damp(
         motion.currentSpeed[index] ?? 0,
         intent.targetSpeed[index] ?? 0,

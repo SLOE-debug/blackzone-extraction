@@ -18,6 +18,8 @@ const { ccclass, property } = _decorator;
 const CAMERA_TARGET = new Vec3(0, 0, 0);
 
 interface DemoPopulation {
+  readonly count: number;
+  damage(entityId: number, amount: number): void;
   update(deltaTime: number): void;
   dispose(): void;
 }
@@ -39,9 +41,18 @@ export class CommonMonstersDemo extends Component {
   @property({ tooltip: '用于复现相同群体行为的随机种子。' })
   public seed = 20260715;
 
+  @property({ tooltip: '是否自动依次展示受击闪红、爆裂和液体消失效果。' })
+  public previewDamageEffects = true;
+
+  @property({ min: 0.2, max: 3, step: 0.05, tooltip: '相邻蜘蛛死亡演示之间的间隔。' })
+  public previewDamageInterval = 0.7;
+
   private readonly featureLoader = new FeatureLoader(new BundleService(), featureRegistry);
   private population: DemoPopulation | null = null;
   private orbitCamera: OrbitCameraController | null = null;
+  private damagePreviewTime = 0.8;
+  private damagePreviewEntityId = 0;
+  private damagePreviewLethalHit = false;
   private destroyed = false;
 
   protected onLoad(): void {
@@ -54,6 +65,7 @@ export class CommonMonstersDemo extends Component {
 
   protected update(deltaTime: number): void {
     this.orbitCamera?.update(deltaTime);
+    this.updateDamagePreview(deltaTime);
     this.population?.update(deltaTime);
   }
 
@@ -80,9 +92,47 @@ export class CommonMonstersDemo extends Component {
         },
         seed: this.seed,
       });
+      this.damagePreviewTime = 0.8;
+      this.damagePreviewEntityId = this.getCenterPreviewEntityId();
+      this.damagePreviewLethalHit = false;
     } catch (cause: unknown) {
       error('Common Monsters Demo 初始化失败。', cause);
     }
+  }
+
+  private updateDamagePreview(deltaTime: number): void {
+    const population = this.population;
+    if (!this.previewDamageEffects || population === null || population.count <= 0) {
+      return;
+    }
+
+    this.damagePreviewTime -= deltaTime;
+    if (this.damagePreviewTime > 0) {
+      return;
+    }
+
+    if (!this.damagePreviewLethalHit) {
+      population.damage(this.damagePreviewEntityId, 25);
+      this.damagePreviewLethalHit = true;
+      this.damagePreviewTime = 0.28;
+      return;
+    }
+
+    population.damage(this.damagePreviewEntityId, 100);
+    this.damagePreviewEntityId = (this.damagePreviewEntityId + 1) % population.count;
+    this.damagePreviewLethalHit = false;
+    this.damagePreviewTime = this.previewDamageInterval;
+  }
+
+  /** 按群体初始化网格选择最靠近场景中心的演示实体。 */
+  private getCenterPreviewEntityId(): number {
+    const aspect = this.spawnWidth / Math.max(this.spawnHeight, 1);
+    const columns = Math.max(1, Math.ceil(Math.sqrt(this.count * aspect)));
+    const rows = Math.ceil(this.count / columns);
+    return Math.min(
+      this.count - 1,
+      Math.floor(rows * 0.5) * columns + Math.floor(columns * 0.5),
+    );
   }
 
   private configureCamera(): void {

@@ -1,6 +1,7 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
+import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /**
@@ -9,9 +10,17 @@ import { type CurveCrawlerState } from '../model/curve-crawler-state';
 export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的行为状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { identity, transform, morphology, behavior, intent } = state.data;
+    const { identity, transform, morphology, vitality, behavior, intent } = state.data;
 
     for (let index = 0; index < state.count; index++) {
+      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+        intent.targetSpeed[index] = 0;
+        intent.targetCrouch[index] = 0;
+        intent.targetWave[index] = 0;
+        intent.gaitMultiplier[index] = 0;
+        continue;
+      }
+
       behavior.actionTime[index] = (behavior.actionTime[index] ?? 0) - deltaTime;
       behavior.nextTurnTime[index] = (behavior.nextTurnTime[index] ?? 0) - deltaTime;
 
@@ -66,8 +75,11 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
 
   /** 让全部实体立即进入短时疾跑状态。 */
   public triggerScuttle(state: CurveCrawlerState): void {
-    const { identity, behavior } = state.data;
+    const { identity, vitality, behavior } = state.data;
     for (let index = 0; index < state.count; index++) {
+      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+        continue;
+      }
       behavior.action[index] = CurveCrawlerAction.Scuttle;
       behavior.actionTime[index] = randomRange(identity.randomState, index, 0.9, 2.2);
       behavior.actionDuration[index] = behavior.actionTime[index] ?? 1;

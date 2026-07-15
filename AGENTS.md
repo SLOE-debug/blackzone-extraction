@@ -50,6 +50,12 @@
 - Feature 加载必须经过 `FeatureId`、Feature 清单、`FeatureLoader` 和类型化 Feature 注册表。
 - 新增 Bundle 或 Feature 时先补强类型清单，再接入加载调用点。
 
+## Cocos 元数据
+
+- **禁止手动创建、复制或修改 Cocos `.meta` 文件。**
+- 新增、移动或重命名 TypeScript、资源及目录时，只处理实际源文件；对应 `.meta` 文件统一由 Cocos 编辑器自动生成和维护。
+- 不要为了让文件与 `.meta` 成对出现而预生成 UUID，也不要复制其他资源的 `.meta` 作为模板。
+
 ## 实现规范
 
 - 单文件超过 500 行前必须先评估拆分。

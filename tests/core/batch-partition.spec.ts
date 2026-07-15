@@ -26,7 +26,7 @@ describe('固定拓扑批次切分', () => {
     );
     const partitions = partitionBatches(180, 180, maximumBatchSize);
 
-    expect(maximumBatchSize).toBe(7642290);
+    expect(maximumBatchSize).toBe(7392370);
     expect(partitions).toHaveLength(1);
     expect(partitions[0]?.range).toEqual({ start: 0, count: 180, end: 180 });
   });
@@ -38,7 +38,7 @@ describe('固定拓扑批次切分', () => {
     );
     const partitions = partitionBatches(340, 500, maximumBatchSize);
 
-    expect(maximumBatchSize).toBe(116);
-    expect(partitions.map((partition) => partition.range.count)).toEqual([116, 116, 108]);
+    expect(maximumBatchSize).toBe(112);
+    expect(partitions.map((partition) => partition.range.count)).toEqual([112, 112, 112, 4]);
   });
 });

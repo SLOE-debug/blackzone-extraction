@@ -7,15 +7,20 @@ import {
 } from '../../../../../core/math/xorshift32';
 import { TAU } from '../../../../../core/math/scalar';
 import { CurveCrawlerAction } from './curve-crawler-action';
+import { CURVE_CRAWLER_MAX_HEALTH, CurveCrawlerLifePhase } from './curve-crawler-life';
 import {
   type NormalizedCurveCrawlerPopulationOptions,
 } from './curve-crawler-options';
 import {
   CURVE_CRAWLER_LEG_COUNT,
+  CURVE_CRAWLER_FRAGMENT_COUNT,
+  CURVE_CRAWLER_LIQUID_RAY_COUNT,
   CURVE_CRAWLER_SCHEMA,
   type CurveCrawlerData,
   type CurveCrawlerTable,
 } from './curve-crawler-schema';
+
+const FRAGMENT_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
 /**
  * 聚合 Curve Crawler 的 SoA 表。
@@ -41,7 +46,17 @@ function initializeCurveCrawlerData(
   state: CurveCrawlerState,
   options: NormalizedCurveCrawlerPopulationOptions,
 ): void {
-  const { identity, transform, morphology, behavior, intent, motion, animation } = state.data;
+  const {
+    identity,
+    transform,
+    morphology,
+    vitality,
+    death,
+    behavior,
+    intent,
+    motion,
+    animation,
+  } = state.data;
   const layoutState = new Uint32Array(1);
   layoutState[0] = normalizeRandomSeed(options.seed ^ 0x51f15e5d);
 
@@ -75,6 +90,53 @@ function initializeCurveCrawlerData(
     morphology.eyeRadius[index] = randomRange(identity.randomState, index, 0.35, 0.55);
     morphology.cruiseSpeed[index] = randomRange(identity.randomState, index, 7, 14);
 
+    const liquidRadiusOffset = index * CURVE_CRAWLER_LIQUID_RAY_COUNT;
+    for (let ray = 0; ray < CURVE_CRAWLER_LIQUID_RAY_COUNT; ray++) {
+      morphology.liquidRadiusScales[liquidRadiusOffset + ray] = randomRange(
+        identity.randomState,
+        index,
+        0.72,
+        1.2,
+      );
+    }
+
+    vitality.health[index] = CURVE_CRAWLER_MAX_HEALTH;
+    vitality.phase[index] = CurveCrawlerLifePhase.Alive;
+    vitality.phaseTime[index] = 0;
+    vitality.hitTime[index] = 0;
+
+    const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
+    const fragmentAngleOrigin = randomRange(identity.randomState, index, 0, TAU);
+    for (let fragment = 0; fragment < CURVE_CRAWLER_FRAGMENT_COUNT; fragment++) {
+      const angle = fragmentAngleOrigin + fragment * FRAGMENT_GOLDEN_ANGLE
+        + randomRange(identity.randomState, index, -0.46, 0.46);
+      const spinDirection = nextRandom(identity.randomState, index) < 0.5 ? -1 : 1;
+      death.fragmentDirectionX[fragmentOffset + fragment] = Math.cos(angle);
+      death.fragmentDirectionY[fragmentOffset + fragment] = Math.sin(angle);
+      death.fragmentTravelDistance[fragmentOffset + fragment] = randomRange(
+        identity.randomState,
+        index,
+        7,
+        15,
+      );
+      death.fragmentLiftHeight[fragmentOffset + fragment] = randomRange(
+        identity.randomState,
+        index,
+        2.8,
+        7.5,
+      );
+      death.fragmentSpinSpeed[fragmentOffset + fragment] = spinDirection * randomRange(
+        identity.randomState,
+        index,
+        3.5,
+        8.5,
+      );
+      animation.fragmentOffsetX[fragmentOffset + fragment] = 0;
+      animation.fragmentOffsetY[fragmentOffset + fragment] = 0;
+      animation.fragmentOffsetZ[fragmentOffset + fragment] = 0;
+      animation.fragmentRotation[fragmentOffset + fragment] = 0;
+    }
+
     behavior.action[index] = CurveCrawlerAction.Crawl;
     behavior.actionTime[index] = randomRange(identity.randomState, index, 0.3, 3.5);
     behavior.actionDuration[index] = behavior.actionTime[index] ?? 1;
@@ -96,6 +158,10 @@ function initializeCurveCrawlerData(
     animation.blinkScale[index] = 1;
     animation.nextBlinkTime[index] = randomRange(identity.randomState, index, 1.5, 6);
     animation.blinkTime[index] = 0;
+    animation.hitFlash[index] = 0;
+    animation.surfaceCollapse[index] = 0;
+    animation.liquidSpread[index] = 0;
+    animation.liquidDrain[index] = 0;
 
     const phaseOffset = index * CURVE_CRAWLER_LEG_COUNT;
     for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {

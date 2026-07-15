@@ -1,15 +1,20 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { damp, wrapAngle } from '../../../../../core/math/scalar';
 import { randomRange } from '../../../../../core/math/xorshift32';
+import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
-/** 负责步态、姿态混合、身体脉动和眨眼。 */
+/** 负责存活实体的步态、姿态混合、身体脉动和眨眼。 */
 export class CurveCrawlerAnimationSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的动画状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { identity, morphology, intent, motion, animation } = state.data;
+    const { identity, morphology, vitality, intent, motion, animation } = state.data;
 
     for (let index = 0; index < state.count; index++) {
+      const lifePhase = vitality.phase[index] as CurveCrawlerLifePhase;
+      if (lifePhase !== CurveCrawlerLifePhase.Alive) {
+        continue;
+      }
       const crouchAmount = damp(
         animation.crouchAmount[index] ?? 0,
         intent.targetCrouch[index] ?? 0,

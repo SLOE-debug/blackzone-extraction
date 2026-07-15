@@ -1,6 +1,7 @@
 import { type TriangleMeshWriter } from '../../../../../core/geometry/triangle-mesh-writer';
 import { VolumetricTessellator } from '../../../../../core/geometry/volumetric-tessellator';
 import { lerp } from '../../../../../core/math/scalar';
+import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
   CURVE_CRAWLER_FOOT_LATITUDE_SEGMENTS,
@@ -23,6 +24,7 @@ export function writeCurveCrawlerLeg(
   bodyWidth: number,
   legLength: number,
   legWidth: number,
+  fragmentScale: number,
 ): void {
   const { transform, behavior, animation } = state.data;
   const side = legIndex < 4 ? 1 : -1;
@@ -46,8 +48,8 @@ export function writeCurveCrawlerLeg(
   let p2y = side * (bodyWidth * 0.42 + legLength * (0.62 - lift * 0.09));
   let p3x = rootAlongBody + forwardFan + stride;
   let p3y = side * (bodyWidth * 0.4 + legLength * 0.78 * outwardScale);
-  const startRadius = legWidth * 0.5;
-  const endRadius = legWidth * 0.29;
+  const startRadius = Math.max(legWidth * 0.5 * fragmentScale, 0.0001);
+  const endRadius = Math.max(legWidth * 0.29 * fragmentScale, 0.0001);
   const footRadius = endRadius * 1.2;
   const gaitLift = lift * legLength * 0.11;
   const p0z = bodyWidth * (0.28 - crouchAmount * 0.05);
@@ -68,31 +70,62 @@ export function writeCurveCrawlerLeg(
     p3z = lerp(p3z, p0z + legLength * 0.76, waveAmount);
   }
 
+  const fragmentOffset = entityIndex * CURVE_CRAWLER_FRAGMENT_COUNT + legIndex;
+  const fragmentRotation = animation.fragmentRotation[fragmentOffset] ?? 0;
+  if (fragmentRotation !== 0 || fragmentScale < 0.9999) {
+    const fragmentRotationCosine = Math.cos(fragmentRotation);
+    const fragmentRotationSine = Math.sin(fragmentRotation);
+    const relativeP1x = p1x - p0x;
+    const relativeP1y = p1y - p0y;
+    p1x = p0x + (relativeP1x * fragmentRotationCosine
+      - relativeP1y * fragmentRotationSine) * fragmentScale;
+    p1y = p0y + (relativeP1x * fragmentRotationSine
+      + relativeP1y * fragmentRotationCosine) * fragmentScale;
+    const relativeP2x = p2x - p0x;
+    const relativeP2y = p2y - p0y;
+    p2x = p0x + (relativeP2x * fragmentRotationCosine
+      - relativeP2y * fragmentRotationSine) * fragmentScale;
+    p2y = p0y + (relativeP2x * fragmentRotationSine
+      + relativeP2y * fragmentRotationCosine) * fragmentScale;
+    const relativeP3x = p3x - p0x;
+    const relativeP3y = p3y - p0y;
+    p3x = p0x + (relativeP3x * fragmentRotationCosine
+      - relativeP3y * fragmentRotationSine) * fragmentScale;
+    p3y = p0y + (relativeP3x * fragmentRotationSine
+      + relativeP3y * fragmentRotationCosine) * fragmentScale;
+    p1z = p0z + (p1z - p0z) * fragmentScale;
+    p2z = p0z + (p2z - p0z) * fragmentScale;
+    p3z = p0z + (p3z - p0z) * fragmentScale;
+  }
+
   const originX = transform.x[entityIndex] ?? 0;
   const originY = transform.y[entityIndex] ?? 0;
-  const worldP0x = transformX(originX, p0x, p0y, headingCosine, headingSine);
-  const worldP0y = transformY(originY, p0x, p0y, headingCosine, headingSine);
-  const worldP1x = transformX(originX, p1x, p1y, headingCosine, headingSine);
-  const worldP1y = transformY(originY, p1x, p1y, headingCosine, headingSine);
-  const worldP2x = transformX(originX, p2x, p2y, headingCosine, headingSine);
-  const worldP2y = transformY(originY, p2x, p2y, headingCosine, headingSine);
-  const worldP3x = transformX(originX, p3x, p3y, headingCosine, headingSine);
-  const worldP3y = transformY(originY, p3x, p3y, headingCosine, headingSine);
+  const fragmentOffsetX = animation.fragmentOffsetX[fragmentOffset] ?? 0;
+  const fragmentOffsetY = animation.fragmentOffsetY[fragmentOffset] ?? 0;
+  const fragmentOffsetZ = animation.fragmentOffsetZ[fragmentOffset] ?? 0;
+  const worldP0x = transformX(originX, p0x, p0y, headingCosine, headingSine) + fragmentOffsetX;
+  const worldP0y = transformY(originY, p0x, p0y, headingCosine, headingSine) + fragmentOffsetY;
+  const worldP1x = transformX(originX, p1x, p1y, headingCosine, headingSine) + fragmentOffsetX;
+  const worldP1y = transformY(originY, p1x, p1y, headingCosine, headingSine) + fragmentOffsetY;
+  const worldP2x = transformX(originX, p2x, p2y, headingCosine, headingSine) + fragmentOffsetX;
+  const worldP2y = transformY(originY, p2x, p2y, headingCosine, headingSine) + fragmentOffsetY;
+  const worldP3x = transformX(originX, p3x, p3y, headingCosine, headingSine) + fragmentOffsetX;
+  const worldP3y = transformY(originY, p3x, p3y, headingCosine, headingSine) + fragmentOffsetY;
 
   VolumetricTessellator.appendCubicTube(
     writer,
     worldP0x,
     worldP0y,
-    p0z,
+    p0z + fragmentOffsetZ,
     worldP1x,
     worldP1y,
-    p1z,
+    p1z + fragmentOffsetZ,
     worldP2x,
     worldP2y,
-    p2z,
+    p2z + fragmentOffsetZ,
     worldP3x,
     worldP3y,
-    p3z,
+    p3z + fragmentOffsetZ,
     startRadius,
     endRadius,
     CURVE_CRAWLER_LEG_SEGMENTS,
@@ -102,11 +135,11 @@ export function writeCurveCrawlerLeg(
     writer,
     worldP3x,
     worldP3y,
-    p3z,
+    p3z + fragmentOffsetZ,
     footRadius * 1.1,
     footRadius,
     footRadius,
-    0,
+    (transform.heading[entityIndex] ?? 0) + fragmentRotation,
     CURVE_CRAWLER_FOOT_LONGITUDE_SEGMENTS,
     CURVE_CRAWLER_FOOT_LATITUDE_SEGMENTS,
   );

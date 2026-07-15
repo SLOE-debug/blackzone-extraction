@@ -34,7 +34,7 @@ export interface FixedTopologyBatchRendererOptions<TSource, TLayerId extends str
   readonly requestedBatchSize: number;
   readonly indexFormat: GeometryIndexFormat;
   readonly bounds: GeometryBounds;
-  readonly shading: SurfaceVertexShading;
+  readonly shading: SurfaceVertexShading<TSource>;
   readonly layers: readonly RenderLayerDefinition<TSource, TLayerId>[];
 }
 
@@ -92,7 +92,7 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
           writer.reset(true);
           layer.geometry.write(writer, options.source, partition.range);
           writer.commit();
-          options.shading.update(geometry);
+          options.shading.update(geometry, options.source, partition.range);
 
           const batch = new DynamicMeshBatch();
           batch.initialize(
@@ -129,7 +129,7 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
         layer.source.write(layer.writer, this.options.source, chunk.range);
         layer.writer.assertCounts(layer.geometry.vertexCount, layer.geometry.indexCount);
         layer.writer.commit();
-        this.options.shading.update(layer.geometry);
+        this.options.shading.update(layer.geometry, this.options.source, chunk.range);
         layer.batch.uploadVertexAttributes();
         if (bounds !== undefined) {
           layer.batch.updateBounds(bounds);

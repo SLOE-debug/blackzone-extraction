@@ -10,6 +10,8 @@ import { CurveCrawlerState } from '../model/curve-crawler-state';
 import { CurveCrawlerMovementSystem } from '../movement/curve-crawler-movement-system';
 import { CurveCrawlerRenderer } from '../rendering/curve-crawler-renderer';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
+import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
+import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
@@ -21,6 +23,8 @@ const MAXIMUM_DELTA_TIME = 0.05;
  */
 export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCommand> {
   private readonly state: CurveCrawlerState;
+  private readonly hit = new CurveCrawlerHitSystem();
+  private readonly death = new CurveCrawlerDeathSystem();
   private readonly behavior = new CurveCrawlerBehaviorSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
   private readonly animation = new CurveCrawlerAnimationSystem();
@@ -38,7 +42,7 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
     return this.state.count;
   }
 
-  /** 按行为、移动、动画、渲染的固定顺序推进一帧。 */
+  /** 按受击、死亡、行为、移动、动画、渲染的固定顺序推进一帧。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
@@ -46,6 +50,8 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
     }
 
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
+    this.hit.update(this.state, safeDeltaTime);
+    this.death.update(this.state, safeDeltaTime);
     this.behavior.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
@@ -60,9 +66,18 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
       case CurveCrawlerCommandType.Scuttle:
         this.behavior.triggerScuttle(this.state);
         break;
+      case CurveCrawlerCommandType.Damage:
+        this.applyDamage(command.entityId, command.amount);
+        break;
       default:
         throw new Error('收到未知的 Curve Crawler 命令。');
     }
+  }
+
+  /** 对指定实体施加伤害，供战斗系统或演示入口直接调用。 */
+  public damage(entityId: number, amount: number): void {
+    this.ensureActive();
+    this.applyDamage(entityId, amount);
   }
 
   /** 释放群体持有的动态网格和材质。 */
@@ -78,6 +93,13 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
   private ensureActive(): void {
     if (this.disposed) {
       throw new Error('Curve Crawler 群体已经释放。');
+    }
+  }
+
+  /** 编排受击结算，并在致命结果出现时启动独立死亡系统。 */
+  private applyDamage(entityId: number, amount: number): void {
+    if (this.hit.damage(this.state, entityId, amount)) {
+      this.death.start(this.state, entityId);
     }
   }
 }

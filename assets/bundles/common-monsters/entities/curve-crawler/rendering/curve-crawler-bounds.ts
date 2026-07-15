@@ -1,4 +1,6 @@
 import { type GeometryBounds } from '../../../../../core/geometry/buffer-geometry';
+import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
+import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /** 可原地刷新的 Curve Crawler 群体包围盒。 */
@@ -34,7 +36,7 @@ export function updateCurveCrawlerBounds(
   state: CurveCrawlerState,
   bounds: CurveCrawlerBounds,
 ): void {
-  const { transform, morphology } = state.data;
+  const { transform, morphology, vitality, animation } = state.data;
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let minZ = Number.POSITIVE_INFINITY;
@@ -43,20 +45,48 @@ export function updateCurveCrawlerBounds(
   let maxZ = Number.NEGATIVE_INFINITY;
 
   for (let index = 0; index < state.count; index++) {
-    const reach = (morphology.bodyLength[index] ?? 0) * 0.5
+    const bodyLength = morphology.bodyLength[index] ?? 0;
+    const liquidSpread = animation.liquidSpread[index] ?? 0;
+    const liquidDrain = animation.liquidDrain[index] ?? 0;
+    const baseReach = bodyLength * 0.5
       + (morphology.legLength[index] ?? 0) * 1.35
       + (morphology.legWidth[index] ?? 0);
+    const liquidReach = (bodyLength * 0.8 + (morphology.legLength[index] ?? 0) * 0.48)
+      * liquidSpread;
     const x = transform.x[index] ?? 0;
     const y = transform.y[index] ?? 0;
     const bodyWidth = morphology.bodyWidth[index] ?? 0;
     const legLength = morphology.legLength[index] ?? 0;
     const legWidth = morphology.legWidth[index] ?? 0;
-    minX = Math.min(minX, x - reach);
-    minY = Math.min(minY, y - reach);
+    let minimumFragmentX = 0;
+    let minimumFragmentY = 0;
+    let maximumFragmentX = 0;
+    let maximumFragmentY = 0;
+    let maximumFragmentZ = 0;
+    if ((vitality.phase[index] as CurveCrawlerLifePhase) === CurveCrawlerLifePhase.Bursting) {
+      const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
+      for (let fragment = 0; fragment < CURVE_CRAWLER_FRAGMENT_COUNT; fragment++) {
+        const offset = fragmentOffset + fragment;
+        minimumFragmentX = Math.min(minimumFragmentX, animation.fragmentOffsetX[offset] ?? 0);
+        minimumFragmentY = Math.min(minimumFragmentY, animation.fragmentOffsetY[offset] ?? 0);
+        maximumFragmentX = Math.max(maximumFragmentX, animation.fragmentOffsetX[offset] ?? 0);
+        maximumFragmentY = Math.max(maximumFragmentY, animation.fragmentOffsetY[offset] ?? 0);
+        maximumFragmentZ = Math.max(maximumFragmentZ, animation.fragmentOffsetZ[offset] ?? 0);
+      }
+    }
+    minX = Math.min(minX, x - baseReach + minimumFragmentX, x - liquidReach);
+    minY = Math.min(
+      minY,
+      y - baseReach + minimumFragmentY,
+      y - liquidReach - liquidReach * liquidDrain * 1.35,
+    );
     minZ = Math.min(minZ, -Math.max(bodyWidth * 0.15, legWidth));
-    maxX = Math.max(maxX, x + reach);
-    maxY = Math.max(maxY, y + reach);
-    maxZ = Math.max(maxZ, bodyWidth * 0.3 + legLength * 0.76 + legWidth);
+    maxX = Math.max(maxX, x + baseReach + maximumFragmentX, x + liquidReach);
+    maxY = Math.max(maxY, y + baseReach + maximumFragmentY, y + liquidReach);
+    maxZ = Math.max(
+      maxZ,
+      bodyWidth * 0.3 + legLength * 0.76 + legWidth + maximumFragmentZ,
+    );
   }
 
   bounds.minX = minX;

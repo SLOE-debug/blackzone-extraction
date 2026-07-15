@@ -1,5 +1,8 @@
 import { type FixedTopologyMetrics } from '../../../../../core/geometry/fixed-topology';
-import { CURVE_CRAWLER_LEG_COUNT } from '../model/curve-crawler-schema';
+import {
+  CURVE_CRAWLER_LEG_COUNT,
+  CURVE_CRAWLER_LIQUID_RAY_COUNT,
+} from '../model/curve-crawler-schema';
 
 export const CURVE_CRAWLER_LEG_SEGMENTS = 6;
 export const CURVE_CRAWLER_LEG_RADIAL_SEGMENTS = 4;
@@ -36,6 +39,8 @@ const EYE_INDICES = getEllipsoidIndexCount(
   CURVE_CRAWLER_EYE_LONGITUDE_SEGMENTS,
   CURVE_CRAWLER_EYE_LATITUDE_SEGMENTS,
 );
+const LIQUID_VERTICES = CURVE_CRAWLER_LIQUID_RAY_COUNT + 1;
+const LIQUID_INDICES = CURVE_CRAWLER_LIQUID_RAY_COUNT * 3;
 
 /** Curve Crawler 黑色身体层的固定拓扑。 */
 export const CURVE_CRAWLER_BODY_TOPOLOGY = Object.freeze({
@@ -59,10 +64,18 @@ export const CURVE_CRAWLER_EYE_TOPOLOGY = Object.freeze({
   indicesPerEntity: EYE_INDICES * 2,
 }) satisfies FixedTopologyMetrics;
 
-/** Curve Crawler 身体和双眼合并后的单批表面拓扑。 */
+/** Curve Crawler 死亡液体层的固定扇面拓扑。 */
+export const CURVE_CRAWLER_LIQUID_TOPOLOGY = Object.freeze({
+  verticesPerEntity: LIQUID_VERTICES,
+  indicesPerEntity: LIQUID_INDICES,
+}) satisfies FixedTopologyMetrics;
+
+/** Curve Crawler 身体、双眼和死亡液体合并后的单批表面拓扑。 */
 export const CURVE_CRAWLER_SURFACE_TOPOLOGY = Object.freeze({
   verticesPerEntity: CURVE_CRAWLER_BODY_TOPOLOGY.verticesPerEntity
-    + CURVE_CRAWLER_EYE_TOPOLOGY.verticesPerEntity,
+    + CURVE_CRAWLER_EYE_TOPOLOGY.verticesPerEntity
+    + CURVE_CRAWLER_LIQUID_TOPOLOGY.verticesPerEntity,
   indicesPerEntity: CURVE_CRAWLER_BODY_TOPOLOGY.indicesPerEntity
-    + CURVE_CRAWLER_EYE_TOPOLOGY.indicesPerEntity,
+    + CURVE_CRAWLER_EYE_TOPOLOGY.indicesPerEntity
+    + CURVE_CRAWLER_LIQUID_TOPOLOGY.indicesPerEntity,
 }) satisfies FixedTopologyMetrics;
