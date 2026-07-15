@@ -1,0 +1,14 @@
+{
+  "name": "blackzone-extraction",
+  "uuid": "8ecb2636-85aa-4eb2-9013-ef9f761f454e",
+  "creator": {
+    "version": "3.8.8"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "files.exclude": {
+    "**/*.meta": true,
+    "**/library": true,
+    "**/temp": true,
+    "**/local": true,
+    "**/build": true,
+    "**/profiles": true,
+    "**/native": true,
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "**/*.meta": true,
+    "**/library/**": true,
+    "**/temp/**": true,
+    "**/local/**": true,
+    "**/build/**": true,
+    "**/profiles/**": true,
+    "**/native/**": true,
+    "**/node_modules/**": true
+  },
+  "files.watcherExclude": {
+    "**/*.meta": true,
+    "**/library/**": true,
+    "**/temp/**": true,
+    "**/local/**": true,
+    "**/build/**": true,
+    "**/profiles/**": true,
+    "**/native/**": true,
+    "**/node_modules/**": true
+  }
+}
