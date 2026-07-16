@@ -12,7 +12,7 @@
 - 为了强行受光而修改角色法线的向上偏置；
 - 项目自定义 `.effect`。
 
-玩家、地面和墙面的亮度变化、锥角衰减、高光与阴影，全部来自 Cocos `cc.SpotLight` 对 `builtin-standard` 表面的真实光照计算。`LobbyLampGlow` 只表现灯具自身的暖白发光面，不负责照亮任何物体。
+玩家、地面和墙面的亮度变化、锥角衰减、高光与阴影，全部来自 Cocos `cc.SpotLight` 对 `builtin-standard` 表面的真实光照计算。`LobbyLampGlow` 只表现灯具自身的象牙金日光发光面，不负责照亮任何物体。
 
 ## 2. 场景资源与运行时节点
 
@@ -132,7 +132,7 @@ USE_ALPHA_TEST = false
 Effect: builtin-unlit
 Technique: opaque
 USE_VERTEX_COLOR: true
-Vertex Color: (1.0, 0.86, 0.65, 1.0)
+Vertex Color: (1.0, 0.9569, 0.8392, 1.0)
 ```
 
 它只让灯具发光面本身可见，不是光照源，也不绘制透明光柱。
@@ -185,7 +185,7 @@ LobbyRenderer
 | --- | --- |
 | Position | `(0, 6.65, -2)` |
 | Target | `(0, 0.05, -2)` |
-| Color | `(255, 224, 184, 255)` |
+| Color | `(255, 244, 214, 255)` |
 | Luminous Flux | `8000 lm` |
 | Size | `0.15` |
 | Range | `9` |

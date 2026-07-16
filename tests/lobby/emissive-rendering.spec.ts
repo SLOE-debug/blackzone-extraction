@@ -26,7 +26,11 @@ describe('大厅发光面合批', () => {
     expect(geometry.vertexCount).toBe(LOBBY_EMISSIVE_TOPOLOGY.verticesPerEntity);
     expect(geometry.indexCount).toBe(LOBBY_EMISSIVE_TOPOLOGY.indicesPerEntity);
     expect(ranges.ritualGlow.startVertex).toBeGreaterThan(ranges.lampGlow.startVertex);
-    expectVertexColor(geometry.colors, ranges.lampGlow.startVertex, [1, 0.86, 0.65, 1]);
+    expectVertexColor(
+      geometry.colors,
+      ranges.lampGlow.startVertex,
+      [1, 244 / 255, 214 / 255, 1],
+    );
     expectVertexColor(
       geometry.colors,
       ranges.ritualGlow.startVertex,

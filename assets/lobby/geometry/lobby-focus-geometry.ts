@@ -118,7 +118,7 @@ export function writeLobbyLampHousing(writer: TriangleMeshWriter): void {
   }
 }
 
-/** 写入朝下的暖白色分面发光圆盘。 */
+/** 写入朝下的象牙金日光分面发光圆盘。 */
 export function writeLobbyLampGlow(writer: TriangleMeshWriter): void {
   const center = { x: 0, y: LOBBY_LAYOUT.lampGlowY, z: LOBBY_LAYOUT.focusZ };
   for (let segment = 0; segment < LAMP_SEGMENTS; segment++) {

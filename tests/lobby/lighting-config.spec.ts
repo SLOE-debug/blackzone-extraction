@@ -7,7 +7,7 @@ describe('大厅真实灯光配置', () => {
       nodeName: 'MainSpotlight',
       target: { x: 0, z: -2 },
       up: { x: 0, y: 0, z: 1 },
-      color: { red: 255, green: 224, blue: 184 },
+      color: { red: 255, green: 244, blue: 214 },
       luminousFlux: 9100,
       size: 0.15,
       range: 9.4,

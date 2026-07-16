@@ -88,7 +88,7 @@ export const LOBBY_OPAQUE_TOPOLOGY: FixedTopologyMetrics = Object.freeze({
   indicesPerEntity: LOBBY_OPAQUE_TRIANGLES * 3,
 });
 
-/** 灯具暖白发光面的固定拓扑。 */
+/** 灯具象牙金日光发光面的固定拓扑。 */
 export const LOBBY_GLOW_TOPOLOGY: FixedTopologyMetrics = Object.freeze({
   verticesPerEntity: LOBBY_LAMP_GLOW_TRIANGLES * 3,
   indicesPerEntity: LOBBY_LAMP_GLOW_TRIANGLES * 3,

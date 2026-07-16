@@ -39,9 +39,8 @@ export interface OrbitCameraOptions {
 export class OrbitCameraController {
   private readonly target = new Vec3();
   private readonly position = new Vec3();
-  private readonly forward = new Vec3();
   private readonly right = new Vec3();
-  private readonly screenUp = new Vec3();
+  private readonly groundForward = new Vec3();
   private readonly panDelta = new Vec3();
   private readonly canvas = game.canvas;
   private distance: number;
@@ -120,15 +119,12 @@ export class OrbitCameraController {
     } else {
       this.zoomDelta = 0;
     }
-    if (Math.hypot(this.panDelta.x, this.panDelta.y, this.panDelta.z) > MOTION_EPSILON) {
+    if (Math.hypot(this.panDelta.x, this.panDelta.z) > MOTION_EPSILON) {
       const stepX = this.panDelta.x * damping;
-      const stepY = this.panDelta.y * damping;
       const stepZ = this.panDelta.z * damping;
       this.target.x += stepX;
-      this.target.y += stepY;
       this.target.z += stepZ;
       this.panDelta.x -= stepX;
-      this.panDelta.y -= stepY;
       this.panDelta.z -= stepZ;
       changed = true;
     } else {
@@ -212,7 +208,7 @@ export class OrbitCameraController {
     event.preventDefault();
   };
 
-  /** 按当前相机屏幕右轴和上轴，把鼠标位移换算为焦点世界位移。 */
+  /** 把屏幕拖拽映射到 Y-up 世界的 XZ 平面，保持焦点高度不变。 */
   private queuePan(deltaX: number, deltaY: number): void {
     const viewportHeight = Math.max(
       screen.windowSize.height * this.camera.rect.height,
@@ -221,25 +217,23 @@ export class OrbitCameraController {
     const halfViewHeight = this.distance * Math.tan(this.camera.fov * Math.PI / 360);
     const worldUnitsPerPixel = halfViewHeight * 2 / viewportHeight * this.options.panSpeed;
 
-    this.forward.set(
-      this.target.x - this.position.x,
-      this.target.y - this.position.y,
-      this.target.z - this.position.z,
+    this.right.set(
+      Math.cos(this.azimuthAngle),
+      0,
+      -Math.sin(this.azimuthAngle),
     );
-    normalizeVector(this.forward);
-    Vec3.cross(this.right, this.forward, Vec3.UNIT_Y);
-    normalizeVector(this.right);
-    Vec3.cross(this.screenUp, this.right, this.forward);
-    normalizeVector(this.screenUp);
+    this.groundForward.set(
+      -Math.sin(this.azimuthAngle),
+      0,
+      -Math.cos(this.azimuthAngle),
+    );
 
     const horizontalDistance = -deltaX * worldUnitsPerPixel;
-    const verticalDistance = deltaY * worldUnitsPerPixel;
+    const depthDistance = -deltaY * worldUnitsPerPixel;
     this.panDelta.x += this.right.x * horizontalDistance
-      + this.screenUp.x * verticalDistance;
-    this.panDelta.y += this.right.y * horizontalDistance
-      + this.screenUp.y * verticalDistance;
+      + this.groundForward.x * depthDistance;
     this.panDelta.z += this.right.z * horizontalDistance
-      + this.screenUp.z * verticalDistance;
+      + this.groundForward.z * depthDistance;
   }
 
   /** 按 Cocos 的 Y-up 坐标系计算轨道位置并朝向目标。 */
@@ -301,18 +295,6 @@ function validateOptions(options: Readonly<OrbitCameraOptions>): void {
     || !Number.isFinite(options.target.z)) {
     throw new Error('轨道相机目标必须由有限坐标组成。');
   }
-}
-
-/** 原地归一化相机基向量，拒绝共线姿态产生的无效平移。 */
-function normalizeVector(vector: Vec3): void {
-  const length = Math.hypot(vector.x, vector.y, vector.z);
-  if (length <= MOTION_EPSILON) {
-    throw new Error('轨道相机基向量退化，无法计算屏幕空间平移。');
-  }
-  const inverseLength = 1 / length;
-  vector.x *= inverseLength;
-  vector.y *= inverseLength;
-  vector.z *= inverseLength;
 }
 
 /** 把数值限制在闭区间内。 */

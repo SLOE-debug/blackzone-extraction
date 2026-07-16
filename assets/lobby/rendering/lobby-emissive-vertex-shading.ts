@@ -1,7 +1,13 @@
 import { type SurfaceBufferGeometry } from '../../core/geometry/buffer-geometry';
 import { type LobbyEmissiveGeometryRanges } from '../geometry/lobby-emissive-geometry';
+import { LOBBY_KEY_LIGHT_COLOR } from '../model/lobby-lighting-config';
 
-const LAMP_GLOW_COLOR = Object.freeze({ red: 1, green: 0.86, blue: 0.65 });
+const BYTE_COLOR_SCALE = 1 / 255;
+const LAMP_GLOW_COLOR = Object.freeze({
+  red: LOBBY_KEY_LIGHT_COLOR.red * BYTE_COLOR_SCALE,
+  green: LOBBY_KEY_LIGHT_COLOR.green * BYTE_COLOR_SCALE,
+  blue: LOBBY_KEY_LIGHT_COLOR.blue * BYTE_COLOR_SCALE,
+});
 const RITUAL_GLOW_COLOR = Object.freeze({ red: 1, green: 18 / 255, blue: 42 / 255 });
 
 /** 为合批后的顶灯与仪式灯写入彼此独立的发光色。 */

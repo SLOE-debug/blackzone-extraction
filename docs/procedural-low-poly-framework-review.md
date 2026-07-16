@@ -101,7 +101,7 @@ Lobby 的 Geometry 只在初始化时生成一次。
 | Mesh | 三角形 | 顶点/索引 | 材质与用途 |
 | --- | ---: | ---: | --- |
 | `LobbyOpaqueSurface` | `1400` | `4200` | Standard，实时受光和阴影 |
-| `LobbyLampGlow` | `16` | `48` | Unlit，主灯暖白发光面 |
+| `LobbyLampGlow` | `16` | `48` | Unlit，主灯象牙金日光发光面 |
 | `LobbyRitualGlow` | `72` | `216` | Unlit，六盏暗红晶体 |
 | **总计** | **`1488`** | **`4464`** | — |
 

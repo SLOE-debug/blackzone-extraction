@@ -61,6 +61,14 @@
 - 涉及 Cocos Creator API、坐标与方向、节点变换、相机、灯光、材质、渲染或资源契约时，必须先完整阅读 `.agents/rules/cocos-engine-differences.md`。
 - 发现 Cocos 与 Three.js、Unity、Godot、WebGL 或常见框架存在容易误判的行为差异时，应更新该规则文件，不要把详细差异持续堆入根 `AGENTS.md`。
 
+## 程序化 Low Poly 美术规则
+
+- 项目统一画风是“不规则、分面式、带洞穴岩体感的程序化 Low Poly”；大厅墙面、地面、天花板和双层祭台是风格基准。
+- 涉及任何新增或重做的可见三维场景、建筑、道具、角色、怪物或实体特效时，必须先完整阅读 `.agents/rules/procedural-low-poly-art-style.md`。
+- 主体可见模型必须由代码生成具有领域语义的低密度三角网格，并包含受控、确定、可复现的非均匀轮廓或分面变化。
+- 禁止使用 Cocos 内置 Box、Sphere、Cylinder、Capsule、Cone、Plane 等 Primitive 作为最终模型，也禁止通过缩放、穿插或节点堆叠 Primitive 拼凑造型。
+- 通用 Geometry 工具只能作为生成基础；未经不规则化、低段数化和领域化改造的完美规则几何不得进入最终画面。
+
 ## 实现规范
 
 - 单文件超过 500 行前必须先评估拆分。
