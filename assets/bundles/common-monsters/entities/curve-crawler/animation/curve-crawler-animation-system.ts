@@ -1,7 +1,8 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
-import { damp, wrapAngle } from '../../../../../core/math/scalar';
+import { damp, TAU, wrapAngle } from '../../../../../core/math/scalar';
 import { randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
+import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /** 负责存活实体的步态、姿态混合、身体脉动和眨眼。 */
@@ -27,15 +28,32 @@ export class CurveCrawlerAnimationSystem implements EntitySystem<CurveCrawlerSta
         8,
         deltaTime,
       );
+      const turnAmount = damp(
+        animation.turnAmount[index] ?? 0,
+        intent.targetTurn[index] ?? 0,
+        6.5,
+        deltaTime,
+      );
       const currentSpeed = motion.currentSpeed[index] ?? 0;
       const cruiseSpeed = morphology.cruiseSpeed[index] ?? 0.01;
+      const phaseRate = state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay
+        ? getObservationPhaseRate(
+          currentSpeed,
+          morphology.legLength[index] ?? 0,
+          intent.gaitMultiplier[index] ?? 1,
+        ) * (intent.gaitDirection[index] ?? 1)
+        : (2.3 + currentSpeed * 0.24) * (intent.gaitMultiplier[index] ?? 1);
       const phase = wrapAngle(
         (animation.phase[index] ?? 0)
-        + deltaTime * (2.3 + currentSpeed * 0.24) * (intent.gaitMultiplier[index] ?? 1),
+        + deltaTime * phaseRate,
       );
 
       animation.crouchAmount[index] = crouchAmount;
       animation.waveAmount[index] = waveAmount;
+      animation.turnAmount[index] = turnAmount;
+      if ((intent.targetTurn[index] ?? 0) > 0.001) {
+        animation.turnDirection[index] = intent.turnDirection[index] ?? 1;
+      }
       animation.phase[index] = phase;
       animation.wavePhase[index] = wrapAngle((animation.wavePhase[index] ?? 0) + deltaTime * 7.5);
       animation.nextBlinkTime[index] = (animation.nextBlinkTime[index] ?? 0) - deltaTime;
@@ -58,4 +76,17 @@ export class CurveCrawlerAnimationSystem implements EntitySystem<CurveCrawlerSta
         * (0.018 + speedRatio * 0.018);
     }
   }
+}
+
+/** 让观察展示步态严格按照根节点实际走过的距离推进。 */
+function getObservationPhaseRate(
+  currentSpeed: number,
+  legLength: number,
+  gaitMultiplier: number,
+): number {
+  if (currentSpeed < 0.025) {
+    return 0;
+  }
+  const strideDistance = Math.max(legLength * 0.36, 0.01);
+  return currentSpeed / strideDistance * TAU * gaitMultiplier;
 }

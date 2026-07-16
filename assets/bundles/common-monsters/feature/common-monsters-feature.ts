@@ -1,4 +1,5 @@
 import { Node } from 'cc';
+import { type MonsterObservationPopulation } from '../../../core/contracts/monster-observation';
 import { BundleId, FeatureId } from '../../../core/contracts/runtime-id';
 import { type FeaturePlugin } from '../../../core/features/feature-plugin';
 import {
@@ -34,7 +35,7 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
   createCurveCrawlerDisplay(
     parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
-  ): CurveCrawlerPopulation;
+  ): MonsterObservationPopulation;
 
   /**
    * 按怪物标识创建与参数类型对应的群体实例。
@@ -77,7 +78,7 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public createCurveCrawlerDisplay(
     parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
-  ): CurveCrawlerPopulation {
+  ): MonsterObservationPopulation {
     return new CurveCrawlerPopulation(
       parent,
       options,

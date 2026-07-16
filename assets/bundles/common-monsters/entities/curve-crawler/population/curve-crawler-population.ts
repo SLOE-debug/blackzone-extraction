@@ -1,7 +1,14 @@
 import { Node } from 'cc';
+import {
+  type MonsterObservationEvent,
+  type MonsterObservationFootprint,
+  type MonsterObservationPopulation,
+} from '../../../../../core/contracts/monster-observation';
 import { type MonsterPopulation } from '../../../../../core/contracts/monster-population';
 import { CurveCrawlerAnimationSystem } from '../animation/curve-crawler-animation-system';
 import { CurveCrawlerBehaviorSystem } from '../behavior/curve-crawler-behavior-system';
+import { CurveCrawlerObservationSystem } from '../behavior/curve-crawler-observation-system';
+import { createCurveCrawlerObservationFootprint } from '../model/curve-crawler-observation-footprint';
 import {
   normalizeCurveCrawlerOptions,
   type CurveCrawlerPopulationOptions,
@@ -22,14 +29,17 @@ const MAXIMUM_DELTA_TIME = 0.05;
  *
  * 门面只负责编排系统顺序和资源生命周期，不承载行为、动画或几何细节。
  */
-export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCommand> {
+export class CurveCrawlerPopulation
+implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
   private readonly behavior = new CurveCrawlerBehaviorSystem();
+  private readonly observation = new CurveCrawlerObservationSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly renderer: CurveCrawlerRenderer;
+  public readonly observationFootprint: Readonly<MonsterObservationFootprint>;
   private disposed = false;
 
   constructor(
@@ -39,6 +49,7 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
   ) {
     const normalizedOptions = normalizeCurveCrawlerOptions(options, motionProfile);
     this.state = new CurveCrawlerState(normalizedOptions);
+    this.observationFootprint = createCurveCrawlerObservationFootprint(this.state);
     this.renderer = new CurveCrawlerRenderer(
       parent,
       this.state,
@@ -51,7 +62,7 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
     return this.state.count;
   }
 
-  /** 按受击、死亡、行为、移动、动画、渲染的固定顺序推进一帧。 */
+  /** 按受击、死亡、行为、观察控制、移动、动画、渲染的固定顺序推进一帧。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
@@ -62,6 +73,7 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
     this.hit.update(this.state, safeDeltaTime);
     this.death.update(this.state, safeDeltaTime);
     this.behavior.update(this.state, safeDeltaTime);
+    this.observation.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
     this.renderer.update();
@@ -87,6 +99,27 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
   public damage(entityId: number, amount: number): void {
     this.ensureActive();
     this.applyDamage(entityId, amount);
+  }
+
+  /** 把通用观察阶段切换交给 Curve Crawler 独有的观察行为系统。 */
+  public enterObservationEvent(event: MonsterObservationEvent): void {
+    this.ensureActive();
+    this.observation.enter(this.state, event);
+  }
+
+  /** 同步展示根节点产生的真实局部速度，供腿部相位匹配实际位移。 */
+  public synchronizeObservationMotion(
+    forwardSpeed: number,
+    lateralSpeed: number,
+    turnRate: number,
+  ): void {
+    this.ensureActive();
+    this.observation.synchronizeMotion(
+      this.state,
+      forwardSpeed,
+      lateralSpeed,
+      turnRate,
+    );
   }
 
   /** 释放群体持有的动态网格和材质。 */

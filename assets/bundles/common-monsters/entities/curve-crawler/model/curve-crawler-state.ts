@@ -1,4 +1,5 @@
 import { EntityTable } from '../../../../../core/entities/entity-table';
+import { MonsterObservationEventType } from '../../../../../core/contracts/monster-observation';
 import {
   mixRandomSeed,
   nextRandom,
@@ -61,6 +62,7 @@ function initializeCurveCrawlerData(
     vitality,
     death,
     behavior,
+    observation,
     intent,
     motion,
     animation,
@@ -112,7 +114,7 @@ function initializeCurveCrawlerData(
       ? randomRange(identity.randomState, index, 0.48, 0.53)
       : randomRange(identity.randomState, index, 0.35, 0.55);
     morphology.cruiseSpeed[index] = observationDisplay
-      ? randomRange(identity.randomState, index, 0.08, 0.14)
+      ? randomRange(identity.randomState, index, 2.8, 3.35)
       : randomRange(identity.randomState, index, 7, 14);
 
     const liquidRadiusOffset = index * CURVE_CRAWLER_LIQUID_RAY_COUNT;
@@ -168,10 +170,21 @@ function initializeCurveCrawlerData(
     behavior.selectedWaveLeg[index] = 0;
     behavior.nextTurnTime[index] = randomRange(identity.randomState, index, 0.8, 4.5);
 
+    observation.eventType[index] = MonsterObservationEventType.Wander;
+    observation.eventTime[index] = 0;
+    observation.eventDuration[index] = 1;
+    observation.signedTurnAngle[index] = 0;
+    observation.forwardSpeed[index] = 0;
+    observation.lateralSpeed[index] = 0;
+    observation.turnRate[index] = 0;
+
     intent.targetSpeed[index] = morphology.cruiseSpeed[index] ?? 0;
     intent.targetCrouch[index] = 0;
     intent.targetWave[index] = 0;
+    intent.targetTurn[index] = 0;
+    intent.turnDirection[index] = 1;
     intent.gaitMultiplier[index] = 1;
+    intent.gaitDirection[index] = 1;
     intent.turnRate[index] = 2.3;
     motion.currentSpeed[index] = 0;
 
@@ -179,6 +192,8 @@ function initializeCurveCrawlerData(
     animation.bodyPulse[index] = 0;
     animation.crouchAmount[index] = 0;
     animation.waveAmount[index] = 0;
+    animation.turnAmount[index] = 0;
+    animation.turnDirection[index] = 1;
     animation.wavePhase[index] = randomRange(identity.randomState, index, 0, TAU);
     animation.blinkScale[index] = 1;
     animation.nextBlinkTime[index] = randomRange(identity.randomState, index, 1.5, 6);

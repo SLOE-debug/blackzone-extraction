@@ -19,7 +19,7 @@ export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerStat
       const currentSpeed = damp(
         motion.currentSpeed[index] ?? 0,
         intent.targetSpeed[index] ?? 0,
-        4.5,
+        state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay ? 9 : 4.5,
         deltaTime,
       );
       const heading = dampAngle(

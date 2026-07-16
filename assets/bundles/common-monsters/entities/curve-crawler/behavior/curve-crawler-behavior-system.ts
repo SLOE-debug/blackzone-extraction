@@ -18,7 +18,12 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
         intent.targetSpeed[index] = 0;
         intent.targetCrouch[index] = 0;
         intent.targetWave[index] = 0;
+        intent.targetTurn[index] = 0;
         intent.gaitMultiplier[index] = 0;
+        continue;
+      }
+
+      if (state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay) {
         continue;
       }
 
@@ -30,8 +35,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
       }
 
       const action = behavior.action[index] as CurveCrawlerAction;
-      if (state.motionProfile !== CurveCrawlerMotionProfile.ObservationDisplay
-        && (behavior.nextTurnTime[index] ?? 0) <= 0
+      if ((behavior.nextTurnTime[index] ?? 0) <= 0
         && action !== CurveCrawlerAction.Pause) {
         transform.targetHeading[index] = (transform.targetHeading[index] ?? 0)
           + randomRange(identity.randomState, index, -0.85, 0.85);
@@ -41,7 +45,9 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
       intent.targetSpeed[index] = morphology.cruiseSpeed[index] ?? 0;
       intent.targetCrouch[index] = 0;
       intent.targetWave[index] = 0;
+      intent.targetTurn[index] = 0;
       intent.gaitMultiplier[index] = 1;
+      intent.gaitDirection[index] = 1;
       intent.turnRate[index] = action === CurveCrawlerAction.Scuttle ? 4.5 : 2.3;
 
       switch (action) {
@@ -67,7 +73,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
           break;
         case CurveCrawlerAction.Turn:
           intent.targetSpeed[index] = (morphology.cruiseSpeed[index] ?? 0) * 0.35;
-          transform.targetHeading[index] = (transform.targetHeading[index] ?? 0) + deltaTime * 1.6;
+          intent.targetTurn[index] = 1;
           intent.gaitMultiplier[index] = 0.75;
           break;
         default:
@@ -90,17 +96,8 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
   }
 
   private chooseAction(state: CurveCrawlerState, index: number): void {
-    const { identity, transform, behavior } = state.data;
+    const { identity, transform, behavior, intent } = state.data;
     const roll = nextRandom(identity.randomState, index);
-
-    if (state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay) {
-      if (roll < 0.78) {
-        this.setAction(state, index, CurveCrawlerAction.Crawl, 2.4, 6.2);
-      } else {
-        this.setAction(state, index, CurveCrawlerAction.Pause, 0.7, 2.4);
-      }
-      return;
-    }
 
     if (roll < 0.46) {
       this.setAction(state, index, CurveCrawlerAction.Crawl, 1.6, 5.5);
@@ -114,8 +111,11 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
     } else if (roll < 0.96) {
       this.setAction(state, index, CurveCrawlerAction.Crouch, 0.55, 1.4);
     } else {
-      transform.targetHeading[index] = (transform.targetHeading[index] ?? 0)
-        + (nextRandom(identity.randomState, index) < 0.5 ? -Math.PI * 0.8 : Math.PI * 0.8);
+      const turnAngle = nextRandom(identity.randomState, index) < 0.5
+        ? -Math.PI * 0.8
+        : Math.PI * 0.8;
+      transform.targetHeading[index] = (transform.targetHeading[index] ?? 0) + turnAngle;
+      intent.turnDirection[index] = Math.sign(turnAngle);
       this.setAction(state, index, CurveCrawlerAction.Turn, 0.7, 1.6);
     }
   }

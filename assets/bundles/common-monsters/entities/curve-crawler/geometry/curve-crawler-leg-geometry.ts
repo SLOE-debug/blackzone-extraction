@@ -35,8 +35,15 @@ export function writeCurveCrawlerLeg(
   const gaitAngle = (animation.phase[entityIndex] ?? 0)
     + (animation.legPhaseOffsets[phaseOffset] ?? 0);
   const swing = Math.sin(gaitAngle);
-  const lift = Math.max(0, Math.cos(gaitAngle));
-  const stride = swing * legLength * 0.18;
+  const baseLift = Math.max(0, Math.cos(gaitAngle));
+  const turnAmount = animation.turnAmount[entityIndex] ?? 0;
+  const turnDirection = animation.turnDirection[entityIndex] ?? 1;
+  const innerSupportLeg = side === turnDirection;
+  const turnStrideScale = innerSupportLeg ? 0.36 : 1.28;
+  const turnLiftScale = innerSupportLeg ? 0.32 : 1.12;
+  const lift = baseLift * lerp(1, turnLiftScale, turnAmount);
+  const stride = swing * legLength * 0.18
+    * lerp(1, turnStrideScale, turnAmount);
   const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
   const outwardScale = 1 - lift * 0.13 + crouchAmount * 0.12;
 
