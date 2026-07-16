@@ -1,22 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { LOBBY_KEY_LIGHT_CONFIG } from '../../assets/lobby/model/lobby-lighting-config';
 
-describe('大厅真实聚光灯配置', () => {
-  it('只定义面向玩家与地面的主聚光灯参数', () => {
+describe('大厅真实灯光配置', () => {
+  it('定义面向玩家与地面的主聚光灯参数', () => {
     expect(LOBBY_KEY_LIGHT_CONFIG).toMatchObject({
       nodeName: 'MainSpotlight',
-      target: { x: 0, y: 0.05, z: -2 },
+      target: { x: 0, z: -2 },
       up: { x: 0, y: 0, z: 1 },
       color: { red: 255, green: 224, blue: 184 },
-      luminousFlux: 8000,
+      luminousFlux: 9100,
       size: 0.15,
-      range: 9,
-      spotAngle: 42,
-      angleAttenuationStrength: 0.55,
+      range: 9.4,
+      spotAngle: 45,
+      angleAttenuationStrength: 0.59,
       shadowEnabled: true,
       shadowBias: 0.0001,
       shadowNormalBias: 0.01,
     });
+    expect(LOBBY_KEY_LIGHT_CONFIG.target.y).toBeCloseTo(0.73);
   });
 
   it('使用不与垂直照射方向共线的 lookAt 上方向', () => {

@@ -38,6 +38,11 @@ export class LobbySceneEntry extends Component {
     this.runtime = null;
   }
 
+  /** 把组件帧循环转发给大厅中的可选动态控制器。 */
+  protected update(deltaTime: number): void {
+    this.runtime?.update(deltaTime);
+  }
+
   /** 使用编辑器引用的内置 Standard 材质创建大厅运行时。 */
   private initialize(): void {
     if (this.destroyed || !this.node.isValid) {

@@ -1,9 +1,9 @@
 import { DEV } from 'cc/env';
 import { type LobbyDebugControls } from './lobby-debug-controls';
 
-const PANEL_ID = 'lobby-lighting-debug-panel';
+const PANEL_ID = 'lobby-debug-panel';
 
-/** 浏览器预览使用的轻量大厅灯光调试面板。 */
+/** 浏览器预览使用的轻量大厅调试面板。 */
 export class LobbyDebugPanel {
   private root: HTMLElement | null = null;
 
@@ -20,7 +20,7 @@ export class LobbyDebugPanel {
 
     const header = document.createElement('button');
     header.type = 'button';
-    header.textContent = '大厅灯光调试 －';
+    header.textContent = '大厅调试 －';
     applyHeaderStyle(header);
     root.appendChild(header);
 
@@ -36,6 +36,9 @@ export class LobbyDebugPanel {
     });
     addColorControl(body, '地面环境色', snapshot.ambientGroundColor, (value) => {
       controls.setAmbientGroundColor(value);
+    });
+    addBooleanControl(body, '轨道相机', snapshot.orbitCameraEnabled, (value) => {
+      controls.setOrbitCameraEnabled(value);
     });
     addNumberControl(body, '主射灯流明', 0, 24000, 100, snapshot.keyLightFlux, (value) => {
       controls.setKeyLightFlux(value);
@@ -66,7 +69,7 @@ export class LobbyDebugPanel {
 
     header.addEventListener('click', () => {
       body.hidden = !body.hidden;
-      header.textContent = body.hidden ? '大厅灯光调试 ＋' : '大厅灯光调试 －';
+      header.textContent = body.hidden ? '大厅调试 ＋' : '大厅调试 －';
     });
 
     document.body.appendChild(root);

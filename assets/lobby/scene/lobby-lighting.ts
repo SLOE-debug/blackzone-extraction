@@ -9,7 +9,7 @@ export interface LobbyLightingRig {
   readonly keyLight: SpotLight;
 }
 
-/** 创建大厅唯一真实聚光灯。 */
+/** 创建大厅顶部唯一真实聚光灯。 */
 export function createLobbyLighting(parent: Node): LobbyLightingRig {
   return Object.freeze({
     keyLight: createLobbySpotlight(parent, LOBBY_KEY_LIGHT_CONFIG),

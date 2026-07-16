@@ -1,4 +1,5 @@
 import { type TriangleMeshWriter } from '../../core/geometry/triangle-mesh-writer';
+import { writeLobbyAltar } from './lobby-altar-geometry';
 import {
   writeLobbyCharacter,
   writeLobbyCircularFrame,
@@ -10,10 +11,14 @@ import {
 import {
   LOBBY_GLOW_TOPOLOGY,
   LOBBY_OPAQUE_TOPOLOGY,
+  LOBBY_RITUAL_GLOW_TOPOLOGY,
   LobbyOpaqueSection,
   type LobbyOpaqueSectionRanges,
   type LobbyVertexRange,
 } from './lobby-geometry-topology';
+import {
+  writeLobbyFloorCracks,
+} from './lobby-floor-crack-geometry';
 import {
   writeLobbyBackWall,
   writeLobbyCeiling,
@@ -21,6 +26,10 @@ import {
   writeLobbyFrontWall,
   writeLobbySideWalls,
 } from './lobby-hall-geometry';
+import {
+  writeLobbyRitualLampGlow,
+  writeLobbyRitualLampHousings,
+} from './lobby-ritual-lamp-geometry';
 
 type GeometryWriter = (writer: TriangleMeshWriter) => void;
 
@@ -31,27 +40,33 @@ export class LobbyOpaqueGeometrySource {
   /** 写入合并网格并返回供顶点着色使用的连续区段。 */
   public write(writer: TriangleMeshWriter): LobbyOpaqueSectionRanges {
     const floor = writeSection(writer, writeLobbyFloor);
+    const floorCracks = writeSection(writer, writeLobbyFloorCracks);
     const ceiling = writeSection(writer, writeLobbyCeiling);
     const backWall = writeSection(writer, writeLobbyBackWall);
     const frontWall = writeSection(writer, writeLobbyFrontWall);
     const sideWalls = writeSection(writer, writeLobbySideWalls);
+    const altar = writeSection(writer, writeLobbyAltar);
     const circularPanel = writeSection(writer, writeLobbyCircularPanel);
     const circularFrame = writeSection(writer, writeLobbyCircularFrame);
     const character = writeSection(writer, writeLobbyCharacter);
     const lampCable = writeSection(writer, writeLobbyLampCable);
     const lampHousing = writeSection(writer, writeLobbyLampHousing);
+    const ritualLampHousing = writeSection(writer, writeLobbyRitualLampHousings);
     writer.assertCounts(this.metrics.verticesPerEntity, this.metrics.indicesPerEntity);
     return Object.freeze({
       [LobbyOpaqueSection.Floor]: floor,
+      [LobbyOpaqueSection.FloorCracks]: floorCracks,
       [LobbyOpaqueSection.Ceiling]: ceiling,
       [LobbyOpaqueSection.BackWall]: backWall,
       [LobbyOpaqueSection.FrontWall]: frontWall,
       [LobbyOpaqueSection.SideWalls]: sideWalls,
+      [LobbyOpaqueSection.Altar]: altar,
       [LobbyOpaqueSection.CircularPanel]: circularPanel,
       [LobbyOpaqueSection.CircularFrame]: circularFrame,
       [LobbyOpaqueSection.Character]: character,
       [LobbyOpaqueSection.LampCable]: lampCable,
       [LobbyOpaqueSection.LampHousing]: lampHousing,
+      [LobbyOpaqueSection.RitualLampHousing]: ritualLampHousing,
     });
   }
 }
@@ -63,6 +78,17 @@ export class LobbyGlowGeometrySource {
   /** 写入固定发光圆盘拓扑。 */
   public write(writer: TriangleMeshWriter): void {
     writeLobbyLampGlow(writer);
+    writer.assertCounts(this.metrics.verticesPerEntity, this.metrics.indicesPerEntity);
+  }
+}
+
+/** 写入围绕祭台的暗红晶体发光面。 */
+export class LobbyRitualGlowGeometrySource {
+  public readonly metrics = LOBBY_RITUAL_GLOW_TOPOLOGY;
+
+  /** 写入固定数量的六棱晶体拓扑。 */
+  public write(writer: TriangleMeshWriter): void {
+    writeLobbyRitualLampGlow(writer);
     writer.assertCounts(this.metrics.verticesPerEntity, this.metrics.indicesPerEntity);
   }
 }
@@ -82,3 +108,4 @@ function writeSection(
 
 export const lobbyOpaqueGeometry = new LobbyOpaqueGeometrySource();
 export const lobbyGlowGeometry = new LobbyGlowGeometrySource();
+export const lobbyRitualGlowGeometry = new LobbyRitualGlowGeometrySource();

@@ -28,9 +28,24 @@ const CHARACTER_CROSS_SECTION: readonly CrossSectionPoint[] = Object.freeze([
 ]);
 
 const CHARACTER_LEVELS = Object.freeze([
-  Object.freeze({ y: 0.03, scale: 0.92, offsetX: -0.03, offsetZ: 0.02 }),
-  Object.freeze({ y: 1.76, scale: 1, offsetX: 0, offsetZ: 0 }),
-  Object.freeze({ y: 3.45, scale: 0.84, offsetX: 0.08, offsetZ: -0.035 }),
+  Object.freeze({
+    y: LOBBY_LAYOUT.altarTopY + 0.03,
+    scale: 0.92,
+    offsetX: -0.03,
+    offsetZ: 0.02,
+  }),
+  Object.freeze({
+    y: LOBBY_LAYOUT.altarTopY + 1.76,
+    scale: 1,
+    offsetX: 0,
+    offsetZ: 0,
+  }),
+  Object.freeze({
+    y: LOBBY_LAYOUT.altarTopY + 3.45,
+    scale: 0.84,
+    offsetX: 0.08,
+    offsetZ: -0.035,
+  }),
 ]);
 
 const CABLE_LEVELS = Object.freeze([

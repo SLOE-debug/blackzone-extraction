@@ -1,4 +1,5 @@
 import { Color, type Scene } from 'cc';
+import { type LobbyCameraRig } from '../scene/lobby-camera';
 import { type LobbyLightingRig } from '../scene/lobby-lighting';
 
 /** 调试面板首次显示时读取的大厅参数快照。 */
@@ -12,6 +13,7 @@ export interface LobbyDebugSnapshot {
   readonly keyLightAttenuation: number;
   readonly keyLightEnabled: boolean;
   readonly keyLightShadowEnabled: boolean;
+  readonly orbitCameraEnabled: boolean;
 }
 
 /** 把调试 UI 的数值修改映射到大厅运行时对象。 */
@@ -19,6 +21,7 @@ export class LobbyDebugControls {
   constructor(
     private readonly scene: Scene,
     private readonly lightingRig: Readonly<LobbyLightingRig>,
+    private readonly cameraRig: LobbyCameraRig,
   ) {}
 
   /** 获取面板控件的初始值。 */
@@ -34,6 +37,7 @@ export class LobbyDebugControls {
       keyLightAttenuation: this.lightingRig.keyLight.angleAttenuationStrength,
       keyLightEnabled: this.lightingRig.keyLight.enabled,
       keyLightShadowEnabled: this.lightingRig.keyLight.shadowEnabled,
+      orbitCameraEnabled: this.cameraRig.orbitEnabled,
     });
   }
 
@@ -80,6 +84,11 @@ export class LobbyDebugControls {
   /** 开关真实聚光灯阴影。 */
   public setKeyLightShadowEnabled(value: boolean): void {
     this.lightingRig.keyLight.shadowEnabled = value;
+  }
+
+  /** 开关围绕玩家旋转和缩放的轨道相机。 */
+  public setOrbitCameraEnabled(value: boolean): void {
+    this.cameraRig.setOrbitEnabled(value);
   }
 }
 

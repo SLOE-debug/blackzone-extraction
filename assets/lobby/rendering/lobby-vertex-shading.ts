@@ -9,15 +9,18 @@ const BYTE_COLOR_SCALE = 1 / 255;
 
 const OPAQUE_SECTION_ORDER: readonly LobbyOpaqueSection[] = Object.freeze([
   LobbyOpaqueSection.Floor,
+  LobbyOpaqueSection.FloorCracks,
   LobbyOpaqueSection.Ceiling,
   LobbyOpaqueSection.BackWall,
   LobbyOpaqueSection.FrontWall,
   LobbyOpaqueSection.SideWalls,
+  LobbyOpaqueSection.Altar,
   LobbyOpaqueSection.CircularPanel,
   LobbyOpaqueSection.CircularFrame,
   LobbyOpaqueSection.Character,
   LobbyOpaqueSection.LampCable,
   LobbyOpaqueSection.LampHousing,
+  LobbyOpaqueSection.RitualLampHousing,
 ]);
 
 interface LobbySurfaceProfile {
@@ -28,15 +31,18 @@ interface LobbySurfaceProfile {
 
 const SECTION_PROFILES = {
   [LobbyOpaqueSection.Floor]: createSurfaceProfile(102, 12, 25),
+  [LobbyOpaqueSection.FloorCracks]: createSurfaceProfile(12, 1, 3),
   [LobbyOpaqueSection.Ceiling]: createSurfaceProfile(48, 5, 14),
   [LobbyOpaqueSection.BackWall]: createSurfaceProfile(70, 8, 20),
   [LobbyOpaqueSection.FrontWall]: createSurfaceProfile(60, 7, 18),
   [LobbyOpaqueSection.SideWalls]: createSurfaceProfile(82, 9, 22),
+  [LobbyOpaqueSection.Altar]: createSurfaceProfile(128, 15, 30),
   [LobbyOpaqueSection.CircularPanel]: createSurfaceProfile(30, 3, 10),
   [LobbyOpaqueSection.CircularFrame]: createSurfaceProfile(175, 32, 46),
   [LobbyOpaqueSection.Character]: createSurfaceProfile(190, 86, 78),
   [LobbyOpaqueSection.LampCable]: createSurfaceProfile(92, 35, 34),
   [LobbyOpaqueSection.LampHousing]: createSurfaceProfile(96, 14, 26),
+  [LobbyOpaqueSection.RitualLampHousing]: createSurfaceProfile(78, 7, 17),
 } satisfies Record<LobbyOpaqueSection, LobbySurfaceProfile>;
 
 /** 把暗红分区色写入供内置 Standard 使用的大厅顶点流。 */
@@ -103,6 +109,9 @@ function getSectionShade(
     + Math.max(0, -normalX) * 0.02;
   if (section === LobbyOpaqueSection.CircularPanel) {
     return facet * 0.7;
+  }
+  if (section === LobbyOpaqueSection.FloorCracks) {
+    return facet * 0.45;
   }
   if (section === LobbyOpaqueSection.Character) {
     return Math.min(1, facet * 1.08);

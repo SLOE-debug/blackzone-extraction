@@ -2,7 +2,7 @@ import { Color, director, type Material, Node, renderer } from 'cc';
 import { LobbyDebugControls } from '../debug/lobby-debug-controls';
 import { LobbyDebugPanel } from '../debug/lobby-debug-panel';
 import { LobbyRenderer } from '../rendering/lobby-renderer';
-import { createLobbyCamera } from './lobby-camera';
+import { createLobbyCamera, type LobbyCameraRig } from './lobby-camera';
 import { createLobbyLighting } from './lobby-lighting';
 
 enum LobbySceneState {
@@ -17,6 +17,7 @@ export class LobbySceneRuntime {
   private runtimeRoot: Node | null = null;
   private renderer: LobbyRenderer | null = null;
   private debugPanel: LobbyDebugPanel | null = null;
+  private cameraRig: LobbyCameraRig | null = null;
 
   constructor(
     private readonly sceneEntry: Node,
@@ -35,7 +36,7 @@ export class LobbySceneRuntime {
     }
     scene.globals.ambient.skyLightingColor = new Color(58, 6, 15, 255);
     scene.globals.ambient.groundLightingColor = new Color(22, 1, 6, 255);
-    scene.globals.ambient.skyIllum = 500;
+    scene.globals.ambient.skyIllum = 1580;
     scene.globals.skybox.enabled = false;
     scene.globals.fog.enabled = false;
     scene.globals.shadows.enabled = true;
@@ -48,15 +49,17 @@ export class LobbySceneRuntime {
     this.sceneEntry.addChild(runtimeRoot);
     let lobbyRenderer: LobbyRenderer | null = null;
     let debugPanel: LobbyDebugPanel | null = null;
+    let cameraRig: LobbyCameraRig | null = null;
     try {
       lobbyRenderer = new LobbyRenderer(runtimeRoot, this.surfaceMaterialTemplate);
       const lightingRig = createLobbyLighting(runtimeRoot);
-      createLobbyCamera(runtimeRoot);
+      cameraRig = createLobbyCamera(runtimeRoot);
       debugPanel = new LobbyDebugPanel(
-        new LobbyDebugControls(scene, lightingRig),
+        new LobbyDebugControls(scene, lightingRig, cameraRig),
       );
     } catch (error: unknown) {
       debugPanel?.dispose();
+      cameraRig?.dispose();
       lobbyRenderer?.dispose();
       runtimeRoot.destroy();
       this.state = LobbySceneState.Disposed;
@@ -66,7 +69,15 @@ export class LobbySceneRuntime {
     this.runtimeRoot = runtimeRoot;
     this.renderer = lobbyRenderer;
     this.debugPanel = debugPanel;
+    this.cameraRig = cameraRig;
     this.state = LobbySceneState.Initialized;
+  }
+
+  /** 更新可选轨道相机的惯性输入。 */
+  public update(deltaTime: number): void {
+    if (this.state === LobbySceneState.Initialized) {
+      this.cameraRig?.update(deltaTime);
+    }
   }
 
   /** 释放程序化 Mesh、材质和场景节点。 */
@@ -75,6 +86,7 @@ export class LobbySceneRuntime {
       return;
     }
     this.debugPanel?.dispose();
+    this.cameraRig?.dispose();
     this.renderer?.dispose();
     if (this.runtimeRoot?.isValid === true) {
       this.runtimeRoot.destroy();
@@ -82,6 +94,7 @@ export class LobbySceneRuntime {
     this.runtimeRoot = null;
     this.renderer = null;
     this.debugPanel = null;
+    this.cameraRig = null;
     this.state = LobbySceneState.Disposed;
   }
 }

@@ -4,6 +4,7 @@ export const LOBBY_LAYOUT = Object.freeze({
   hallHalfDepth: 11,
   hallHeight: 9,
   focusZ: -2,
+  altarTopY: 0.68,
   circularCenterY: 2.42,
   circularPanelZ: -5.24,
   circularFrameFrontZ: -4.92,

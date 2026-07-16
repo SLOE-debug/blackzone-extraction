@@ -11,6 +11,7 @@ import {
 import {
   lobbyGlowGeometry,
   lobbyOpaqueGeometry,
+  lobbyRitualGlowGeometry,
 } from '../geometry/lobby-opaque-geometry';
 import { LobbyMaterials } from './lobby-materials';
 import { lobbyGlowVertexShading, lobbyVertexShading } from './lobby-vertex-shading';
@@ -30,6 +31,7 @@ export class LobbyRenderer {
   private readonly materials: LobbyMaterials;
   private readonly surfaceMesh = new StaticSurfaceMesh();
   private readonly glowMesh = new StaticSurfaceMesh();
+  private readonly ritualGlowMesh = new StaticSurfaceMesh();
   private disposed = false;
 
   constructor(parent: Node, surfaceMaterialTemplate: Material) {
@@ -70,6 +72,23 @@ export class LobbyRenderer {
         this.materials.glow,
         UNSHADOWED_SURFACE_OPTIONS,
       );
+
+      const ritualGlowGeometry = createStaticSurfaceGeometry(
+        lobbyRitualGlowGeometry.metrics.verticesPerEntity,
+        lobbyRitualGlowGeometry.metrics.indicesPerEntity,
+        GeometryIndexFormat.Uint16,
+      );
+      const ritualGlowWriter = new TriangleMeshWriter(ritualGlowGeometry);
+      ritualGlowWriter.reset(true);
+      lobbyRitualGlowGeometry.write(ritualGlowWriter);
+      ritualGlowWriter.commit();
+      this.ritualGlowMesh.initialize(
+        parent,
+        'LobbyRitualGlow',
+        ritualGlowGeometry,
+        this.materials.ritualGlow,
+        UNSHADOWED_SURFACE_OPTIONS,
+      );
     } catch (error: unknown) {
       this.dispose();
       throw error;
@@ -81,6 +100,7 @@ export class LobbyRenderer {
     if (this.disposed) {
       return;
     }
+    this.ritualGlowMesh.dispose();
     this.glowMesh.dispose();
     this.surfaceMesh.dispose();
     this.materials.dispose();
