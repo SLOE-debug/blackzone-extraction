@@ -2,6 +2,7 @@ import { Node } from 'cc';
 import { BundleId, FeatureId } from '../../../core/contracts/runtime-id';
 import { type FeaturePlugin } from '../../../core/features/feature-plugin';
 import {
+  CurveCrawlerMotionProfile,
   CurveCrawlerPopulation,
   type CurveCrawlerPopulationOptions,
 } from '../entities/curve-crawler';
@@ -25,6 +26,12 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
    * 创建 Curve Crawler 群体，供不静态依赖 Bundle 运行时枚举的主包调用。
    */
   createCurveCrawler(
+    parent: Node,
+    options: Readonly<CurveCrawlerPopulationOptions>,
+  ): CurveCrawlerPopulation;
+
+  /** 创建供场景陈列和观察窗使用的受控 Curve Crawler。 */
+  createCurveCrawlerDisplay(
     parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
   ): CurveCrawlerPopulation;
@@ -53,14 +60,29 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public readonly bundle = BundleId.CommonMonsters;
 
   private readonly factories: CommonMonsterFactoryMap = Object.freeze({
-    [CommonMonsterId.CurveCrawler]: (parent, options) => new CurveCrawlerPopulation(parent, options),
+    [CommonMonsterId.CurveCrawler]: (parent, options) => new CurveCrawlerPopulation(
+      parent,
+      options,
+      CurveCrawlerMotionProfile.Autonomous,
+    ),
   });
 
   public createCurveCrawler(
     parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
   ): CurveCrawlerPopulation {
-    return new CurveCrawlerPopulation(parent, options);
+    return new CurveCrawlerPopulation(parent, options, CurveCrawlerMotionProfile.Autonomous);
+  }
+
+  public createCurveCrawlerDisplay(
+    parent: Node,
+    options: Readonly<CurveCrawlerPopulationOptions>,
+  ): CurveCrawlerPopulation {
+    return new CurveCrawlerPopulation(
+      parent,
+      options,
+      CurveCrawlerMotionProfile.ObservationDisplay,
+    );
   }
 
   public create<TId extends CommonMonsterId>(

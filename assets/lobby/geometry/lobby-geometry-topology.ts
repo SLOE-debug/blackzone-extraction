@@ -8,6 +8,10 @@ import {
   LOBBY_RITUAL_LAMP_POSITIONS,
 } from './lobby-ritual-lamp-layout';
 import {
+  LOBBY_OBSERVATION_FRAME_TRIANGLES,
+  LOBBY_OBSERVATION_WALL_TRIANGLES,
+} from './lobby-observation-window-geometry';
+import {
   getLobbyHallSurfaceMetrics,
   LobbyHallSurfaceId,
 } from './recipes/lobby-shell-recipe';
@@ -15,13 +19,12 @@ import {
 export const LOBBY_FLOOR_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.Floor);
 export const LOBBY_CEILING_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.Ceiling);
 export const LOBBY_FLOOR_CRACK_TRIANGLES = LOBBY_FLOOR_CRACK_SEGMENT_COUNT * 2;
-export const LOBBY_BACK_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.BackWall);
+export const LOBBY_BACK_WALL_TRIANGLES = LOBBY_OBSERVATION_WALL_TRIANGLES;
 export const LOBBY_FRONT_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.FrontWall);
 export const LOBBY_SIDE_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.LeftWall)
   + getTriangleCount(LobbyHallSurfaceId.RightWall);
 export const LOBBY_ALTAR_TRIANGLES = LOBBY_ALTAR_TRIANGLE_COUNT;
-export const LOBBY_CIRCULAR_PANEL_TRIANGLES = 20;
-export const LOBBY_CIRCULAR_FRAME_TRIANGLES = 20 * 6;
+export const LOBBY_OBSERVATION_FRAME_TRIANGLE_COUNT = LOBBY_OBSERVATION_FRAME_TRIANGLES;
 export const LOBBY_CHARACTER_TRIANGLES = 8 * 2 * 2 + 8 * 2;
 export const LOBBY_LAMP_CABLE_TRIANGLES = 6 * 2 * 2;
 export const LOBBY_LAMP_HOUSING_TRIANGLES = 16 * 4;
@@ -38,8 +41,7 @@ const LOBBY_OPAQUE_TRIANGLES = LOBBY_FLOOR_TRIANGLES
   + LOBBY_FRONT_WALL_TRIANGLES
   + LOBBY_SIDE_WALL_TRIANGLES
   + LOBBY_ALTAR_TRIANGLES
-  + LOBBY_CIRCULAR_PANEL_TRIANGLES
-  + LOBBY_CIRCULAR_FRAME_TRIANGLES
+  + LOBBY_OBSERVATION_FRAME_TRIANGLE_COUNT
   + LOBBY_CHARACTER_TRIANGLES
   + LOBBY_LAMP_CABLE_TRIANGLES
   + LOBBY_LAMP_HOUSING_TRIANGLES
@@ -54,8 +56,7 @@ export enum LobbyOpaqueSection {
   FrontWall = 'front-wall',
   SideWalls = 'side-walls',
   Altar = 'altar',
-  CircularPanel = 'circular-panel',
-  CircularFrame = 'circular-frame',
+  ObservationFrame = 'observation-frame',
   Character = 'character',
   LampCable = 'lamp-cable',
   LampHousing = 'lamp-housing',
@@ -71,8 +72,7 @@ export const LOBBY_OPAQUE_SECTION_ORDER: readonly LobbyOpaqueSection[] = Object.
   LobbyOpaqueSection.FrontWall,
   LobbyOpaqueSection.SideWalls,
   LobbyOpaqueSection.Altar,
-  LobbyOpaqueSection.CircularPanel,
-  LobbyOpaqueSection.CircularFrame,
+  LobbyOpaqueSection.ObservationFrame,
   LobbyOpaqueSection.Character,
   LobbyOpaqueSection.LampCable,
   LobbyOpaqueSection.LampHousing,

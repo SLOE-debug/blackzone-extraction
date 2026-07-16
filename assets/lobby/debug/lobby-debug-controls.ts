@@ -1,6 +1,7 @@
 import { Color, type Scene } from 'cc';
 import { type LobbyCameraRig } from '../scene/lobby-camera';
 import { type LobbyLightingRig } from '../scene/lobby-lighting';
+import { type LobbyObservationSpider } from '../scene/lobby-observation-spider';
 
 /** 调试面板首次显示时读取的大厅参数快照。 */
 export interface LobbyDebugSnapshot {
@@ -14,6 +15,7 @@ export interface LobbyDebugSnapshot {
   readonly keyLightEnabled: boolean;
   readonly keyLightShadowEnabled: boolean;
   readonly orbitCameraEnabled: boolean;
+  readonly observationSpiderScale: number;
 }
 
 /** 把调试 UI 的数值修改映射到大厅运行时对象。 */
@@ -22,6 +24,7 @@ export class LobbyDebugControls {
     private readonly scene: Scene,
     private readonly lightingRig: Readonly<LobbyLightingRig>,
     private readonly cameraRig: LobbyCameraRig,
+    private readonly observationSpider: LobbyObservationSpider,
   ) {}
 
   /** 获取面板控件的初始值。 */
@@ -38,6 +41,7 @@ export class LobbyDebugControls {
       keyLightEnabled: this.lightingRig.keyLight.enabled,
       keyLightShadowEnabled: this.lightingRig.keyLight.shadowEnabled,
       orbitCameraEnabled: this.cameraRig.orbitEnabled,
+      observationSpiderScale: this.observationSpider.scale,
     });
   }
 
@@ -86,9 +90,14 @@ export class LobbyDebugControls {
     this.lightingRig.keyLight.shadowEnabled = value;
   }
 
-  /** 开关围绕玩家旋转和缩放的轨道相机。 */
+  /** 开关支持旋转、平移焦点和缩放的完整轨道相机。 */
   public setOrbitCameraEnabled(value: boolean): void {
     this.cameraRig.setOrbitEnabled(value);
+  }
+
+  /** 设置墙后观察蜘蛛的统一缩放。 */
+  public setObservationSpiderScale(value: number): void {
+    this.observationSpider.setScale(value);
   }
 }
 

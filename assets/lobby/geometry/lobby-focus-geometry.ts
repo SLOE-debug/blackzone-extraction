@@ -6,7 +6,6 @@ import {
   type LobbyPoint3,
 } from './lobby-triangle-geometry';
 
-const CIRCULAR_SEGMENTS = 20;
 const CHARACTER_SEGMENTS = 8;
 const CABLE_SEGMENTS = 6;
 const LAMP_SEGMENTS = 16;
@@ -57,44 +56,6 @@ const CABLE_LEVELS = Object.freeze([
   }),
   Object.freeze({ y: LOBBY_LAYOUT.lampTopY, x: 0, z: 0 }),
 ]);
-
-/** 写入不规则暗色圆面，不表现圆面另一侧内容。 */
-export function writeLobbyCircularPanel(writer: TriangleMeshWriter): void {
-  const center = {
-    x: 0,
-    y: LOBBY_LAYOUT.circularCenterY,
-    z: LOBBY_LAYOUT.circularPanelZ,
-  };
-  for (let segment = 0; segment < CIRCULAR_SEGMENTS; segment++) {
-    appendLobbyTriangle(
-      writer,
-      center,
-      createCircularPanelPoint(segment),
-      createCircularPanelPoint(segment + 1),
-    );
-  }
-}
-
-/** 写入带前缘、外切面和内切面的厚重分面圆环。 */
-export function writeLobbyCircularFrame(writer: TriangleMeshWriter): void {
-  for (let segment = 0; segment < CIRCULAR_SEGMENTS; segment++) {
-    const innerFront0 = createFramePoint(segment, false, true);
-    const innerFront1 = createFramePoint(segment + 1, false, true);
-    const outerFront0 = createFramePoint(segment, true, true);
-    const outerFront1 = createFramePoint(segment + 1, true, true);
-    const innerBack0 = createFramePoint(segment, false, false);
-    const innerBack1 = createFramePoint(segment + 1, false, false);
-    const outerBack0 = createFramePoint(segment, true, false);
-    const outerBack1 = createFramePoint(segment + 1, true, false);
-
-    appendLobbyTriangle(writer, innerFront0, outerFront0, outerFront1);
-    appendLobbyTriangle(writer, innerFront0, outerFront1, innerFront1);
-    appendLobbyTriangle(writer, outerFront0, outerBack0, outerBack1);
-    appendLobbyTriangle(writer, outerFront0, outerBack1, outerFront1);
-    appendLobbyTriangle(writer, innerFront0, innerFront1, innerBack1);
-    appendLobbyTriangle(writer, innerFront0, innerBack1, innerBack0);
-  }
-}
 
 /** 写入带不对称偏移和倒角截面的细长角色占位体。 */
 export function writeLobbyCharacter(writer: TriangleMeshWriter): void {
@@ -168,37 +129,6 @@ export function writeLobbyLampGlow(writer: TriangleMeshWriter): void {
       createLampGlowPoint(segment + 1),
     );
   }
-}
-
-/** 生成暗色圆面的不规则轮廓点。 */
-function createCircularPanelPoint(segment: number): LobbyPoint3 {
-  const normalized = segment % CIRCULAR_SEGMENTS;
-  const angle = normalized / CIRCULAR_SEGMENTS * Math.PI * 2;
-  const radius = 1.82 + getLobbyGeometryJitter(normalized, 0, 73, 0.055);
-  return {
-    x: Math.cos(angle) * radius,
-    y: LOBBY_LAYOUT.circularCenterY + Math.sin(angle) * radius,
-    z: LOBBY_LAYOUT.circularPanelZ + getLobbyGeometryJitter(normalized, 1, 79, 0.025),
-  };
-}
-
-/** 生成圆环前后两层的内外轮廓点。 */
-function createFramePoint(segment: number, outer: boolean, front: boolean): LobbyPoint3 {
-  const normalized = segment % CIRCULAR_SEGMENTS;
-  const angle = normalized / CIRCULAR_SEGMENTS * Math.PI * 2;
-  const baseRadius = outer ? 2.2 : 1.82;
-  const radius = baseRadius + getLobbyGeometryJitter(
-    normalized,
-    outer ? 2 : 3,
-    83,
-    outer ? 0.07 : 0.045,
-  );
-  return {
-    x: Math.cos(angle) * radius,
-    y: LOBBY_LAYOUT.circularCenterY + Math.sin(angle) * radius,
-    z: (front ? LOBBY_LAYOUT.circularFrameFrontZ : LOBBY_LAYOUT.circularFrameBackZ)
-      + getLobbyGeometryJitter(normalized, front ? 4 : 5, 89, 0.025),
-  };
 }
 
 /** 生成角色指定高度和截面索引处的偏斜顶点。 */

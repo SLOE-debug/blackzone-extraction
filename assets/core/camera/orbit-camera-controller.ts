@@ -1,7 +1,22 @@
-import { Camera, EventMouse, input, Input, Vec3 } from 'cc';
+import {
+  Camera,
+  EventMouse,
+  game,
+  input,
+  Input,
+  screen,
+  Vec3,
+} from 'cc';
 import { wrapAngle } from '../math/scalar';
 
 const MOTION_EPSILON = 0.00001;
+
+enum OrbitPointerAction {
+  None,
+  Rotate,
+  Dolly,
+  Pan,
+}
 
 /** Y-up 三维场景使用的轨道相机初始化参数。 */
 export interface OrbitCameraOptions {
@@ -15,20 +30,27 @@ export interface OrbitCameraOptions {
   readonly maximumPolarAngle: number;
   readonly rotateSpeed: number;
   readonly zoomSpeed: number;
+  readonly dollyDragSpeed: number;
+  readonly panSpeed: number;
   readonly dampingFactor: number;
 }
 
-/** 管理围绕固定目标的鼠标旋转、滚轮缩放和惯性阻尼。 */
+/** 管理左键旋转、右键平移、中键推拉、滚轮缩放和惯性阻尼。 */
 export class OrbitCameraController {
   private readonly target = new Vec3();
   private readonly position = new Vec3();
+  private readonly forward = new Vec3();
+  private readonly right = new Vec3();
+  private readonly screenUp = new Vec3();
+  private readonly panDelta = new Vec3();
+  private readonly canvas = game.canvas;
   private distance: number;
   private azimuthAngle: number;
   private polarAngle: number;
   private azimuthDelta = 0;
   private polarDelta = 0;
   private zoomDelta = 0;
-  private rotating = false;
+  private pointerAction = OrbitPointerAction.None;
   private disposed = false;
 
   constructor(
@@ -44,10 +66,11 @@ export class OrbitCameraController {
     input.on(Input.EventType.MOUSE_MOVE, this.handleMouseMove, this);
     input.on(Input.EventType.MOUSE_UP, this.handleMouseUp, this);
     input.on(Input.EventType.MOUSE_WHEEL, this.handleMouseWheel, this);
+    this.canvas?.addEventListener('contextmenu', this.handleContextMenu);
     this.applyTransform();
   }
 
-  /** 按帧率无关的阻尼消费待处理旋转与缩放量。 */
+  /** 按帧率无关的阻尼消费待处理旋转、平移与缩放量。 */
   public update(deltaTime: number): void {
     if (this.disposed) {
       return;
@@ -85,7 +108,7 @@ export class OrbitCameraController {
     }
     if (Math.abs(this.zoomDelta) > MOTION_EPSILON) {
       const step = this.zoomDelta * damping;
-      const requested = this.distance * Math.exp(step);
+      const requested = this.distance * Math.exp(-step);
       const next = clamp(
         requested,
         this.options.minimumDistance,
@@ -96,6 +119,20 @@ export class OrbitCameraController {
       changed = true;
     } else {
       this.zoomDelta = 0;
+    }
+    if (Math.hypot(this.panDelta.x, this.panDelta.y, this.panDelta.z) > MOTION_EPSILON) {
+      const stepX = this.panDelta.x * damping;
+      const stepY = this.panDelta.y * damping;
+      const stepZ = this.panDelta.z * damping;
+      this.target.x += stepX;
+      this.target.y += stepY;
+      this.target.z += stepZ;
+      this.panDelta.x -= stepX;
+      this.panDelta.y -= stepY;
+      this.panDelta.z -= stepZ;
+      changed = true;
+    } else {
+      this.panDelta.set(0, 0, 0);
     }
 
     if (changed) {
@@ -112,30 +149,97 @@ export class OrbitCameraController {
     input.off(Input.EventType.MOUSE_MOVE, this.handleMouseMove, this);
     input.off(Input.EventType.MOUSE_UP, this.handleMouseUp, this);
     input.off(Input.EventType.MOUSE_WHEEL, this.handleMouseWheel, this);
-    this.rotating = false;
+    this.canvas?.removeEventListener('contextmenu', this.handleContextMenu);
+    this.pointerAction = OrbitPointerAction.None;
+    this.azimuthDelta = 0;
+    this.polarDelta = 0;
+    this.zoomDelta = 0;
+    this.panDelta.set(0, 0, 0);
     this.disposed = true;
   }
 
   private handleMouseDown(event: EventMouse): void {
-    this.rotating = event.getButton() === EventMouse.BUTTON_LEFT;
+    switch (event.getButton()) {
+      case EventMouse.BUTTON_LEFT:
+        this.pointerAction = OrbitPointerAction.Rotate;
+        break;
+      case EventMouse.BUTTON_MIDDLE:
+        this.pointerAction = OrbitPointerAction.Dolly;
+        break;
+      case EventMouse.BUTTON_RIGHT:
+        this.pointerAction = OrbitPointerAction.Pan;
+        break;
+      default:
+        this.pointerAction = OrbitPointerAction.None;
+    }
   }
 
   private handleMouseMove(event: EventMouse): void {
-    if (!this.rotating) {
-      return;
+    const deltaX = event.getDeltaX();
+    const deltaY = event.getDeltaY();
+    switch (this.pointerAction) {
+      case OrbitPointerAction.Rotate:
+        this.azimuthDelta -= deltaX * this.options.rotateSpeed;
+        this.polarDelta += deltaY * this.options.rotateSpeed;
+        break;
+      case OrbitPointerAction.Dolly:
+        this.zoomDelta += deltaY * this.options.dollyDragSpeed;
+        break;
+      case OrbitPointerAction.Pan:
+        this.queuePan(deltaX, deltaY);
+        break;
+      case OrbitPointerAction.None:
+        break;
+      default:
+        throw new Error(`未知的轨道相机指针操作：${String(this.pointerAction)}`);
     }
-    this.azimuthDelta -= event.getDeltaX() * this.options.rotateSpeed;
-    this.polarDelta += event.getDeltaY() * this.options.rotateSpeed;
   }
 
   private handleMouseUp(event: EventMouse): void {
-    if (event.getButton() === EventMouse.BUTTON_LEFT) {
-      this.rotating = false;
+    const button = event.getButton();
+    if (button === EventMouse.BUTTON_LEFT
+      || button === EventMouse.BUTTON_MIDDLE
+      || button === EventMouse.BUTTON_RIGHT) {
+      this.pointerAction = OrbitPointerAction.None;
     }
   }
 
   private handleMouseWheel(event: EventMouse): void {
     this.zoomDelta += event.getScrollY() * this.options.zoomSpeed;
+  }
+
+  private readonly handleContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
+  };
+
+  /** 按当前相机屏幕右轴和上轴，把鼠标位移换算为焦点世界位移。 */
+  private queuePan(deltaX: number, deltaY: number): void {
+    const viewportHeight = Math.max(
+      screen.windowSize.height * this.camera.rect.height,
+      1,
+    );
+    const halfViewHeight = this.distance * Math.tan(this.camera.fov * Math.PI / 360);
+    const worldUnitsPerPixel = halfViewHeight * 2 / viewportHeight * this.options.panSpeed;
+
+    this.forward.set(
+      this.target.x - this.position.x,
+      this.target.y - this.position.y,
+      this.target.z - this.position.z,
+    );
+    normalizeVector(this.forward);
+    Vec3.cross(this.right, this.forward, Vec3.UNIT_Y);
+    normalizeVector(this.right);
+    Vec3.cross(this.screenUp, this.right, this.forward);
+    normalizeVector(this.screenUp);
+
+    const horizontalDistance = -deltaX * worldUnitsPerPixel;
+    const verticalDistance = deltaY * worldUnitsPerPixel;
+    this.panDelta.x += this.right.x * horizontalDistance
+      + this.screenUp.x * verticalDistance;
+    this.panDelta.y += this.right.y * horizontalDistance
+      + this.screenUp.y * verticalDistance;
+    this.panDelta.z += this.right.z * horizontalDistance
+      + this.screenUp.z * verticalDistance;
   }
 
   /** 按 Cocos 的 Y-up 坐标系计算轨道位置并朝向目标。 */
@@ -163,6 +267,8 @@ function validateOptions(options: Readonly<OrbitCameraOptions>): void {
     options.maximumPolarAngle,
     options.rotateSpeed,
     options.zoomSpeed,
+    options.dollyDragSpeed,
+    options.panSpeed,
     options.dampingFactor,
   ];
   if (numericValues.some((value) => !Number.isFinite(value))) {
@@ -181,7 +287,10 @@ function validateOptions(options: Readonly<OrbitCameraOptions>): void {
     || options.polarAngle > options.maximumPolarAngle) {
     throw new Error('轨道相机俯仰角范围无效。');
   }
-  if (options.rotateSpeed <= 0 || options.zoomSpeed <= 0) {
+  if (options.rotateSpeed <= 0
+    || options.zoomSpeed <= 0
+    || options.dollyDragSpeed <= 0
+    || options.panSpeed <= 0) {
     throw new Error('轨道相机输入速度必须是正数。');
   }
   if (options.dampingFactor <= 0 || options.dampingFactor >= 1) {
@@ -192,6 +301,18 @@ function validateOptions(options: Readonly<OrbitCameraOptions>): void {
     || !Number.isFinite(options.target.z)) {
     throw new Error('轨道相机目标必须由有限坐标组成。');
   }
+}
+
+/** 原地归一化相机基向量，拒绝共线姿态产生的无效平移。 */
+function normalizeVector(vector: Vec3): void {
+  const length = Math.hypot(vector.x, vector.y, vector.z);
+  if (length <= MOTION_EPSILON) {
+    throw new Error('轨道相机基向量退化，无法计算屏幕空间平移。');
+  }
+  const inverseLength = 1 / length;
+  vector.x *= inverseLength;
+  vector.y *= inverseLength;
+  vector.z *= inverseLength;
 }
 
 /** 把数值限制在闭区间内。 */

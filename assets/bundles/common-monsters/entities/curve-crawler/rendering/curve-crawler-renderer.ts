@@ -1,4 +1,4 @@
-import { Node } from 'cc';
+import { type Material, Node } from 'cc';
 import { GeometryIndexFormat } from '../../../../../core/geometry/buffer-geometry';
 import { FixedTopologyBatchRenderer } from '../../../../../core/rendering/fixed-topology-batch-renderer';
 import { curveCrawlerSurfaceGeometry } from '../geometry/curve-crawler-surface-geometry';
@@ -18,7 +18,7 @@ export enum CurveCrawlerRenderLayer {
 
 /** 组合 Curve Crawler 材质和通用固定拓扑批渲染器。 */
 export class CurveCrawlerRenderer {
-  private readonly materials = new CurveCrawlerMaterials();
+  private readonly materials: CurveCrawlerMaterials;
   private readonly batches: FixedTopologyBatchRenderer<CurveCrawlerState, CurveCrawlerRenderLayer>;
   private readonly bounds: CurveCrawlerBounds;
   private disposed = false;
@@ -26,8 +26,10 @@ export class CurveCrawlerRenderer {
   constructor(
     parent: Node,
     private readonly state: CurveCrawlerState,
+    surfaceMaterialTemplate: Material,
   ) {
     this.bounds = createCurveCrawlerBounds(state);
+    this.materials = new CurveCrawlerMaterials(surfaceMaterialTemplate);
     try {
       this.batches = new FixedTopologyBatchRenderer({
         parent,
@@ -36,6 +38,11 @@ export class CurveCrawlerRenderer {
         requestedBatchSize: state.count,
         indexFormat: GeometryIndexFormat.Uint32,
         bounds: this.bounds,
+        surfaceOptions: Object.freeze({
+          uploadLightingAttributes: true,
+          castShadows: true,
+          receiveShadows: true,
+        }),
         shading: curveCrawlerVertexShading,
         layers: Object.freeze([
           Object.freeze({

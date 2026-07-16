@@ -11,6 +11,7 @@ import { CURVE_CRAWLER_MAX_HEALTH, CurveCrawlerLifePhase } from './curve-crawler
 import {
   type NormalizedCurveCrawlerPopulationOptions,
 } from './curve-crawler-options';
+import { CurveCrawlerMotionProfile } from './curve-crawler-motion-profile';
 import {
   CURVE_CRAWLER_LEG_COUNT,
   CURVE_CRAWLER_FRAGMENT_COUNT,
@@ -28,8 +29,15 @@ const FRAGMENT_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 export class CurveCrawlerState {
   public readonly table: CurveCrawlerTable;
   public readonly data: CurveCrawlerData;
+  public readonly motionProfile: CurveCrawlerMotionProfile;
+  public readonly movementBounds: Readonly<{ halfWidth: number; halfHeight: number }>;
 
   constructor(options: NormalizedCurveCrawlerPopulationOptions) {
+    this.motionProfile = options.motionProfile;
+    this.movementBounds = Object.freeze({
+      halfWidth: options.spawnArea.width * 0.5,
+      halfHeight: options.spawnArea.height * 0.5,
+    });
     this.table = new EntityTable(CURVE_CRAWLER_SCHEMA, options.count);
     this.table.allocate(options.count);
     this.data = this.table.data;
@@ -79,16 +87,33 @@ function initializeCurveCrawlerData(
       + (row + 0.5) * cellHeight
       + randomRange(layoutState, 0, -cellHeight * 0.28, cellHeight * 0.28);
 
-    const heading = randomRange(identity.randomState, index, -Math.PI, Math.PI);
+    const observationDisplay = options.motionProfile
+      === CurveCrawlerMotionProfile.ObservationDisplay;
+    // 展示蜘蛛沿本地 -Y 朝向观察窗；根节点旋转后该方向对应大厅世界 +Z。
+    const heading = observationDisplay
+      ? -Math.PI * 0.5
+      : randomRange(identity.randomState, index, -Math.PI, Math.PI);
     transform.heading[index] = heading;
     transform.targetHeading[index] = heading;
 
-    morphology.bodyLength[index] = randomRange(identity.randomState, index, 5.2, 7.2);
-    morphology.bodyWidth[index] = randomRange(identity.randomState, index, 3.4, 4.7);
-    morphology.legLength[index] = randomRange(identity.randomState, index, 7.8, 11.5);
-    morphology.legWidth[index] = randomRange(identity.randomState, index, 0.58, 0.92);
-    morphology.eyeRadius[index] = randomRange(identity.randomState, index, 0.35, 0.55);
-    morphology.cruiseSpeed[index] = randomRange(identity.randomState, index, 7, 14);
+    morphology.bodyLength[index] = observationDisplay
+      ? randomRange(identity.randomState, index, 6.1, 6.4)
+      : randomRange(identity.randomState, index, 5.2, 7.2);
+    morphology.bodyWidth[index] = observationDisplay
+      ? randomRange(identity.randomState, index, 4.05, 4.25)
+      : randomRange(identity.randomState, index, 3.4, 4.7);
+    morphology.legLength[index] = observationDisplay
+      ? randomRange(identity.randomState, index, 9.3, 9.8)
+      : randomRange(identity.randomState, index, 7.8, 11.5);
+    morphology.legWidth[index] = observationDisplay
+      ? randomRange(identity.randomState, index, 0.72, 0.8)
+      : randomRange(identity.randomState, index, 0.58, 0.92);
+    morphology.eyeRadius[index] = observationDisplay
+      ? randomRange(identity.randomState, index, 0.48, 0.53)
+      : randomRange(identity.randomState, index, 0.35, 0.55);
+    morphology.cruiseSpeed[index] = observationDisplay
+      ? randomRange(identity.randomState, index, 0.08, 0.14)
+      : randomRange(identity.randomState, index, 7, 14);
 
     const liquidRadiusOffset = index * CURVE_CRAWLER_LIQUID_RAY_COUNT;
     for (let ray = 0; ray < CURVE_CRAWLER_LIQUID_RAY_COUNT; ray++) {

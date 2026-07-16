@@ -3,6 +3,7 @@ import {
   LobbyHallSurfaceId,
   writeLobbyHallSurface,
 } from './recipes/lobby-shell-recipe';
+import { writeLobbyObservationWall } from './lobby-observation-window-geometry';
 
 /** 写入不规则三角分面的大厅地面。 */
 export function writeLobbyFloor(writer: TriangleMeshWriter): void {
@@ -16,7 +17,7 @@ export function writeLobbyCeiling(writer: TriangleMeshWriter): void {
 
 /** 写入角色后方的分面后墙。 */
 export function writeLobbyBackWall(writer: TriangleMeshWriter): void {
-  writeLobbyHallSurface(writer, LobbyHallSurfaceId.BackWall);
+  writeLobbyObservationWall(writer);
 }
 
 /** 写入相机后方的封闭前墙。 */

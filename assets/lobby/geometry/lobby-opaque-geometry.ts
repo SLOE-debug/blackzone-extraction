@@ -3,12 +3,11 @@ import { writeLobbyAltar } from './lobby-altar-geometry';
 import { GeometrySectionComposer } from './infrastructure/geometry-section-composer';
 import {
   writeLobbyCharacter,
-  writeLobbyCircularFrame,
-  writeLobbyCircularPanel,
   writeLobbyLampCable,
   writeLobbyLampGlow,
   writeLobbyLampHousing,
 } from './lobby-focus-geometry';
+import { writeLobbyObservationFrame } from './lobby-observation-window-geometry';
 import {
   LOBBY_GLOW_TOPOLOGY,
   LOBBY_OPAQUE_TOPOLOGY,
@@ -48,8 +47,10 @@ export class LobbyOpaqueGeometrySource {
     sections.write(LobbyOpaqueSection.FrontWall, () => writeLobbyFrontWall(writer));
     sections.write(LobbyOpaqueSection.SideWalls, () => writeLobbySideWalls(writer));
     sections.write(LobbyOpaqueSection.Altar, () => writeLobbyAltar(writer));
-    sections.write(LobbyOpaqueSection.CircularPanel, () => writeLobbyCircularPanel(writer));
-    sections.write(LobbyOpaqueSection.CircularFrame, () => writeLobbyCircularFrame(writer));
+    sections.write(
+      LobbyOpaqueSection.ObservationFrame,
+      () => writeLobbyObservationFrame(writer),
+    );
     sections.write(LobbyOpaqueSection.Character, () => writeLobbyCharacter(writer));
     sections.write(LobbyOpaqueSection.LampCable, () => writeLobbyLampCable(writer));
     sections.write(LobbyOpaqueSection.LampHousing, () => writeLobbyLampHousing(writer));

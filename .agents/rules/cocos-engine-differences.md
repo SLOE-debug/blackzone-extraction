@@ -43,6 +43,14 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 灯具自身可见的发光面与照亮场景的 Light 是两个职责：Unlit 发光面只负责自身显示，SpotLight 才负责表面照明和阴影。
 - 普通 SpotLight 不会自动渲染空气中的体积光柱。需要可见体积散射时，应明确采用体积雾或后处理方案，不得把半透明锥体描述成真实灯光。
 
+### 动态 Mesh 的受光顶点流
+
+- Cocos Creator 3.8.8 的 `utils.MeshUtils.createDynamicMesh()` 只会为实际传入的数据创建顶点流；几何对象在 CPU 侧保存 `normals`，不代表法线会自动上传到 GPU。
+- 使用 `builtin-standard` 的动态程序网格必须在创建 Dynamic Mesh 时显式传入 `normals`，并在几何每帧变化后同步更新对应的法线顶点缓冲。
+- 动态几何同时传入 Position、Normal、Color 时，`renderingSubMesh.vertexBuffers` 会按 Position、Normal、Color 的创建顺序排列；不得继续把第二个缓冲硬编码为 Color。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/3d/misc/create-mesh.ts` 验证：`createDynamicMesh()` 仅在 `geometry.normals` 非空时创建 `ATTR_NORMAL` 独立流。
+- 验证动态受光材质时，应旋转或移动真实灯光并检查高光与明暗随法线变化；只有顶点色变化而灯光不产生响应，优先检查 Normal 流是否创建和逐帧上传。
+
 ## Profiler 帧率与帧耗时
 
 - Cocos Creator 3.8.8 的 Profiler 中，`Framerate (FPS)` 与 `Frame time (ms)` 不是简单倒数关系。

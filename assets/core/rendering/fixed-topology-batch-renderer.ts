@@ -14,7 +14,10 @@ import {
 import { TriangleMeshWriter } from '../geometry/triangle-mesh-writer';
 import { partitionBatches } from './batch-partition';
 import { type SurfaceVertexShading } from './directional-vertex-shading';
-import { DynamicMeshBatch } from './dynamic-mesh-batch';
+import {
+  DynamicMeshBatch,
+  type DynamicMeshBatchOptions,
+} from './dynamic-mesh-batch';
 
 /**
  * 描述一个固定拓扑实体渲染层。
@@ -34,6 +37,7 @@ export interface FixedTopologyBatchRendererOptions<TSource, TLayerId extends str
   readonly requestedBatchSize: number;
   readonly indexFormat: GeometryIndexFormat;
   readonly bounds: GeometryBounds;
+  readonly surfaceOptions: Readonly<DynamicMeshBatchOptions>;
   readonly shading: SurfaceVertexShading<TSource>;
   readonly layers: readonly RenderLayerDefinition<TSource, TLayerId>[];
 }
@@ -101,6 +105,7 @@ export class FixedTopologyBatchRenderer<TSource, TLayerId extends string> {
             geometry,
             layer.material,
             options.bounds,
+            options.surfaceOptions,
           );
           layerChunks.push({
             id: layer.id,

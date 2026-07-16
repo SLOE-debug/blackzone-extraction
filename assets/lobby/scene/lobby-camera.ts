@@ -11,18 +11,20 @@ const CAMERA_DISTANCE = Vec3.distance(CAMERA_POSITION, CAMERA_TARGET);
 
 const ORBIT_CAMERA_OPTIONS: OrbitCameraOptions = Object.freeze({
   target: CAMERA_TARGET,
-  distance: 6.2,
-  minimumDistance: 3.8,
-  maximumDistance: 6.6,
+  distance: CAMERA_DISTANCE,
+  minimumDistance: 2.8,
+  maximumDistance: 32,
   azimuthAngle: Math.atan2(
     CAMERA_POSITION.x - CAMERA_TARGET.x,
     CAMERA_POSITION.z - CAMERA_TARGET.z,
   ),
   polarAngle: Math.acos((CAMERA_POSITION.y - CAMERA_TARGET.y) / CAMERA_DISTANCE),
-  minimumPolarAngle: 0.72,
-  maximumPolarAngle: 1.68,
+  minimumPolarAngle: 0.12,
+  maximumPolarAngle: Math.PI - 0.12,
   rotateSpeed: 0.0045,
   zoomSpeed: 0.0012,
+  dollyDragSpeed: 0.012,
+  panSpeed: 0.9,
   dampingFactor: 0.16,
 });
 
@@ -57,7 +59,7 @@ export class LobbyCameraRig {
     applyFixedCameraPose(this.camera);
   }
 
-  /** 更新轨道模式的惯性旋转与缩放。 */
+  /** 更新轨道模式的旋转、平移和缩放惯性。 */
   public update(deltaTime: number): void {
     this.orbitController?.update(deltaTime);
   }
@@ -84,7 +86,7 @@ function createCamera(parent: Node): Camera {
   camera.fovAxis = Camera.FOVAxis.VERTICAL;
   camera.fov = 50;
   camera.near = 0.1;
-  camera.far = 60;
+  camera.far = 160;
   camera.aperture = Camera.Aperture.F5_6;
   camera.shutter = Camera.Shutter.D60;
   camera.iso = Camera.ISO.ISO200;

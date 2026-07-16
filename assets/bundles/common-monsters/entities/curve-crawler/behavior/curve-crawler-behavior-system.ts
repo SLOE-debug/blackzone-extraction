@@ -3,6 +3,7 @@ import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 
 /**
  * 负责动作选择、动作计时和系统间共享的运动/姿态意图。
@@ -29,7 +30,9 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
       }
 
       const action = behavior.action[index] as CurveCrawlerAction;
-      if ((behavior.nextTurnTime[index] ?? 0) <= 0 && action !== CurveCrawlerAction.Pause) {
+      if (state.motionProfile !== CurveCrawlerMotionProfile.ObservationDisplay
+        && (behavior.nextTurnTime[index] ?? 0) <= 0
+        && action !== CurveCrawlerAction.Pause) {
         transform.targetHeading[index] = (transform.targetHeading[index] ?? 0)
           + randomRange(identity.randomState, index, -0.85, 0.85);
         behavior.nextTurnTime[index] = randomRange(identity.randomState, index, 1.2, 5.5);
@@ -89,6 +92,15 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
   private chooseAction(state: CurveCrawlerState, index: number): void {
     const { identity, transform, behavior } = state.data;
     const roll = nextRandom(identity.randomState, index);
+
+    if (state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay) {
+      if (roll < 0.78) {
+        this.setAction(state, index, CurveCrawlerAction.Crawl, 2.4, 6.2);
+      } else {
+        this.setAction(state, index, CurveCrawlerAction.Pause, 0.7, 2.4);
+      }
+      return;
+    }
 
     if (roll < 0.46) {
       this.setAction(state, index, CurveCrawlerAction.Crawl, 1.6, 5.5);

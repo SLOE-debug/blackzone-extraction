@@ -1,4 +1,5 @@
 import { DEV } from 'cc/env';
+import { LOBBY_OBSERVATION_SPIDER_CONFIG } from '../model/lobby-observation-spider-config';
 import { type LobbyDebugControls } from './lobby-debug-controls';
 
 const PANEL_ID = 'lobby-debug-panel';
@@ -40,6 +41,17 @@ export class LobbyDebugPanel {
     addBooleanControl(body, '轨道相机', snapshot.orbitCameraEnabled, (value) => {
       controls.setOrbitCameraEnabled(value);
     });
+    addNumberControl(
+      body,
+      '蜘蛛大小',
+      LOBBY_OBSERVATION_SPIDER_CONFIG.minimumScale,
+      LOBBY_OBSERVATION_SPIDER_CONFIG.maximumScale,
+      0.1,
+      snapshot.observationSpiderScale,
+      (value) => {
+        controls.setObservationSpiderScale(value);
+      },
+    );
     addNumberControl(body, '主射灯流明', 0, 24000, 100, snapshot.keyLightFlux, (value) => {
       controls.setKeyLightFlux(value);
     });

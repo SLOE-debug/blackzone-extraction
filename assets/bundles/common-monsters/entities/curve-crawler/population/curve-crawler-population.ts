@@ -7,6 +7,7 @@ import {
   type CurveCrawlerPopulationOptions,
 } from '../model/curve-crawler-options';
 import { CurveCrawlerState } from '../model/curve-crawler-state';
+import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { CurveCrawlerMovementSystem } from '../movement/curve-crawler-movement-system';
 import { CurveCrawlerRenderer } from '../rendering/curve-crawler-renderer';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
@@ -31,10 +32,18 @@ export class CurveCrawlerPopulation implements MonsterPopulation<CurveCrawlerCom
   private readonly renderer: CurveCrawlerRenderer;
   private disposed = false;
 
-  constructor(parent: Node, options: Readonly<CurveCrawlerPopulationOptions>) {
-    const normalizedOptions = normalizeCurveCrawlerOptions(options);
+  constructor(
+    parent: Node,
+    options: Readonly<CurveCrawlerPopulationOptions>,
+    motionProfile: CurveCrawlerMotionProfile,
+  ) {
+    const normalizedOptions = normalizeCurveCrawlerOptions(options, motionProfile);
     this.state = new CurveCrawlerState(normalizedOptions);
-    this.renderer = new CurveCrawlerRenderer(parent, this.state);
+    this.renderer = new CurveCrawlerRenderer(
+      parent,
+      this.state,
+      normalizedOptions.surfaceMaterialTemplate,
+    );
   }
 
   /** 当前群体包含的 Curve Crawler 数量。 */

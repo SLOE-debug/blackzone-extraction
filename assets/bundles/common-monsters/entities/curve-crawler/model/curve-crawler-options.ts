@@ -1,3 +1,6 @@
+import { type Material } from 'cc';
+import { CurveCrawlerMotionProfile } from './curve-crawler-motion-profile';
+
 /** Curve Crawler 群体使用的二维初始生成区域尺寸。 */
 export interface CurveCrawlerSpawnAreaSize {
   readonly width: number;
@@ -9,6 +12,7 @@ export interface CurveCrawlerPopulationOptions {
   readonly count: number;
   readonly spawnArea: Readonly<CurveCrawlerSpawnAreaSize>;
   readonly seed: number;
+  readonly surfaceMaterialTemplate: Material;
 }
 
 /** 完成边界校验后的群体参数。 */
@@ -16,6 +20,8 @@ export interface NormalizedCurveCrawlerPopulationOptions {
   readonly count: number;
   readonly spawnArea: Readonly<CurveCrawlerSpawnAreaSize>;
   readonly seed: number;
+  readonly surfaceMaterialTemplate: Material;
+  readonly motionProfile: CurveCrawlerMotionProfile;
 }
 
 /**
@@ -23,6 +29,7 @@ export interface NormalizedCurveCrawlerPopulationOptions {
  */
 export function normalizeCurveCrawlerOptions(
   options: Readonly<CurveCrawlerPopulationOptions>,
+  motionProfile: CurveCrawlerMotionProfile,
 ): NormalizedCurveCrawlerPopulationOptions {
   if (!Number.isInteger(options.count) || options.count <= 0) {
     throw new Error('Curve Crawler 数量必须是正整数。');
@@ -34,6 +41,9 @@ export function normalizeCurveCrawlerOptions(
   if (!Number.isFinite(options.seed)) {
     throw new Error('Curve Crawler 随机种子必须是有限数值。');
   }
+  if (options.surfaceMaterialTemplate.effectAsset === null) {
+    throw new Error('Curve Crawler 受光材质模板没有有效 EffectAsset。');
+  }
 
   return Object.freeze({
     count: options.count,
@@ -42,5 +52,7 @@ export function normalizeCurveCrawlerOptions(
       height: options.spawnArea.height,
     }),
     seed: Math.trunc(options.seed),
+    surfaceMaterialTemplate: options.surfaceMaterialTemplate,
+    motionProfile,
   });
 }

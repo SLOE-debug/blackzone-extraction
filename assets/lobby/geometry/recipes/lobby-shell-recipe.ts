@@ -21,7 +21,6 @@ import {
 export enum LobbyHallSurfaceId {
   Floor = 'floor',
   Ceiling = 'ceiling',
-  BackWall = 'back-wall',
   FrontWall = 'front-wall',
   LeftWall = 'left-wall',
   RightWall = 'right-wall',
@@ -48,15 +47,6 @@ const CEILING_FRAME = defineSurfaceFrame({
   ux: 1, uy: 0, uz: 0,
   vx: 0, vy: 0, vz: 1,
   nx: 0, ny: -1, nz: 0,
-});
-
-const BACK_WALL_FRAME = defineSurfaceFrame({
-  originX: -LOBBY_LAYOUT.hallHalfWidth,
-  originY: 0,
-  originZ: -LOBBY_LAYOUT.hallHalfDepth,
-  ux: 1, uy: 0, uz: 0,
-  vx: 0, vy: 1, vz: 0,
-  nx: 0, ny: 0, nz: 1,
 });
 
 const FRONT_WALL_FRAME = defineSurfaceFrame({
@@ -106,16 +96,6 @@ const LOBBY_HALL_SURFACE_RECIPES = Object.freeze({
     diagonalOffset: 0,
     flipWinding: false,
     context: createCaveContext(23, 0, 0.18, 2, 0.18, 0.68),
-  }),
-  [LobbyHallSurfaceId.BackWall]: createRecipe({
-    columns: 10,
-    rows: 7,
-    width: LOBBY_LAYOUT.hallHalfWidth * 2,
-    height: LOBBY_LAYOUT.hallHeight,
-    frame: BACK_WALL_FRAME,
-    diagonalOffset: 1,
-    flipWinding: false,
-    context: createCaveContext(37, 0, 0.18, 1, 0.12, 1.35),
   }),
   [LobbyHallSurfaceId.FrontWall]: createRecipe({
     columns: 10,

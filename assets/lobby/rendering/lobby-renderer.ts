@@ -10,6 +10,7 @@ import {
 } from '../../core/rendering/static-surface-mesh';
 import { lobbyEmissiveGeometry } from '../geometry/lobby-emissive-geometry';
 import { lobbyOpaqueGeometry } from '../geometry/lobby-opaque-geometry';
+import { lobbyTransparentGeometry } from '../geometry/lobby-transparent-geometry';
 import { lobbyEmissiveVertexShading } from './lobby-emissive-vertex-shading';
 import { LobbyMaterials } from './lobby-materials';
 import { lobbyVertexShading } from './lobby-vertex-shading';
@@ -26,11 +27,12 @@ const EMISSIVE_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
   uploadLightingAttributes: false,
 });
 
-/** 使用真实受光表面和单批发光面渲染大厅。 */
+/** 使用真实受光表面、单批发光面和透明观察面渲染大厅。 */
 export class LobbyRenderer {
   private readonly materials: LobbyMaterials;
   private readonly surfaceMesh = new StaticSurfaceMesh();
   private readonly emissiveMesh = new StaticSurfaceMesh();
+  private readonly glassMesh = new StaticSurfaceMesh();
   private disposed = false;
 
   constructor(parent: Node, surfaceMaterialTemplate: Material) {
@@ -71,6 +73,23 @@ export class LobbyRenderer {
         this.materials.emissive,
         EMISSIVE_SURFACE_OPTIONS,
       );
+
+      const glassGeometry = createStaticSurfaceGeometry(
+        lobbyTransparentGeometry.metrics.verticesPerEntity,
+        lobbyTransparentGeometry.metrics.indicesPerEntity,
+        GeometryIndexFormat.Uint16,
+      );
+      const glassWriter = new TriangleMeshWriter(glassGeometry);
+      glassWriter.reset(true);
+      lobbyTransparentGeometry.write(glassWriter);
+      glassWriter.commit();
+      this.glassMesh.initialize(
+        parent,
+        'LobbyObservationGlass',
+        glassGeometry,
+        this.materials.glass,
+        EMISSIVE_SURFACE_OPTIONS,
+      );
     } catch (error: unknown) {
       this.dispose();
       throw error;
@@ -82,6 +101,7 @@ export class LobbyRenderer {
     if (this.disposed) {
       return;
     }
+    this.glassMesh.dispose();
     this.emissiveMesh.dispose();
     this.surfaceMesh.dispose();
     this.materials.dispose();

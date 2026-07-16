@@ -6,6 +6,7 @@ export type {
 } from './feature/common-monsters-feature';
 export {
   CurveCrawlerCommandType,
+  CurveCrawlerMotionProfile,
   CurveCrawlerPopulation,
   type CurveCrawlerCommand,
   type CurveCrawlerPopulationOptions,

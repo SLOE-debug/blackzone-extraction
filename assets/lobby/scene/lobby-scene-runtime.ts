@@ -1,4 +1,4 @@
-import { Color, director, type Material, Node, renderer } from 'cc';
+import { Color, director, error as logError, type Material, Node, renderer } from 'cc';
 import { RuntimePerformanceController } from '../../core/performance/runtime-performance-controller';
 import { RUNTIME_PERFORMANCE_PROFILE } from '../../core/performance/runtime-performance-profile';
 import { LobbyDebugControls } from '../debug/lobby-debug-controls';
@@ -7,6 +7,7 @@ import { LOBBY_RENDER_QUALITY } from '../model/lobby-render-quality';
 import { LobbyRenderer } from '../rendering/lobby-renderer';
 import { createLobbyCamera, type LobbyCameraRig } from './lobby-camera';
 import { createLobbyLighting } from './lobby-lighting';
+import { LobbyObservationSpider } from './lobby-observation-spider';
 
 enum LobbySceneState {
   Created,
@@ -14,7 +15,7 @@ enum LobbySceneState {
   Disposed,
 }
 
-/** 正式大厅场景门面，只负责性能策略、渲染器、灯光和相机的装配。 */
+/** 正式大厅场景门面，负责性能、渲染、灯光、相机和观察窗展示的装配。 */
 export class LobbySceneRuntime {
   private state = LobbySceneState.Created;
   private runtimeRoot: Node | null = null;
@@ -22,6 +23,7 @@ export class LobbySceneRuntime {
   private debugPanel: LobbyDebugPanel | null = null;
   private cameraRig: LobbyCameraRig | null = null;
   private performanceController: RuntimePerformanceController | null = null;
+  private observationSpider: LobbyObservationSpider | null = null;
 
   constructor(
     private readonly sceneEntry: Node,
@@ -55,16 +57,22 @@ export class LobbySceneRuntime {
     let debugPanel: LobbyDebugPanel | null = null;
     let cameraRig: LobbyCameraRig | null = null;
     let performanceController: RuntimePerformanceController | null = null;
+    let observationSpider: LobbyObservationSpider | null = null;
     try {
       performanceController = new RuntimePerformanceController(RUNTIME_PERFORMANCE_PROFILE);
       lobbyRenderer = new LobbyRenderer(runtimeRoot, this.surfaceMaterialTemplate);
       const lightingRig = createLobbyLighting(runtimeRoot, LOBBY_RENDER_QUALITY);
       cameraRig = createLobbyCamera(runtimeRoot);
+      observationSpider = new LobbyObservationSpider(
+        runtimeRoot,
+        this.surfaceMaterialTemplate,
+      );
       debugPanel = new LobbyDebugPanel(
-        new LobbyDebugControls(scene, lightingRig, cameraRig),
+        new LobbyDebugControls(scene, lightingRig, cameraRig, observationSpider),
       );
     } catch (error: unknown) {
       debugPanel?.dispose();
+      observationSpider?.dispose();
       cameraRig?.dispose();
       lobbyRenderer?.dispose();
       performanceController?.dispose();
@@ -72,20 +80,34 @@ export class LobbySceneRuntime {
       this.state = LobbySceneState.Disposed;
       throw error;
     }
+    if (observationSpider === null) {
+      throw new Error('大厅观察窗蜘蛛控制器未完成创建。');
+    }
 
     this.runtimeRoot = runtimeRoot;
     this.renderer = lobbyRenderer;
     this.debugPanel = debugPanel;
     this.cameraRig = cameraRig;
     this.performanceController = performanceController;
+    this.observationSpider = observationSpider;
     this.state = LobbySceneState.Initialized;
+    void observationSpider.initialize().catch((spiderError: unknown) => {
+      if (this.state === LobbySceneState.Disposed) {
+        return;
+      }
+      const message = spiderError instanceof Error
+        ? spiderError.stack ?? spiderError.message
+        : String(spiderError);
+      logError(`大厅观察窗蜘蛛加载失败：${message}`);
+    });
   }
 
-  /** 更新自适应渲染比例和可选轨道相机惯性。 */
+  /** 更新自适应渲染比例、可选轨道相机和墙后蜘蛛动画。 */
   public update(deltaTime: number): void {
     if (this.state === LobbySceneState.Initialized) {
       this.performanceController?.update(deltaTime);
       this.cameraRig?.update(deltaTime);
+      this.observationSpider?.update(deltaTime);
     }
   }
 
@@ -96,6 +118,7 @@ export class LobbySceneRuntime {
     }
     this.debugPanel?.dispose();
     this.cameraRig?.dispose();
+    this.observationSpider?.dispose();
     this.renderer?.dispose();
     this.performanceController?.dispose();
     if (this.runtimeRoot?.isValid === true) {
@@ -105,6 +128,7 @@ export class LobbySceneRuntime {
     this.renderer = null;
     this.debugPanel = null;
     this.cameraRig = null;
+    this.observationSpider = null;
     this.performanceController = null;
     this.state = LobbySceneState.Disposed;
   }

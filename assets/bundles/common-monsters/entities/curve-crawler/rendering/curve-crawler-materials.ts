@@ -1,5 +1,5 @@
 import { Color, type Material } from 'cc';
-import { UnlitMaterialFactory } from '../../../../../core/rendering/unlit-material-factory';
+import { StandardVertexColorMaterialFactory } from '../../../../../core/rendering/standard-vertex-color-material-factory';
 
 /** 管理 Curve Crawler 合并表面的统一材质生命周期。 */
 export class CurveCrawlerMaterials {
@@ -7,10 +7,14 @@ export class CurveCrawlerMaterials {
 
   private disposed = false;
 
-  constructor() {
-    this.surface = UnlitMaterialFactory.create('CurveCrawlerSurfaceUnlit3D', {
+  constructor(surfaceMaterialTemplate: Material) {
+    this.surface = StandardVertexColorMaterialFactory.create(surfaceMaterialTemplate, {
+      name: 'CurveCrawlerSurfaceStandard',
       mainColor: new Color(255, 255, 255, 255),
-      useVertexColor: true,
+      roughness: 0.76,
+      metallic: 0,
+      specularIntensity: 0.3,
+      emissive: new Color(0, 0, 0, 255),
     });
   }
 
