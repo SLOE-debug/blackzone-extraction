@@ -22,7 +22,6 @@ const SECTION_PROFILES = {
   [LobbyOpaqueSection.SideWalls]: createSurfaceProfile(82, 9, 22),
   [LobbyOpaqueSection.Altar]: createSurfaceProfile(128, 15, 30),
   [LobbyOpaqueSection.ObservationFrame]: createSurfaceProfile(175, 32, 46),
-  [LobbyOpaqueSection.Character]: createSurfaceProfile(190, 86, 78),
   [LobbyOpaqueSection.LampCable]: createSurfaceProfile(92, 35, 34),
   [LobbyOpaqueSection.LampHousing]: createSurfaceProfile(96, 14, 26),
   [LobbyOpaqueSection.RitualLampHousing]: createSurfaceProfile(78, 7, 17),
@@ -77,9 +76,6 @@ function getSectionShade(
     + Math.max(0, -normalX) * 0.02;
   if (section === LobbyOpaqueSection.FloorCracks) {
     return facet * 0.45;
-  }
-  if (section === LobbyOpaqueSection.Character) {
-    return Math.min(1, facet * 1.08);
   }
   return Math.min(1, facet);
 }

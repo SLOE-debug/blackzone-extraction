@@ -25,7 +25,6 @@ export const LOBBY_SIDE_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.Lef
   + getTriangleCount(LobbyHallSurfaceId.RightWall);
 export const LOBBY_ALTAR_TRIANGLES = LOBBY_ALTAR_TRIANGLE_COUNT;
 export const LOBBY_OBSERVATION_FRAME_TRIANGLE_COUNT = LOBBY_OBSERVATION_FRAME_TRIANGLES;
-export const LOBBY_CHARACTER_TRIANGLES = 8 * 2 * 2 + 8 * 2;
 export const LOBBY_LAMP_CABLE_TRIANGLES = 6 * 2 * 2;
 export const LOBBY_LAMP_HOUSING_TRIANGLES = 16 * 4;
 export const LOBBY_LAMP_GLOW_TRIANGLES = 16;
@@ -42,7 +41,6 @@ const LOBBY_OPAQUE_TRIANGLES = LOBBY_FLOOR_TRIANGLES
   + LOBBY_SIDE_WALL_TRIANGLES
   + LOBBY_ALTAR_TRIANGLES
   + LOBBY_OBSERVATION_FRAME_TRIANGLE_COUNT
-  + LOBBY_CHARACTER_TRIANGLES
   + LOBBY_LAMP_CABLE_TRIANGLES
   + LOBBY_LAMP_HOUSING_TRIANGLES
   + LOBBY_RITUAL_LAMP_HOUSING_TRIANGLES;
@@ -57,7 +55,6 @@ export enum LobbyOpaqueSection {
   SideWalls = 'side-walls',
   Altar = 'altar',
   ObservationFrame = 'observation-frame',
-  Character = 'character',
   LampCable = 'lamp-cable',
   LampHousing = 'lamp-housing',
   RitualLampHousing = 'ritual-lamp-housing',
@@ -73,7 +70,6 @@ export const LOBBY_OPAQUE_SECTION_ORDER: readonly LobbyOpaqueSection[] = Object.
   LobbyOpaqueSection.SideWalls,
   LobbyOpaqueSection.Altar,
   LobbyOpaqueSection.ObservationFrame,
-  LobbyOpaqueSection.Character,
   LobbyOpaqueSection.LampCable,
   LobbyOpaqueSection.LampHousing,
   LobbyOpaqueSection.RitualLampHousing,

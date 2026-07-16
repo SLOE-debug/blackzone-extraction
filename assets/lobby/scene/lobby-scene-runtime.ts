@@ -1,9 +1,11 @@
 import { Color, director, error as logError, type Material, Node, renderer } from 'cc';
 import { RuntimePerformanceController } from '../../core/performance/runtime-performance-controller';
 import { RUNTIME_PERFORMANCE_PROFILE } from '../../core/performance/runtime-performance-profile';
+import { VanguardPopulation } from '../../player/vanguard';
 import { LobbyDebugControls } from '../debug/lobby-debug-controls';
 import { LobbyDebugPanel } from '../debug/lobby-debug-panel';
 import { LOBBY_RENDER_QUALITY } from '../model/lobby-render-quality';
+import { LOBBY_VANGUARD_OPTIONS } from '../model/lobby-vanguard-options';
 import { LobbyRenderer } from '../rendering/lobby-renderer';
 import { createLobbyCamera, type LobbyCameraRig } from './lobby-camera';
 import { createLobbyLighting } from './lobby-lighting';
@@ -24,6 +26,7 @@ export class LobbySceneRuntime {
   private cameraRig: LobbyCameraRig | null = null;
   private performanceController: RuntimePerformanceController | null = null;
   private observationSpider: LobbyObservationSpider | null = null;
+  private vanguard: VanguardPopulation | null = null;
 
   constructor(
     private readonly sceneEntry: Node,
@@ -58,9 +61,15 @@ export class LobbySceneRuntime {
     let cameraRig: LobbyCameraRig | null = null;
     let performanceController: RuntimePerformanceController | null = null;
     let observationSpider: LobbyObservationSpider | null = null;
+    let vanguard: VanguardPopulation | null = null;
     try {
       performanceController = new RuntimePerformanceController(RUNTIME_PERFORMANCE_PROFILE);
       lobbyRenderer = new LobbyRenderer(runtimeRoot, this.surfaceMaterialTemplate);
+      vanguard = new VanguardPopulation(
+        runtimeRoot,
+        this.surfaceMaterialTemplate,
+        LOBBY_VANGUARD_OPTIONS,
+      );
       const lightingRig = createLobbyLighting(runtimeRoot, LOBBY_RENDER_QUALITY);
       cameraRig = createLobbyCamera(runtimeRoot);
       observationSpider = new LobbyObservationSpider(
@@ -73,6 +82,7 @@ export class LobbySceneRuntime {
     } catch (error: unknown) {
       debugPanel?.dispose();
       observationSpider?.dispose();
+      vanguard?.dispose();
       cameraRig?.dispose();
       lobbyRenderer?.dispose();
       performanceController?.dispose();
@@ -90,6 +100,7 @@ export class LobbySceneRuntime {
     this.cameraRig = cameraRig;
     this.performanceController = performanceController;
     this.observationSpider = observationSpider;
+    this.vanguard = vanguard;
     this.state = LobbySceneState.Initialized;
     void observationSpider.initialize().catch((spiderError: unknown) => {
       if (this.state === LobbySceneState.Disposed) {
@@ -102,11 +113,12 @@ export class LobbySceneRuntime {
     });
   }
 
-  /** 更新自适应渲染比例、可选轨道相机和墙后蜘蛛动画。 */
+  /** 更新自适应渲染比例、轨道相机、主角步态和墙后蜘蛛动画。 */
   public update(deltaTime: number): void {
     if (this.state === LobbySceneState.Initialized) {
       this.performanceController?.update(deltaTime);
       this.cameraRig?.update(deltaTime);
+      this.vanguard?.update(deltaTime);
       this.observationSpider?.update(deltaTime);
     }
   }
@@ -119,6 +131,7 @@ export class LobbySceneRuntime {
     this.debugPanel?.dispose();
     this.cameraRig?.dispose();
     this.observationSpider?.dispose();
+    this.vanguard?.dispose();
     this.renderer?.dispose();
     this.performanceController?.dispose();
     if (this.runtimeRoot?.isValid === true) {
@@ -129,6 +142,7 @@ export class LobbySceneRuntime {
     this.debugPanel = null;
     this.cameraRig = null;
     this.observationSpider = null;
+    this.vanguard = null;
     this.performanceController = null;
     this.state = LobbySceneState.Disposed;
   }

@@ -2,7 +2,6 @@ import { type TriangleMeshWriter } from '../../core/geometry/triangle-mesh-write
 import { writeLobbyAltar } from './lobby-altar-geometry';
 import { GeometrySectionComposer } from './infrastructure/geometry-section-composer';
 import {
-  writeLobbyCharacter,
   writeLobbyLampCable,
   writeLobbyLampGlow,
   writeLobbyLampHousing,
@@ -51,7 +50,6 @@ export class LobbyOpaqueGeometrySource {
       LobbyOpaqueSection.ObservationFrame,
       () => writeLobbyObservationFrame(writer),
     );
-    sections.write(LobbyOpaqueSection.Character, () => writeLobbyCharacter(writer));
     sections.write(LobbyOpaqueSection.LampCable, () => writeLobbyLampCable(writer));
     sections.write(LobbyOpaqueSection.LampHousing, () => writeLobbyLampHousing(writer));
     sections.write(

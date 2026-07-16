@@ -40,8 +40,7 @@ describe('大厅表面顶点参数', () => {
       ranges[LobbyOpaqueSection.Floor].startVertex,
       ranges[LobbyOpaqueSection.FloorCracks].startVertex,
     );
-    expectDarkRedColor(geometry.colors, ranges[LobbyOpaqueSection.CircularFrame].startVertex);
-    expectDarkRedColor(geometry.colors, ranges[LobbyOpaqueSection.Character].startVertex);
+    expectDarkRedColor(geometry.colors, ranges[LobbyOpaqueSection.ObservationFrame].startVertex);
   });
 
   it('固定生成明显隆起的洞穴墙面与完全一致的地面裂纹', () => {
@@ -101,13 +100,11 @@ describe('大厅表面顶点参数', () => {
     expectNormalDirection(fixture.geometry.normals, rightWallStart, 0, -1);
   });
 
-  it('玩家站在两层不规则祭台顶面且祭台氛围灯保持固定拓扑', () => {
+  it('两层不规则祭台顶面与祭台氛围灯保持固定拓扑', () => {
     const fixture = createLobbyGeometry();
     const altar = fixture.ranges[LobbyOpaqueSection.Altar];
-    const character = fixture.ranges[LobbyOpaqueSection.Character];
     let maximumAltarY = Number.NEGATIVE_INFINITY;
     let maximumAltarRadius = 0;
-    let minimumCharacterY = Number.POSITIVE_INFINITY;
     for (let vertex = altar.startVertex; vertex < altar.startVertex + altar.vertexCount; vertex++) {
       const offset = vertex * 3;
       const x = fixture.geometry.positions[offset] ?? 0;
@@ -116,20 +113,8 @@ describe('大厅表面顶点参数', () => {
       maximumAltarY = Math.max(maximumAltarY, y);
       maximumAltarRadius = Math.max(maximumAltarRadius, Math.hypot(x, z));
     }
-    for (
-      let vertex = character.startVertex;
-      vertex < character.startVertex + character.vertexCount;
-      vertex++
-    ) {
-      minimumCharacterY = Math.min(
-        minimumCharacterY,
-        fixture.geometry.positions[vertex * 3 + 1] ?? 0,
-      );
-    }
-
     expect(maximumAltarY).toBeCloseTo(LOBBY_LAYOUT.altarTopY);
     expect(maximumAltarRadius).toBeGreaterThan(3.2);
-    expect(minimumCharacterY).toBeGreaterThan(LOBBY_LAYOUT.altarTopY);
 
     const glowGeometry = createStaticSurfaceGeometry(
       lobbyRitualGlowGeometry.metrics.verticesPerEntity,
