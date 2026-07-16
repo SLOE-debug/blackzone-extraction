@@ -1,8 +1,7 @@
-import { _decorator, Component, error } from 'cc';
-import { loadLobbySurfaceMaterial } from '../lobby/loading/lobby-resource-loader';
+import { _decorator, Component, error, Material } from 'cc';
 import { LobbySceneRuntime } from '../lobby/scene/lobby-scene-runtime';
 
-const { ccclass } = _decorator;
+const { ccclass, property } = _decorator;
 
 /**
  * 大厅场景序列化入口。
@@ -11,18 +10,26 @@ const { ccclass } = _decorator;
  */
 @ccclass('LobbySceneEntry')
 export class LobbySceneEntry extends Component {
+  @property({
+    type: Material,
+    tooltip: '请选择使用 Cocos 内置 Standard Effect 的大厅表面材质。',
+  })
+  public lobbySurfaceMaterial: Material | null = null;
+
   private runtime: LobbySceneRuntime | null = null;
   private destroyed = false;
 
   protected onLoad(): void {
-    void this.initialize().catch((initializationError: unknown) => {
+    try {
+      this.initialize();
+    } catch (initializationError: unknown) {
       if (!this.destroyed) {
         const message = initializationError instanceof Error
           ? initializationError.stack ?? initializationError.message
           : String(initializationError);
         error(`大厅场景初始化失败：${message}`);
       }
-    });
+    }
   }
 
   protected onDestroy(): void {
@@ -31,14 +38,16 @@ export class LobbySceneEntry extends Component {
     this.runtime = null;
   }
 
-  /** 加载正式大厅资源，并仅在组件仍然有效时创建运行时。 */
-  private async initialize(): Promise<void> {
-    const surfaceMaterial = await loadLobbySurfaceMaterial();
+  /** 使用编辑器引用的内置 Standard 材质创建大厅运行时。 */
+  private initialize(): void {
     if (this.destroyed || !this.node.isValid) {
       return;
     }
+    if (this.lobbySurfaceMaterial === null) {
+      throw new Error('请在 LobbySceneEntry 上指定使用内置 Standard Effect 的大厅表面材质。');
+    }
 
-    const runtime = new LobbySceneRuntime(this.node, surfaceMaterial);
+    const runtime = new LobbySceneRuntime(this.node, this.lobbySurfaceMaterial);
     runtime.initialize();
     this.runtime = runtime;
   }

@@ -56,6 +56,11 @@
 - 新增、移动或重命名 TypeScript、资源及目录时，只处理实际源文件；对应 `.meta` 文件统一由 Cocos 编辑器自动生成和维护。
 - 不要为了让文件与 `.meta` 成对出现而预生成 UUID，也不要复制其他资源的 `.meta` 作为模板。
 
+## Cocos 引擎规则
+
+- 涉及 Cocos Creator API、坐标与方向、节点变换、相机、灯光、材质、渲染或资源契约时，必须先完整阅读 `.agents/rules/cocos-engine-differences.md`。
+- 发现 Cocos 与 Three.js、Unity、Godot、WebGL 或常见框架存在容易误判的行为差异时，应更新该规则文件，不要把详细差异持续堆入根 `AGENTS.md`。
+
 ## 实现规范
 
 - 单文件超过 500 行前必须先评估拆分。

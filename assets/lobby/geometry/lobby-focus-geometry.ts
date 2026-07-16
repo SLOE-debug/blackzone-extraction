@@ -35,7 +35,11 @@ const CHARACTER_LEVELS = Object.freeze([
 
 const CABLE_LEVELS = Object.freeze([
   Object.freeze({ y: LOBBY_LAYOUT.cableTopY, x: 0, z: 0 }),
-  Object.freeze({ y: 8.48, x: 0.018, z: -0.012 }),
+  Object.freeze({
+    y: (LOBBY_LAYOUT.cableTopY + LOBBY_LAYOUT.lampTopY) * 0.5,
+    x: 0.018,
+    z: -0.012,
+  }),
   Object.freeze({ y: LOBBY_LAYOUT.lampTopY, x: 0, z: 0 }),
 ]);
 

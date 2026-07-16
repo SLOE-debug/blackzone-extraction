@@ -75,9 +75,9 @@ function createHorizontalPoint(
   const z = -LOBBY_LAYOUT.hallHalfDepth
     + LOBBY_LAYOUT.hallHalfDepth * 2 * row / rows;
   return {
-    x: x + (edge ? 0 : getLobbyGeometryJitter(column, row, seed, 0.14)),
-    y: baseY + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 1, 0.07)),
-    z: z + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 2, 0.16)),
+    x: x + (edge ? 0 : getLobbyGeometryJitter(column, row, seed, 0.06)),
+    y: baseY + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 1, 0.025)),
+    z: z + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 2, 0.07)),
   };
 }
 
@@ -123,9 +123,9 @@ function createDepthWallPoint(
     + LOBBY_LAYOUT.hallHalfWidth * 2 * column / columns;
   const y = LOBBY_LAYOUT.hallHeight * row / rows;
   return {
-    x: x + (edge ? 0 : getLobbyGeometryJitter(column, row, seed, 0.16)),
-    y: y + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 1, 0.12)),
-    z: baseZ + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 2, 0.09)),
+    x: x + (edge ? 0 : getLobbyGeometryJitter(column, row, seed, 0.07)),
+    y: y + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 1, 0.045)),
+    z: baseZ + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 2, 0.035)),
   };
 }
 
@@ -171,8 +171,8 @@ function createSideWallPoint(
     + LOBBY_LAYOUT.hallHalfDepth * 2 * column / columns;
   const y = LOBBY_LAYOUT.hallHeight * row / rows;
   return {
-    x: baseX + (edge ? 0 : getLobbyGeometryJitter(column, row, seed, 0.09)),
-    y: y + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 1, 0.12)),
-    z: z + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 2, 0.16)),
+    x: baseX + (edge ? 0 : getLobbyGeometryJitter(column, row, seed, 0.035)),
+    y: y + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 1, 0.045)),
+    z: z + (edge ? 0 : getLobbyGeometryJitter(column, row, seed + 2, 0.07)),
   };
 }

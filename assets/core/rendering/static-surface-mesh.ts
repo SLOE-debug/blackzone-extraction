@@ -5,7 +5,7 @@ import {
   Node,
   utils,
 } from 'cc';
-import { type SurfaceBufferGeometry } from '../geometry/buffer-geometry';
+import { type StaticSurfaceBufferGeometry } from '../geometry/buffer-geometry';
 
 enum StaticSurfaceMeshState {
   Created,
@@ -13,10 +13,16 @@ enum StaticSurfaceMeshState {
   Disposed,
 }
 
+/** 静态表面节点参与实时阴影的显式配置。 */
+export interface StaticSurfaceMeshOptions {
+  readonly castShadows: boolean;
+  readonly receiveShadows: boolean;
+}
+
 /**
  * 把位置、法线和顶点色完整上传为静态 Cocos Mesh。
  *
- * 与动态批次不同，该适配器保留法线流，供 Standard Effect 和实时光源使用。
+ * 与动态批次不同，该适配器保留法线和 UV 流，供自定义受光材质使用。
  */
 export class StaticSurfaceMesh {
   private state = StaticSurfaceMeshState.Created;
@@ -24,12 +30,13 @@ export class StaticSurfaceMesh {
   private renderer: MeshRenderer | null = null;
   private mesh: Mesh | null = null;
 
-  /** 创建支持实时光照和阴影的静态表面节点。 */
+  /** 创建带显式阴影策略的静态表面节点。 */
   public initialize(
     parent: Node,
     name: string,
-    geometry: SurfaceBufferGeometry,
+    geometry: StaticSurfaceBufferGeometry,
     material: Material,
+    options: Readonly<StaticSurfaceMeshOptions>,
   ): void {
     if (this.state !== StaticSurfaceMeshState.Created) {
       throw new Error('静态表面 Mesh 只能初始化一次。');
@@ -39,12 +46,10 @@ export class StaticSurfaceMesh {
     }
 
     const bounds = geometry.computeBounds();
-    // Standard Effect 即使关闭贴图仍保留 UV 输入，这里写入零值占位流。
-    const uvs = new Array<number>(geometry.vertexCount * 2).fill(0);
     const mesh = utils.MeshUtils.createMesh({
       positions: Array.from(geometry.getPositionView()),
       normals: Array.from(geometry.getNormalView()),
-      uvs,
+      uvs: Array.from(geometry.getUvView()),
       colors: Array.from(geometry.getColorView()),
       indices: Array.from(geometry.getIndexView()),
       minPos: { x: bounds.minX, y: bounds.minY, z: bounds.minZ },
@@ -57,8 +62,12 @@ export class StaticSurfaceMesh {
     const renderer = node.addComponent(MeshRenderer);
     renderer.mesh = mesh;
     renderer.setMaterial(material, 0);
-    renderer.shadowCastingMode = MeshRenderer.ShadowCastingMode.ON;
-    renderer.receiveShadow = MeshRenderer.ShadowReceivingMode.ON;
+    renderer.shadowCastingMode = options.castShadows
+      ? MeshRenderer.ShadowCastingMode.ON
+      : MeshRenderer.ShadowCastingMode.OFF;
+    renderer.receiveShadow = options.receiveShadows
+      ? MeshRenderer.ShadowReceivingMode.ON
+      : MeshRenderer.ShadowReceivingMode.OFF;
     renderer.onGeometryChanged();
 
     this.node = node;

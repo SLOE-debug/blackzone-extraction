@@ -1,5 +1,4 @@
 import { type SurfaceBufferGeometry } from '../../core/geometry/buffer-geometry';
-import { type SurfaceColorTint } from '../../core/rendering/directional-vertex-shading';
 import {
   LobbyOpaqueSection,
   type LobbyOpaqueSectionRanges,
@@ -21,20 +20,26 @@ const OPAQUE_SECTION_ORDER: readonly LobbyOpaqueSection[] = Object.freeze([
   LobbyOpaqueSection.LampHousing,
 ]);
 
-const SECTION_TINTS = {
-  [LobbyOpaqueSection.Floor]: createTint(76, 8, 18),
-  [LobbyOpaqueSection.Ceiling]: createTint(34, 3, 9),
-  [LobbyOpaqueSection.BackWall]: createTint(58, 5, 14),
-  [LobbyOpaqueSection.FrontWall]: createTint(49, 4, 12),
-  [LobbyOpaqueSection.SideWalls]: createTint(66, 6, 16),
-  [LobbyOpaqueSection.CircularPanel]: createTint(25, 2, 7),
-  [LobbyOpaqueSection.CircularFrame]: createTint(132, 25, 39),
-  [LobbyOpaqueSection.Character]: createTint(208, 113, 88),
-  [LobbyOpaqueSection.LampCable]: createTint(24, 18, 19),
-  [LobbyOpaqueSection.LampHousing]: createTint(57, 8, 14),
-} satisfies Record<LobbyOpaqueSection, SurfaceColorTint>;
+interface LobbySurfaceProfile {
+  readonly red: number;
+  readonly green: number;
+  readonly blue: number;
+}
 
-/** 把纯色分区和轻微分面差异写入大厅顶点色。 */
+const SECTION_PROFILES = {
+  [LobbyOpaqueSection.Floor]: createSurfaceProfile(102, 12, 25),
+  [LobbyOpaqueSection.Ceiling]: createSurfaceProfile(48, 5, 14),
+  [LobbyOpaqueSection.BackWall]: createSurfaceProfile(70, 8, 20),
+  [LobbyOpaqueSection.FrontWall]: createSurfaceProfile(60, 7, 18),
+  [LobbyOpaqueSection.SideWalls]: createSurfaceProfile(82, 9, 22),
+  [LobbyOpaqueSection.CircularPanel]: createSurfaceProfile(30, 3, 10),
+  [LobbyOpaqueSection.CircularFrame]: createSurfaceProfile(175, 32, 46),
+  [LobbyOpaqueSection.Character]: createSurfaceProfile(190, 86, 78),
+  [LobbyOpaqueSection.LampCable]: createSurfaceProfile(92, 35, 34),
+  [LobbyOpaqueSection.LampHousing]: createSurfaceProfile(96, 14, 26),
+} satisfies Record<LobbyOpaqueSection, LobbySurfaceProfile>;
+
+/** 把暗红分区色写入供内置 Standard 使用的大厅顶点流。 */
 export class LobbyVertexShading {
   /** 按稳定区段刷新大厅全部不透明表面颜色。 */
   public update(
@@ -42,7 +47,7 @@ export class LobbyVertexShading {
     ranges: LobbyOpaqueSectionRanges,
   ): void {
     for (const section of OPAQUE_SECTION_ORDER) {
-      shadeOpaqueSection(geometry, ranges[section], SECTION_TINTS[section], section);
+      shadeOpaqueSection(geometry, ranges[section], SECTION_PROFILES[section], section);
     }
   }
 }
@@ -55,8 +60,8 @@ export class LobbyGlowVertexShading {
     for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
       const colorOffset = vertex * 4;
       colors[colorOffset] = 1;
-      colors[colorOffset + 1] = 0.82;
-      colors[colorOffset + 2] = 0.56;
+      colors[colorOffset + 1] = 0.86;
+      colors[colorOffset + 2] = 0.65;
       colors[colorOffset + 3] = 1;
     }
   }
@@ -66,7 +71,7 @@ export class LobbyGlowVertexShading {
 function shadeOpaqueSection(
   geometry: SurfaceBufferGeometry,
   range: Readonly<LobbyVertexRange>,
-  tint: Readonly<SurfaceColorTint>,
+  profile: Readonly<LobbySurfaceProfile>,
   section: LobbyOpaqueSection,
 ): void {
   const endVertex = range.startVertex + range.vertexCount;
@@ -78,10 +83,10 @@ function shadeOpaqueSection(
     const normalZ = normals[positionOffset + 2] ?? 0;
     const shade = getSectionShade(section, normalX, normalY, normalZ);
     const colorOffset = vertex * 4;
-    colors[colorOffset] = Math.min(1, tint.red * shade);
-    colors[colorOffset + 1] = Math.min(1, tint.green * shade);
-    colors[colorOffset + 2] = Math.min(1, tint.blue * shade);
-    colors[colorOffset + 3] = tint.alpha;
+    colors[colorOffset] = Math.min(1, profile.red * shade);
+    colors[colorOffset + 1] = Math.min(1, profile.green * shade);
+    colors[colorOffset + 2] = Math.min(1, profile.blue * shade);
+    colors[colorOffset + 3] = 1;
   }
 }
 
@@ -92,26 +97,29 @@ function getSectionShade(
   normalY: number,
   normalZ: number,
 ): number {
-  const facet = 0.82
-    + Math.max(0, normalY) * 0.1
-    + Math.max(0, normalZ) * 0.045
-    + Math.max(0, -normalX) * 0.025;
+  const facet = 0.86
+    + Math.max(0, normalY) * 0.08
+    + Math.max(0, normalZ) * 0.035
+    + Math.max(0, -normalX) * 0.02;
   if (section === LobbyOpaqueSection.CircularPanel) {
-    return facet * 0.72;
+    return facet * 0.7;
   }
   if (section === LobbyOpaqueSection.Character) {
-    return Math.min(1, facet * 1.06);
+    return Math.min(1, facet * 1.08);
   }
   return Math.min(1, facet);
 }
 
-/** 从字节色创建归一化表面色。 */
-function createTint(red: number, green: number, blue: number): SurfaceColorTint {
+/** 创建归一化暗红颜色配置。 */
+function createSurfaceProfile(
+  red: number,
+  green: number,
+  blue: number,
+): LobbySurfaceProfile {
   return Object.freeze({
     red: red * BYTE_COLOR_SCALE,
     green: green * BYTE_COLOR_SCALE,
     blue: blue * BYTE_COLOR_SCALE,
-    alpha: 1,
   });
 }
 

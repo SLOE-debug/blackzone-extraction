@@ -170,6 +170,27 @@ export class SurfaceBufferGeometry<
 }
 
 /**
+ * 为静态受光表面补充 UV 参数流。
+ *
+ * UV 由具体材质解释；核心层只保证它与顶点索引一一对应。
+ */
+export class StaticSurfaceBufferGeometry<
+  TIndex extends GeometryIndexArray = GeometryIndexArray,
+> extends SurfaceBufferGeometry<TIndex> {
+  public readonly uvs: Float32Array;
+
+  constructor(maxVertices: number, maxIndices: number, index: TIndex) {
+    super(maxVertices, maxIndices, index);
+    this.uvs = new Float32Array(maxVertices * 2);
+  }
+
+  /** 返回当前有效 UV 流的零拷贝视图。 */
+  public getUvView(): Float32Array {
+    return this.uvs.subarray(0, this.vertexCount * 2);
+  }
+}
+
+/**
  * 按显式索引格式创建动态表面几何。
  */
 export function createSurfaceGeometry(
@@ -185,4 +206,28 @@ export function createSurfaceGeometry(
   }
 
   return new SurfaceBufferGeometry(maxVertices, maxIndices, new Uint32Array(maxIndices));
+}
+
+/** 创建包含位置、法线、颜色和 UV 的静态表面几何。 */
+export function createStaticSurfaceGeometry(
+  maxVertices: number,
+  maxIndices: number,
+  indexFormat: GeometryIndexFormat,
+): StaticSurfaceBufferGeometry {
+  if (indexFormat === GeometryIndexFormat.Uint16) {
+    if (maxVertices > 65535) {
+      throw new Error('Uint16 索引几何的顶点容量不能超过 65535。');
+    }
+    return new StaticSurfaceBufferGeometry(
+      maxVertices,
+      maxIndices,
+      new Uint16Array(maxIndices),
+    );
+  }
+
+  return new StaticSurfaceBufferGeometry(
+    maxVertices,
+    maxIndices,
+    new Uint32Array(maxIndices),
+  );
 }

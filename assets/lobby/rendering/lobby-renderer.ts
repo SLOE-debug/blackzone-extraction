@@ -1,10 +1,13 @@
 import { type Material, Node } from 'cc';
 import {
-  createSurfaceGeometry,
+  createStaticSurfaceGeometry,
   GeometryIndexFormat,
 } from '../../core/geometry/buffer-geometry';
 import { TriangleMeshWriter } from '../../core/geometry/triangle-mesh-writer';
-import { StaticSurfaceMesh } from '../../core/rendering/static-surface-mesh';
+import {
+  StaticSurfaceMesh,
+  type StaticSurfaceMeshOptions,
+} from '../../core/rendering/static-surface-mesh';
 import {
   lobbyGlowGeometry,
   lobbyOpaqueGeometry,
@@ -12,17 +15,27 @@ import {
 import { LobbyMaterials } from './lobby-materials';
 import { lobbyGlowVertexShading, lobbyVertexShading } from './lobby-vertex-shading';
 
-/** 使用自定义顶点流、真实法线和 Standard 材质渲染大厅。 */
+const SHADOWED_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
+  castShadows: true,
+  receiveShadows: true,
+});
+
+const UNSHADOWED_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
+  castShadows: false,
+  receiveShadows: false,
+});
+
+/** 使用自定义顶点流、真实法线和 Cocos 内置材质渲染大厅。 */
 export class LobbyRenderer {
   private readonly materials: LobbyMaterials;
   private readonly surfaceMesh = new StaticSurfaceMesh();
   private readonly glowMesh = new StaticSurfaceMesh();
   private disposed = false;
 
-  constructor(parent: Node, surfaceMaterial: Material) {
-    this.materials = new LobbyMaterials(surfaceMaterial);
+  constructor(parent: Node, surfaceMaterialTemplate: Material) {
+    this.materials = new LobbyMaterials(surfaceMaterialTemplate);
     try {
-      const opaqueGeometry = createSurfaceGeometry(
+      const opaqueGeometry = createStaticSurfaceGeometry(
         lobbyOpaqueGeometry.metrics.verticesPerEntity,
         lobbyOpaqueGeometry.metrics.indicesPerEntity,
         GeometryIndexFormat.Uint16,
@@ -37,9 +50,10 @@ export class LobbyRenderer {
         'LobbyOpaqueSurface',
         opaqueGeometry,
         this.materials.surface,
+        SHADOWED_SURFACE_OPTIONS,
       );
 
-      const glowGeometry = createSurfaceGeometry(
+      const glowGeometry = createStaticSurfaceGeometry(
         lobbyGlowGeometry.metrics.verticesPerEntity,
         lobbyGlowGeometry.metrics.indicesPerEntity,
         GeometryIndexFormat.Uint16,
@@ -54,6 +68,7 @@ export class LobbyRenderer {
         'LobbyLampGlow',
         glowGeometry,
         this.materials.glow,
+        UNSHADOWED_SURFACE_OPTIONS,
       );
     } catch (error: unknown) {
       this.dispose();
@@ -61,7 +76,7 @@ export class LobbyRenderer {
     }
   }
 
-  /** 先释放动态网格，再释放其引用的共享材质。 */
+  /** 先释放静态网格，再释放其引用的运行时材质。 */
   public dispose(): void {
     if (this.disposed) {
       return;

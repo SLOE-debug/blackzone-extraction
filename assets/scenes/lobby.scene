@@ -113,6 +113,10 @@
     },
     "_enabled": true,
     "__prefab": null,
+    "lobbySurfaceMaterial": {
+      "__uuid__": "dd091ebc-fedc-4595-95b5-4ac333e3348f",
+      "__expectedType__": "cc.Material"
+    },
     "_id": "4dUrmAjv9MKL8NGyRO7Azg"
   },
   {
@@ -159,14 +163,14 @@
       "x": 0.258182,
       "y": 0.009721,
       "z": 0.03434,
-      "w": 0
+      "w": 0.0833333
     },
     "_skyColor": {
       "__type__": "cc.Vec4",
       "x": 0.258182,
       "y": 0.009721,
       "z": 0.03434,
-      "w": 0
+      "w": 0.0833333
     },
     "_skyIllumHDR": 3200,
     "_skyIllum": 3200,
