@@ -9,7 +9,14 @@ import {
   lobbyRitualGlowGeometry,
 } from '../../assets/lobby/geometry/lobby-opaque-geometry';
 import { LOBBY_FLOOR_CRACK_SEGMENT_COUNT } from '../../assets/lobby/geometry/lobby-floor-crack-layout';
-import { LobbyOpaqueSection } from '../../assets/lobby/geometry/lobby-geometry-topology';
+import {
+  LOBBY_BACK_WALL_TRIANGLES,
+  LOBBY_CEILING_TRIANGLES,
+  LOBBY_FLOOR_TRIANGLES,
+  LOBBY_FRONT_WALL_TRIANGLES,
+  LOBBY_SIDE_WALL_TRIANGLES,
+  LobbyOpaqueSection,
+} from '../../assets/lobby/geometry/lobby-geometry-topology';
 import { LOBBY_LAYOUT } from '../../assets/lobby/model/lobby-layout';
 import { lobbyVertexShading } from '../../assets/lobby/rendering/lobby-vertex-shading';
 
@@ -70,6 +77,28 @@ describe('大厅表面顶点参数', () => {
     expect(minimumFrontWallZ).toBeGreaterThan(10.5);
     expect(minimumCeilingY).toBeLessThan(8.4);
     expect(Array.from(first.geometry.positions)).toEqual(Array.from(second.geometry.positions));
+  });
+
+  it('统一 Grid Patch 保持大厅壳体拓扑和朝内分面法线', () => {
+    const fixture = createLobbyGeometry();
+    const floor = fixture.ranges[LobbyOpaqueSection.Floor];
+    const ceiling = fixture.ranges[LobbyOpaqueSection.Ceiling];
+    const backWall = fixture.ranges[LobbyOpaqueSection.BackWall];
+    const frontWall = fixture.ranges[LobbyOpaqueSection.FrontWall];
+    const sideWalls = fixture.ranges[LobbyOpaqueSection.SideWalls];
+
+    expect(floor.vertexCount).toBe(LOBBY_FLOOR_TRIANGLES * 3);
+    expect(ceiling.vertexCount).toBe(LOBBY_CEILING_TRIANGLES * 3);
+    expect(backWall.vertexCount).toBe(LOBBY_BACK_WALL_TRIANGLES * 3);
+    expect(frontWall.vertexCount).toBe(LOBBY_FRONT_WALL_TRIANGLES * 3);
+    expect(sideWalls.vertexCount).toBe(LOBBY_SIDE_WALL_TRIANGLES * 3);
+    expectNormalDirection(fixture.geometry.normals, floor.startVertex, 1, 1);
+    expectNormalDirection(fixture.geometry.normals, ceiling.startVertex, 1, -1);
+    expectNormalDirection(fixture.geometry.normals, backWall.startVertex, 2, 1);
+    expectNormalDirection(fixture.geometry.normals, frontWall.startVertex, 2, -1);
+    expectNormalDirection(fixture.geometry.normals, sideWalls.startVertex, 0, 1);
+    const rightWallStart = sideWalls.startVertex + sideWalls.vertexCount / 2;
+    expectNormalDirection(fixture.geometry.normals, rightWallStart, 0, -1);
   });
 
   it('玩家站在两层不规则祭台顶面且祭台氛围灯保持固定拓扑', () => {
@@ -154,4 +183,14 @@ function expectDarkerThanFloor(
   crackVertex: number,
 ): void {
   expect(colors[crackVertex * 4] ?? 1).toBeLessThan(colors[floorVertex * 4] ?? 0);
+}
+
+/** 验证指定顶点的主法线轴朝向大厅内部。 */
+function expectNormalDirection(
+  normals: Float32Array,
+  vertex: number,
+  axis: 0 | 1 | 2,
+  direction: -1 | 1,
+): void {
+  expect((normals[vertex * 3 + axis] ?? 0) * direction).toBeGreaterThan(0.9);
 }

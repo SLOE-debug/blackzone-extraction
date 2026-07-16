@@ -96,4 +96,21 @@ export class TriangleMeshWriter {
       );
     }
   }
+
+  /** 验证一次组合写入相对于起始游标保持了固定拓扑计数。 */
+  public assertWrittenCounts(
+    startVertex: number,
+    startIndex: number,
+    expectedVertices: number,
+    expectedIndices: number,
+  ): void {
+    const writtenVertices = this.vertexCursor - startVertex;
+    const writtenIndices = this.indexCursor - startIndex;
+    if (writtenVertices !== expectedVertices || writtenIndices !== expectedIndices) {
+      throw new Error(
+        `组合几何拓扑发生变化，预期 ${expectedVertices}/${expectedIndices}，实际 `
+        + `${writtenVertices}/${writtenIndices}。`,
+      );
+    }
+  }
 }

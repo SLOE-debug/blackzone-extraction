@@ -3,6 +3,10 @@ import {
   LOBBY_KEY_LIGHT_CONFIG,
   type LobbySpotlightConfig,
 } from '../model/lobby-lighting-config';
+import {
+  type LobbyRenderQuality,
+  LobbyShadowFiltering,
+} from '../model/lobby-render-quality';
 
 /** 大厅实时调试所需的稳定灯光门面。 */
 export interface LobbyLightingRig {
@@ -10,9 +14,12 @@ export interface LobbyLightingRig {
 }
 
 /** 创建大厅顶部唯一真实聚光灯。 */
-export function createLobbyLighting(parent: Node): LobbyLightingRig {
+export function createLobbyLighting(
+  parent: Node,
+  quality: Readonly<LobbyRenderQuality>,
+): LobbyLightingRig {
   return Object.freeze({
-    keyLight: createLobbySpotlight(parent, LOBBY_KEY_LIGHT_CONFIG),
+    keyLight: createLobbySpotlight(parent, LOBBY_KEY_LIGHT_CONFIG, quality),
   });
 }
 
@@ -20,6 +27,7 @@ export function createLobbyLighting(parent: Node): LobbyLightingRig {
 function createLobbySpotlight(
   parent: Node,
   config: Readonly<LobbySpotlightConfig>,
+  quality: Readonly<LobbyRenderQuality>,
 ): SpotLight {
   const lightNode = new Node(config.nodeName);
   parent.addChild(lightNode);
@@ -39,9 +47,19 @@ function createLobbySpotlight(
   spotLight.angleAttenuationStrength = config.angleAttenuationStrength;
   spotLight.shadowEnabled = config.shadowEnabled;
   if (config.shadowEnabled) {
-    spotLight.shadowPcf = renderer.scene.PCFType.SOFT_2X;
+    spotLight.shadowPcf = getShadowPcf(quality.shadowFiltering);
     spotLight.shadowBias = config.shadowBias;
     spotLight.shadowNormalBias = config.shadowNormalBias;
   }
   return spotLight;
+}
+
+/** 把领域阴影等级映射到 Cocos 聚光灯滤波枚举。 */
+function getShadowPcf(filtering: LobbyShadowFiltering): number {
+  switch (filtering) {
+    case LobbyShadowFiltering.Hard:
+      return renderer.scene.PCFType.HARD;
+    case LobbyShadowFiltering.Soft2X:
+      return renderer.scene.PCFType.SOFT_2X;
+  }
 }

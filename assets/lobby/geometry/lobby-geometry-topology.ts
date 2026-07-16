@@ -1,4 +1,5 @@
 import { type FixedTopologyMetrics } from '../../core/geometry/fixed-topology';
+import { type GeometrySectionMap } from './infrastructure/geometry-section-composer';
 import { LOBBY_ALTAR_TRIANGLE_COUNT } from './lobby-altar-layout';
 import { LOBBY_FLOOR_CRACK_SEGMENT_COUNT } from './lobby-floor-crack-layout';
 import {
@@ -6,13 +7,18 @@ import {
   LOBBY_RITUAL_LAMP_HOUSING_TRIANGLES_PER_LIGHT,
   LOBBY_RITUAL_LAMP_POSITIONS,
 } from './lobby-ritual-lamp-layout';
+import {
+  getLobbyHallSurfaceMetrics,
+  LobbyHallSurfaceId,
+} from './recipes/lobby-shell-recipe';
 
-export const LOBBY_FLOOR_TRIANGLES = 6 * 7 * 2;
-export const LOBBY_CEILING_TRIANGLES = 10 * 7 * 2;
+export const LOBBY_FLOOR_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.Floor);
+export const LOBBY_CEILING_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.Ceiling);
 export const LOBBY_FLOOR_CRACK_TRIANGLES = LOBBY_FLOOR_CRACK_SEGMENT_COUNT * 2;
-export const LOBBY_BACK_WALL_TRIANGLES = 10 * 7 * 2;
-export const LOBBY_FRONT_WALL_TRIANGLES = 10 * 7 * 2;
-export const LOBBY_SIDE_WALL_TRIANGLES = 12 * 7 * 2 * 2;
+export const LOBBY_BACK_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.BackWall);
+export const LOBBY_FRONT_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.FrontWall);
+export const LOBBY_SIDE_WALL_TRIANGLES = getTriangleCount(LobbyHallSurfaceId.LeftWall)
+  + getTriangleCount(LobbyHallSurfaceId.RightWall);
 export const LOBBY_ALTAR_TRIANGLES = LOBBY_ALTAR_TRIANGLE_COUNT;
 export const LOBBY_CIRCULAR_PANEL_TRIANGLES = 20;
 export const LOBBY_CIRCULAR_FRAME_TRIANGLES = 20 * 6;
@@ -56,14 +62,25 @@ export enum LobbyOpaqueSection {
   RitualLampHousing = 'ritual-lamp-housing',
 }
 
-/** 单个顶点色区段在合并几何中的连续范围。 */
-export interface LobbyVertexRange {
-  readonly startVertex: number;
-  readonly vertexCount: number;
-}
+/** 大厅不透明区段的唯一稳定写入顺序。 */
+export const LOBBY_OPAQUE_SECTION_ORDER: readonly LobbyOpaqueSection[] = Object.freeze([
+  LobbyOpaqueSection.Floor,
+  LobbyOpaqueSection.FloorCracks,
+  LobbyOpaqueSection.Ceiling,
+  LobbyOpaqueSection.BackWall,
+  LobbyOpaqueSection.FrontWall,
+  LobbyOpaqueSection.SideWalls,
+  LobbyOpaqueSection.Altar,
+  LobbyOpaqueSection.CircularPanel,
+  LobbyOpaqueSection.CircularFrame,
+  LobbyOpaqueSection.Character,
+  LobbyOpaqueSection.LampCable,
+  LobbyOpaqueSection.LampHousing,
+  LobbyOpaqueSection.RitualLampHousing,
+]);
 
 /** 大厅不透明几何的完整区段映射。 */
-export type LobbyOpaqueSectionRanges = Readonly<Record<LobbyOpaqueSection, LobbyVertexRange>>;
+export type LobbyOpaqueSectionRanges = GeometrySectionMap<LobbyOpaqueSection>;
 
 /** 每个三角形独占三个顶点，以保留明确的 Low Poly 分面法线。 */
 export const LOBBY_OPAQUE_TOPOLOGY: FixedTopologyMetrics = Object.freeze({
@@ -82,3 +99,8 @@ export const LOBBY_RITUAL_GLOW_TOPOLOGY: FixedTopologyMetrics = Object.freeze({
   verticesPerEntity: LOBBY_RITUAL_LAMP_GLOW_TRIANGLES * 3,
   indicesPerEntity: LOBBY_RITUAL_LAMP_GLOW_TRIANGLES * 3,
 });
+
+/** 从 Flat Grid Recipe 的固定索引数推导三角形数量。 */
+function getTriangleCount(surface: LobbyHallSurfaceId): number {
+  return getLobbyHallSurfaceMetrics(surface).indicesPerEntity / 3;
+}

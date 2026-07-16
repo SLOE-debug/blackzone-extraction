@@ -1,27 +1,11 @@
 import { type SurfaceBufferGeometry } from '../../core/geometry/buffer-geometry';
 import {
+  LOBBY_OPAQUE_SECTION_ORDER,
   LobbyOpaqueSection,
   type LobbyOpaqueSectionRanges,
-  type LobbyVertexRange,
 } from '../geometry/lobby-geometry-topology';
 
 const BYTE_COLOR_SCALE = 1 / 255;
-
-const OPAQUE_SECTION_ORDER: readonly LobbyOpaqueSection[] = Object.freeze([
-  LobbyOpaqueSection.Floor,
-  LobbyOpaqueSection.FloorCracks,
-  LobbyOpaqueSection.Ceiling,
-  LobbyOpaqueSection.BackWall,
-  LobbyOpaqueSection.FrontWall,
-  LobbyOpaqueSection.SideWalls,
-  LobbyOpaqueSection.Altar,
-  LobbyOpaqueSection.CircularPanel,
-  LobbyOpaqueSection.CircularFrame,
-  LobbyOpaqueSection.Character,
-  LobbyOpaqueSection.LampCable,
-  LobbyOpaqueSection.LampHousing,
-  LobbyOpaqueSection.RitualLampHousing,
-]);
 
 interface LobbySurfaceProfile {
   readonly red: number;
@@ -52,23 +36,8 @@ export class LobbyVertexShading {
     geometry: SurfaceBufferGeometry,
     ranges: LobbyOpaqueSectionRanges,
   ): void {
-    for (const section of OPAQUE_SECTION_ORDER) {
+    for (const section of LOBBY_OPAQUE_SECTION_ORDER) {
       shadeOpaqueSection(geometry, ranges[section], SECTION_PROFILES[section], section);
-    }
-  }
-}
-
-/** 为独立灯具发光面写入稳定的暖白顶点色。 */
-export class LobbyGlowVertexShading {
-  /** 原地刷新暖白发光颜色。 */
-  public update(geometry: SurfaceBufferGeometry): void {
-    const { colors } = geometry;
-    for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
-      const colorOffset = vertex * 4;
-      colors[colorOffset] = 1;
-      colors[colorOffset + 1] = 0.86;
-      colors[colorOffset + 2] = 0.65;
-      colors[colorOffset + 3] = 1;
     }
   }
 }
@@ -76,7 +45,7 @@ export class LobbyGlowVertexShading {
 /** 根据表面法线和材质区段计算单个表面范围。 */
 function shadeOpaqueSection(
   geometry: SurfaceBufferGeometry,
-  range: Readonly<LobbyVertexRange>,
+  range: LobbyOpaqueSectionRanges[LobbyOpaqueSection],
   profile: Readonly<LobbySurfaceProfile>,
   section: LobbyOpaqueSection,
 ): void {
@@ -133,4 +102,3 @@ function createSurfaceProfile(
 }
 
 export const lobbyVertexShading = new LobbyVertexShading();
-export const lobbyGlowVertexShading = new LobbyGlowVertexShading();

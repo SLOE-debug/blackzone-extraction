@@ -43,6 +43,14 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 灯具自身可见的发光面与照亮场景的 Light 是两个职责：Unlit 发光面只负责自身显示，SpotLight 才负责表面照明和阴影。
 - 普通 SpotLight 不会自动渲染空气中的体积光柱。需要可见体积散射时，应明确采用体积雾或后处理方案，不得把半透明锥体描述成真实灯光。
 
+## Profiler 帧率与帧耗时
+
+- Cocos Creator 3.8.8 的 Profiler 中，`Framerate (FPS)` 与 `Frame time (ms)` 不是简单倒数关系。
+- `FPS` 在 `AFTER_DRAW` 中通过连续帧时间戳统计真实帧间隔；`Frame time` 从 `BEFORE_UPDATE` 开始，到当前帧 `AFTER_DRAW` 结束，只覆盖引擎主动执行更新、渲染提交和 Present 调用的时间。
+- 浏览器 `requestAnimationFrame`、帧率调度器、VSync 等两帧之间的等待不计入 `Frame time`。GPU 异步执行造成的真实压力也不能只凭 `Renderer` 或 `Present` 的 CPU 计时排除。
+- 因此出现 `Frame time` 很低但 FPS 只有 30 到 50 的情况时，必须继续检查渲染分辨率、阴影与材质像素成本、浏览器调度和目标帧率，不得用 `1000 / Frame time` 推断设备应有帧率。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/profiler/profiler.ts` 验证：`beforeUpdate()` 启动帧计时，`afterPresent()` 结束帧计时并单独推进 FPS 计数。
+
 ## Cocos 资源与元数据
 
 - Cocos `.meta` 文件由编辑器管理，禁止手动创建、复制或修改 UUID。

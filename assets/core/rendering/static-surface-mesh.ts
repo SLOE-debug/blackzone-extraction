@@ -17,6 +17,7 @@ enum StaticSurfaceMeshState {
 export interface StaticSurfaceMeshOptions {
   readonly castShadows: boolean;
   readonly receiveShadows: boolean;
+  readonly uploadLightingAttributes: boolean;
 }
 
 /**
@@ -46,15 +47,20 @@ export class StaticSurfaceMesh {
     }
 
     const bounds = geometry.computeBounds();
-    const mesh = utils.MeshUtils.createMesh({
+    const commonGeometry = {
       positions: Array.from(geometry.getPositionView()),
-      normals: Array.from(geometry.getNormalView()),
-      uvs: Array.from(geometry.getUvView()),
       colors: Array.from(geometry.getColorView()),
       indices: Array.from(geometry.getIndexView()),
       minPos: { x: bounds.minX, y: bounds.minY, z: bounds.minZ },
       maxPos: { x: bounds.maxX, y: bounds.maxY, z: bounds.maxZ },
-    });
+    };
+    const mesh = options.uploadLightingAttributes
+      ? utils.MeshUtils.createMesh({
+        ...commonGeometry,
+        normals: Array.from(geometry.getNormalView()),
+        uvs: Array.from(geometry.getUvView()),
+      })
+      : utils.MeshUtils.createMesh(commonGeometry);
     mesh.name = `${name}Mesh`;
 
     const node = new Node(name);

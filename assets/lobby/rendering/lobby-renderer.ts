@@ -8,86 +8,68 @@ import {
   StaticSurfaceMesh,
   type StaticSurfaceMeshOptions,
 } from '../../core/rendering/static-surface-mesh';
-import {
-  lobbyGlowGeometry,
-  lobbyOpaqueGeometry,
-  lobbyRitualGlowGeometry,
-} from '../geometry/lobby-opaque-geometry';
+import { lobbyEmissiveGeometry } from '../geometry/lobby-emissive-geometry';
+import { lobbyOpaqueGeometry } from '../geometry/lobby-opaque-geometry';
+import { lobbyEmissiveVertexShading } from './lobby-emissive-vertex-shading';
 import { LobbyMaterials } from './lobby-materials';
-import { lobbyGlowVertexShading, lobbyVertexShading } from './lobby-vertex-shading';
+import { lobbyVertexShading } from './lobby-vertex-shading';
 
 const SHADOWED_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
   castShadows: true,
   receiveShadows: true,
+  uploadLightingAttributes: true,
 });
 
-const UNSHADOWED_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
+const EMISSIVE_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
   castShadows: false,
   receiveShadows: false,
+  uploadLightingAttributes: false,
 });
 
-/** 使用自定义顶点流、真实法线和 Cocos 内置材质渲染大厅。 */
+/** 使用真实受光表面和单批发光面渲染大厅。 */
 export class LobbyRenderer {
   private readonly materials: LobbyMaterials;
   private readonly surfaceMesh = new StaticSurfaceMesh();
-  private readonly glowMesh = new StaticSurfaceMesh();
-  private readonly ritualGlowMesh = new StaticSurfaceMesh();
+  private readonly emissiveMesh = new StaticSurfaceMesh();
   private disposed = false;
 
   constructor(parent: Node, surfaceMaterialTemplate: Material) {
     this.materials = new LobbyMaterials(surfaceMaterialTemplate);
     try {
-      const opaqueGeometry = createStaticSurfaceGeometry(
+      const surfaceGeometry = createStaticSurfaceGeometry(
         lobbyOpaqueGeometry.metrics.verticesPerEntity,
         lobbyOpaqueGeometry.metrics.indicesPerEntity,
         GeometryIndexFormat.Uint16,
       );
-      const opaqueWriter = new TriangleMeshWriter(opaqueGeometry);
-      opaqueWriter.reset(true);
-      const sectionRanges = lobbyOpaqueGeometry.write(opaqueWriter);
-      opaqueWriter.commit();
-      lobbyVertexShading.update(opaqueGeometry, sectionRanges);
+      const surfaceWriter = new TriangleMeshWriter(surfaceGeometry);
+      surfaceWriter.reset(true);
+      const surfaceRanges = lobbyOpaqueGeometry.write(surfaceWriter);
+      surfaceWriter.commit();
+      lobbyVertexShading.update(surfaceGeometry, surfaceRanges);
       this.surfaceMesh.initialize(
         parent,
         'LobbyOpaqueSurface',
-        opaqueGeometry,
+        surfaceGeometry,
         this.materials.surface,
         SHADOWED_SURFACE_OPTIONS,
       );
 
-      const glowGeometry = createStaticSurfaceGeometry(
-        lobbyGlowGeometry.metrics.verticesPerEntity,
-        lobbyGlowGeometry.metrics.indicesPerEntity,
+      const emissiveGeometry = createStaticSurfaceGeometry(
+        lobbyEmissiveGeometry.metrics.verticesPerEntity,
+        lobbyEmissiveGeometry.metrics.indicesPerEntity,
         GeometryIndexFormat.Uint16,
       );
-      const glowWriter = new TriangleMeshWriter(glowGeometry);
-      glowWriter.reset(true);
-      lobbyGlowGeometry.write(glowWriter);
-      glowWriter.commit();
-      lobbyGlowVertexShading.update(glowGeometry);
-      this.glowMesh.initialize(
+      const emissiveWriter = new TriangleMeshWriter(emissiveGeometry);
+      emissiveWriter.reset(true);
+      const emissiveRanges = lobbyEmissiveGeometry.write(emissiveWriter);
+      emissiveWriter.commit();
+      lobbyEmissiveVertexShading.update(emissiveGeometry, emissiveRanges);
+      this.emissiveMesh.initialize(
         parent,
-        'LobbyLampGlow',
-        glowGeometry,
-        this.materials.glow,
-        UNSHADOWED_SURFACE_OPTIONS,
-      );
-
-      const ritualGlowGeometry = createStaticSurfaceGeometry(
-        lobbyRitualGlowGeometry.metrics.verticesPerEntity,
-        lobbyRitualGlowGeometry.metrics.indicesPerEntity,
-        GeometryIndexFormat.Uint16,
-      );
-      const ritualGlowWriter = new TriangleMeshWriter(ritualGlowGeometry);
-      ritualGlowWriter.reset(true);
-      lobbyRitualGlowGeometry.write(ritualGlowWriter);
-      ritualGlowWriter.commit();
-      this.ritualGlowMesh.initialize(
-        parent,
-        'LobbyRitualGlow',
-        ritualGlowGeometry,
-        this.materials.ritualGlow,
-        UNSHADOWED_SURFACE_OPTIONS,
+        'LobbyEmissiveSurface',
+        emissiveGeometry,
+        this.materials.emissive,
+        EMISSIVE_SURFACE_OPTIONS,
       );
     } catch (error: unknown) {
       this.dispose();
@@ -95,13 +77,12 @@ export class LobbyRenderer {
     }
   }
 
-  /** 先释放静态网格，再释放其引用的运行时材质。 */
+  /** 先释放大厅网格，再释放其引用的运行时材质。 */
   public dispose(): void {
     if (this.disposed) {
       return;
     }
-    this.ritualGlowMesh.dispose();
-    this.glowMesh.dispose();
+    this.emissiveMesh.dispose();
     this.surfaceMesh.dispose();
     this.materials.dispose();
     this.disposed = true;
