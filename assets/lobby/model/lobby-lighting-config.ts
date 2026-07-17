@@ -1,5 +1,11 @@
 import { LOBBY_LAYOUT } from './lobby-layout';
 
+/** 主射灯相对角色向相机侧前移的距离。 */
+const KEY_LIGHT_FORWARD_OFFSET = 2.8;
+
+/** 主射灯相对祭台顶面瞄准的躯干高度。 */
+const KEY_LIGHT_TARGET_HEIGHT = 2.15;
+
 /** 大厅主灯使用的字节 RGB 颜色。 */
 export interface LobbyLightColor {
   readonly red: number;
@@ -33,10 +39,14 @@ export const LOBBY_KEY_LIGHT_COLOR: LobbyLightColor = Object.freeze({
 /** 大厅唯一真实聚光灯的稳定配置。 */
 export const LOBBY_KEY_LIGHT_CONFIG: LobbySpotlightConfig = Object.freeze({
   nodeName: 'MainSpotlight',
-  position: Object.freeze({ x: 0, y: LOBBY_LAYOUT.lightY, z: LOBBY_LAYOUT.focusZ }),
+  position: Object.freeze({
+    x: 0,
+    y: LOBBY_LAYOUT.lightY,
+    z: LOBBY_LAYOUT.focusZ + KEY_LIGHT_FORWARD_OFFSET,
+  }),
   target: Object.freeze({
     x: 0,
-    y: LOBBY_LAYOUT.altarTopY + 0.05,
+    y: LOBBY_LAYOUT.altarTopY + KEY_LIGHT_TARGET_HEIGHT,
     z: LOBBY_LAYOUT.focusZ,
   }),
   up: Object.freeze({ x: 0, y: 0, z: 1 }),
@@ -46,7 +56,7 @@ export const LOBBY_KEY_LIGHT_CONFIG: LobbySpotlightConfig = Object.freeze({
   range: 9.4,
   spotAngle: 45,
   angleAttenuationStrength: 0.59,
-  shadowEnabled: true,
+  shadowEnabled: false,
   shadowBias: 0.0001,
   shadowNormalBias: 0.01,
 });

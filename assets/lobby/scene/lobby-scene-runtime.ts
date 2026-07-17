@@ -5,8 +5,10 @@ import { VanguardPopulation } from '../../player/vanguard';
 import { LobbyDebugControls } from '../debug/lobby-debug-controls';
 import { LobbyDebugPanel } from '../debug/lobby-debug-panel';
 import { LOBBY_RENDER_QUALITY } from '../model/lobby-render-quality';
+import { LobbySceneEvent } from '../model/lobby-scene-event';
 import { LOBBY_VANGUARD_OPTIONS } from '../model/lobby-vanguard-options';
 import { LobbyRenderer } from '../rendering/lobby-renderer';
+import { LobbyStartButton } from '../ui/lobby-start-button';
 import { createLobbyCamera, type LobbyCameraRig } from './lobby-camera';
 import { createLobbyLighting } from './lobby-lighting';
 import { LobbyObservationSpider } from './lobby-observation-spider';
@@ -27,13 +29,14 @@ export class LobbySceneRuntime {
   private performanceController: RuntimePerformanceController | null = null;
   private observationSpider: LobbyObservationSpider | null = null;
   private vanguard: VanguardPopulation | null = null;
+  private startButton: LobbyStartButton | null = null;
 
   constructor(
     private readonly sceneEntry: Node,
     private readonly surfaceMaterialTemplate: Material,
   ) {}
 
-  /** 初始化保留真实聚光灯与阴影的 Low Poly 大厅。 */
+  /** 初始化真实聚光灯，并保留调试面板按需开启阴影的 Low Poly 大厅。 */
   public initialize(): void {
     if (this.state !== LobbySceneState.Created) {
       throw new Error('大厅场景只能初始化一次。');
@@ -62,6 +65,7 @@ export class LobbySceneRuntime {
     let performanceController: RuntimePerformanceController | null = null;
     let observationSpider: LobbyObservationSpider | null = null;
     let vanguard: VanguardPopulation | null = null;
+    let startButton: LobbyStartButton | null = null;
     try {
       performanceController = new RuntimePerformanceController(RUNTIME_PERFORMANCE_PROFILE);
       lobbyRenderer = new LobbyRenderer(runtimeRoot, this.surfaceMaterialTemplate);
@@ -72,6 +76,9 @@ export class LobbySceneRuntime {
       );
       const lightingRig = createLobbyLighting(runtimeRoot, LOBBY_RENDER_QUALITY);
       cameraRig = createLobbyCamera(runtimeRoot);
+      startButton = new LobbyStartButton(runtimeRoot, cameraRig.camera, () => {
+        this.sceneEntry.emit(LobbySceneEvent.StartGameRequested);
+      });
       observationSpider = new LobbyObservationSpider(
         runtimeRoot,
         this.surfaceMaterialTemplate,
@@ -82,6 +89,7 @@ export class LobbySceneRuntime {
     } catch (error: unknown) {
       debugPanel?.dispose();
       observationSpider?.dispose();
+      startButton?.dispose();
       vanguard?.dispose();
       cameraRig?.dispose();
       lobbyRenderer?.dispose();
@@ -101,6 +109,7 @@ export class LobbySceneRuntime {
     this.performanceController = performanceController;
     this.observationSpider = observationSpider;
     this.vanguard = vanguard;
+    this.startButton = startButton;
     this.state = LobbySceneState.Initialized;
     void observationSpider.initialize().catch((spiderError: unknown) => {
       if (this.state === LobbySceneState.Disposed) {
@@ -119,6 +128,7 @@ export class LobbySceneRuntime {
       this.performanceController?.update(deltaTime);
       this.cameraRig?.update(deltaTime);
       this.vanguard?.update(deltaTime);
+      this.startButton?.update();
       this.observationSpider?.update(deltaTime);
     }
   }
@@ -129,6 +139,7 @@ export class LobbySceneRuntime {
       return;
     }
     this.debugPanel?.dispose();
+    this.startButton?.dispose();
     this.cameraRig?.dispose();
     this.observationSpider?.dispose();
     this.vanguard?.dispose();
@@ -143,6 +154,7 @@ export class LobbySceneRuntime {
     this.cameraRig = null;
     this.observationSpider = null;
     this.vanguard = null;
+    this.startButton = null;
     this.performanceController = null;
     this.state = LobbySceneState.Disposed;
   }

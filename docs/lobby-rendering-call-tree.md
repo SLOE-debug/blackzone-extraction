@@ -228,8 +228,10 @@ createLobbyLighting(parent)
 | Lamp Bottom Y | `6.72` |
 | Lamp Glow Y | `6.695` |
 | SpotLight Y | `6.65` |
+| SpotLight Z | `0.80` |
+| SpotLight Target | `(0, 2.83, -2.00)` |
 
-吊灯保留从天花板到灯罩的裸露电线，灯具整体下垂；灯光节点位于灯口下方并通过 `lookAt(target, up)` 指向玩家脚下。由于灯和目标正好垂直，显式使用 Z 轴作为 up，避免 Cocos 默认 Y 轴与视线共线后退化为单位旋转。
+吊灯保留从天花板到灯罩的裸露电线，灯具整体下垂；真实灯光节点向相机侧前移，并通过 `lookAt(target, up)` 指向玩家躯干中部，使胸部与下肢正面获得直接入射光。显式使用 Z 轴作为稳定 up，避免方向调整时引入旋转退化。
 
 | 相机参数 | 值 |
 | --- | --- |
@@ -258,7 +260,7 @@ createLobbyLighting(parent)
 | 主射灯启用 | 开关 | `keyLight.enabled` |
 | 实时阴影 | 开关 | `keyLight.shadowEnabled` |
 
-面板不再控制任何 Beam、FocusPool 或 FillLight，因为这些对象已经不存在。参数只影响当前预览，不写回源码或场景资源。
+实时阴影默认关闭，可在面板中按需开启。面板不再控制任何 Beam、FocusPool 或 FillLight，因为这些对象已经不存在。参数只影响当前预览，不写回源码或场景资源。
 
 ## 10. 真实灯光验真方法
 
