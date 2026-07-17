@@ -59,6 +59,20 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 因此出现 `Frame time` 很低但 FPS 只有 30 到 50 的情况时，必须继续检查渲染分辨率、阴影与材质像素成本、浏览器调度和目标帧率，不得用 `1000 / Frame time` 推断设备应有帧率。
 - 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/profiler/profiler.ts` 验证：`beforeUpdate()` 启动帧计时，`afterPresent()` 结束帧计时并单独推进 FPS 计数。
 
+## Web Pacer 与 60Hz 同频边界
+
+- Cocos Creator 3.8.8 的 Web Pacer 不会直接在每个 `requestAnimationFrame` 回调执行游戏帧。它使用 `Math.floor(elapsedTime / frameTime)` 计算理论帧编号，并把下一目标编号保存为 `elapsedFrame + 1`。
+- 当 `game.frameRate` 恰好为 `60`、显示器也接近严格 `60Hz` 时，rAF 的亚毫秒抖动会让相邻回调落在整数边界两侧。原本可执行的显示帧可能被判定为“尚未到达下一理论帧”，从而出现 30 到 50 FPS、但引擎主动 Frame time 仍只有数毫秒的假性性能瓶颈。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `pal/pacer/pacer-web.ts` 验证：`_handleRAF()` 使用累计时间、向下取整帧编号和 `_frameCount = elapsedFrame + 1` 进行门控；使用带 0.35ms 确定性抖动的隔离模拟时，目标 60 在 60Hz 下只能触发约 46 FPS，而目标 61 能覆盖全部约 60 次 rAF。
+- HTML5 运行时需要把调度目标设为略高于常见刷新率的 `61`，实际显示仍由 60Hz VSync 限制在约 60 FPS。小游戏和原生平台使用不同 Pacer，不得照搬这一数值。
+- 验证此问题时，应同时满足“Draw Call 与三角形很低、Frame time 很低、FPS 却显著低于刷新率”三个信号；不要仅通过降低模型面数掩盖调度器漏帧。
+
+## 动态分辨率恢复探测
+
+- 修改 `pipeline.shadingScale` 可能触发渲染附件尺寸变化；连续上下调整会额外制造资源重建和 GPU 波动。
+- 只依据 VSync 封顶后的 60 FPS 无法证明更高分辨率仍有 GPU 余量。恢复探测升档后若不能继续达到恢复阈值，必须立即回到此前稳定档位，并记住本场景会话的稳定上限，禁止周期性重复探测同一失败档位。
+- 高 DPR 或高分辨率画布必须先按物理像素预算限制启动比例，再由低频采样逐级恢复；不得总以完整物理分辨率启动后等待多轮掉帧才降档。
+
 ## Cocos 资源与元数据
 
 - Cocos `.meta` 文件由编辑器管理，禁止手动创建、复制或修改 UUID。

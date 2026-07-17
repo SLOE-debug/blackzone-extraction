@@ -1,6 +1,6 @@
 import { Color, director, error as logError, type Material, Node, renderer } from 'cc';
 import { RuntimePerformanceController } from '../../core/performance/runtime-performance-controller';
-import { RUNTIME_PERFORMANCE_PROFILE } from '../../core/performance/runtime-performance-profile';
+import { RUNTIME_PERFORMANCE_PROFILE } from '../../core/performance/runtime-performance-platform';
 import { VanguardPopulation } from '../../player/vanguard';
 import { LobbyDebugControls } from '../debug/lobby-debug-controls';
 import { LobbyDebugPanel } from '../debug/lobby-debug-panel';

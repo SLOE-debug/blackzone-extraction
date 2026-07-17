@@ -1,4 +1,6 @@
-# 程序化 Low Poly 创建体系评审：Lobby 与 Common Monsters
+# 程序化 Low Poly 创建体系评审：Lobby 与 Common Monsters（重构前快照）
+
+> 状态说明：本文保留编译式网格管线落地前的评审依据和问题清单。文中出现的 `FixedTopologyBatchRenderer`、`VolumetricTessellator` 与旧 Crawler Geometry Source 属于历史实现，不再是当前代码路径。当前实现请以 [Vanguard 调用树](call-trees/vanguard.md)、[Curve Crawler 调用树](call-trees/curve-crawler.md) 与 `docs/编译式程序化网格管线.md` 为准。
 
 ## 1. 评审目标
 

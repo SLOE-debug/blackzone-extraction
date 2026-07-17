@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { nextRandom } from '../../assets/core/math/xorshift32';
-import { normalizeCurveCrawlerOptions } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-options';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
+import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
 
-const options = normalizeCurveCrawlerOptions({
+const options = createNormalizedCurveCrawlerTestOptions({
   count: 12,
   spawnArea: { width: 320, height: 180 },
   seed: 20260715,

@@ -35,44 +35,6 @@ export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerStat
       }
       transform.x[index] = (transform.x[index] ?? 0) + Math.cos(heading) * currentSpeed * deltaTime;
       transform.y[index] = (transform.y[index] ?? 0) + Math.sin(heading) * currentSpeed * deltaTime;
-      constrainToMovementBounds(state, index);
     }
   }
-}
-
-/** 把实体限制在生成区域内，并把越界目标方向反射回区域内部。 */
-function constrainToMovementBounds(state: CurveCrawlerState, index: number): void {
-  const { transform } = state.data;
-  const { halfWidth, halfHeight } = state.movementBounds;
-  let x = transform.x[index] ?? 0;
-  let y = transform.y[index] ?? 0;
-  let targetHeading = transform.targetHeading[index] ?? 0;
-
-  if (x < -halfWidth) {
-    x = -halfWidth;
-    if (Math.cos(targetHeading) < 0) {
-      targetHeading = Math.PI - targetHeading;
-    }
-  } else if (x > halfWidth) {
-    x = halfWidth;
-    if (Math.cos(targetHeading) > 0) {
-      targetHeading = Math.PI - targetHeading;
-    }
-  }
-
-  if (y < -halfHeight) {
-    y = -halfHeight;
-    if (Math.sin(targetHeading) < 0) {
-      targetHeading = -targetHeading;
-    }
-  } else if (y > halfHeight) {
-    y = halfHeight;
-    if (Math.sin(targetHeading) > 0) {
-      targetHeading = -targetHeading;
-    }
-  }
-
-  transform.x[index] = x;
-  transform.y[index] = y;
-  transform.targetHeading[index] = targetHeading;
 }

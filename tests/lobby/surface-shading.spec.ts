@@ -43,15 +43,18 @@ describe('大厅表面顶点参数', () => {
     expectDarkRedColor(geometry.colors, ranges[LobbyOpaqueSection.ObservationFrame].startVertex);
   });
 
-  it('固定生成明显隆起的洞穴墙面与完全一致的地面裂纹', () => {
+  it('固定生成观察墙起伏、洞穴壳体与完全一致的地面裂纹', () => {
     const first = createLobbyGeometry();
     const second = createLobbyGeometry();
     const ceiling = first.ranges[LobbyOpaqueSection.Ceiling];
     const backWall = first.ranges[LobbyOpaqueSection.BackWall];
     const frontWall = first.ranges[LobbyOpaqueSection.FrontWall];
+    const sideWalls = first.ranges[LobbyOpaqueSection.SideWalls];
     let maximumBackWallZ = Number.NEGATIVE_INFINITY;
     let minimumFrontWallZ = Number.POSITIVE_INFINITY;
     let minimumCeilingY = Number.POSITIVE_INFINITY;
+    let maximumLeftWallX = Number.NEGATIVE_INFINITY;
+    let minimumRightWallX = Number.POSITIVE_INFINITY;
     for (let vertex = ceiling.startVertex; vertex < ceiling.startVertex + ceiling.vertexCount; vertex++) {
       minimumCeilingY = Math.min(
         minimumCeilingY,
@@ -71,10 +74,29 @@ describe('大厅表面顶点参数', () => {
         first.geometry.positions[vertex * 3 + 2] ?? 0,
       );
     }
+    const rightWallStart = sideWalls.startVertex + sideWalls.vertexCount / 2;
+    for (let vertex = sideWalls.startVertex; vertex < rightWallStart; vertex++) {
+      maximumLeftWallX = Math.max(
+        maximumLeftWallX,
+        first.geometry.positions[vertex * 3] ?? 0,
+      );
+    }
+    for (
+      let vertex = rightWallStart;
+      vertex < sideWalls.startVertex + sideWalls.vertexCount;
+      vertex++
+    ) {
+      minimumRightWallX = Math.min(
+        minimumRightWallX,
+        first.geometry.positions[vertex * 3] ?? 0,
+      );
+    }
 
-    expect(maximumBackWallZ).toBeGreaterThan(-9.7);
+    expect(maximumBackWallZ).toBeGreaterThan(LOBBY_LAYOUT.observationWallZ + 0.25);
     expect(minimumFrontWallZ).toBeGreaterThan(10.5);
     expect(minimumCeilingY).toBeLessThan(8.4);
+    expect(maximumLeftWallX).toBeGreaterThan(-8.7);
+    expect(minimumRightWallX).toBeLessThan(8.7);
     expect(Array.from(first.geometry.positions)).toEqual(Array.from(second.geometry.positions));
   });
 

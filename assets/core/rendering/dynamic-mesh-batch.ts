@@ -11,6 +11,7 @@ import {
   type GeometryBounds,
   type SurfaceBufferGeometry,
 } from '../geometry/buffer-geometry';
+import { MeshDirty } from '../mesh/mesh-dirty';
 
 enum DynamicMeshBatchState {
   Created,
@@ -150,8 +151,13 @@ export class DynamicMeshBatch {
     this.state = DynamicMeshBatchState.Initialized;
   }
 
-  /** 将完整有效位置、可选法线与颜色流上传到 GPU。 */
-  public uploadVertexAttributes(): void {
+  /**
+   * 将实际发生变化的顶点流完整上传到 GPU。
+   *
+   * @param dirty Evaluator 返回的实际变化位标志；未标记的属性不会提交 GPU 更新。
+   * @returns 无返回值；无异常时所有标记且已创建的流均已上传。
+   */
+  public uploadVertexAttributes(dirty: MeshDirty): void {
     if (this.state !== DynamicMeshBatchState.Initialized
       || this.positionBuffer === null
       || this.colorBuffer === null
@@ -160,11 +166,17 @@ export class DynamicMeshBatch {
       throw new Error('动态网格批次尚未初始化或已经释放。');
     }
 
-    this.positionBuffer.update(this.positionSource, this.positionByteLength);
-    if (this.normalBuffer !== null && this.normalSource !== null) {
+    if ((dirty & MeshDirty.Position) !== 0) {
+      this.positionBuffer.update(this.positionSource, this.positionByteLength);
+    }
+    if ((dirty & MeshDirty.Normal) !== 0
+      && this.normalBuffer !== null
+      && this.normalSource !== null) {
       this.normalBuffer.update(this.normalSource, this.normalByteLength);
     }
-    this.colorBuffer.update(this.colorSource, this.colorByteLength);
+    if ((dirty & MeshDirty.Color) !== 0) {
+      this.colorBuffer.update(this.colorSource, this.colorByteLength);
+    }
   }
 
   /** 刷新动态网格用于视锥裁剪的模型空间包围盒。 */

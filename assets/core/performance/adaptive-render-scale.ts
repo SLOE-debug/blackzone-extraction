@@ -4,17 +4,27 @@ export interface AdaptiveRenderScaleOptions {
   readonly minimumScale: number;
   readonly maximumScale: number;
   readonly decreaseStep: number;
+  readonly criticalDecreaseStep: number;
+  readonly criticalFrameRate: number;
   readonly increaseStep: number;
   readonly slowFrameRate: number;
   readonly recoveryFrameRate: number;
   readonly sampleDuration: number;
   readonly recoverySampleCount: number;
+  readonly recoveryProbeGraceSampleCount: number;
   readonly discardedDeltaTime: number;
+}
+
+interface RecoveryProbe {
+  readonly stableScale: number;
+  remainingGraceSampleCount: number;
 }
 
 /** 根据持续帧率调整渲染比例，避免短时抖动反复重建渲染附件。 */
 export class AdaptiveRenderScale {
   private scale: number;
+  private recoveryScaleCeiling: number;
+  private recoveryProbe: RecoveryProbe | null = null;
   private elapsedTime = 0;
   private frameCount = 0;
   private healthySampleCount = 0;
@@ -22,6 +32,7 @@ export class AdaptiveRenderScale {
   constructor(private readonly options: Readonly<AdaptiveRenderScaleOptions>) {
     validateOptions(options);
     this.scale = clamp(options.initialScale, options.minimumScale, options.maximumScale);
+    this.recoveryScaleCeiling = options.maximumScale;
   }
 
   /** 当前应由渲染管线使用的分辨率比例。 */
@@ -49,15 +60,36 @@ export class AdaptiveRenderScale {
 
     const measuredFrameRate = this.frameCount / this.elapsedTime;
     this.resetSample();
+    if (this.recoveryProbe !== null) {
+      if (this.recoveryProbe.remainingGraceSampleCount > 0) {
+        this.recoveryProbe.remainingGraceSampleCount--;
+        return null;
+      }
+      if (measuredFrameRate < this.options.recoveryFrameRate) {
+        const stableScale = this.recoveryProbe.stableScale;
+        this.recoveryScaleCeiling = Math.min(this.recoveryScaleCeiling, stableScale);
+        this.recoveryProbe = null;
+        this.healthySampleCount = 0;
+        return this.setScale(stableScale);
+      }
+      this.recoveryProbe = null;
+      this.healthySampleCount = 0;
+      return null;
+    }
+
     if (measuredFrameRate < this.options.slowFrameRate) {
       this.healthySampleCount = 0;
-      return this.changeScale(-this.options.decreaseStep);
+      const decreaseStep = measuredFrameRate < this.options.criticalFrameRate
+        ? this.options.criticalDecreaseStep
+        : this.options.decreaseStep;
+      return this.changeScale(-decreaseStep);
     }
-    if (measuredFrameRate >= this.options.recoveryFrameRate) {
+    if (measuredFrameRate >= this.options.recoveryFrameRate
+      && this.scale < this.recoveryScaleCeiling) {
       this.healthySampleCount++;
       if (this.healthySampleCount >= this.options.recoverySampleCount) {
         this.healthySampleCount = 0;
-        return this.changeScale(this.options.increaseStep);
+        return this.startRecoveryProbe();
       }
       return null;
     }
@@ -73,6 +105,29 @@ export class AdaptiveRenderScale {
       this.options.minimumScale,
       this.options.maximumScale,
     );
+    return this.setScale(nextScale);
+  }
+
+  /** 试探更高清晰度，并保存失败时需要恢复的稳定档位。 */
+  private startRecoveryProbe(): number | null {
+    const nextScale = clamp(
+      this.scale + this.options.increaseStep,
+      this.options.minimumScale,
+      this.recoveryScaleCeiling,
+    );
+    if (nextScale === this.scale) {
+      return null;
+    }
+    this.recoveryProbe = {
+      stableScale: this.scale,
+      remainingGraceSampleCount: this.options.recoveryProbeGraceSampleCount,
+    };
+    this.scale = nextScale;
+    return nextScale;
+  }
+
+  /** 应用已完成边界计算的新渲染比例。 */
+  private setScale(nextScale: number): number | null {
     if (nextScale === this.scale) {
       return null;
     }
@@ -89,7 +144,20 @@ export class AdaptiveRenderScale {
 
 /** 校验自适应渲染比例参数之间的约束。 */
 function validateOptions(options: Readonly<AdaptiveRenderScaleOptions>): void {
-  const values = Object.values(options);
+  const values = [
+    options.initialScale,
+    options.minimumScale,
+    options.maximumScale,
+    options.decreaseStep,
+    options.criticalDecreaseStep,
+    options.criticalFrameRate,
+    options.increaseStep,
+    options.slowFrameRate,
+    options.recoveryFrameRate,
+    options.sampleDuration,
+    options.recoverySampleCount,
+    options.discardedDeltaTime,
+  ];
   if (values.some((value) => !Number.isFinite(value) || value <= 0)) {
     throw new Error('自适应渲染比例参数必须全部是有限正数。');
   }
@@ -100,9 +168,43 @@ function validateOptions(options: Readonly<AdaptiveRenderScaleOptions>): void {
   if (!Number.isInteger(options.recoverySampleCount)) {
     throw new Error('恢复采样窗口数量必须是正整数。');
   }
-  if (options.slowFrameRate >= options.recoveryFrameRate) {
-    throw new Error('降档帧率阈值必须低于恢复帧率阈值。');
+  if (!Number.isInteger(options.recoveryProbeGraceSampleCount)
+    || options.recoveryProbeGraceSampleCount < 0) {
+    throw new Error('恢复探测宽限窗口数量必须是非负整数。');
   }
+  if (options.criticalFrameRate >= options.slowFrameRate
+    || options.slowFrameRate >= options.recoveryFrameRate) {
+    throw new Error('严重掉帧、降档和恢复阈值必须依次递增。');
+  }
+  if (options.criticalDecreaseStep < options.decreaseStep) {
+    throw new Error('严重掉帧的降档步长不得小于普通降档步长。');
+  }
+}
+
+/**
+ * 根据物理画布像素预算限制启动分辨率，避免高 DPR 设备首屏直接满载。
+ *
+ * @param options 自适应渲染比例的稳定边界。
+ * @param width 画布物理像素宽度。
+ * @param height 画布物理像素高度。
+ * @param maximumPixelCount 首屏允许着色的最大像素数量。
+ * @returns 同时满足配置上限与像素预算的启动渲染比例。
+ */
+export function calculateInitialRenderScale(
+  options: Readonly<AdaptiveRenderScaleOptions>,
+  width: number,
+  height: number,
+  maximumPixelCount: number,
+): number {
+  if (![width, height, maximumPixelCount].every((value) => Number.isFinite(value) && value > 0)) {
+    throw new Error('画布尺寸和首屏像素预算必须是有限正数。');
+  }
+  const budgetScale = Math.sqrt(maximumPixelCount / (width * height));
+  return clamp(
+    Math.min(options.initialScale, budgetScale),
+    options.minimumScale,
+    options.maximumScale,
+  );
 }
 
 /** 把数值限制在闭区间内。 */

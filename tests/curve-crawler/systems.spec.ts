@@ -7,7 +7,6 @@ import {
   CURVE_CRAWLER_LIQUID_DURATION,
   CurveCrawlerLifePhase,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
-import { normalizeCurveCrawlerOptions } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-options';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerMovementSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/movement/curve-crawler-movement-system';
 import { CurveCrawlerDeathSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-death-system';
@@ -16,9 +15,10 @@ import {
   createCurveCrawlerBounds,
   updateCurveCrawlerBounds,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-bounds';
+import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
 
 function createState(): CurveCrawlerState {
-  return new CurveCrawlerState(normalizeCurveCrawlerOptions({
+  return new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
     count: 2,
     spawnArea: { width: 320, height: 180 },
     seed: 7,
