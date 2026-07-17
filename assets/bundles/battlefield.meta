@@ -1,0 +1,13 @@
+{
+  "ver": "1.2.0",
+  "importer": "directory",
+  "imported": true,
+  "uuid": "83ea6fbf-22b6-4a48-a9b0-411e684d136f",
+  "files": [],
+  "subMetas": {},
+  "userData": {
+    "isBundle": true,
+    "bundleName": "battlefield",
+    "priority": 20
+  }
+}

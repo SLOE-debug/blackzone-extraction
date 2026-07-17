@@ -18,13 +18,11 @@ import {
   createLobbyUiColor,
   drawLobbyStartButtonPlate,
 } from './lobby-start-button-graphics';
-import { LobbyUiCanvas } from './lobby-ui-canvas';
 
 const LABEL_TEXT = '开始游戏';
 
 /** 管理大厅开始按钮的屏幕空间渲染、交互反馈和世界锚点跟随。 */
 export class LobbyStartButton {
-  private readonly canvas: LobbyUiCanvas;
   private readonly buttonNode: Node;
   private readonly plateGraphics: Graphics;
   private readonly label: Label;
@@ -34,17 +32,15 @@ export class LobbyStartButton {
   private disposed = false;
 
   constructor(
-    parent: Node,
+    private readonly canvasNode: Node,
     private readonly camera: Camera,
     private readonly onStartRequested: () => void,
   ) {
-    this.canvas = new LobbyUiCanvas(parent);
+    const buttonElements = createButtonElements(this.canvasNode);
+    this.buttonNode = buttonElements.buttonNode;
+    this.plateGraphics = buttonElements.plateGraphics;
+    this.label = buttonElements.label;
     try {
-      const buttonElements = createButtonElements(this.canvas.node);
-      this.buttonNode = buttonElements.buttonNode;
-      this.plateGraphics = buttonElements.plateGraphics;
-      this.label = buttonElements.label;
-
       this.buttonNode.on(Node.EventType.MOUSE_ENTER, this.handleMouseEnter, this);
       this.buttonNode.on(Node.EventType.MOUSE_LEAVE, this.handleMouseLeave, this);
       this.buttonNode.on(Node.EventType.TOUCH_START, this.handleTouchStart, this);
@@ -54,7 +50,9 @@ export class LobbyStartButton {
       this.applyVisualState(LobbyStartButtonVisualState.Idle);
       this.update();
     } catch (error: unknown) {
-      this.canvas.dispose();
+      if (this.buttonNode.isValid) {
+        this.buttonNode.destroy();
+      }
       throw error;
     }
   }
@@ -64,16 +62,15 @@ export class LobbyStartButton {
     if (this.disposed) {
       return;
     }
-    this.canvas.synchronizeFrame();
     const anchor = LOBBY_START_BUTTON_STYLE.worldAnchor;
     this.projectedPosition.set(anchor.x, anchor.y, anchor.z);
-    this.camera.convertToUINode(this.projectedPosition, this.canvas.node, this.projectedPosition);
+    this.camera.convertToUINode(this.projectedPosition, this.canvasNode, this.projectedPosition);
     this.projectedPosition.y += LOBBY_START_BUTTON_STYLE.screenOffsetY;
     this.projectedPosition.z = 0;
     this.buttonNode.setPosition(this.projectedPosition);
   }
 
-  /** 解除输入监听并销毁按钮独占的 Canvas。 */
+  /** 解除输入监听并销毁按钮节点。 */
   public dispose(): void {
     if (this.disposed) {
       return;
@@ -84,7 +81,9 @@ export class LobbyStartButton {
     this.buttonNode.off(Node.EventType.TOUCH_END, this.handleTouchEnd, this);
     this.buttonNode.off(Node.EventType.TOUCH_CANCEL, this.handleTouchCancel, this);
     this.buttonNode.off(Button.EventType.CLICK, this.handleClick, this);
-    this.canvas.dispose();
+    if (this.buttonNode.isValid) {
+      this.buttonNode.destroy();
+    }
     this.disposed = true;
   }
 

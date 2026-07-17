@@ -1,5 +1,11 @@
 export { BundleId, FeatureId } from './contracts/runtime-id';
 export type { Disposable } from './contracts/disposable';
+export type { SceneRuntime } from './contracts/scene-runtime';
+export {
+  createLoadingProgress,
+  type LoadingProgress,
+  type LoadingProgressReporter,
+} from './contracts/loading-progress';
 export type { MonsterPopulation } from './contracts/monster-population';
 export {
   MonsterObservationEventType,
