@@ -6,7 +6,7 @@ import { writeVanguardPoseMatrices } from './vanguard-pose';
 
 const IDLE_CYCLE_SECONDS = 6.4;
 
-/** 负责正面英雄站姿、呼吸、轻微观察和持剑手摆动。 */
+/** 负责正面英雄的站立呼吸、转头、耸肩与自然手臂放松。 */
 export class VanguardAnimationSystem implements EntitySystem<VanguardState, number> {
   /** 在渲染器创建前写入完整绑定姿态。 */
   public initialize(state: VanguardState): void {
@@ -21,7 +21,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
 
     for (let index = 0; index < state.count; index++) {
       const action = intent.action[index] as VanguardAction;
-      if (action !== VanguardAction.ShrugAndTurnHead) {
+      if (action !== VanguardAction.Idle) {
         throw new Error(`主角动作未实现：${action}`);
       }
       animation.idlePhase[index] = wrapAngle(

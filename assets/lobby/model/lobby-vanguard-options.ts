@@ -10,5 +10,5 @@ export const LOBBY_VANGUARD_OPTIONS = Object.freeze({
     z: LOBBY_LAYOUT.focusZ,
   }),
   heading: 0,
-  action: VanguardAction.ShrugAndTurnHead,
+  action: VanguardAction.Idle,
 }) satisfies VanguardPopulationOptions;

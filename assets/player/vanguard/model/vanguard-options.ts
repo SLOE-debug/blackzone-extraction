@@ -25,7 +25,7 @@ export function validateVanguardOptions(options: Readonly<VanguardPopulationOpti
   if (!values.every(Number.isFinite)) {
     throw new Error('主角位置和朝向参数必须是有限数值。');
   }
-  if (options.action !== VanguardAction.ShrugAndTurnHead) {
+  if (options.action !== VanguardAction.Idle) {
     throw new Error(`主角动作未实现：${options.action}`);
   }
 }

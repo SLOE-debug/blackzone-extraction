@@ -10,10 +10,3 @@ export enum VanguardMatteSurface {
   Leather,
   Count,
 }
-
-/** 主角金属层中按材质响应划分的表面。 */
-export enum VanguardMetalSurface {
-  Steel,
-  Brass,
-  Count,
-}

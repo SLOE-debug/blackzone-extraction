@@ -1,7 +1,7 @@
 import { type GeometryBounds } from '../../../core/geometry/buffer-geometry';
 import { type VanguardState } from '../model/vanguard-state';
 
-/** 根据主角站位创建覆盖碎发、围巾、双臂和侧置长剑的保守包围盒。 */
+/** 根据主角站位创建覆盖碎发、围巾、双臂、任意朝向和待机摆动的保守包围盒。 */
 export function createVanguardBounds(state: VanguardState): GeometryBounds {
   const { transform } = state.data;
   let minX = Number.POSITIVE_INFINITY;
