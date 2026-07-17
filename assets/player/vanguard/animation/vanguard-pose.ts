@@ -43,9 +43,10 @@ export function writeVanguardPoseMatrices(
     * VANGUARD_BONE_MATRIX_COMPONENTS;
   const breath = Math.sin(phase * 2) * 0.018;
   const sway = Math.sin(phase) * 0.018;
-  const shoulderLift = (1 - Math.cos(phase * 2)) * 0.007;
-  const headYaw = Math.sin(phase) * 0.17;
-  const swordSway = Math.sin(phase * 1.5) * 0.022;
+  const shrugWave = Math.max(0, -Math.sin(phase));
+  const shoulderLift = shrugWave * shrugWave * shrugWave * shrugWave * 0.035;
+  const headYaw = Math.sin(phase) * 0.16 + Math.sin(phase * 2) * 0.025;
+  const armRelax = Math.sin(phase * 2) * 0.008;
 
   writeYawRollFrame(
     matrices,
@@ -125,19 +126,21 @@ export function writeVanguardPoseMatrices(
 
   const leftShoulderX = -VANGUARD_ANATOMY.shoulderHalfWidth + sway * 0.08;
   const rightShoulderX = VANGUARD_ANATOMY.shoulderHalfWidth + sway * 0.08;
-  const shoulderY = VANGUARD_ANATOMY.shoulderY + breath * 0.55 + shoulderLift;
+  const shoulderY = VANGUARD_ANATOMY.shoulderY + breath * 0.55;
+  const leftShoulderLift = shoulderLift * 0.9;
+  const rightShoulderLift = shoulderLift;
   const leftElbowX = VANGUARD_ANATOMY.leftElbowX + sway * 0.06;
-  const leftElbowY = VANGUARD_ANATOMY.leftElbowY + shoulderLift * 0.22;
-  const leftWristX = VANGUARD_ANATOMY.leftWristX;
-  const leftWristY = VANGUARD_ANATOMY.leftWristY + shoulderLift * 0.08;
+  const leftElbowY = VANGUARD_ANATOMY.leftElbowY + leftShoulderLift * 0.45;
+  const leftWristX = VANGUARD_ANATOMY.leftWristX - armRelax;
+  const leftWristY = VANGUARD_ANATOMY.leftWristY + leftShoulderLift * 0.18;
   const rightElbowX = VANGUARD_ANATOMY.rightElbowX + sway * 0.04;
-  const rightElbowY = VANGUARD_ANATOMY.rightElbowY + shoulderLift * 0.2;
-  const rightWristX = VANGUARD_ANATOMY.rightWristX + swordSway * 0.22;
-  const rightWristY = VANGUARD_ANATOMY.rightWristY + shoulderLift * 0.08;
+  const rightElbowY = VANGUARD_ANATOMY.rightElbowY + rightShoulderLift * 0.42;
+  const rightWristX = VANGUARD_ANATOMY.rightWristX + armRelax;
+  const rightWristY = VANGUARD_ANATOMY.rightWristY + rightShoulderLift * 0.18;
 
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftUpperArm,
-    leftShoulderX, shoulderY, 0,
+    leftShoulderX, shoulderY + leftShoulderLift, 0,
     leftElbowX, leftElbowY, 0.025,
     positionX, positionY, positionZ, heading, scale,
   );
@@ -150,12 +153,14 @@ export function writeVanguardPoseMatrices(
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftHand,
     leftWristX, leftWristY, 0.065,
-    VANGUARD_ANATOMY.leftHandX, VANGUARD_ANATOMY.leftHandY, 0.12,
+    VANGUARD_ANATOMY.leftHandX - armRelax * 1.2,
+    VANGUARD_ANATOMY.leftHandY + leftShoulderLift * 0.1,
+    0.12,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightUpperArm,
-    rightShoulderX, shoulderY, 0.008,
+    rightShoulderX, shoulderY + rightShoulderLift, 0.008,
     rightElbowX, rightElbowY, 0.04,
     positionX, positionY, positionZ, heading, scale,
   );
@@ -168,8 +173,8 @@ export function writeVanguardPoseMatrices(
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightHand,
     rightWristX, rightWristY, 0.09,
-    VANGUARD_ANATOMY.rightHandX + swordSway * 0.25,
-    VANGUARD_ANATOMY.rightHandY,
+    VANGUARD_ANATOMY.rightHandX + armRelax * 1.2,
+    VANGUARD_ANATOMY.rightHandY + rightShoulderLift * 0.1,
     0.14,
     positionX, positionY, positionZ, heading, scale,
   );
@@ -213,7 +218,7 @@ export function writeVanguardPoseMatrices(
     positionX, positionY, positionZ, heading, scale,
   );
 
-  const scarfWave = Math.sin(phase * 1.25) * 0.045;
+  const scarfWave = Math.sin(phase * 2) * 0.034 + Math.sin(phase) * 0.012;
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftScarfTail,
     -0.12, 3.08 + breath * 0.7, 0.18,
@@ -224,16 +229,6 @@ export function writeVanguardPoseMatrices(
     matrices, entityOffset, VanguardBone.RightScarfTail,
     0.12, 3.08 + breath * 0.7, 0.04,
     0.34 - scarfWave * 0.65, 2.55, -0.14,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.Sword,
-    VANGUARD_ANATOMY.rightHandX + swordSway * 0.25,
-    1.54,
-    0.14,
-    VANGUARD_ANATOMY.swordTipX + swordSway,
-    VANGUARD_ANATOMY.swordTipY,
-    VANGUARD_ANATOMY.swordTipZ,
     positionX, positionY, positionZ, heading, scale,
   );
 }

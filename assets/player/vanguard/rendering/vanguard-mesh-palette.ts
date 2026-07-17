@@ -16,14 +16,6 @@ export const VANGUARD_MATTE_MESH_PALETTE = Object.freeze({
   ] satisfies VanguardMeshPalette['entries']),
 }) satisfies VanguardMeshPalette;
 
-/** 主角金属表面按语义索引的稳定颜色与受控分面色差。 */
-export const VANGUARD_METAL_MESH_PALETTE = Object.freeze({
-  entries: Object.freeze([
-    color(177, 190, 198, 0.12),
-    color(188, 137, 57, 0.12),
-  ] satisfies VanguardMeshPalette['entries']),
-}) satisfies VanguardMeshPalette;
-
 /** 创建归一化不透明顶点色与面间变化幅度。 */
 function color(
   red: number,

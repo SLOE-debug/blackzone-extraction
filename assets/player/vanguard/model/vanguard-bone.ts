@@ -1,4 +1,4 @@
-/** 主角连续人体网格使用的骨骼与刚性装备锚点。 */
+/** 主角连续人体网格使用的骨骼。 */
 export enum VanguardBone {
   Root,
   Pelvis,
@@ -19,7 +19,6 @@ export enum VanguardBone {
   RightFoot,
   LeftScarfTail,
   RightScarfTail,
-  Sword,
   Count,
 }
 

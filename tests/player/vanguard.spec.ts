@@ -17,25 +17,25 @@ import {
 import { type VanguardMeshPlan } from '../../assets/player/vanguard/geometry/vanguard-mesh-plan';
 import {
   VANGUARD_MATTE_MESH_PLAN,
-  VANGUARD_METAL_MESH_PLAN,
   VANGUARD_TOTAL_TRIANGLE_COUNT,
 } from '../../assets/player/vanguard/geometry/vanguard-mesh-plans';
-import { VanguardMatteSurface, VanguardMetalSurface } from '../../assets/player/vanguard/geometry/vanguard-surface';
+import { VanguardMatteSurface } from '../../assets/player/vanguard/geometry/vanguard-surface';
 import { VANGUARD_ANATOMY } from '../../assets/player/vanguard/model/vanguard-anatomy';
 import { VanguardAction } from '../../assets/player/vanguard/model/vanguard-action';
+import {
+  VanguardBone,
+  VANGUARD_BONE_MATRIX_COMPONENTS,
+} from '../../assets/player/vanguard/model/vanguard-bone';
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
-import {
-  VANGUARD_MATTE_MESH_PALETTE,
-  VANGUARD_METAL_MESH_PALETTE,
-} from '../../assets/player/vanguard/rendering/vanguard-mesh-palette';
+import { VANGUARD_MATTE_MESH_PALETTE } from '../../assets/player/vanguard/rendering/vanguard-mesh-palette';
 
 const TEST_BASE_Y = 0.72;
 const TEST_FOCUS_Z = -2;
 const TEST_OPTIONS = Object.freeze({
   position: Object.freeze({ x: 0, y: TEST_BASE_Y, z: TEST_FOCUS_Z }),
   heading: 0,
-  action: VanguardAction.ShrugAndTurnHead,
+  action: VanguardAction.Idle,
 }) satisfies VanguardPopulationOptions;
 
 describe('可复用正面 Low Poly 人类英雄', () => {
@@ -101,32 +101,35 @@ describe('可复用正面 Low Poly 人类英雄', () => {
     expect(minimumY).toBeGreaterThanOrEqual(TEST_BASE_Y + 0.035);
   });
 
-  it('待机动作移动头部、围巾和长剑，同时保持脚底稳定', () => {
+  it('待机动作转头、耸肩并摆动围巾，同时保持脚底稳定', () => {
     const fixture = createVanguardFixture();
     const matteBefore = evaluatePlan(
       fixture.state,
       VANGUARD_MATTE_MESH_PLAN,
       VANGUARD_MATTE_MESH_PALETTE,
     );
-    const metalBefore = evaluatePlan(
-      fixture.state,
-      VANGUARD_METAL_MESH_PLAN,
-      VANGUARD_METAL_MESH_PALETTE,
-    );
     const beforeMinimumY = getMinimum(matteBefore.positions, matteBefore.vertexCount, 1);
-    const beforeMaximumY = getMaximum(matteBefore.positions, matteBefore.vertexCount, 1);
-    const beforeSwordX = getMaximum(metalBefore.positions, metalBefore.vertexCount, 0);
+    const beforeHeadForwardX = getBoneMatrixComponent(
+      fixture.state.data.pose.boneMatrices,
+      VanguardBone.Head,
+      6,
+    );
+    const beforeLeftShoulderY = getBoneMatrixComponent(
+      fixture.state.data.pose.boneMatrices,
+      VanguardBone.LeftUpperArm,
+      10,
+    );
+    const beforeRightShoulderY = getBoneMatrixComponent(
+      fixture.state.data.pose.boneMatrices,
+      VanguardBone.RightUpperArm,
+      10,
+    );
 
-    fixture.animation.update(fixture.state, 0.5);
+    fixture.animation.update(fixture.state, 4.8);
     const matteAfter = evaluatePlan(
       fixture.state,
       VANGUARD_MATTE_MESH_PLAN,
       VANGUARD_MATTE_MESH_PALETTE,
-    );
-    const metalAfter = evaluatePlan(
-      fixture.state,
-      VANGUARD_METAL_MESH_PLAN,
-      VANGUARD_METAL_MESH_PALETTE,
     );
     const changedVertices = countChangedVertices(matteBefore.positions, matteAfter.positions);
 
@@ -135,14 +138,30 @@ describe('可复用正面 Low Poly 人类英雄', () => {
       beforeMinimumY,
       4,
     );
-    expect(getMaximum(matteAfter.positions, matteAfter.vertexCount, 1)).not.toBeCloseTo(
-      beforeMaximumY,
-      4,
-    );
-    expect(getMaximum(metalAfter.positions, metalAfter.vertexCount, 0)).not.toBeCloseTo(
-      beforeSwordX,
-      4,
-    );
+    expect(Math.abs(getBoneMatrixComponent(
+      fixture.state.data.pose.boneMatrices,
+      VanguardBone.Head,
+      6,
+    ) - beforeHeadForwardX)).toBeGreaterThan(0.1);
+    expect(getBoneMatrixComponent(
+      fixture.state.data.pose.boneMatrices,
+      VanguardBone.LeftUpperArm,
+      10,
+    )).toBeGreaterThan(beforeLeftShoulderY + 0.025);
+    expect(getBoneMatrixComponent(
+      fixture.state.data.pose.boneMatrices,
+      VanguardBone.RightUpperArm,
+      10,
+    )).toBeGreaterThan(beforeRightShoulderY + 0.03);
+  });
+
+  it('完整待机周期首尾姿态无缝闭合', () => {
+    const fixture = createVanguardFixture();
+    const initialPose = Array.from(fixture.state.data.pose.boneMatrices);
+
+    fixture.animation.update(fixture.state, 6.4);
+
+    expect(Array.from(fixture.state.data.pose.boneMatrices)).toEqual(initialPose);
   });
 
   it('固定生成目标面数、单位法线和完全一致的编译拓扑位置', () => {
@@ -157,36 +176,21 @@ describe('可复用正面 Low Poly 人类英雄', () => {
       VANGUARD_MATTE_MESH_PLAN,
       VANGUARD_MATTE_MESH_PALETTE,
     );
-    const metal = evaluatePlan(
-      fixture.state,
-      VANGUARD_METAL_MESH_PLAN,
-      VANGUARD_METAL_MESH_PALETTE,
-    );
-
-    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBeGreaterThanOrEqual(550);
-    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBeLessThanOrEqual(750);
+    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBe(516);
     expect(firstMatte.vertexCount).toBe(VANGUARD_MATTE_MESH_PLAN.vertexCount);
     expect(firstMatte.indexCount).toBe(VANGUARD_MATTE_MESH_PLAN.indexCount);
-    expect(metal.vertexCount).toBe(VANGUARD_METAL_MESH_PLAN.vertexCount);
-    expect(metal.indexCount).toBe(VANGUARD_METAL_MESH_PLAN.indexCount);
     expect(Array.from(firstMatte.getPositionView())).toEqual(
       Array.from(secondMatte.getPositionView()),
     );
     expectUnitNormals(firstMatte.normals, firstMatte.vertexCount);
-    expectUnitNormals(metal.normals, metal.vertexCount);
   });
 
-  it('按皮肤、五官、衣物、围巾、皮革和金属写入编译语义颜色', () => {
+  it('按皮肤、五官、衣物、围巾和皮革写入编译语义颜色', () => {
     const fixture = createVanguardFixture();
     const matte = evaluatePlan(
       fixture.state,
       VANGUARD_MATTE_MESH_PLAN,
       VANGUARD_MATTE_MESH_PALETTE,
-    );
-    const metal = evaluatePlan(
-      fixture.state,
-      VANGUARD_METAL_MESH_PLAN,
-      VANGUARD_METAL_MESH_PALETTE,
     );
 
     const skin = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Skin)
@@ -199,19 +203,12 @@ describe('可复用正面 Low Poly 人类英雄', () => {
       .startVertex);
     const leather = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Leather)
       .startVertex);
-    const steel = getColor(metal, getSurfaceSpan(VANGUARD_METAL_MESH_PLAN, VanguardMetalSurface.Steel)
-      .startVertex);
-    const brass = getColor(metal, getSurfaceSpan(VANGUARD_METAL_MESH_PLAN, VanguardMetalSurface.Brass)
-      .startVertex);
 
     expect(skin.red).toBeGreaterThan(skin.blue * 1.7);
     expect(face.red).toBeLessThan(skin.red * 0.35);
     expect(tunic.blue).toBeGreaterThan(tunic.red * 2.5);
     expect(scarf.red).toBeGreaterThan(scarf.blue * 2.5);
     expect(leather.red).toBeGreaterThan(leather.blue * 2);
-    expect(Math.max(steel.red, steel.green, steel.blue)
-      - Math.min(steel.red, steel.green, steel.blue)).toBeLessThan(0.12);
-    expect(brass.red).toBeGreaterThan(brass.blue * 2.4);
   });
 
   it('颈部在围巾与下颌之间收腰，并避免高对比三角条纹', () => {
@@ -409,6 +406,15 @@ function countChangedVertices(before: Float32Array, after: Float32Array): number
     }
   }
   return changed;
+}
+
+/** 读取单实体指定骨骼矩阵中的方向或平移分量。 */
+function getBoneMatrixComponent(
+  matrices: Float32Array,
+  bone: VanguardBone,
+  component: 6 | 10,
+): number {
+  return matrices[bone * VANGUARD_BONE_MATRIX_COMPONENTS + component] ?? 0;
 }
 
 /** 返回指定顶点的 RGB 颜色。 */

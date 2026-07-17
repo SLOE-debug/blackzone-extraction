@@ -24,7 +24,4 @@ export const VANGUARD_ANATOMY = Object.freeze({
   rightWristY: 1.67,
   rightHandX: 0.7,
   rightHandY: 1.45,
-  swordTipX: 1.04,
-  swordTipY: 0.16,
-  swordTipZ: 0.25,
 });

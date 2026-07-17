@@ -72,8 +72,7 @@ flowchart LR
 ├─ vanguard-body-cage.ts
 ├─ vanguard-outfit-cage.ts
 ├─ vanguard-hair-cage.ts
-├─ vanguard-scarf-cage.ts
-└─ vanguard-sword-cage.ts
+└─ vanguard-scarf-cage.ts
    ↓
 VanguardCageBuilder
 ├─ vertex(position, boneA, boneB, weightB)
@@ -81,8 +80,7 @@ VanguardCageBuilder
 └─ build()
    ↓
 vanguard-model-cage.ts
-├─ VANGUARD_MATTE_CAGE
-└─ VANGUARD_METAL_CAGE
+└─ VANGUARD_MATTE_CAGE
    ↓
 compileVanguardMeshPlan()
 ├─ 压缩双骨骼控制点数据
@@ -91,7 +89,7 @@ compileVanguardMeshPlan()
 ├─ 生成固定局部 Index、semanticIds、colorVariantIds
 └─ 生成连续 semanticSpans
    ↓
-VANGUARD_MATTE_MESH_PLAN / VANGUARD_METAL_MESH_PLAN
+VANGUARD_MATTE_MESH_PLAN
 ```
 
 这里不是把 Box、Cylinder、Capsule 等 Primitive 互相穿插，而是显式声明人体语义顶点和面片。主角控制笼仍在绑定阶段保持共享边界；渲染计划只在初始化期把它展开为硬分面顶点。
@@ -108,8 +106,7 @@ LobbySceneRuntime.initialize()
       ├─ new VanguardMaterials()
       ├─ createVanguardBounds(state)
       ├─ new VanguardMeshEvaluator(MattePlan, MattePalette)
-      ├─ new VanguardMeshEvaluator(MetalPlan, MetalPalette)
-      └─ new CompiledMeshBatchRenderer(Matte / Metal)
+      └─ new CompiledMeshBatchRenderer(Character)
          ├─ 一次性复制并偏移局部 Index
          ├─ createVertexStreams() 复用 SurfaceBufferGeometry
          ├─ evaluator.evaluate(MeshDirty.All)
@@ -126,10 +123,10 @@ LobbySceneRuntime.initialize()
 LobbySceneRuntime.update(deltaTime)
 └─ VanguardPopulation.update(deltaTime)
    ├─ VanguardAnimationSystem.update(state, deltaTime)
+   │  ├─ 校验 VanguardAction.Idle
    │  └─ writeVanguardPoseMatrices()
    └─ VanguardRenderer.update()
-      ├─ matteBatches.update(MeshDirty.Pose)
-      └─ metalBatches.update(MeshDirty.Pose)
+      └─ batches.update(MeshDirty.Pose)
          ↓
       VanguardMeshEvaluator.evaluate()
       ├─ skinControlVertices()
@@ -150,8 +147,8 @@ LobbySceneRuntime.update(deltaTime)
 - 领域控制笼与最终渲染网格之间由类型化 `VanguardMeshPlan` 衔接。
 - `FacetedQuad` 的中心点是每帧从四个蒙皮控制点派生的数据，而非伪装成普通共享顶点。
 - 固定 Index、语义 ID、颜色变体和面片展开全部只在编译期执行一次。
-- 普通待机动画只评估与上传 Position / Normal；语义顶点色仅在初始化或未来颜色事件中写入。
-- 当前共 `564` 个三角形：Matte `524`，Metal `40`。
+- `VanguardAction.Idle` 只评估与上传 Position / Normal，并组合呼吸、转头、周期性耸肩、手臂放松和围巾摆动。
+- 当前共 `516` 个三角形，统一进入单一 `Character` 渲染层；刀具与独立金属材质批次已移除。
 - Cocos Standard 材质持续接收动态 Normal 流，因此真实灯光与阴影仍随当前姿态变化。
 
 ---

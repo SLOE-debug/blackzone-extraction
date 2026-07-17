@@ -55,12 +55,11 @@ function addEye(builder: VanguardCageBuilder, side: -1 | 1): void {
   );
 }
 
-/** 构建衣摆、腰带和剑柄等贴合人体语义的服装表面。 */
+/** 构建衣摆与腰带等贴合人体语义的服装表面。 */
 function createOutfitCage(): VanguardCageDefinition {
   const builder = new VanguardCageBuilder(VanguardMatteSurface.Count);
   addTabard(builder);
   addBelt(builder);
-  addSwordGrip(builder);
   return builder.build();
 }
 
@@ -113,22 +112,6 @@ function addBelt(builder: VanguardCageBuilder): void {
   builder.orientedQuad(VanguardMatteSurface.Leather, lowerBackCenter, lowerBackLeft, upperBackLeft, upperBackCenter, 0, 0, -1);
   builder.orientedQuad(VanguardMatteSurface.Leather, lowerBackLeft, lowerFrontLeft, upperFrontLeft, upperBackLeft, -1, 0, 0);
   builder.orientedQuad(VanguardMatteSurface.Leather, lowerFrontRight, lowerBackRight, upperBackRight, upperFrontRight, 1, 0, 0);
-}
-
-/** 添加与长剑骨骼整体运动的皮革缠绕剑柄。 */
-function addSwordGrip(builder: VanguardCageBuilder): void {
-  const topFront = builder.vertex(0.74, 1.64, 0.17, VanguardBone.Sword);
-  const topRight = builder.vertex(0.79, 1.62, 0.13, VanguardBone.Sword);
-  const topBack = builder.vertex(0.75, 1.62, 0.09, VanguardBone.Sword);
-  const topLeft = builder.vertex(0.7, 1.64, 0.13, VanguardBone.Sword);
-  const bottomFront = builder.vertex(0.79, 1.43, 0.18, VanguardBone.Sword);
-  const bottomRight = builder.vertex(0.84, 1.42, 0.14, VanguardBone.Sword);
-  const bottomBack = builder.vertex(0.8, 1.42, 0.1, VanguardBone.Sword);
-  const bottomLeft = builder.vertex(0.75, 1.44, 0.14, VanguardBone.Sword);
-  builder.orientedQuad(VanguardMatteSurface.Leather, topFront, topRight, bottomRight, bottomFront, 0.7, 0, 0.7, 0.002);
-  builder.orientedQuad(VanguardMatteSurface.Leather, topRight, topBack, bottomBack, bottomRight, 0.7, 0, -0.7);
-  builder.orientedQuad(VanguardMatteSurface.Leather, topBack, topLeft, bottomLeft, bottomBack, -0.7, 0, -0.7);
-  builder.orientedQuad(VanguardMatteSurface.Leather, topLeft, topFront, bottomFront, bottomLeft, -0.7, 0, 0.7);
 }
 
 /** 面部与服装附属表面的合并固定拓扑。 */
