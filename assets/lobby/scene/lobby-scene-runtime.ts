@@ -113,7 +113,7 @@ export class LobbySceneRuntime {
     });
   }
 
-  /** 更新自适应渲染比例、轨道相机、主角步态和墙后蜘蛛动画。 */
+  /** 更新自适应渲染比例、轨道相机、主角展示动作和墙后蜘蛛动画。 */
   public update(deltaTime: number): void {
     if (this.state === LobbySceneState.Initialized) {
       this.performanceController?.update(deltaTime);

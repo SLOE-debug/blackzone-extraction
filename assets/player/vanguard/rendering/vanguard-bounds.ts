@@ -1,7 +1,7 @@
 import { type GeometryBounds } from '../../../core/geometry/buffer-geometry';
 import { type VanguardState } from '../model/vanguard-state';
 
-/** 根据主角站位创建覆盖走路摆动、天线和前伸手枪的保守包围盒。 */
+/** 根据主角站位创建覆盖碎发、围巾、双臂和侧置长剑的保守包围盒。 */
 export function createVanguardBounds(state: VanguardState): GeometryBounds {
   const { transform } = state.data;
   let minX = Number.POSITIVE_INFINITY;
@@ -15,12 +15,12 @@ export function createVanguardBounds(state: VanguardState): GeometryBounds {
     const x = transform.x[index] ?? 0;
     const y = transform.y[index] ?? 0;
     const z = transform.z[index] ?? 0;
-    minX = Math.min(minX, x - 1.5);
-    minY = Math.min(minY, y - 0.08);
-    minZ = Math.min(minZ, z - 0.85);
-    maxX = Math.max(maxX, x + 1.5);
-    maxY = Math.max(maxY, y + 4.62);
-    maxZ = Math.max(maxZ, z + 1.72);
+    minX = Math.min(minX, x - 1.7);
+    minY = Math.min(minY, y - 0.03);
+    minZ = Math.min(minZ, z - 1.7);
+    maxX = Math.max(maxX, x + 1.7);
+    maxY = Math.max(maxY, y + 4.12);
+    maxZ = Math.max(maxZ, z + 1.7);
   }
 
   return Object.freeze({ minX, minY, minZ, maxX, maxY, maxZ });

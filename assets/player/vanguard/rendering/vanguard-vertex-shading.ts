@@ -4,72 +4,117 @@ import {
   type SurfaceColorTint,
   type SurfaceVertexShading,
 } from '../../../core/rendering/directional-vertex-shading';
-import { type VanguardState } from '../model/vanguard-state';
 import {
-  VANGUARD_ARMOR_VERTEX_COUNT,
-  VANGUARD_OPAQUE_TOPOLOGY,
-  VANGUARD_PANEL_VERTEX_COUNT,
-  VANGUARD_SENSOR_TOPOLOGY,
-  VANGUARD_WEAPON_VERTEX_COUNT,
+  getVanguardMatteSurfaceRange,
+  getVanguardMetalSurfaceRange,
+  VANGUARD_MATTE_TOPOLOGY,
+  VANGUARD_METAL_TOPOLOGY,
 } from '../geometry/vanguard-topology';
+import { VanguardMatteSurface, VanguardMetalSurface } from '../geometry/vanguard-surface';
+import { type VanguardState } from '../model/vanguard-state';
 
 const BYTE_COLOR_SCALE = 1 / 255;
-const ARMOR_TINT = tint(43, 45, 49);
-const PANEL_TINT = tint(19, 20, 23);
-const WEAPON_TINT = tint(13, 14, 16);
-const SENSOR_TINT = tint(246, 248, 250);
+const MATTE_TINTS = Object.freeze([
+  tint(205, 145, 102),
+  tint(205, 145, 102),
+  tint(43, 35, 34),
+  tint(73, 45, 28),
+  tint(38, 101, 142),
+  tint(180, 58, 51),
+  tint(31, 49, 61),
+  tint(98, 61, 36),
+] satisfies readonly SurfaceColorTint[]);
+const METAL_TINTS = Object.freeze([
+  tint(177, 190, 198),
+  tint(188, 137, 57),
+] satisfies readonly SurfaceColorTint[]);
 
-/** 按固定部件区段写入不替代真实灯光的金属表面色。 */
-class VanguardOpaqueVertexShading implements SurfaceVertexShading<VanguardState> {
-  /** 刷新黑色主体装甲、深黑战术面板和手枪颜色。 */
+/** 为皮肤、面部、衣物、头发和皮具写入清晰的英雄配色。 */
+class VanguardMatteVertexShading implements SurfaceVertexShading<VanguardState> {
   public update(
     geometry: SurfaceBufferGeometry,
     _state: VanguardState,
     range: EntityRange,
   ): void {
-    const expectedVertexCount = range.count * VANGUARD_OPAQUE_TOPOLOGY.verticesPerEntity;
-    if (geometry.vertexCount !== expectedVertexCount) {
-      throw new Error('主角受光层顶点数量不符合固定拓扑。');
+    const verticesPerEntity = VANGUARD_MATTE_TOPOLOGY.verticesPerEntity;
+    if (geometry.vertexCount !== range.count * verticesPerEntity) {
+      throw new Error('主角哑光层顶点数量不符合固定拓扑。');
     }
-
     for (let localIndex = 0; localIndex < range.count; localIndex++) {
-      const entityStart = localIndex * VANGUARD_OPAQUE_TOPOLOGY.verticesPerEntity;
-      fillFacetedColorRange(geometry, entityStart, VANGUARD_ARMOR_VERTEX_COUNT, ARMOR_TINT);
-      const panelStart = entityStart + VANGUARD_ARMOR_VERTEX_COUNT;
-      fillFacetedColorRange(geometry, panelStart, VANGUARD_PANEL_VERTEX_COUNT, PANEL_TINT);
-      const weaponStart = panelStart + VANGUARD_PANEL_VERTEX_COUNT;
-      fillFacetedColorRange(geometry, weaponStart, VANGUARD_WEAPON_VERTEX_COUNT, WEAPON_TINT);
+      const entityStart = localIndex * verticesPerEntity;
+      for (let surface = VanguardMatteSurface.Skin;
+        surface < VanguardMatteSurface.Count;
+        surface++) {
+        const semanticSurface = surface as VanguardMatteSurface;
+        const surfaceRange = getVanguardMatteSurfaceRange(semanticSurface);
+        const color = MATTE_TINTS[semanticSurface];
+        if (color === undefined) {
+          throw new Error(`主角哑光表面颜色不存在：${semanticSurface}`);
+        }
+        const variation = semanticSurface === VanguardMatteSurface.NeckSkin
+          ? 0
+          : semanticSurface === VanguardMatteSurface.Skin
+            ? 0.065
+            : 0.1;
+        fillFacetedColorRange(
+          geometry,
+          entityStart + surfaceRange.startVertex,
+          surfaceRange.vertexCount,
+          color,
+          variation,
+        );
+      }
     }
   }
 }
 
-/** 为独眼、头侧灯和前臂识别灯写入纯白发光色。 */
-class VanguardSensorVertexShading implements SurfaceVertexShading<VanguardState> {
-  /** 刷新不受实时灯光衰减影响的传感器颜色。 */
+/** 为钢制长剑与黄铜扣件写入中性金属色。 */
+class VanguardMetalVertexShading implements SurfaceVertexShading<VanguardState> {
   public update(
     geometry: SurfaceBufferGeometry,
     _state: VanguardState,
     range: EntityRange,
   ): void {
-    const expectedVertexCount = range.count * VANGUARD_SENSOR_TOPOLOGY.verticesPerEntity;
-    if (geometry.vertexCount !== expectedVertexCount) {
-      throw new Error('主角传感器层顶点数量不符合固定拓扑。');
+    const verticesPerEntity = VANGUARD_METAL_TOPOLOGY.verticesPerEntity;
+    if (geometry.vertexCount !== range.count * verticesPerEntity) {
+      throw new Error('主角金属层顶点数量不符合固定拓扑。');
     }
-    fillFacetedColorRange(geometry, 0, geometry.vertexCount, SENSOR_TINT);
+    for (let localIndex = 0; localIndex < range.count; localIndex++) {
+      const entityStart = localIndex * verticesPerEntity;
+      for (let surface = VanguardMetalSurface.Steel;
+        surface < VanguardMetalSurface.Count;
+        surface++) {
+        const semanticSurface = surface as VanguardMetalSurface;
+        const surfaceRange = getVanguardMetalSurfaceRange(semanticSurface);
+        const color = METAL_TINTS[semanticSurface];
+        if (color === undefined) {
+          throw new Error(`主角金属表面颜色不存在：${semanticSurface}`);
+        }
+        fillFacetedColorRange(
+          geometry,
+          entityStart + surfaceRange.startVertex,
+          surfaceRange.vertexCount,
+          color,
+          0.12,
+        );
+      }
+    }
   }
 }
 
-/** 为相邻三角面写入轻微确定性色差，强化装甲切面节奏。 */
+/** 为连续三角面写入克制且确定的面间色差。 */
 function fillFacetedColorRange(
   geometry: SurfaceBufferGeometry,
   startVertex: number,
   vertexCount: number,
   color: Readonly<SurfaceColorTint>,
+  variation: number,
 ): void {
   const endVertex = startVertex + vertexCount;
   for (let vertex = startVertex; vertex < endVertex; vertex++) {
     const triangle = Math.floor((vertex - startVertex) / 3);
-    const shade = 0.88 + (triangle % 5) * 0.027;
+    const sequence = (triangle * 5 + Math.floor(startVertex / 3)) % 7;
+    const shade = 1 - variation * 0.55 + sequence / 6 * variation;
     const colorOffset = vertex * 4;
     geometry.colors[colorOffset] = Math.min(1, color.red * shade);
     geometry.colors[colorOffset + 1] = Math.min(1, color.green * shade);
@@ -88,7 +133,7 @@ function tint(red: number, green: number, blue: number): SurfaceColorTint {
   });
 }
 
-export const vanguardOpaqueVertexShading: SurfaceVertexShading<VanguardState>
-  = new VanguardOpaqueVertexShading();
-export const vanguardSensorVertexShading: SurfaceVertexShading<VanguardState>
-  = new VanguardSensorVertexShading();
+export const vanguardMatteVertexShading: SurfaceVertexShading<VanguardState>
+  = new VanguardMatteVertexShading();
+export const vanguardMetalVertexShading: SurfaceVertexShading<VanguardState>
+  = new VanguardMetalVertexShading();

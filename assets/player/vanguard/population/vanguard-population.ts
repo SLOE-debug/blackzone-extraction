@@ -24,7 +24,7 @@ export class VanguardPopulation {
     this.renderer = new VanguardRenderer(parent, this.state, surfaceMaterialTemplate);
   }
 
-  /** 推进基础走路循环并上传当前持枪姿态。 */
+  /** 推进英雄待机循环并上传当前连续人体姿态。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {

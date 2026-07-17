@@ -1,36 +1,36 @@
 import { type Material, Node } from 'cc';
 import { GeometryIndexFormat } from '../../../core/geometry/buffer-geometry';
 import { FixedTopologyBatchRenderer } from '../../../core/rendering/fixed-topology-batch-renderer';
-import { vanguardOpaqueGeometry } from '../geometry/vanguard-opaque-geometry';
-import { vanguardSensorGeometry } from '../geometry/vanguard-sensor-geometry';
+import { vanguardMatteGeometry } from '../geometry/vanguard-matte-geometry';
+import { vanguardMetalGeometry } from '../geometry/vanguard-metal-geometry';
 import { type VanguardState } from '../model/vanguard-state';
 import { createVanguardBounds } from './vanguard-bounds';
 import { VanguardMaterials } from './vanguard-materials';
 import {
-  vanguardOpaqueVertexShading,
-  vanguardSensorVertexShading,
+  vanguardMatteVertexShading,
+  vanguardMetalVertexShading,
 } from './vanguard-vertex-shading';
 
-/** 主角受光渲染层标识。 */
-export enum VanguardOpaqueRenderLayer {
-  Armor = 'armor',
+/** 主角哑光人体与衣物渲染层。 */
+export enum VanguardMatteRenderLayer {
+  Matte = 'matte',
 }
 
-/** 主角发光渲染层标识。 */
-export enum VanguardSensorRenderLayer {
-  Sensor = 'sensor',
+/** 主角长剑与扣件金属渲染层。 */
+export enum VanguardMetalRenderLayer {
+  Metal = 'metal',
 }
 
-/** 组合主角两层固定拓扑动态网格与独占材质。 */
+/** 组合主角哑光与金属两层固定拓扑动态网格。 */
 export class VanguardRenderer {
   private readonly materials: VanguardMaterials;
-  private opaqueBatches: FixedTopologyBatchRenderer<
+  private matteBatches: FixedTopologyBatchRenderer<
     VanguardState,
-    VanguardOpaqueRenderLayer
+    VanguardMatteRenderLayer
   > | null = null;
-  private sensorBatches: FixedTopologyBatchRenderer<
+  private metalBatches: FixedTopologyBatchRenderer<
     VanguardState,
-    VanguardSensorRenderLayer
+    VanguardMetalRenderLayer
   > | null = null;
   private disposed = false;
 
@@ -38,7 +38,7 @@ export class VanguardRenderer {
     this.materials = new VanguardMaterials(surfaceMaterialTemplate);
     const bounds = createVanguardBounds(state);
     try {
-      this.opaqueBatches = new FixedTopologyBatchRenderer({
+      this.matteBatches = new FixedTopologyBatchRenderer({
         parent,
         source: state,
         entityCount: state.count,
@@ -50,17 +50,17 @@ export class VanguardRenderer {
           castShadows: true,
           receiveShadows: true,
         }),
-        shading: vanguardOpaqueVertexShading,
+        shading: vanguardMatteVertexShading,
         layers: Object.freeze([
           Object.freeze({
-            id: VanguardOpaqueRenderLayer.Armor,
-            nodeName: 'VanguardArmor',
-            material: this.materials.armor,
-            geometry: vanguardOpaqueGeometry,
+            id: VanguardMatteRenderLayer.Matte,
+            nodeName: 'VanguardMatte',
+            material: this.materials.matte,
+            geometry: vanguardMatteGeometry,
           }),
         ]),
       });
-      this.sensorBatches = new FixedTopologyBatchRenderer({
+      this.metalBatches = new FixedTopologyBatchRenderer({
         parent,
         source: state,
         entityCount: state.count,
@@ -68,35 +68,35 @@ export class VanguardRenderer {
         indexFormat: GeometryIndexFormat.Uint16,
         bounds,
         surfaceOptions: Object.freeze({
-          uploadLightingAttributes: false,
-          castShadows: false,
-          receiveShadows: false,
+          uploadLightingAttributes: true,
+          castShadows: true,
+          receiveShadows: true,
         }),
-        shading: vanguardSensorVertexShading,
+        shading: vanguardMetalVertexShading,
         layers: Object.freeze([
           Object.freeze({
-            id: VanguardSensorRenderLayer.Sensor,
-            nodeName: 'VanguardSensor',
-            material: this.materials.sensor,
-            geometry: vanguardSensorGeometry,
+            id: VanguardMetalRenderLayer.Metal,
+            nodeName: 'VanguardMetal',
+            material: this.materials.metal,
+            geometry: vanguardMetalGeometry,
           }),
         ]),
       });
     } catch (error: unknown) {
-      this.sensorBatches?.dispose();
-      this.opaqueBatches?.dispose();
+      this.metalBatches?.dispose();
+      this.matteBatches?.dispose();
       this.materials.dispose();
       throw error;
     }
   }
 
-  /** 重写并上传主角装甲与传感器动态顶点流。 */
+  /** 重写并上传主角连续人体与长剑的动态顶点流。 */
   public update(): void {
-    if (this.disposed || this.opaqueBatches === null || this.sensorBatches === null) {
+    if (this.disposed || this.matteBatches === null || this.metalBatches === null) {
       throw new Error('主角渲染器尚未初始化或已经释放。');
     }
-    this.opaqueBatches.update();
-    this.sensorBatches.update();
+    this.matteBatches.update();
+    this.metalBatches.update();
   }
 
   /** 先释放动态网格，再释放其引用的材质。 */
@@ -104,10 +104,10 @@ export class VanguardRenderer {
     if (this.disposed) {
       return;
     }
-    this.sensorBatches?.dispose();
-    this.opaqueBatches?.dispose();
-    this.sensorBatches = null;
-    this.opaqueBatches = null;
+    this.metalBatches?.dispose();
+    this.matteBatches?.dispose();
+    this.metalBatches = null;
+    this.matteBatches = null;
     this.materials.dispose();
     this.disposed = true;
   }

@@ -34,23 +34,14 @@ function initializeVanguardData(
   data: VanguardData,
   options: Readonly<VanguardPopulationOptions>,
 ): void {
-  const { transform, morphology, intent, motion, animation } = data;
+  const { transform, morphology, intent, animation } = data;
   transform.x[0] = options.position.x;
   transform.y[0] = options.position.y;
   transform.z[0] = options.position.z;
   transform.heading[0] = options.heading;
 
-  morphology.statureScale[0] = VANGUARD_CONFIG.statureScale;
-  morphology.shoulderScale[0] = VANGUARD_CONFIG.shoulderScale;
-  morphology.limbScale[0] = VANGUARD_CONFIG.limbScale;
-  morphology.armorScale[0] = VANGUARD_CONFIG.armorScale;
-  morphology.weaponScale[0] = VANGUARD_CONFIG.weaponScale;
+  morphology.scale[0] = VANGUARD_CONFIG.scale;
 
   intent.action[0] = options.action;
-  intent.targetSpeed[0] = options.walkSpeed;
-  intent.targetWeaponReady[0] = options.weaponReady;
-  motion.currentSpeed[0] = options.walkSpeed;
-  animation.phase[0] = Math.PI * 0.18;
-  animation.bodyBob[0] = 0;
-  animation.weaponReady[0] = options.weaponReady;
+  animation.idlePhase[0] = 0;
 }

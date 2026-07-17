@@ -10,7 +10,5 @@ export const LOBBY_VANGUARD_OPTIONS = Object.freeze({
     z: LOBBY_LAYOUT.focusZ,
   }),
   heading: 0,
-  action: VanguardAction.WalkWithHandgun,
-  walkSpeed: 1.05,
-  weaponReady: 1,
+  action: VanguardAction.ShrugAndTurnHead,
 }) satisfies VanguardPopulationOptions;

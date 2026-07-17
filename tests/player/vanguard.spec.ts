@@ -3,22 +3,28 @@ import { createEntityRange } from '../../assets/core/entities/entity-range';
 import {
   createSurfaceGeometry,
   GeometryIndexFormat,
+  type SurfaceBufferGeometry,
 } from '../../assets/core/geometry/buffer-geometry';
+import { type FixedTopologyGeometrySource } from '../../assets/core/geometry/fixed-topology';
 import { TriangleMeshWriter } from '../../assets/core/geometry/triangle-mesh-writer';
 import { VanguardAnimationSystem } from '../../assets/player/vanguard/animation/vanguard-animation-system';
-import { vanguardOpaqueGeometry } from '../../assets/player/vanguard/geometry/vanguard-opaque-geometry';
-import { vanguardSensorGeometry } from '../../assets/player/vanguard/geometry/vanguard-sensor-geometry';
+import { VANGUARD_BODY_CAGE } from '../../assets/player/vanguard/geometry/vanguard-body-cage';
+import { type VanguardCagePatch } from '../../assets/player/vanguard/geometry/vanguard-cage';
+import { vanguardMatteGeometry } from '../../assets/player/vanguard/geometry/vanguard-matte-geometry';
+import { vanguardMetalGeometry } from '../../assets/player/vanguard/geometry/vanguard-metal-geometry';
 import {
-  VANGUARD_ARMOR_VERTEX_COUNT,
-  VANGUARD_PANEL_VERTEX_COUNT,
+  getVanguardMatteSurfaceRange,
+  getVanguardMetalSurfaceRange,
+  VANGUARD_TOTAL_TRIANGLE_COUNT,
 } from '../../assets/player/vanguard/geometry/vanguard-topology';
+import { VanguardMatteSurface, VanguardMetalSurface } from '../../assets/player/vanguard/geometry/vanguard-surface';
+import { VANGUARD_ANATOMY } from '../../assets/player/vanguard/model/vanguard-anatomy';
 import { VanguardAction } from '../../assets/player/vanguard/model/vanguard-action';
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
-import { VanguardJoint } from '../../assets/player/vanguard/model/vanguard-schema';
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
 import {
-  vanguardOpaqueVertexShading,
-  vanguardSensorVertexShading,
+  vanguardMatteVertexShading,
+  vanguardMetalVertexShading,
 } from '../../assets/player/vanguard/rendering/vanguard-vertex-shading';
 
 const TEST_BASE_Y = 0.72;
@@ -26,101 +32,178 @@ const TEST_FOCUS_Z = -2;
 const TEST_OPTIONS = Object.freeze({
   position: Object.freeze({ x: 0, y: TEST_BASE_Y, z: TEST_FOCUS_Z }),
   heading: 0,
-  action: VanguardAction.WalkWithHandgun,
-  walkSpeed: 1.05,
-  weaponReady: 1,
+  action: VanguardAction.ShrugAndTurnHead,
 }) satisfies VanguardPopulationOptions;
 
-describe('可复用主角程序化模型', () => {
-  it('保持长腿、窄腰、小头和宽肩的战术机甲比例', () => {
-    const fixture = createVanguardFixture();
-    const { transform, joints } = fixture.state.data;
-    const baseY = transform.y[0] ?? 0;
-    const headTopY = getJoint(joints.y, VanguardJoint.HeadTop);
-    const neckY = getJoint(joints.y, VanguardJoint.Neck);
-    const leftShoulderX = getJoint(joints.x, VanguardJoint.LeftShoulderOuter);
-    const rightShoulderX = getJoint(joints.x, VanguardJoint.RightShoulderOuter);
-    const totalHeight = headTopY - baseY;
-    const headRatio = (headTopY - neckY) / totalHeight;
-
-    expect(baseY).toBeCloseTo(TEST_BASE_Y);
-    expect(totalHeight).toBeGreaterThan(4.25);
-    expect(headRatio).toBeLessThan(0.18);
-    expect(rightShoulderX - leftShoulderX).toBeGreaterThan(1.8);
+describe('可复用正面 Low Poly 人类英雄', () => {
+  it('主体拓扑保持单一连通且不依赖封闭管段拼接', () => {
+    const adjacency = Array.from(
+      { length: VANGUARD_BODY_CAGE.vertices.length },
+      () => new Set<number>(),
+    );
+    for (const patch of VANGUARD_BODY_CAGE.patches) {
+      connectPatch(adjacency, patch);
+    }
+    const visited = new Set<number>();
+    const pending = [0];
+    while (pending.length > 0) {
+      const current = pending.pop();
+      if (current === undefined || visited.has(current)) {
+        continue;
+      }
+      visited.add(current);
+      for (const neighbor of adjacency[current] ?? []) {
+        pending.push(neighbor);
+      }
+    }
+    expect(visited.size).toBe(VANGUARD_BODY_CAGE.vertices.length);
+    for (const patch of VANGUARD_BODY_CAGE.patches) {
+      expect(new Set([patch.a, patch.b, patch.c]).size).toBe(3);
+    }
   });
 
-  it('双腿反相迈步且双手保持手枪前指姿势', () => {
+  it('保持正面人类英雄的头身、肩腰和双腿比例', () => {
     const fixture = createVanguardFixture();
-    const beforeLeftAnkleZ = getJoint(fixture.state.data.joints.z, VanguardJoint.LeftAnkle);
-    const beforeRightAnkleZ = getJoint(fixture.state.data.joints.z, VanguardJoint.RightAnkle);
+    const matte = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const minimumY = getMinimum(matte.positions, matte.vertexCount, 1);
+    const maximumY = getMaximum(matte.positions, matte.vertexCount, 1);
+    const height = maximumY - minimumY;
+    const headRatio = (VANGUARD_ANATOMY.height - 3.2) / VANGUARD_ANATOMY.height;
+    const shoulderWidth = getWidthAtHeight(matte, TEST_BASE_Y + 2.82, 0.09);
+    const waistWidth = getWidthAtHeight(matte, TEST_BASE_Y + 2.03, 0.08, 0.6);
+    const thighWidth = getWidthAtHeight(matte, TEST_BASE_Y + 1.3, 0.1);
+    const faceFront = getMaximum(matte.positions, matte.vertexCount, 2) - TEST_FOCUS_Z;
+    const headBack = getMinimum(matte.positions, matte.vertexCount, 2) - TEST_FOCUS_Z;
+    const leftFoot = getMinimumXBelow(matte, TEST_BASE_Y + 0.17);
+    const rightFoot = getMaximumXBelow(matte, TEST_BASE_Y + 0.17);
 
-    fixture.animation.update(fixture.state, 0.16);
-
-    const joints = fixture.state.data.joints;
-    const leftAnkleZ = getJoint(joints.z, VanguardJoint.LeftAnkle);
-    const rightAnkleZ = getJoint(joints.z, VanguardJoint.RightAnkle);
-    const weaponRearX = getJoint(joints.x, VanguardJoint.WeaponRear);
-    const weaponFrontX = getJoint(joints.x, VanguardJoint.WeaponFront);
-    const weaponFrontZ = getJoint(joints.z, VanguardJoint.WeaponFront);
-    const weaponMuzzleZ = getJoint(joints.z, VanguardJoint.WeaponMuzzle);
-    const leftPalmZ = getJoint(joints.z, VanguardJoint.LeftPalmEnd);
-    const rightPalmZ = getJoint(joints.z, VanguardJoint.RightPalmEnd);
-    const weaponRearZ = getJoint(joints.z, VanguardJoint.WeaponRear);
-
-    expect(leftAnkleZ).not.toBeCloseTo(beforeLeftAnkleZ);
-    expect(rightAnkleZ).not.toBeCloseTo(beforeRightAnkleZ);
-    expect(leftAnkleZ - TEST_FOCUS_Z).toBeGreaterThan(0);
-    expect(rightAnkleZ - TEST_FOCUS_Z).toBeLessThan(0);
-    expect(Math.abs(weaponFrontX - weaponRearX)).toBeLessThan(0.02);
-    expect(weaponMuzzleZ - weaponFrontZ).toBeGreaterThan(0.14);
-    expect(Math.abs(leftPalmZ - weaponRearZ)).toBeLessThan(0.03);
-    expect(Math.abs(rightPalmZ - weaponRearZ)).toBeLessThan(0.03);
+    expect(height).toBeGreaterThan(3.75);
+    expect(height).toBeLessThan(4.15);
+    expect(headRatio).toBeGreaterThan(0.13);
+    expect(headRatio).toBeLessThan(0.17);
+    expect(shoulderWidth).toBeGreaterThan(1.15);
+    expect(shoulderWidth).toBeLessThan(1.4);
+    expect(waistWidth).toBeLessThan(0.85);
+    expect(shoulderWidth).toBeGreaterThan(waistWidth * 1.35);
+    expect(thighWidth).toBeGreaterThan(0.85);
+    expect(shoulderWidth).toBeLessThan(thighWidth * 1.45);
+    expect(faceFront).toBeGreaterThan(0.36);
+    expect(headBack).toBeLessThan(-0.22);
+    expect(leftFoot).toBeLessThan(-0.28);
+    expect(rightFoot).toBeGreaterThan(0.28);
+    expect(minimumY).toBeGreaterThanOrEqual(TEST_BASE_Y + 0.035);
   });
 
-  it('装甲和传感器保持固定拓扑、单位分面法线与语义颜色区段', () => {
+  it('待机动作移动头部、围巾和长剑，同时保持脚底稳定', () => {
+    const fixture = createVanguardFixture();
+    const matteBefore = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const metalBefore = writeGeometry(vanguardMetalGeometry, fixture.state);
+    const beforeMinimumY = getMinimum(matteBefore.positions, matteBefore.vertexCount, 1);
+    const beforeMaximumY = getMaximum(matteBefore.positions, matteBefore.vertexCount, 1);
+    const beforeSwordX = getMaximum(metalBefore.positions, metalBefore.vertexCount, 0);
+
+    fixture.animation.update(fixture.state, 0.5);
+    const matteAfter = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const metalAfter = writeGeometry(vanguardMetalGeometry, fixture.state);
+    const changedVertices = countChangedVertices(matteBefore.positions, matteAfter.positions);
+
+    expect(changedVertices).toBeGreaterThan(matteAfter.vertexCount * 0.2);
+    expect(getMinimum(matteAfter.positions, matteAfter.vertexCount, 1)).toBeCloseTo(
+      beforeMinimumY,
+      4,
+    );
+    expect(getMaximum(matteAfter.positions, matteAfter.vertexCount, 1)).not.toBeCloseTo(
+      beforeMaximumY,
+      4,
+    );
+    expect(getMaximum(metalAfter.positions, metalAfter.vertexCount, 0)).not.toBeCloseTo(
+      beforeSwordX,
+      4,
+    );
+  });
+
+  it('固定生成目标面数、单位法线和完全一致的拓扑位置', () => {
+    const fixture = createVanguardFixture();
+    const firstMatte = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const secondMatte = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const metal = writeGeometry(vanguardMetalGeometry, fixture.state);
+
+    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBeGreaterThanOrEqual(550);
+    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBeLessThanOrEqual(750);
+    expect(firstMatte.vertexCount).toBe(vanguardMatteGeometry.metrics.verticesPerEntity);
+    expect(firstMatte.indexCount).toBe(vanguardMatteGeometry.metrics.indicesPerEntity);
+    expect(metal.vertexCount).toBe(vanguardMetalGeometry.metrics.verticesPerEntity);
+    expect(metal.indexCount).toBe(vanguardMetalGeometry.metrics.indicesPerEntity);
+    expect(Array.from(firstMatte.getPositionView())).toEqual(
+      Array.from(secondMatte.getPositionView()),
+    );
+    expectUnitNormals(firstMatte.normals, firstMatte.vertexCount);
+    expectUnitNormals(metal.normals, metal.vertexCount);
+  });
+
+  it('按皮肤、五官、衣物、围巾、皮革和金属写入语义颜色', () => {
     const fixture = createVanguardFixture();
     const range = createEntityRange(0, fixture.state.count, fixture.state.count);
-    const opaque = createSurfaceGeometry(
-      vanguardOpaqueGeometry.metrics.verticesPerEntity,
-      vanguardOpaqueGeometry.metrics.indicesPerEntity,
-      GeometryIndexFormat.Uint16,
-    );
-    const opaqueWriter = new TriangleMeshWriter(opaque);
-    opaqueWriter.reset(true);
-    vanguardOpaqueGeometry.write(opaqueWriter, fixture.state, range);
-    opaqueWriter.commit();
-    vanguardOpaqueVertexShading.update(opaque, fixture.state, range);
+    const matte = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const metal = writeGeometry(vanguardMetalGeometry, fixture.state);
+    vanguardMatteVertexShading.update(matte, fixture.state, range);
+    vanguardMetalVertexShading.update(metal, fixture.state, range);
 
-    expect(opaque.vertexCount).toBe(vanguardOpaqueGeometry.metrics.verticesPerEntity);
-    expect(opaque.indexCount).toBe(vanguardOpaqueGeometry.metrics.indicesPerEntity);
-    expectUnitNormals(opaque.normals, opaque.vertexCount);
-    expect(getMinimumY(opaque.positions, opaque.vertexCount)).toBeGreaterThan(
-      TEST_BASE_Y - 0.03,
-    );
-    const armorColor = 0;
-    const panelColor = VANGUARD_ARMOR_VERTEX_COUNT * 4;
-    const weaponColor = (VANGUARD_ARMOR_VERTEX_COUNT + VANGUARD_PANEL_VERTEX_COUNT) * 4;
-    expect(opaque.colors[panelColor] ?? 1).toBeLessThan(opaque.colors[armorColor] ?? 0);
-    expect(opaque.colors[weaponColor] ?? 1).toBeLessThan(opaque.colors[panelColor] ?? 0);
-    expectBlackNeutralColor(opaque.colors, armorColor);
-    expectBlackNeutralColor(opaque.colors, panelColor);
+    const skin = getColor(matte, getVanguardMatteSurfaceRange(VanguardMatteSurface.Skin).startVertex);
+    const face = getColor(matte, getVanguardMatteSurfaceRange(VanguardMatteSurface.FaceDetail).startVertex);
+    const tunic = getColor(matte, getVanguardMatteSurfaceRange(VanguardMatteSurface.Tunic).startVertex);
+    const scarf = getColor(matte, getVanguardMatteSurfaceRange(VanguardMatteSurface.Scarf).startVertex);
+    const leather = getColor(matte, getVanguardMatteSurfaceRange(VanguardMatteSurface.Leather).startVertex);
+    const steel = getColor(metal, getVanguardMetalSurfaceRange(VanguardMetalSurface.Steel).startVertex);
+    const brass = getColor(metal, getVanguardMetalSurfaceRange(VanguardMetalSurface.Brass).startVertex);
 
-    const sensor = createSurfaceGeometry(
-      vanguardSensorGeometry.metrics.verticesPerEntity,
-      vanguardSensorGeometry.metrics.indicesPerEntity,
-      GeometryIndexFormat.Uint16,
+    expect(skin.red).toBeGreaterThan(skin.blue * 1.7);
+    expect(face.red).toBeLessThan(skin.red * 0.35);
+    expect(tunic.blue).toBeGreaterThan(tunic.red * 2.5);
+    expect(scarf.red).toBeGreaterThan(scarf.blue * 2.5);
+    expect(leather.red).toBeGreaterThan(leather.blue * 2);
+    expect(Math.max(steel.red, steel.green, steel.blue)
+      - Math.min(steel.red, steel.green, steel.blue)).toBeLessThan(0.12);
+    expect(brass.red).toBeGreaterThan(brass.blue * 2.4);
+  });
+
+  it('颈部在围巾与下颌之间收腰，并避免高对比三角条纹', () => {
+    const fixture = createVanguardFixture();
+    const range = createEntityRange(0, fixture.state.count, fixture.state.count);
+    const matte = writeGeometry(vanguardMatteGeometry, fixture.state);
+    const neckRange = getVanguardMatteSurfaceRange(VanguardMatteSurface.NeckSkin);
+    const skinRange = getVanguardMatteSurfaceRange(VanguardMatteSurface.Skin);
+    const neckBaseWidth = getRangeWidthAtHeight(
+      matte,
+      neckRange,
+      TEST_BASE_Y + 3.05,
+      0.025,
     );
-    const sensorWriter = new TriangleMeshWriter(sensor);
-    sensorWriter.reset(true);
-    vanguardSensorGeometry.write(sensorWriter, fixture.state, range);
-    sensorWriter.commit();
-    vanguardSensorVertexShading.update(sensor, fixture.state, range);
-    expect(sensor.colors[0] ?? 0).toBeGreaterThan(0.8);
-    expect(Math.abs((sensor.colors[0] ?? 0) - (sensor.colors[2] ?? 0))).toBeLessThan(0.03);
+    const neckUpperWidth = getRangeWidthAtHeight(
+      matte,
+      neckRange,
+      TEST_BASE_Y + 3.19,
+      0.025,
+    );
+    const jawWidth = getRangeWidthAtHeight(
+      matte,
+      neckRange,
+      TEST_BASE_Y + 3.3,
+      0.035,
+    );
+
+    vanguardMatteVertexShading.update(matte, fixture.state, range);
+    const neckRedSpread = getColorChannelSpread(matte, neckRange, 0);
+    const skinRedSpread = getColorChannelSpread(matte, skinRange, 0);
+
+    expect(neckBaseWidth).toBeGreaterThan(neckUpperWidth * 1.15);
+    expect(jawWidth).toBeGreaterThan(neckUpperWidth * 1.45);
+    expect(neckRedSpread).toBeLessThan(0.000001);
+    expect(neckRedSpread).toBeLessThan(skinRedSpread * 0.1);
   });
 });
 
-/** 创建完成初始关节姿态的单实体主角夹具。 */
+/** 创建完成初始骨骼姿态的单实体主角夹具。 */
 function createVanguardFixture(): {
   readonly state: VanguardState;
   readonly animation: VanguardAnimationSystem;
@@ -131,18 +214,37 @@ function createVanguardFixture(): {
   return { state, animation };
 }
 
-/** 验证装甲颜色保持接近中性的黑灰，不出现红色主导。 */
-function expectBlackNeutralColor(colors: Float32Array, colorOffset: number): void {
-  const red = colors[colorOffset] ?? 0;
-  const green = colors[colorOffset + 1] ?? 0;
-  const blue = colors[colorOffset + 2] ?? 0;
-  expect(Math.abs(red - green)).toBeLessThan(0.03);
-  expect(Math.abs(green - blue)).toBeLessThan(0.03);
+/** 写入一个单实体固定拓扑层。 */
+function writeGeometry(
+  source: FixedTopologyGeometrySource<VanguardState>,
+  state: VanguardState,
+): SurfaceBufferGeometry {
+  const geometry = createSurfaceGeometry(
+    source.metrics.verticesPerEntity,
+    source.metrics.indicesPerEntity,
+    GeometryIndexFormat.Uint16,
+  );
+  const writer = new TriangleMeshWriter(geometry);
+  writer.reset(true);
+  source.write(writer, state, createEntityRange(0, state.count, state.count));
+  writer.commit();
+  return geometry;
 }
 
-/** 读取单实体关节分量。 */
-function getJoint(values: Float32Array, joint: VanguardJoint): number {
-  return values[joint] ?? 0;
+/** 把面片所有角点加入无向连通图。 */
+function connectPatch(adjacency: readonly Set<number>[], patch: Readonly<VanguardCagePatch>): void {
+  const vertices = patch.d === patch.c
+    ? [patch.a, patch.b, patch.c]
+    : [patch.a, patch.b, patch.c, patch.d];
+  for (let index = 0; index < vertices.length; index++) {
+    const current = vertices[index];
+    const next = vertices[(index + 1) % vertices.length];
+    if (current === undefined || next === undefined) {
+      throw new Error('测试面片顶点不存在。');
+    }
+    adjacency[current]?.add(next);
+    adjacency[next]?.add(current);
+  }
 }
 
 /** 验证全部硬分面顶点法线保持单位长度。 */
@@ -158,11 +260,145 @@ function expectUnitNormals(normals: Float32Array, vertexCount: number): void {
   }
 }
 
-/** 返回有效顶点中的最低世界高度。 */
-function getMinimumY(positions: Float32Array, vertexCount: number): number {
+/** 返回指定轴分量的最小值。 */
+function getMinimum(
+  positions: Float32Array,
+  vertexCount: number,
+  axis: 0 | 1 | 2,
+): number {
   let minimum = Number.POSITIVE_INFINITY;
   for (let vertex = 0; vertex < vertexCount; vertex++) {
-    minimum = Math.min(minimum, positions[vertex * 3 + 1] ?? 0);
+    minimum = Math.min(minimum, positions[vertex * 3 + axis] ?? 0);
   }
   return minimum;
+}
+
+/** 返回指定轴分量的最大值。 */
+function getMaximum(
+  positions: Float32Array,
+  vertexCount: number,
+  axis: 0 | 1 | 2,
+): number {
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let vertex = 0; vertex < vertexCount; vertex++) {
+    maximum = Math.max(maximum, positions[vertex * 3 + axis] ?? 0);
+  }
+  return maximum;
+}
+
+/** 返回指定高度带中所有顶点的横向宽度。 */
+function getWidthAtHeight(
+  geometry: SurfaceBufferGeometry,
+  centerY: number,
+  halfRange: number,
+  maximumAbsoluteX = Number.POSITIVE_INFINITY,
+): number {
+  let minimumX = Number.POSITIVE_INFINITY;
+  let maximumX = Number.NEGATIVE_INFINITY;
+  for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
+    const offset = vertex * 3;
+    const y = geometry.positions[offset + 1] ?? 0;
+    if (Math.abs(y - centerY) > halfRange) {
+      continue;
+    }
+    const x = geometry.positions[offset] ?? 0;
+    if (Math.abs(x) > maximumAbsoluteX) {
+      continue;
+    }
+    minimumX = Math.min(minimumX, x);
+    maximumX = Math.max(maximumX, x);
+  }
+  return maximumX - minimumX;
+}
+
+/** 返回指定语义顶点区段在某高度带中的横向宽度。 */
+function getRangeWidthAtHeight(
+  geometry: SurfaceBufferGeometry,
+  range: Readonly<{ startVertex: number; vertexCount: number }>,
+  centerY: number,
+  halfRange: number,
+): number {
+  let minimumX = Number.POSITIVE_INFINITY;
+  let maximumX = Number.NEGATIVE_INFINITY;
+  const endVertex = range.startVertex + range.vertexCount;
+  for (let vertex = range.startVertex; vertex < endVertex; vertex++) {
+    const offset = vertex * 3;
+    const y = geometry.positions[offset + 1] ?? 0;
+    if (Math.abs(y - centerY) > halfRange) {
+      continue;
+    }
+    const x = geometry.positions[offset] ?? 0;
+    minimumX = Math.min(minimumX, x);
+    maximumX = Math.max(maximumX, x);
+  }
+  return maximumX - minimumX;
+}
+
+function getMinimumXBelow(geometry: SurfaceBufferGeometry, maximumY: number): number {
+  let minimum = Number.POSITIVE_INFINITY;
+  for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
+    const offset = vertex * 3;
+    if ((geometry.positions[offset + 1] ?? 0) <= maximumY) {
+      minimum = Math.min(minimum, geometry.positions[offset] ?? 0);
+    }
+  }
+  return minimum;
+}
+
+function getMaximumXBelow(geometry: SurfaceBufferGeometry, maximumY: number): number {
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
+    const offset = vertex * 3;
+    if ((geometry.positions[offset + 1] ?? 0) <= maximumY) {
+      maximum = Math.max(maximum, geometry.positions[offset] ?? 0);
+    }
+  }
+  return maximum;
+}
+
+/** 统计两个固定拓扑位置缓冲中发生可见变化的顶点。 */
+function countChangedVertices(before: Float32Array, after: Float32Array): number {
+  let changed = 0;
+  const vertexCount = Math.min(before.length, after.length) / 3;
+  for (let vertex = 0; vertex < vertexCount; vertex++) {
+    const offset = vertex * 3;
+    const distance = Math.hypot(
+      (after[offset] ?? 0) - (before[offset] ?? 0),
+      (after[offset + 1] ?? 0) - (before[offset + 1] ?? 0),
+      (after[offset + 2] ?? 0) - (before[offset + 2] ?? 0),
+    );
+    if (distance > 0.00001) {
+      changed++;
+    }
+  }
+  return changed;
+}
+
+function getColor(
+  geometry: SurfaceBufferGeometry,
+  vertex: number,
+): Readonly<{ red: number; green: number; blue: number }> {
+  const offset = vertex * 4;
+  return Object.freeze({
+    red: geometry.colors[offset] ?? 0,
+    green: geometry.colors[offset + 1] ?? 0,
+    blue: geometry.colors[offset + 2] ?? 0,
+  });
+}
+
+/** 返回指定语义顶点区段某个颜色通道的最大跨度。 */
+function getColorChannelSpread(
+  geometry: SurfaceBufferGeometry,
+  range: Readonly<{ startVertex: number; vertexCount: number }>,
+  channel: 0 | 1 | 2,
+): number {
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  const endVertex = range.startVertex + range.vertexCount;
+  for (let vertex = range.startVertex; vertex < endVertex; vertex++) {
+    const value = geometry.colors[vertex * 4 + channel] ?? 0;
+    minimum = Math.min(minimum, value);
+    maximum = Math.max(maximum, value);
+  }
+  return maximum - minimum;
 }
