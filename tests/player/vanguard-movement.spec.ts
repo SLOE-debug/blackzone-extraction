@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { UNCONSTRAINED_PLANAR_MOVEMENT } from '../../assets/core/contracts/planar-movement-constraint';
 import { VanguardMovementSystem } from '../../assets/player/vanguard/movement/vanguard-movement-system';
 import { VanguardAction } from '../../assets/player/vanguard/model/vanguard-action';
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
@@ -13,7 +14,7 @@ const TEST_OPTIONS = Object.freeze({
 describe('主角第三人称双摇杆移动', () => {
   it('按加速度推进世界平面位移并自然转向移动方向', () => {
     const state = new VanguardState(TEST_OPTIONS);
-    const movement = new VanguardMovementSystem();
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
     state.data.intent.moveX[0] = 1;
 
     movement.update(state, 0.1);
@@ -26,7 +27,7 @@ describe('主角第三人称双摇杆移动', () => {
 
   it('瞄准生效时保持移动方向与角色朝向解耦', () => {
     const state = new VanguardState(TEST_OPTIONS);
-    const movement = new VanguardMovementSystem();
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
     state.data.intent.moveX[0] = 1;
     state.data.intent.aimZ[0] = -1;
     state.data.intent.aiming[0] = 1;
@@ -39,7 +40,7 @@ describe('主角第三人称双摇杆移动', () => {
 
   it('不施加地图边界限制并在松开输入后快速减速', () => {
     const state = new VanguardState(TEST_OPTIONS);
-    const movement = new VanguardMovementSystem();
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
     state.data.intent.moveZ[0] = 1;
     for (let step = 0; step < 80; step++) {
       movement.update(state, 0.1);

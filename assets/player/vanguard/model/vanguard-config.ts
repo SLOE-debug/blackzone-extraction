@@ -1,6 +1,7 @@
 /** 主角稳定的形态、移动和转向参数。 */
 export const VANGUARD_CONFIG = Object.freeze({
   scale: 1,
+  collisionRadius: 0.44,
   maximumMoveSpeed: 7.2,
   acceleration: 31,
   deceleration: 38,

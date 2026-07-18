@@ -1,12 +1,12 @@
 import { type FixedTopologyMetrics } from '../../../core/geometry/fixed-topology';
 import { type TriangleMeshWriter } from '../../../core/geometry/triangle-mesh-writer';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
-
-interface BattlefieldGroundPoint {
-  x: number;
-  y: number;
-  z: number;
-}
+import {
+  type BattlefieldGroundPatchFrame,
+  type BattlefieldGroundPoint,
+  createBattlefieldGroundPatchFrame,
+  sampleBattlefieldGroundPoint,
+} from './battlefield-ground-sampling';
 
 const VERTEX_COLUMNS = BATTLEFIELD_LAYOUT.groundColumns + 1;
 const VERTEX_ROWS = BATTLEFIELD_LAYOUT.groundRows + 1;
@@ -19,81 +19,61 @@ export const BATTLEFIELD_GROUND_TOPOLOGY: FixedTopologyMetrics = Object.freeze({
   indicesPerEntity: TRIANGLE_COUNT * 3,
 });
 
-/** 生成中心可行走、边缘隆起的不规则洞穴战场地面。 */
+/** 生成随 Chunk 更新、在世界坐标中连续的不规则分面战场地面。 */
 export class BattlefieldGroundGeometry {
   public readonly metrics = BATTLEFIELD_GROUND_TOPOLOGY;
+  private readonly positions = new Float32Array(VERTEX_COLUMNS * VERTEX_ROWS * 3);
+  private readonly sampledPoint: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
+  private readonly p00: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
+  private readonly p10: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
+  private readonly p11: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
+  private readonly p01: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
 
-  /** 按固定网格和交替对角线写入确定性地面拓扑。 */
-  public write(writer: TriangleMeshWriter): void {
-    const positions = sampleGroundPositions();
-    const p00: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
-    const p10: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
-    const p11: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
-    const p01: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };
+  /** 按世界格点和交替对角线写入确定性地面补丁。 */
+  public write(
+    writer: TriangleMeshWriter,
+    centerChunkX = 0,
+    centerChunkZ = 0,
+  ): void {
+    const frame = createBattlefieldGroundPatchFrame(centerChunkX, centerChunkZ);
+    this.sampleGroundPositions(frame);
 
     for (let row = 0; row < BATTLEFIELD_LAYOUT.groundRows; row++) {
       for (let column = 0; column < BATTLEFIELD_LAYOUT.groundColumns; column++) {
         const p00Index = row * VERTEX_COLUMNS + column;
-        readGroundPoint(positions, p00Index, p00);
-        readGroundPoint(positions, p00Index + 1, p10);
-        readGroundPoint(positions, p00Index + VERTEX_COLUMNS + 1, p11);
-        readGroundPoint(positions, p00Index + VERTEX_COLUMNS, p01);
+        readGroundPoint(this.positions, p00Index, this.p00);
+        readGroundPoint(this.positions, p00Index + 1, this.p10);
+        readGroundPoint(this.positions, p00Index + VERTEX_COLUMNS + 1, this.p11);
+        readGroundPoint(this.positions, p00Index + VERTEX_COLUMNS, this.p01);
         if (((column + row) & 1) === 0) {
-          appendGroundTriangle(writer, p00, p01, p11);
-          appendGroundTriangle(writer, p00, p11, p10);
+          appendGroundTriangle(writer, this.p00, this.p01, this.p11);
+          appendGroundTriangle(writer, this.p00, this.p11, this.p10);
         } else {
-          appendGroundTriangle(writer, p00, p01, p10);
-          appendGroundTriangle(writer, p10, p01, p11);
+          appendGroundTriangle(writer, this.p00, this.p01, this.p10);
+          appendGroundTriangle(writer, this.p10, this.p01, this.p11);
         }
+      }
+    }
+  }
+
+  /** 先缓存共享格点，避免每个三角形重复执行世界噪声采样。 */
+  private sampleGroundPositions(frame: Readonly<BattlefieldGroundPatchFrame>): void {
+    for (let row = 0; row < VERTEX_ROWS; row++) {
+      const globalRow = frame.firstGlobalRow + row;
+      for (let column = 0; column < VERTEX_COLUMNS; column++) {
+        const globalColumn = frame.firstGlobalColumn + column;
+        sampleBattlefieldGroundPoint(globalColumn, globalRow, frame, this.sampledPoint);
+        const offset = (row * VERTEX_COLUMNS + column) * 3;
+        this.positions[offset] = this.sampledPoint.x;
+        this.positions[offset + 1] = this.sampledPoint.y;
+        this.positions[offset + 2] = this.sampledPoint.z;
       }
     }
   }
 }
 
-function sampleGroundPositions(): Float64Array {
-  const positions = new Float64Array(VERTEX_COLUMNS * VERTEX_ROWS * 3);
-  const extent = BATTLEFIELD_LAYOUT.groundHalfExtent;
-  for (let row = 0; row < VERTEX_ROWS; row++) {
-    const z = -extent + row / BATTLEFIELD_LAYOUT.groundRows * extent * 2;
-    for (let column = 0; column < VERTEX_COLUMNS; column++) {
-      const x = -extent + column / BATTLEFIELD_LAYOUT.groundColumns * extent * 2;
-      const offset = (row * VERTEX_COLUMNS + column) * 3;
-      positions[offset] = x;
-      positions[offset + 1] = sampleGroundHeight(x, z, column, row);
-      positions[offset + 2] = z;
-    }
-  }
-  return positions;
-}
-
-/** 以中央低起伏和边缘岩脊构成稳定、可复现的洞穴地形。 */
-function sampleGroundHeight(x: number, z: number, column: number, row: number): number {
-  const distance = Math.hypot(x, z);
-  const edgeStart = BATTLEFIELD_LAYOUT.centralSafeRadius;
-  const edgeRange = BATTLEFIELD_LAYOUT.groundHalfExtent - edgeStart;
-  const edgeFactor = smoothStep(Math.max(0, Math.min(1, (distance - edgeStart) / edgeRange)));
-  const centralFacetFactor = smoothStep(Math.min(1, distance / 4));
-  const facetNoise = hashGroundSample(column, row) * 2 - 1;
-  const crossingRidge = Math.sin(x * 0.31 + z * 0.17) * 0.07;
-  const centralFacet = (facetNoise * 0.08 + crossingRidge) * centralFacetFactor;
-  const edgeRidge = edgeFactor * (1.6 + facetNoise * 0.72 + Math.sin(z * 0.42) * 0.24);
-  return centralFacet + edgeRidge;
-}
-
-function hashGroundSample(column: number, row: number): number {
-  let value = Math.imul(column + 17, 0x45d9f3b) ^ Math.imul(row + 31, 0x119de1f3);
-  value ^= value >>> 16;
-  value = Math.imul(value, 0x45d9f3b);
-  value ^= value >>> 16;
-  return (value >>> 0) / 4294967296;
-}
-
-function smoothStep(value: number): number {
-  return value * value * (3 - value * 2);
-}
-
 function readGroundPoint(
-  positions: Float64Array,
+  positions: Float32Array,
   pointIndex: number,
   target: BattlefieldGroundPoint,
 ): void {

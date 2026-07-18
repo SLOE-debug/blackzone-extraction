@@ -1,31 +1,69 @@
-import { type StaticSurfaceBufferGeometry } from '../../../core/geometry/buffer-geometry';
-import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
+import { type SurfaceBufferGeometry } from '../../../core/geometry/buffer-geometry';
+import {
+  type BattlefieldGroundSurfaceSample,
+  sampleBattlefieldGroundSurface,
+} from '../geometry/battlefield-ground-sampling';
 
 const BYTE_COLOR_SCALE = 1 / 255;
-const BASE_RED = 42 * BYTE_COLOR_SCALE;
-const BASE_GREEN = 54 * BYTE_COLOR_SCALE;
-const BASE_BLUE = 48 * BYTE_COLOR_SCALE;
+const BASE_RED = 48 * BYTE_COLOR_SCALE;
+const BASE_GREEN = 61 * BYTE_COLOR_SCALE;
+const BASE_BLUE = 51 * BYTE_COLOR_SCALE;
+const SOIL_RED = 58 * BYTE_COLOR_SCALE;
+const SOIL_GREEN = 52 * BYTE_COLOR_SCALE;
+const SOIL_BLUE = 43 * BYTE_COLOR_SCALE;
+const MOSS_RED = 39 * BYTE_COLOR_SCALE;
+const MOSS_GREEN = 68 * BYTE_COLOR_SCALE;
+const MOSS_BLUE = 50 * BYTE_COLOR_SCALE;
+const surfaceSample: BattlefieldGroundSurfaceSample = {
+  macroVariation: 0,
+  soilCoverage: 0,
+  mossCoverage: 0,
+  facetVariation: 0,
+};
 
-/** 为战场岩地写入灰绿顶点色、分面色差和归一化 UV。 */
-export function shadeBattlefieldGround(geometry: StaticSurfaceBufferGeometry): void {
-  const extent = BATTLEFIELD_LAYOUT.groundHalfExtent;
-  for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
-    const positionOffset = vertex * 3;
-    const colorOffset = vertex * 4;
-    const uvOffset = vertex * 2;
-    const x = geometry.positions[positionOffset] ?? 0;
-    const y = geometry.positions[positionOffset + 1] ?? 0;
-    const z = geometry.positions[positionOffset + 2] ?? 0;
-    const normalY = geometry.normals[positionOffset + 1] ?? 1;
-    const triangleVariant = (Math.floor(vertex / 3) * 37 % 9) / 8;
-    const heightShade = Math.max(-0.08, Math.min(0.12, y * 0.035));
-    const facetShade = 0.78 + Math.max(0, normalY) * 0.13 + triangleVariant * 0.09;
-    const shade = facetShade + heightShade;
-    geometry.colors[colorOffset] = Math.min(1, BASE_RED * shade);
-    geometry.colors[colorOffset + 1] = Math.min(1, BASE_GREEN * (shade + 0.025));
-    geometry.colors[colorOffset + 2] = Math.min(1, BASE_BLUE * shade);
-    geometry.colors[colorOffset + 3] = 1;
-    geometry.uvs[uvOffset] = (x + extent) / (extent * 2);
-    geometry.uvs[uvOffset + 1] = (z + extent) / (extent * 2);
+/** 为每个独立三角面写入由世界坐标决定的泥土、苔藓和细微分面色差。 */
+export function shadeBattlefieldGround(
+  geometry: SurfaceBufferGeometry,
+  centerWorldX: number,
+  centerWorldZ: number,
+): void {
+  for (let firstVertex = 0; firstVertex < geometry.vertexCount; firstVertex += 3) {
+    const firstPositionOffset = firstVertex * 3;
+    const secondPositionOffset = firstPositionOffset + 3;
+    const thirdPositionOffset = firstPositionOffset + 6;
+    const worldX = centerWorldX + (
+      (geometry.positions[firstPositionOffset] ?? 0)
+      + (geometry.positions[secondPositionOffset] ?? 0)
+      + (geometry.positions[thirdPositionOffset] ?? 0)
+    ) / 3;
+    const worldZ = centerWorldZ + (
+      (geometry.positions[firstPositionOffset + 2] ?? 0)
+      + (geometry.positions[secondPositionOffset + 2] ?? 0)
+      + (geometry.positions[thirdPositionOffset + 2] ?? 0)
+    ) / 3;
+    const normalY = geometry.normals[firstPositionOffset + 1] ?? 1;
+    sampleBattlefieldGroundSurface(worldX, worldZ, surfaceSample);
+
+    const soil = surfaceSample.soilCoverage;
+    const moss = surfaceSample.mossCoverage;
+    const baseRed = lerp(lerp(BASE_RED, SOIL_RED, soil), MOSS_RED, moss);
+    const baseGreen = lerp(lerp(BASE_GREEN, SOIL_GREEN, soil), MOSS_GREEN, moss);
+    const baseBlue = lerp(lerp(BASE_BLUE, SOIL_BLUE, soil), MOSS_BLUE, moss);
+    const shade = 0.92
+      + surfaceSample.macroVariation * 0.08
+      + surfaceSample.facetVariation * 0.035
+      + (Math.max(0.9, normalY) - 0.9) * 0.32;
+
+    for (let localVertex = 0; localVertex < 3; localVertex++) {
+      const colorOffset = (firstVertex + localVertex) * 4;
+      geometry.colors[colorOffset] = Math.min(1, baseRed * shade);
+      geometry.colors[colorOffset + 1] = Math.min(1, baseGreen * shade);
+      geometry.colors[colorOffset + 2] = Math.min(1, baseBlue * shade);
+      geometry.colors[colorOffset + 3] = 1;
+    }
   }
+}
+
+function lerp(from: number, to: number, amount: number): number {
+  return from + (to - from) * amount;
 }

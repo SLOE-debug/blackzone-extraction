@@ -1,4 +1,4 @@
-import { Color, type Material, Node, renderer, type Scene } from 'cc';
+import { Color, type Material, Node, type Scene } from 'cc';
 import { type SceneRuntime } from '../../../core/contracts/scene-runtime';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -9,6 +9,10 @@ import {
 } from '../../../player/vanguard';
 import { BattlefieldDebugControls } from '../debug/battlefield-debug-controls';
 import { BattlefieldDebugPanel } from '../debug/battlefield-debug-panel';
+import {
+  BattlefieldEnvironmentPopulation,
+  type MutableBattlefieldMonsterNestPosition,
+} from '../environment/population/battlefield-environment-population';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import {
   type MutableBattlefieldAimTarget,
@@ -21,7 +25,7 @@ import {
   type BattlefieldCameraRig,
 } from './battlefield-camera';
 import { type MutableBattlefieldPlanarDirection } from './battlefield-camera-direction';
-import { createBattlefieldLighting } from './battlefield-lighting';
+import { BATTLEFIELD_LIGHTING } from './battlefield-lighting';
 
 enum BattlefieldSceneState {
   Created,
@@ -37,11 +41,12 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   aiming: boolean;
 }
 
-/** 战场场景门面，只编排环境、玩家、灯光、相机和怪物群体生命周期。 */
+/** 战场场景门面，只编排环境、玩家、相机和怪物群体生命周期。 */
 export class BattlefieldSceneRuntime implements SceneRuntime {
   private state = BattlefieldSceneState.Created;
   private runtimeRoot: Node | null = null;
   private renderer: BattlefieldRenderer | null = null;
+  private environment: BattlefieldEnvironmentPopulation | null = null;
   private player: VanguardPopulation | null = null;
   private monsters: BattlefieldMonsterPopulation | null = null;
   private cameraRig: BattlefieldCameraRig | null = null;
@@ -50,6 +55,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
   private readonly aimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
   private readonly aimTarget: MutableBattlefieldAimTarget = { entityId: -1, x: 0, z: 0 };
+  private readonly nearestNest: MutableBattlefieldMonsterNestPosition = { x: 0, z: 0 };
   private readonly playerControlIntent: MutableVanguardControlIntent = {
     moveX: 0,
     moveZ: 0,
@@ -64,7 +70,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     private readonly surfaceMaterialTemplate: Material,
   ) {}
 
-  /** 在全部资源创建成功后提交战场全局光照与阴影设置。 */
+  /** 在全部资源创建成功后提交战场环境光和无阴影设置。 */
   public initialize(commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>): void {
     if (this.state !== BattlefieldSceneState.Created) {
       throw new Error('战场场景只能初始化一次。');
@@ -72,6 +78,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     const runtimeRoot = new Node('Battlefield');
     this.sceneEntry.addChild(runtimeRoot);
     let battlefieldRenderer: BattlefieldRenderer | null = null;
+    let environment: BattlefieldEnvironmentPopulation | null = null;
     let player: VanguardPopulation | null = null;
     let monsters: BattlefieldMonsterPopulation | null = null;
     let cameraRig: BattlefieldCameraRig | null = null;
@@ -79,34 +86,33 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let debugPanel: BattlefieldDebugPanel | null = null;
     try {
       battlefieldRenderer = new BattlefieldRenderer(runtimeRoot, this.surfaceMaterialTemplate);
+      environment = new BattlefieldEnvironmentPopulation(
+        runtimeRoot,
+        this.surfaceMaterialTemplate,
+      );
       player = new VanguardPopulation(runtimeRoot, this.surfaceMaterialTemplate, {
         position: BATTLEFIELD_LAYOUT.playerPosition,
         heading: Math.PI,
         action: VanguardAction.Idle,
-      });
+      }, environment.movementConstraint);
       monsters = new BattlefieldMonsterPopulation(
         runtimeRoot,
         this.surfaceMaterialTemplate,
         commonMonsters,
       );
-      const lightingRig = createBattlefieldLighting(runtimeRoot);
       cameraRig = createBattlefieldCamera(runtimeRoot);
       cameraRig.setFollowTarget(player.positionX, player.positionY, player.positionZ, true);
       controlHud = new BattlefieldControlHud(runtimeRoot);
 
       this.scene.globals.ambient.skyLightingColor = new Color(38, 48, 44, 255);
       this.scene.globals.ambient.groundLightingColor = new Color(9, 14, 13, 255);
-      this.scene.globals.ambient.skyIllum = 920;
+      this.scene.globals.ambient.skyIllum = BATTLEFIELD_LIGHTING.ambientIlluminance;
       this.scene.globals.skybox.enabled = false;
       this.scene.globals.fog.enabled = false;
-      this.scene.globals.shadows.enabled = true;
-      this.scene.globals.shadows.type = renderer.scene.ShadowType.ShadowMap;
-      this.scene.globals.shadows.shadowMapSize = 512;
-      this.scene.globals.shadows.maxReceived = 2;
-      this.scene.globals.shadows.shadowColor = new Color(5, 8, 8, 190);
+      this.scene.globals.shadows.enabled = BATTLEFIELD_LIGHTING.shadowsEnabled;
 
       debugPanel = new BattlefieldDebugPanel(
-        new BattlefieldDebugControls(this.scene, lightingRig, cameraRig),
+        new BattlefieldDebugControls(this.scene, cameraRig),
       );
     } catch (error: unknown) {
       debugPanel?.dispose();
@@ -114,6 +120,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       cameraRig?.dispose();
       monsters?.dispose();
       player?.dispose();
+      environment?.dispose();
       battlefieldRenderer?.dispose();
       runtimeRoot.destroy();
       this.state = BattlefieldSceneState.Disposed;
@@ -122,6 +129,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
 
     this.runtimeRoot = runtimeRoot;
     this.renderer = battlefieldRenderer;
+    this.environment = environment;
     this.player = player;
     this.monsters = monsters;
     this.cameraRig = cameraRig;
@@ -138,6 +146,24 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.controlHud?.update();
     this.applyPlayerControlIntent();
     this.player?.update(deltaTime);
+    if (this.player !== null) {
+      const environmentChanged = this.environment?.update(
+        this.player.positionX,
+        this.player.positionZ,
+      ) ?? false;
+      if (environmentChanged
+        && this.environment !== null
+        && this.monsters !== null
+        && !this.environment.containsMonsterNest(this.monsters.nestX, this.monsters.nestZ)
+        && this.environment.writeNearestMonsterNest(
+          this.player.positionX,
+          this.player.positionZ,
+          this.nearestNest,
+        )) {
+        this.monsters.relocateToNest(this.nearestNest.x, this.nearestNest.z);
+      }
+      this.renderer?.updateCenter(this.player.positionX, this.player.positionZ);
+    }
     this.monsters?.update(deltaTime);
     if (this.player !== null && this.cameraRig !== null) {
       this.cameraRig.setFollowTarget(
@@ -160,12 +186,14 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.cameraRig?.dispose();
     this.monsters?.dispose();
     this.player?.dispose();
+    this.environment?.dispose();
     this.renderer?.dispose();
     if (this.runtimeRoot?.isValid === true) {
       this.runtimeRoot.destroy();
     }
     this.runtimeRoot = null;
     this.renderer = null;
+    this.environment = null;
     this.player = null;
     this.monsters = null;
     this.cameraRig = null;
@@ -182,10 +210,6 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     if (player === null || monsters === null || cameraRig === null || controls === undefined) {
       return;
     }
-    cameraRig.queueOrbitRotation(
-      controls.cameraOrbitDeltaX,
-      controls.cameraOrbitDeltaY,
-    );
     cameraRig.writeWorldPlanarDirection(
       controls.moveX,
       controls.moveY,

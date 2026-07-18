@@ -1,4 +1,5 @@
 import { type Material, Node } from 'cc';
+import { type PlanarMovementConstraint } from '../../../core/contracts/planar-movement-constraint';
 import { VanguardAnimationSystem } from '../animation/vanguard-animation-system';
 import {
   type VanguardControlIntent,
@@ -15,7 +16,7 @@ const MAXIMUM_DELTA_TIME = 0.05;
 /** 可复用主角的公开运行时门面，只编排姿态更新、渲染和资源生命周期。 */
 export class VanguardPopulation {
   private readonly state: VanguardState;
-  private readonly movement = new VanguardMovementSystem();
+  private readonly movement: VanguardMovementSystem;
   private readonly animation = new VanguardAnimationSystem();
   private readonly renderer: VanguardRenderer;
   private disposed = false;
@@ -24,8 +25,10 @@ export class VanguardPopulation {
     parent: Node,
     surfaceMaterialTemplate: Material,
     options: Readonly<VanguardPopulationOptions>,
+    movementConstraint: PlanarMovementConstraint,
   ) {
     this.state = new VanguardState(options);
+    this.movement = new VanguardMovementSystem(movementConstraint);
     this.animation.initialize(this.state);
     this.renderer = new VanguardRenderer(parent, this.state, surfaceMaterialTemplate);
   }

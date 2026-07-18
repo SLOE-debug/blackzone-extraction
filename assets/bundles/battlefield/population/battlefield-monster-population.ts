@@ -17,6 +17,11 @@ interface BattlefieldMonsterRuntime extends PlanarTargetPopulation {
   dispose(): void;
 }
 
+interface BattlefieldMonsterAssembly {
+  readonly root: Node;
+  readonly population: BattlefieldMonsterRuntime;
+}
+
 interface MutablePlanarTargetQuery extends PlanarTargetQuery {
   originX: number;
   originY: number;
@@ -35,8 +40,10 @@ export interface MutableBattlefieldAimTarget {
 
 /** 将 Common Monsters 的二维本地群体装配到战场 XZ 地面。 */
 export class BattlefieldMonsterPopulation {
-  private readonly modelRoot: Node;
-  private readonly population: BattlefieldMonsterRuntime;
+  private modelRoot: Node;
+  private population: BattlefieldMonsterRuntime;
+  private centerX: number;
+  private centerZ: number;
   private readonly localTargetQuery: MutablePlanarTargetQuery = {
     originX: 0,
     originY: 0,
@@ -53,39 +60,59 @@ export class BattlefieldMonsterPopulation {
   private disposed = false;
 
   constructor(
-    parent: Node,
-    surfaceMaterialTemplate: Material,
-    commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
+    private readonly parent: Node,
+    private readonly surfaceMaterialTemplate: Material,
+    private readonly commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
   ) {
     const config = BATTLEFIELD_MONSTER_SPAWN;
-    const modelRoot = new Node('BattlefieldCommonMonsters');
-    parent.addChild(modelRoot);
-    modelRoot.setPosition(config.center.x, config.center.y, config.center.z);
-    // Curve Crawler 原生位于 XY 平面并以 Z 为高度；旋转后对齐世界 XZ 地面与 Y-up。
-    modelRoot.setRotationFromEuler(-90, 0, 0);
-    modelRoot.setScale(config.modelScale, config.modelScale, config.modelScale);
-    this.modelRoot = modelRoot;
+    const assembly = this.createAssembly(config.center.x, config.center.z);
+    this.modelRoot = assembly.root;
+    this.population = assembly.population;
+    this.centerX = config.center.x;
+    this.centerZ = config.center.z;
+  }
 
-    try {
-      const localDiameter = config.worldDiameter / config.modelScale;
-      this.population = commonMonsters.createCurveCrawler(modelRoot, {
-        count: config.count,
-        spawnArea: Object.freeze({
-          width: localDiameter,
-          height: localDiameter,
-        }),
-        seed: config.seed,
-        surfaceMaterialTemplate,
-      });
-    } catch (error: unknown) {
-      modelRoot.destroy();
-      throw error;
-    }
+  /** 当前怪物群体所属密林巢穴的世界 X。 */
+  public get nestX(): number {
+    return this.centerX;
+  }
+
+  /** 当前怪物群体所属密林巢穴的世界 Z。 */
+  public get nestZ(): number {
+    return this.centerZ;
   }
 
   /** 当前战场基础怪物数量。 */
   public get count(): number {
     return this.population.count;
+  }
+
+  /**
+   * 旧巢穴离开活动窗口后，在最近的新巢穴内部重建固定数量怪物。
+   *
+   * 新群体完整创建成功后才释放旧批次，避免切换失败破坏当前运行时。
+   */
+  public relocateToNest(x: number, z: number): void {
+    if (this.disposed) {
+      throw new Error('战场怪物群体已经释放。');
+    }
+    if (!Number.isFinite(x) || !Number.isFinite(z)) {
+      throw new Error('怪物巢穴坐标必须是有限数值。');
+    }
+    if (Math.hypot(x - this.centerX, z - this.centerZ) <= 0.01) {
+      return;
+    }
+    const next = this.createAssembly(x, z);
+    const previousPopulation = this.population;
+    const previousRoot = this.modelRoot;
+    this.population = next.population;
+    this.modelRoot = next.root;
+    this.centerX = x;
+    this.centerZ = z;
+    previousPopulation.dispose();
+    if (previousRoot.isValid) {
+      previousRoot.destroy();
+    }
   }
 
   /** 推进基础怪物行为、移动、动画和渲染。 */
@@ -109,8 +136,8 @@ export class BattlefieldMonsterPopulation {
     const config = BATTLEFIELD_MONSTER_SPAWN;
     const inverseScale = 1 / config.modelScale;
     const query = this.localTargetQuery;
-    query.originX = (originX - config.center.x) * inverseScale;
-    query.originY = -(originZ - config.center.z) * inverseScale;
+    query.originX = (originX - this.centerX) * inverseScale;
+    query.originY = -(originZ - this.centerZ) * inverseScale;
     query.directionX = directionX;
     query.directionY = -directionZ;
     query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE * inverseScale;
@@ -118,8 +145,8 @@ export class BattlefieldMonsterPopulation {
       return false;
     }
     result.entityId = this.localTargetResult.entityId;
-    result.x = config.center.x + this.localTargetResult.x * config.modelScale;
-    result.z = config.center.z - this.localTargetResult.y * config.modelScale;
+    result.x = this.centerX + this.localTargetResult.x * config.modelScale;
+    result.z = this.centerZ - this.localTargetResult.y * config.modelScale;
     return true;
   }
 
@@ -133,5 +160,34 @@ export class BattlefieldMonsterPopulation {
       this.modelRoot.destroy();
     }
     this.disposed = true;
+  }
+
+  /** 在指定巢穴中心创建一套独立坐标根和怪物批次。 */
+  private createAssembly(centerX: number, centerZ: number): BattlefieldMonsterAssembly {
+    const config = BATTLEFIELD_MONSTER_SPAWN;
+    const modelRoot = new Node('BattlefieldCommonMonsters');
+    this.parent.addChild(modelRoot);
+    modelRoot.setPosition(centerX, config.center.y, centerZ);
+    // Curve Crawler 原生位于 XY 平面并以 Z 为高度；旋转后对齐世界 XZ 地面与 Y-up。
+    modelRoot.setRotationFromEuler(-90, 0, 0);
+    modelRoot.setScale(config.modelScale, config.modelScale, config.modelScale);
+
+    try {
+      const localDiameter = config.worldDiameter / config.modelScale;
+      const population = this.commonMonsters.createCurveCrawler(modelRoot, {
+        count: config.count,
+        spawnArea: Object.freeze({
+          width: localDiameter,
+          height: localDiameter,
+        }),
+        seed: config.seed ^ Math.imul(Math.trunc(centerX * 10), 0x45d9f3b)
+          ^ Math.imul(Math.trunc(centerZ * 10), 0x119de1f3),
+        surfaceMaterialTemplate: this.surfaceMaterialTemplate,
+      });
+      return Object.freeze({ root: modelRoot, population });
+    } catch (error: unknown) {
+      modelRoot.destroy();
+      throw error;
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { Color, director, error as logError, type Material, Node, renderer } from 'cc';
+import { UNCONSTRAINED_PLANAR_MOVEMENT } from '../../core/contracts/planar-movement-constraint';
 import { VanguardPopulation } from '../../player/vanguard';
 import { LobbyDebugControls } from '../debug/lobby-debug-controls';
 import { LobbyDebugPanel } from '../debug/lobby-debug-panel';
@@ -79,6 +80,7 @@ export class LobbySceneRuntime {
         runtimeRoot,
         this.surfaceMaterialTemplate,
         LOBBY_VANGUARD_OPTIONS,
+        UNCONSTRAINED_PLANAR_MOVEMENT,
       );
       const lightingRig = createLobbyLighting(runtimeRoot, LOBBY_RENDER_QUALITY);
       cameraRig = createLobbyCamera(runtimeRoot);

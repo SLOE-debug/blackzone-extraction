@@ -1,4 +1,8 @@
 import { type EntitySystem } from '../../../core/entities/entity-system';
+import {
+  type MutablePlanarPosition,
+  type PlanarMovementConstraint,
+} from '../../../core/contracts/planar-movement-constraint';
 import { dampAngle } from '../../../core/math/scalar';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { type VanguardState } from '../model/vanguard-state';
@@ -7,6 +11,10 @@ const DIRECTION_EPSILON = 0.0001;
 
 /** 只负责主角在世界 XZ 平面中的加减速、位移和朝向。 */
 export class VanguardMovementSystem implements EntitySystem<VanguardState, number> {
+  private readonly resolvedPosition: MutablePlanarPosition = { x: 0, z: 0 };
+
+  constructor(private readonly movementConstraint: PlanarMovementConstraint) {}
+
   /** 根据持续控制意图推进单实体运动状态。 */
   public update(state: VanguardState, deltaTime: number): void {
     const { transform, intent, motion } = state.data;
@@ -32,11 +40,23 @@ export class VanguardMovementSystem implements EntitySystem<VanguardState, numbe
       const nextVelocityX = currentVelocityX + velocityDeltaX * velocityScale;
       const nextVelocityZ = currentVelocityZ + velocityDeltaZ * velocityScale;
 
-      motion.velocityX[index] = nextVelocityX;
-      motion.velocityZ[index] = nextVelocityZ;
-      motion.speed[index] = Math.hypot(nextVelocityX, nextVelocityZ);
-      transform.x[index] = (transform.x[index] ?? 0) + nextVelocityX * deltaTime;
-      transform.z[index] = (transform.z[index] ?? 0) + nextVelocityZ * deltaTime;
+      const startX = transform.x[index] ?? 0;
+      const startZ = transform.z[index] ?? 0;
+      this.movementConstraint.resolve(
+        startX,
+        startZ,
+        startX + nextVelocityX * deltaTime,
+        startZ + nextVelocityZ * deltaTime,
+        VANGUARD_CONFIG.collisionRadius,
+        this.resolvedPosition,
+      );
+      const actualVelocityX = (this.resolvedPosition.x - startX) / deltaTime;
+      const actualVelocityZ = (this.resolvedPosition.z - startZ) / deltaTime;
+      motion.velocityX[index] = actualVelocityX;
+      motion.velocityZ[index] = actualVelocityZ;
+      motion.speed[index] = Math.hypot(actualVelocityX, actualVelocityZ);
+      transform.x[index] = this.resolvedPosition.x;
+      transform.z[index] = this.resolvedPosition.z;
 
       const aiming = (intent.aiming[index] ?? 0) !== 0;
       const facingX = aiming ? intent.aimX[index] ?? 0 : moveX;

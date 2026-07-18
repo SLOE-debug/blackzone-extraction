@@ -10,9 +10,9 @@ export class BattlefieldMaterials {
     this.ground = StandardVertexColorMaterialFactory.create(surfaceMaterialTemplate, {
       name: 'BattlefieldGround',
       mainColor: new Color(255, 255, 255, 255),
-      roughness: 0.93,
+      roughness: 0.98,
       metallic: 0,
-      specularIntensity: 0.18,
+      specularIntensity: 0.08,
       emissive: new Color(0, 0, 0, 255),
     });
   }
