@@ -12,7 +12,10 @@ import {
   type VanguardCageDefinition,
 } from '../../assets/player/vanguard/geometry/vanguard-cage';
 import { compileVanguardMeshPlan } from '../../assets/player/vanguard/geometry/vanguard-mesh-compiler';
-import { VANGUARD_MATTE_CAGE } from '../../assets/player/vanguard/geometry/vanguard-model-cage';
+import {
+  VANGUARD_MANTLE_CONTROL_BINDING,
+  VANGUARD_MATTE_CAGE,
+} from '../../assets/player/vanguard/geometry/vanguard-model-cage';
 import { VanguardMeshEvaluator } from '../../assets/player/vanguard/geometry/vanguard-mesh-evaluator';
 import { type VanguardMeshPlan } from '../../assets/player/vanguard/geometry/vanguard-mesh-plan';
 import {
@@ -56,7 +59,11 @@ describe('主角编译式网格计划', () => {
       surfaceTriangleCounts: Object.freeze(surfaceTriangleCounts),
     });
 
-    expect(() => compileVanguardMeshPlan(malformed, VanguardMatteSurface.Count))
+    expect(() => compileVanguardMeshPlan(
+      malformed,
+      VanguardMatteSurface.Count,
+      VANGUARD_MANTLE_CONTROL_BINDING,
+    ))
       .toThrow('表面三角形数量不一致');
   });
 

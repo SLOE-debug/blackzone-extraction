@@ -33,6 +33,12 @@ export interface VanguardMeshPlan extends MeshPlan {
   readonly controlLocalB: Float64Array;
   /** 第二骨骼权重。 */
   readonly controlWeightB: Float64Array;
+  /** 需要由披风粒子覆盖的共享控制点索引。 */
+  readonly mantleControlVertices: Uint16Array;
+  /** 每个披风控制点读取的中面粒子索引。 */
+  readonly mantleParticleIndices: Uint8Array;
+  /** 每个披风控制点沿粒子法线生成厚度的有符号偏移。 */
+  readonly mantleNormalOffsets: Float32Array;
   /** 最终顶点的直接控制点或派生中心点标识。 */
   readonly renderVertexKinds: Uint8Array;
   /** 直接控制点顶点对应的共享控制点索引。 */

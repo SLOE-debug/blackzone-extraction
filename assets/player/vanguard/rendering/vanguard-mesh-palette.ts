@@ -8,7 +8,7 @@ export const VANGUARD_MATTE_MESH_PALETTE = Object.freeze({
     color(190, 126, 88, 0.06),
     color(190, 126, 88, 0),
     color(48, 27, 25, 0.08),
-    color(58, 34, 24, 0.09),
+    color(28, 18, 17, 0.02),
     color(28, 18, 17, 0.065),
     color(46, 30, 24, 0.075),
     color(32, 86, 112, 0.09),

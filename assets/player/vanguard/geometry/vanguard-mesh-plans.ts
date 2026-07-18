@@ -1,4 +1,7 @@
-import { VANGUARD_MATTE_CAGE } from './vanguard-model-cage';
+import {
+  VANGUARD_MANTLE_CONTROL_BINDING,
+  VANGUARD_MATTE_CAGE,
+} from './vanguard-model-cage';
 import { compileVanguardMeshPlan } from './vanguard-mesh-compiler';
 import { VanguardMatteSurface } from './vanguard-surface';
 
@@ -6,6 +9,7 @@ import { VanguardMatteSurface } from './vanguard-surface';
 export const VANGUARD_MATTE_MESH_PLAN = compileVanguardMeshPlan(
   VANGUARD_MATTE_CAGE,
   VanguardMatteSurface.Count,
+  VANGUARD_MANTLE_CONTROL_BINDING,
 );
 
 /** 主角单一动态材质层的固定三角面数量。 */

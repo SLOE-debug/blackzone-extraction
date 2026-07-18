@@ -3,6 +3,7 @@ import {
   VanguardBone,
   VANGUARD_BONE_MATRIX_COMPONENTS,
 } from '../model/vanguard-bone';
+import { resolveVanguardDepth } from '../model/vanguard-depth-profile';
 
 const BIND_POSE_MATRICES = createVanguardBindPoseMatrices();
 const FACETED_QUAD_MINIMUM_RIDGE = 0.01;
@@ -60,7 +61,7 @@ export class VanguardCageBuilder {
     this.patchesBySurface = Array.from({ length: surfaceCount }, () => []);
   }
 
-  /** 添加一个绑定姿态世界坐标顶点，并预计算两根骨骼的局部坐标。 */
+  /** 添加一个美术基准绑定姿态顶点，应用纵深轮廓后预计算骨骼局部坐标。 */
   public vertex(
     x: number,
     y: number,
@@ -68,6 +69,36 @@ export class VanguardCageBuilder {
     boneA: VanguardBone,
     boneB: VanguardBone = boneA,
     weightB = 0,
+  ): number {
+    return this.addResolvedVertex(
+      x,
+      y,
+      resolveVanguardDepth(y, z),
+      boneA,
+      boneB,
+      weightB,
+    );
+  }
+
+  /** 添加一个已经应用角色纵深轮廓的绑定姿态顶点。 */
+  public resolvedVertex(
+    x: number,
+    y: number,
+    z: number,
+    boneA: VanguardBone,
+    boneB: VanguardBone = boneA,
+    weightB = 0,
+  ): number {
+    return this.addResolvedVertex(x, y, z, boneA, boneB, weightB);
+  }
+
+  private addResolvedVertex(
+    x: number,
+    y: number,
+    z: number,
+    boneA: VanguardBone,
+    boneB: VanguardBone,
+    weightB: number,
   ): number {
     if (!Number.isFinite(weightB) || weightB < 0 || weightB > 1) {
       throw new Error('主角顶点第二骨骼权重必须位于零到一之间。');

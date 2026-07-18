@@ -1,5 +1,21 @@
 import { VanguardBone } from '../model/vanguard-bone';
 import { VanguardCageBuilder, type VanguardCageDefinition } from './vanguard-cage';
+import {
+  createVanguardMantleControlBinding,
+  type VanguardMantleControlBinding,
+} from './vanguard-mantle-control-binding';
+import {
+  VANGUARD_MANTLE_HALF_THICKNESS,
+  VANGUARD_MANTLE_PANELS,
+  VANGUARD_MANTLE_REST_NORMALS,
+  VANGUARD_MANTLE_TRIANGLES,
+} from './vanguard-mantle-topology';
+import {
+  VANGUARD_MANTLE_PARTICLE_COUNT,
+  VANGUARD_MANTLE_REST_X,
+  VANGUARD_MANTLE_REST_Y,
+  VANGUARD_MANTLE_REST_Z,
+} from '../model/vanguard-mantle-particles';
 import { VanguardMatteSurface } from './vanguard-surface';
 
 interface MantlePoint {
@@ -11,14 +27,33 @@ interface MantlePoint {
 
 type TriangleIndices = readonly [number, number, number];
 
+interface VanguardMantleCageBuildResult {
+  readonly cage: VanguardCageDefinition;
+  readonly binding: VanguardMantleControlBinding;
+}
+
 /** 构建肩颈短披、左侧长披风和右侧短披片组成的非对称荒原披风。 */
-function createVanguardMantleCage(): VanguardCageDefinition {
+function createVanguardMantleCage(): VanguardMantleCageBuildResult {
   const builder = new VanguardCageBuilder(VanguardMatteSurface.Count);
+  const controlVertices: number[] = [];
+  const particleIndices: number[] = [];
+  const normalOffsets: number[] = [];
   addRaisedCollar(builder);
   addShoulderWrap(builder);
-  addLeftCape(builder);
-  addRightCape(builder);
-  return builder.build();
+  addSimulatedPanels(
+    builder,
+    controlVertices,
+    particleIndices,
+    normalOffsets,
+  );
+  return Object.freeze({
+    cage: builder.build(),
+    binding: createVanguardMantleControlBinding(
+      controlVertices,
+      particleIndices,
+      normalOffsets,
+    ),
+  });
 }
 
 /** 添加贴近下颌、向外翻折的厚领口。 */
@@ -72,36 +107,102 @@ function addTrapezoidBand(
   );
 }
 
-/** 添加从左肩斜向垂落的大披风主体。 */
-function addLeftCape(builder: VanguardCageBuilder): void {
-  const points = Object.freeze([
-    point(-0.58, 2.91, 0.19, 0.135),
-    point(-1.24, 2.6, 0.1, 0.045),
-    point(-1.12, 1.92, 0.075, 0.02),
-    point(-0.5, 2.1, 0.27, 0.215),
-    point(-0.25, 2.68, 0.33, 0.275),
-  ]);
-  const triangles = Object.freeze([
-    triangle(0, 1, 4),
-    triangle(1, 2, 4),
-    triangle(2, 3, 4),
-  ]);
-  addThickPanel(builder, points, triangles, Object.freeze([0, 1, 2, 3, 4]));
+/** 添加共享中面粒子、具有正反厚度且保持固定拓扑的自由披片。 */
+function addSimulatedPanels(
+  builder: VanguardCageBuilder,
+  controlVertices: number[],
+  particleIndices: number[],
+  normalOffsets: number[],
+): void {
+  const front = new Array<number>(VANGUARD_MANTLE_PARTICLE_COUNT);
+  const back = new Array<number>(VANGUARD_MANTLE_PARTICLE_COUNT);
+  for (let particle = 0; particle < VANGUARD_MANTLE_PARTICLE_COUNT; particle++) {
+    front[particle] = addSimulatedControlVertex(
+      builder,
+      particle,
+      VANGUARD_MANTLE_HALF_THICKNESS,
+      controlVertices,
+      particleIndices,
+      normalOffsets,
+    );
+    back[particle] = addSimulatedControlVertex(
+      builder,
+      particle,
+      -VANGUARD_MANTLE_HALF_THICKNESS,
+      controlVertices,
+      particleIndices,
+      normalOffsets,
+    );
+  }
+  for (const panel of VANGUARD_MANTLE_PANELS) {
+    const triangleEnd = panel.triangleStart + panel.triangleCount;
+    for (let triangle = panel.triangleStart; triangle < triangleEnd; triangle++) {
+      const triangleOffset = triangle * 3;
+      const a = VANGUARD_MANTLE_TRIANGLES[triangleOffset] ?? 0;
+      const b = VANGUARD_MANTLE_TRIANGLES[triangleOffset + 1] ?? 0;
+      const c = VANGUARD_MANTLE_TRIANGLES[triangleOffset + 2] ?? 0;
+      builder.orientedTriangle(
+        VanguardMatteSurface.Mantle,
+        front[a] ?? 0,
+        front[b] ?? 0,
+        front[c] ?? 0,
+        0,
+        0.1,
+        1,
+      );
+      builder.orientedTriangle(
+        VanguardMatteSurface.Mantle,
+        back[c] ?? 0,
+        back[b] ?? 0,
+        back[a] ?? 0,
+        0,
+        0.1,
+        -1,
+      );
+    }
+    for (let edge = 0; edge < panel.boundary.length; edge++) {
+      const current = panel.boundary[edge] ?? 0;
+      const next = panel.boundary[(edge + 1) % panel.boundary.length] ?? 0;
+      const outwardX = ((VANGUARD_MANTLE_REST_X[current] ?? 0)
+        + (VANGUARD_MANTLE_REST_X[next] ?? 0)) * 0.5 - panel.centerX;
+      const outwardY = ((VANGUARD_MANTLE_REST_Y[current] ?? 0)
+        + (VANGUARD_MANTLE_REST_Y[next] ?? 0)) * 0.5 - panel.centerY;
+      builder.orientedQuad(
+        VanguardMatteSurface.Mantle,
+        front[current] ?? 0,
+        back[current] ?? 0,
+        back[next] ?? 0,
+        front[next] ?? 0,
+        outwardX,
+        outwardY,
+        0,
+        0.003,
+      );
+    }
+  }
 }
 
-/** 添加右肩较短的平衡披片，使轮廓保持明确不对称。 */
-function addRightCape(builder: VanguardCageBuilder): void {
-  const points = Object.freeze([
-    point(0.52, 2.91, 0.18, 0.125),
-    point(0.84, 2.67, 0.1, 0.045),
-    point(0.68, 2.4, 0.14, 0.085),
-    point(0.33, 2.6, 0.31, 0.255),
-  ]);
-  const triangles = Object.freeze([
-    triangle(0, 1, 3),
-    triangle(1, 2, 3),
-  ]);
-  addThickPanel(builder, points, triangles, Object.freeze([0, 1, 2, 3]));
+function addSimulatedControlVertex(
+  builder: VanguardCageBuilder,
+  particle: number,
+  normalOffset: number,
+  controlVertices: number[],
+  particleIndices: number[],
+  normalOffsets: number[],
+): number {
+  const controlVertex = builder.resolvedVertex(
+    (VANGUARD_MANTLE_REST_X[particle] ?? 0)
+      + (VANGUARD_MANTLE_REST_NORMALS.x[particle] ?? 0) * normalOffset,
+    (VANGUARD_MANTLE_REST_Y[particle] ?? 0)
+      + (VANGUARD_MANTLE_REST_NORMALS.y[particle] ?? 0) * normalOffset,
+    (VANGUARD_MANTLE_REST_Z[particle] ?? 0)
+      + (VANGUARD_MANTLE_REST_NORMALS.z[particle] ?? 1) * normalOffset,
+    VanguardBone.Chest,
+  );
+  controlVertices.push(controlVertex);
+  particleIndices.push(particle);
+  normalOffsets.push(normalOffset);
+  return controlVertex;
 }
 
 /** 按显式三角切分生成前后布面，并沿给定外轮廓封闭厚度。 */
@@ -177,5 +278,10 @@ function triangle(a: number, b: number, c: number): TriangleIndices {
   return Object.freeze([a, b, c]);
 }
 
+const VANGUARD_MANTLE_BUILD = createVanguardMantleCage();
+
 /** 主角分层非对称荒原披风固定拓扑。 */
-export const VANGUARD_MANTLE_CAGE = createVanguardMantleCage();
+export const VANGUARD_MANTLE_CAGE = VANGUARD_MANTLE_BUILD.cage;
+
+/** 自由披片在独立披风控制笼中的局部覆盖关系。 */
+export const VANGUARD_MANTLE_LOCAL_CONTROL_BINDING = VANGUARD_MANTLE_BUILD.binding;

@@ -4,6 +4,7 @@ import {
   type EntityData,
 } from '../../../core/entities/entity-schema';
 import { type EntityTable } from '../../../core/entities/entity-table';
+import { VANGUARD_MANTLE_PARTICLE_COUNT } from './vanguard-mantle-particles';
 import { VanguardBone, VANGUARD_BONE_MATRIX_COMPONENTS } from './vanguard-bone';
 
 /** 可复用主角的 SoA 组件 Schema。 */
@@ -40,6 +41,22 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
       Float32Array,
       VanguardBone.Count * VANGUARD_BONE_MATRIX_COMPONENTS,
     ),
+  },
+  mantle: {
+    positionX: entityField(Float32Array, VANGUARD_MANTLE_PARTICLE_COUNT),
+    positionY: entityField(Float32Array, VANGUARD_MANTLE_PARTICLE_COUNT),
+    positionZ: entityField(Float32Array, VANGUARD_MANTLE_PARTICLE_COUNT),
+    previousX: entityField(Float32Array, VANGUARD_MANTLE_PARTICLE_COUNT),
+    previousY: entityField(Float32Array, VANGUARD_MANTLE_PARTICLE_COUNT),
+    previousZ: entityField(Float32Array, VANGUARD_MANTLE_PARTICLE_COUNT),
+    accumulator: entityField(Float32Array, 1),
+    elapsedTime: entityField(Float32Array, 1),
+    rootX: entityField(Float32Array, 1),
+    rootY: entityField(Float32Array, 1),
+    rootZ: entityField(Float32Array, 1),
+    rootHeading: entityField(Float32Array, 1),
+    rootScale: entityField(Float32Array, 1),
+    initialized: entityField(Uint8Array, 1),
   },
 } as const);
 

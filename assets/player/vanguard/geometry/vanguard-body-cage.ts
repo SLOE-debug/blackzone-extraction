@@ -90,13 +90,16 @@ function connectTorsoBand(
   upper: Readonly<TorsoRow>,
   surface: VanguardMatteSurface,
   ridge: number,
+  connectSides = true,
 ): void {
   builder.orientedQuad(surface, lower.frontLeft, lower.frontCenter, upper.frontCenter, upper.frontLeft, 0, 0, 1, ridge);
   builder.orientedQuad(surface, lower.frontCenter, lower.frontRight, upper.frontRight, upper.frontCenter, 0, 0, 1, ridge * 0.82);
   builder.orientedQuad(surface, lower.backRight, lower.backCenter, upper.backCenter, upper.backRight, 0, 0, -1, ridge * 0.45);
   builder.orientedQuad(surface, lower.backCenter, lower.backLeft, upper.backLeft, upper.backCenter, 0, 0, -1, ridge * 0.5);
-  builder.orientedQuad(surface, lower.backLeft, lower.frontLeft, upper.frontLeft, upper.backLeft, -1, 0, 0, ridge * 0.35);
-  builder.orientedQuad(surface, lower.frontRight, lower.backRight, upper.backRight, upper.frontRight, 1, 0, 0, ridge * 0.35);
+  if (connectSides) {
+    builder.orientedQuad(surface, lower.backLeft, lower.frontLeft, upper.frontLeft, upper.backLeft, -1, 0, 0, ridge * 0.35);
+    builder.orientedQuad(surface, lower.frontRight, lower.backRight, upper.backRight, upper.frontRight, 1, 0, 0, ridge * 0.35);
+  }
 }
 
 /** 写入颈部、下颌、面部、颅骨、鼻部和耳朵的一体化低面数头部。 */
@@ -111,17 +114,23 @@ function addHead(builder: VanguardCageBuilder, neckBase: Readonly<TorsoRow>): vo
 
   connectNeckToHead(builder, neckTop, jaw);
   connectHeadBand(builder, jaw, cheek, 0.008);
-  connectHeadBand(builder, cheek, brow, 0.012);
-  connectHeadBand(builder, brow, forehead, 0.008);
-  connectHeadBand(builder, forehead, crown, 0.004);
+  connectScalpTransitionBand(builder, cheek, brow, 0.012, false);
+  connectScalpTransitionBand(builder, brow, forehead, 0.008, true);
+  connectTorsoBand(
+    builder,
+    forehead,
+    crown,
+    VanguardMatteSurface.Hair,
+    0.004,
+  );
 
   const crownTop = builder.vertex(0.008, 3.83, -0.018, VanguardBone.Head);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.frontLeft, crown.frontCenter, crownTop, 0, 1, 0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.frontCenter, crown.frontRight, crownTop, 0, 1, 0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.frontRight, crown.backRight, crownTop, 0.6, 1, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.backRight, crown.backCenter, crownTop, 0, 1, -0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.backCenter, crown.backLeft, crownTop, 0, 1, -0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.backLeft, crown.frontLeft, crownTop, -0.6, 1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.frontLeft, crown.frontCenter, crownTop, 0, 1, 0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.frontCenter, crown.frontRight, crownTop, 0, 1, 0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.frontRight, crown.backRight, crownTop, 0.6, 1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.backRight, crown.backCenter, crownTop, 0, 1, -0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.backCenter, crown.backLeft, crownTop, 0, 1, -0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.backLeft, crown.frontLeft, crownTop, -0.6, 1, 0);
 
   addNose(builder, cheek, brow);
   addEar(builder, -1, cheek, brow);
@@ -196,8 +205,34 @@ function connectHeadBand(
   lower: Readonly<TorsoRow>,
   upper: Readonly<TorsoRow>,
   ridge: number,
+  connectSides = true,
 ): void {
-  connectTorsoBand(builder, lower, upper, VanguardMatteSurface.Skin, ridge);
+  connectTorsoBand(
+    builder,
+    lower,
+    upper,
+    VanguardMatteSurface.Skin,
+    ridge,
+    connectSides,
+  );
+}
+
+/** 让前额保持皮肤，同时把双侧与后脑连续过渡到头发语义。 */
+function connectScalpTransitionBand(
+  builder: VanguardCageBuilder,
+  lower: Readonly<TorsoRow>,
+  upper: Readonly<TorsoRow>,
+  ridge: number,
+  connectSides: boolean,
+): void {
+  builder.orientedQuad(VanguardMatteSurface.Skin, lower.frontLeft, lower.frontCenter, upper.frontCenter, upper.frontLeft, 0, 0, 1, ridge);
+  builder.orientedQuad(VanguardMatteSurface.Skin, lower.frontCenter, lower.frontRight, upper.frontRight, upper.frontCenter, 0, 0, 1, ridge * 0.82);
+  builder.orientedQuad(VanguardMatteSurface.Hair, lower.backRight, lower.backCenter, upper.backCenter, upper.backRight, 0, 0, -1, ridge * 0.45);
+  builder.orientedQuad(VanguardMatteSurface.Hair, lower.backCenter, lower.backLeft, upper.backLeft, upper.backCenter, 0, 0, -1, ridge * 0.5);
+  if (connectSides) {
+    builder.orientedQuad(VanguardMatteSurface.Hair, lower.backLeft, lower.frontLeft, upper.frontLeft, upper.backLeft, -1, 0, 0, ridge * 0.35);
+    builder.orientedQuad(VanguardMatteSurface.Hair, lower.frontRight, lower.backRight, upper.backRight, upper.frontRight, 1, 0, 0, ridge * 0.35);
+  }
 }
 
 /** 用共享眉心与脸颊锚点形成鼻梁、鼻尖和鼻翼，而不是附加球体。 */
@@ -215,21 +250,26 @@ function addNose(
   builder.orientedTriangle(VanguardMatteSurface.Skin, cheek.frontCenter, baseRight, baseLeft, 0, -0.25, 1);
 }
 
-/** 把耳廓作为连接头侧面的不规则三角折片写入主体拓扑。 */
+/** 用共享颅骨四边界与双脊点构成无开放接缝的低面数耳廓。 */
 function addEar(
   builder: VanguardCageBuilder,
   side: -1 | 1,
   cheek: Readonly<TorsoRow>,
   brow: Readonly<TorsoRow>,
 ): void {
-  const cheekSide = side < 0 ? cheek.frontLeft : cheek.frontRight;
-  const browSide = side < 0 ? brow.frontLeft : brow.frontRight;
-  const earTop = builder.vertex(side * 0.305, 3.56, 0.035, VanguardBone.Head);
-  const earMiddle = builder.vertex(side * 0.325, 3.49, 0.02, VanguardBone.Head);
-  const earBottom = builder.vertex(side * 0.292, 3.4, 0.045, VanguardBone.Head);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, browSide, earTop, earMiddle, side, 0, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, browSide, earMiddle, cheekSide, side, 0, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, cheekSide, earMiddle, earBottom, side, 0, 0);
+  const upperFront = side < 0 ? brow.frontLeft : brow.frontRight;
+  const upperBack = side < 0 ? brow.backLeft : brow.backRight;
+  const lowerBack = side < 0 ? cheek.backLeft : cheek.backRight;
+  const lowerFront = side < 0 ? cheek.frontLeft : cheek.frontRight;
+  const upperRidge = builder.vertex(side * 0.32, 3.535, 0.025, VanguardBone.Head);
+  const lowerRidge = builder.vertex(side * 0.315, 3.455, 0.04, VanguardBone.Head);
+
+  builder.orientedTriangle(VanguardMatteSurface.Skin, upperFront, upperBack, upperRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, upperBack, lowerRidge, upperRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, upperBack, lowerBack, lowerRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, lowerBack, lowerFront, lowerRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, lowerFront, upperRidge, lowerRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, lowerFront, upperFront, upperRidge, side, 0, 0);
 }
 
 /** 写入一侧从肩峰连续延伸到带拇指手掌的手臂拓扑。 */
@@ -303,7 +343,7 @@ function connectLimbBand(
   builder.orientedQuad(surface, upper.inner, upper.front, lower.front, lower.inner, -side, 0, 1, ridge * 0.8);
 }
 
-/** 写入掌背、掌心、指尖和拇指方向明确的低面数手掌。 */
+/** 写入窄腕口、厚掌体、宽指节和独立拇指组成的低面数皮手套。 */
 function addHand(
   builder: VanguardCageBuilder,
   side: -1 | 1,
@@ -311,34 +351,38 @@ function addHand(
   handBone: VanguardBone,
 ): void {
   const centerX = side * (side < 0 ? 0.68 : 0.81);
-  const palmFront = builder.vertex(centerX, 1.47, 0.12, handBone);
-  const palmOuter = builder.vertex(centerX + side * 0.09, 1.46, 0.055, handBone);
-  const palmBack = builder.vertex(centerX, 1.46, -0.02, handBone);
-  const palmInner = builder.vertex(centerX - side * 0.07, 1.47, 0.05, handBone);
-  const fingerY = side < 0 ? 1.34 : 1.39;
-  const fingerFront = builder.vertex(centerX + side * 0.008, fingerY, 0.1, handBone);
-  const fingerOuter = builder.vertex(centerX + side * 0.055, fingerY + 0.004, 0.045, handBone);
-  const fingerBack = builder.vertex(centerX + side * 0.004, fingerY, 0, handBone);
-  const fingerInner = builder.vertex(centerX - side * 0.038, fingerY - 0.003, 0.045, handBone);
-  const thumb = builder.vertex(centerX - side * 0.09, 1.43, 0.105, handBone);
-  const palm = Object.freeze({
-    front: palmFront,
-    outer: palmOuter,
-    back: palmBack,
-    inner: palmInner,
-  });
-  const fingers = Object.freeze({
-    front: fingerFront,
-    outer: fingerOuter,
-    back: fingerBack,
-    inner: fingerInner,
-  });
+  const palmY = side < 0 ? 1.44 : 1.46;
+  const fingerY = side < 0 ? 1.25 : 1.3;
+  const palm = addLimbSection(
+    builder, side, centerX, palmY,
+    side < 0 ? 0.16 : 0.155, 0.075, 0.13, 0.11,
+    handBone,
+  );
+  const fingers = addLimbSection(
+    builder, side, centerX + side * 0.006, fingerY,
+    0.135, 0.052, 0.108, 0.088,
+    handBone,
+  );
+  const thumbBase = builder.vertex(
+    centerX - side * 0.145,
+    palmY - 0.035,
+    0.14,
+    handBone,
+  );
+  const thumbTip = builder.vertex(
+    centerX - side * 0.155,
+    fingerY + 0.035,
+    0.105,
+    handBone,
+  );
   connectLimbBand(builder, side, wrist, palm, VanguardMatteSurface.Leather, 0.003);
-  connectLimbBand(builder, side, palm, fingers, VanguardMatteSurface.Leather, 0.002);
-  builder.orientedTriangle(VanguardMatteSurface.Leather, fingerFront, fingerOuter, fingerBack, 0, -1, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Leather, fingerFront, fingerBack, fingerInner, 0, -1, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Leather, palmInner, thumb, palmFront, -side, 0, 1);
-  builder.orientedTriangle(VanguardMatteSurface.Leather, fingerInner, thumb, palmInner, -side, -0.2, 0.2);
+  connectLimbBand(builder, side, palm, fingers, VanguardMatteSurface.Leather, 0.007);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, fingers.front, fingers.outer, fingers.back, 0, -1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, fingers.front, fingers.back, fingers.inner, 0, -1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.inner, thumbBase, palm.front, -side, 0, 1);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.inner, fingers.inner, thumbTip, -side, -0.2, 0.2);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.inner, thumbTip, thumbBase, -side, 0, 0.2);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.front, thumbBase, thumbTip, 0, 0, 1);
 }
 
 /** 写入共享骨盆边界的双腿、胯部桥接和具有足弓的皮靴。 */

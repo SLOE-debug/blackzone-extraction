@@ -9,6 +9,7 @@ import { type VanguardPopulationOptions } from '../model/vanguard-options';
 import { VanguardState } from '../model/vanguard-state';
 import { VanguardMovementSystem } from '../movement/vanguard-movement-system';
 import { VanguardRenderer } from '../rendering/vanguard-renderer';
+import { VanguardMantleSimulationSystem } from '../simulation/vanguard-mantle-system';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
@@ -18,6 +19,7 @@ export class VanguardPopulation {
   private readonly state: VanguardState;
   private readonly movement: VanguardMovementSystem;
   private readonly animation = new VanguardAnimationSystem();
+  private readonly mantle = new VanguardMantleSimulationSystem();
   private readonly renderer: VanguardRenderer;
   private disposed = false;
 
@@ -30,6 +32,7 @@ export class VanguardPopulation {
     this.state = new VanguardState(options);
     this.movement = new VanguardMovementSystem(movementConstraint);
     this.animation.initialize(this.state);
+    this.mantle.initialize(this.state);
     this.renderer = new VanguardRenderer(parent, this.state, surfaceMaterialTemplate);
   }
 
@@ -60,7 +63,7 @@ export class VanguardPopulation {
     data.aiming[0] = intent.aiming ? 1 : 0;
   }
 
-  /** 按移动、动画、渲染的固定顺序推进主角。 */
+  /** 按移动、动画、披风模拟和渲染的固定顺序推进主角。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
@@ -69,6 +72,7 @@ export class VanguardPopulation {
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
+    this.mantle.update(this.state, safeDeltaTime);
     this.renderer.update(this.state);
   }
 

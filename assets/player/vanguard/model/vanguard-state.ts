@@ -9,6 +9,7 @@ import {
   type VanguardData,
   type VanguardTable,
 } from './vanguard-schema';
+import { writeVanguardMantleRestState } from './vanguard-mantle-state';
 
 /** 聚合可复用主角的单实体 SoA 状态。 */
 export class VanguardState {
@@ -34,7 +35,7 @@ function initializeVanguardData(
   data: VanguardData,
   options: Readonly<VanguardPopulationOptions>,
 ): void {
-  const { transform, morphology, intent, motion, animation } = data;
+  const { transform, morphology, intent, motion, animation, mantle } = data;
   transform.x[0] = options.position.x;
   transform.y[0] = options.position.y;
   transform.z[0] = options.position.z;
@@ -54,4 +55,14 @@ function initializeVanguardData(
   animation.idlePhase[0] = 0;
   animation.locomotionPhase[0] = 0;
   animation.locomotionBlend[0] = 0;
+  writeVanguardMantleRestState(
+    mantle,
+    0,
+    transform.x[0] ?? 0,
+    transform.y[0] ?? 0,
+    transform.z[0] ?? 0,
+    transform.heading[0] ?? 0,
+    morphology.scale[0] ?? 1,
+  );
+  mantle.initialized[0] = 0;
 }

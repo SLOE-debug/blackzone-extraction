@@ -89,6 +89,13 @@ describe('可复用荒原 Low Poly 游侠', () => {
       TEST_BASE_Y + 2.03,
       0.08,
     );
+    const leatherRange = getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Leather);
+    const gloveSpan = getRangeWidthAtHeight(
+      matte,
+      leatherRange,
+      TEST_BASE_Y + 1.29,
+      0.06,
+    );
     const thighWidth = getWidthAtHeight(matte, TEST_BASE_Y + 1.3, 0.1);
     const faceFront = getMaximum(matte.positions, matte.vertexCount, 2) - TEST_FOCUS_Z;
     const headBack = getMinimum(matte.positions, matte.vertexCount, 2) - TEST_FOCUS_Z;
@@ -103,6 +110,7 @@ describe('可复用荒原 Low Poly 游侠', () => {
     expect(shoulderWidth).toBeLessThan(1.55);
     expect(waistWidth).toBeLessThan(0.85);
     expect(shoulderWidth).toBeGreaterThan(waistWidth * 1.35);
+    expect(gloveSpan).toBeGreaterThan(1.65);
     expect(thighWidth).toBeGreaterThan(0.85);
     expect(shoulderWidth).toBeLessThan(thighWidth * 1.45);
     expect(faceFront).toBeGreaterThan(0.36);
@@ -187,7 +195,7 @@ describe('可复用荒原 Low Poly 游侠', () => {
       VANGUARD_MATTE_MESH_PLAN,
       VANGUARD_MATTE_MESH_PALETTE,
     );
-    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBe(683);
+    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBe(695);
     expect(firstMatte.vertexCount).toBe(VANGUARD_MATTE_MESH_PLAN.vertexCount);
     expect(firstMatte.indexCount).toBe(VANGUARD_MATTE_MESH_PLAN.indexCount);
     expect(Array.from(firstMatte.getPositionView())).toEqual(
