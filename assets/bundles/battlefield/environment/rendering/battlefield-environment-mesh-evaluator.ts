@@ -1,133 +1,116 @@
-import { type EntityRange } from '../../../../core/entities/entity-range';
-import { type GeometryBounds } from '../../../../core/geometry/buffer-geometry';
-import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
-import { type MeshEvaluator } from '../../../../core/mesh/mesh-evaluator';
-import { type VertexStreams } from '../../../../core/mesh/vertex-streams';
+import { BATTLEFIELD_ENVIRONMENT_MESH_PLANS } from '../geometry/battlefield-environment-mesh-plans';
 import { type BattlefieldEnvironmentMeshPlan } from '../geometry/battlefield-environment-mesh-plan';
-import { type BattlefieldEnvironmentArchetypeState } from '../model/battlefield-environment-state';
+import { BATTLEFIELD_ENVIRONMENT_PROTOTYPES } from '../model/battlefield-environment-prototype';
+import {
+  type BattlefieldEnvironmentArchetypeState,
+  BattlefieldEnvironmentWorldState,
+} from '../model/battlefield-environment-state';
 
 const FACET_VARIANT_DENOMINATOR = 6;
 const HIDDEN_Y = -1000;
 
-/** 将固定环境原型计划批量变换到当前无限窗口中的实体槽位。 */
-export class BattlefieldEnvironmentMeshEvaluator implements MeshEvaluator<
-  BattlefieldEnvironmentArchetypeState,
-  BattlefieldEnvironmentMeshPlan
-> {
-  /** 根据请求原地更新位置、法线和顶点色。 */
-  public evaluate(
-    state: BattlefieldEnvironmentArchetypeState,
-    plan: BattlefieldEnvironmentMeshPlan,
-    streams: VertexStreams,
-    range: EntityRange,
-    requested: MeshDirty,
-  ): MeshDirty {
-    validateStreamCapacity(streams, plan.vertexCount * range.count);
-    let changed = MeshDirty.None;
-    const requestedPose = requested & MeshDirty.Pose;
-    if (requestedPose !== MeshDirty.None && requestedPose !== MeshDirty.Pose) {
-      throw new Error('环境固定拓扑必须同时更新 Position 和 Normal 流。');
-    }
-    if (requestedPose === MeshDirty.Pose) {
-      this.evaluateGeometry(state, plan, streams, range);
-      changed |= MeshDirty.Pose;
-    }
-    if ((requested & MeshDirty.Color) !== 0) {
-      this.evaluateColors(state, plan, streams.colors, range);
-      changed |= MeshDirty.Color;
-    }
-    if ((requested & MeshDirty.Bounds) !== 0) {
-      changed |= MeshDirty.Bounds;
-    }
-    return changed;
-  }
+/** 统一环境大网格中一个原型区段可写的顶点流。 */
+export interface BattlefieldEnvironmentSectionStreams {
+  readonly positions: Float32Array;
+  readonly colors: Float32Array;
+}
 
-  private evaluateGeometry(
-    state: BattlefieldEnvironmentArchetypeState,
-    plan: BattlefieldEnvironmentMeshPlan,
-    streams: VertexStreams,
-    range: EntityRange,
-  ): void {
-    const { identity, transform } = state.data;
-    for (let localEntity = 0; localEntity < range.count; localEntity++) {
-      const entityIndex = range.start + localEntity;
-      const active = (identity.active[entityIndex] ?? 0) !== 0;
-      const x = active ? transform.x[entityIndex] ?? 0 : 0;
-      const y = active ? transform.y[entityIndex] ?? 0 : HIDDEN_Y;
-      const z = active ? transform.z[entityIndex] ?? 0 : 0;
-      const scale = active ? transform.scale[entityIndex] ?? 0 : 0;
-      const heading = transform.heading[entityIndex] ?? 0;
-      const cosine = Math.cos(heading);
-      const sine = Math.sin(heading);
-      const vertexOffset = localEntity * plan.vertexCount;
-      for (let vertex = 0; vertex < plan.vertexCount; vertex++) {
-        const localOffset = vertex * 3;
-        const targetOffset = (vertexOffset + vertex) * 3;
-        const localX = (plan.localPositions[localOffset] ?? 0) * scale;
-        const localY = (plan.localPositions[localOffset + 1] ?? 0) * scale;
-        const localZ = (plan.localPositions[localOffset + 2] ?? 0) * scale;
-        streams.positions[targetOffset] = x + localX * cosine + localZ * sine;
-        streams.positions[targetOffset + 1] = y + localY;
-        streams.positions[targetOffset + 2] = z - localX * sine + localZ * cosine;
-        const localNormalX = plan.localNormals[localOffset] ?? 0;
-        const localNormalY = plan.localNormals[localOffset + 1] ?? 1;
-        const localNormalZ = plan.localNormals[localOffset + 2] ?? 0;
-        streams.normals[targetOffset] = localNormalX * cosine + localNormalZ * sine;
-        streams.normals[targetOffset + 1] = localNormalY;
-        streams.normals[targetOffset + 2] = -localNormalX * sine + localNormalZ * cosine;
-      }
-    }
-  }
+/** 可复用的世界环境包围盒写入目标。 */
+export interface MutableBattlefieldEnvironmentBounds {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+}
 
-  private evaluateColors(
-    state: BattlefieldEnvironmentArchetypeState,
-    plan: BattlefieldEnvironmentMeshPlan,
-    colors: Float32Array,
-    range: EntityRange,
-  ): void {
-    const { identity, appearance } = state.data;
-    for (let localEntity = 0; localEntity < range.count; localEntity++) {
-      const entityIndex = range.start + localEntity;
-      const active = (identity.active[entityIndex] ?? 0) !== 0;
-      const tintRed = appearance.tintRed[entityIndex] ?? 1;
-      const tintGreen = appearance.tintGreen[entityIndex] ?? 1;
-      const tintBlue = appearance.tintBlue[entityIndex] ?? 1;
-      const vertexOffset = localEntity * plan.vertexCount;
-      for (let vertex = 0; vertex < plan.vertexCount; vertex++) {
-        const localColorOffset = vertex * 4;
-        const targetOffset = (vertexOffset + vertex) * 4;
-        const variant = (plan.facetVariants[vertex] ?? 0) / FACET_VARIANT_DENOMINATOR;
-        const shade = 0.86 + variant * 0.18;
-        colors[targetOffset] = active
-          ? Math.min(1, (plan.localColors[localColorOffset] ?? 0) * tintRed * shade)
-          : 0;
-        colors[targetOffset + 1] = active
-          ? Math.min(1, (plan.localColors[localColorOffset + 1] ?? 0) * tintGreen * shade)
-          : 0;
-        colors[targetOffset + 2] = active
-          ? Math.min(1, (plan.localColors[localColorOffset + 2] ?? 0) * tintBlue * shade)
-          : 0;
-        colors[targetOffset + 3] = active ? plan.localColors[localColorOffset + 3] ?? 1 : 0;
-      }
+/** 将一个原型的全部固定槽位写入统一环境大网格区段。 */
+export function evaluateBattlefieldEnvironmentSection(
+  state: BattlefieldEnvironmentArchetypeState,
+  plan: BattlefieldEnvironmentMeshPlan,
+  streams: BattlefieldEnvironmentSectionStreams,
+): void {
+  validateStreamCapacity(streams, plan.vertexCount * state.count);
+  const { identity, transform, appearance } = state.data;
+  for (let entityIndex = 0; entityIndex < state.count; entityIndex++) {
+    const active = entityIndex < state.enabledCount
+      && (identity.active[entityIndex] ?? 0) !== 0;
+    const x = active ? transform.x[entityIndex] ?? 0 : 0;
+    const y = active ? transform.y[entityIndex] ?? 0 : HIDDEN_Y;
+    const z = active ? transform.z[entityIndex] ?? 0 : 0;
+    const scale = active ? transform.scale[entityIndex] ?? 0 : 0;
+    const heading = transform.heading[entityIndex] ?? 0;
+    const cosine = Math.cos(heading);
+    const sine = Math.sin(heading);
+    const tintRed = appearance.tintRed[entityIndex] ?? 1;
+    const tintGreen = appearance.tintGreen[entityIndex] ?? 1;
+    const tintBlue = appearance.tintBlue[entityIndex] ?? 1;
+    const vertexOffset = entityIndex * plan.vertexCount;
+    for (let vertex = 0; vertex < plan.vertexCount; vertex++) {
+      const localPositionOffset = vertex * 3;
+      const targetPositionOffset = (vertexOffset + vertex) * 3;
+      const localX = (plan.localPositions[localPositionOffset] ?? 0) * scale;
+      const localY = (plan.localPositions[localPositionOffset + 1] ?? 0) * scale;
+      const localZ = (plan.localPositions[localPositionOffset + 2] ?? 0) * scale;
+      streams.positions[targetPositionOffset] = x + localX * cosine + localZ * sine;
+      streams.positions[targetPositionOffset + 1] = y + localY;
+      streams.positions[targetPositionOffset + 2] = z - localX * sine + localZ * cosine;
+
+      const localColorOffset = vertex * 4;
+      const targetColorOffset = (vertexOffset + vertex) * 4;
+      const variant = (plan.facetVariants[vertex] ?? 0) / FACET_VARIANT_DENOMINATOR;
+      const shade = 0.86 + variant * 0.18;
+      streams.colors[targetColorOffset] = active
+        ? Math.min(1, (plan.localColors[localColorOffset] ?? 0) * tintRed * shade)
+        : 0;
+      streams.colors[targetColorOffset + 1] = active
+        ? Math.min(1, (plan.localColors[localColorOffset + 1] ?? 0) * tintGreen * shade)
+        : 0;
+      streams.colors[targetColorOffset + 2] = active
+        ? Math.min(1, (plan.localColors[localColorOffset + 2] ?? 0) * tintBlue * shade)
+        : 0;
+      streams.colors[targetColorOffset + 3] = active
+        ? plan.localColors[localColorOffset + 3] ?? 1
+        : 0;
     }
   }
 }
 
-/** 根据活动槽位和旋转保守半径计算批次包围盒。 */
-export function computeBattlefieldEnvironmentBounds(
+/** 聚合全部活动原型并原地写入统一大网格包围盒。 */
+export function writeBattlefieldEnvironmentWorldBounds(
+  world: BattlefieldEnvironmentWorldState,
+  target: MutableBattlefieldEnvironmentBounds,
+): void {
+  target.minX = Number.POSITIVE_INFINITY;
+  target.minY = Number.POSITIVE_INFINITY;
+  target.minZ = Number.POSITIVE_INFINITY;
+  target.maxX = Number.NEGATIVE_INFINITY;
+  target.maxY = Number.NEGATIVE_INFINITY;
+  target.maxZ = Number.NEGATIVE_INFINITY;
+
+  for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
+    expandBounds(world.get(prototype), BATTLEFIELD_ENVIRONMENT_MESH_PLANS[prototype], target);
+  }
+  if (!Number.isFinite(target.minX)) {
+    target.minX = -1;
+    target.minY = HIDDEN_Y - 1;
+    target.minZ = -1;
+    target.maxX = 1;
+    target.maxY = HIDDEN_Y + 1;
+    target.maxZ = 1;
+  }
+}
+
+function expandBounds(
   state: BattlefieldEnvironmentArchetypeState,
   plan: BattlefieldEnvironmentMeshPlan,
-): GeometryBounds {
+  target: MutableBattlefieldEnvironmentBounds,
+): void {
   const maximumLocalX = Math.max(Math.abs(plan.bounds.minX), Math.abs(plan.bounds.maxX));
   const maximumLocalZ = Math.max(Math.abs(plan.bounds.minZ), Math.abs(plan.bounds.maxZ));
   const horizontalRadius = Math.hypot(maximumLocalX, maximumLocalZ);
   const { identity, transform } = state.data;
-  let minX = Number.POSITIVE_INFINITY;
-  let minY = Number.POSITIVE_INFINITY;
-  let minZ = Number.POSITIVE_INFINITY;
-  let maxX = Number.NEGATIVE_INFINITY;
-  let maxY = Number.NEGATIVE_INFINITY;
-  let maxZ = Number.NEGATIVE_INFINITY;
   for (let index = 0; index < state.enabledCount; index++) {
     if ((identity.active[index] ?? 0) === 0) {
       continue;
@@ -137,22 +120,20 @@ export function computeBattlefieldEnvironmentBounds(
     const z = transform.z[index] ?? 0;
     const scale = transform.scale[index] ?? 0;
     const radius = horizontalRadius * scale;
-    minX = Math.min(minX, x - radius);
-    minY = Math.min(minY, y + plan.bounds.minY * scale);
-    minZ = Math.min(minZ, z - radius);
-    maxX = Math.max(maxX, x + radius);
-    maxY = Math.max(maxY, y + plan.bounds.maxY * scale);
-    maxZ = Math.max(maxZ, z + radius);
+    target.minX = Math.min(target.minX, x - radius);
+    target.minY = Math.min(target.minY, y + plan.bounds.minY * scale);
+    target.minZ = Math.min(target.minZ, z - radius);
+    target.maxX = Math.max(target.maxX, x + radius);
+    target.maxY = Math.max(target.maxY, y + plan.bounds.maxY * scale);
+    target.maxZ = Math.max(target.maxZ, z + radius);
   }
-  if (!Number.isFinite(minX)) {
-    return Object.freeze({ minX: -1, minY: HIDDEN_Y - 1, minZ: -1, maxX: 1, maxY: HIDDEN_Y + 1, maxZ: 1 });
-  }
-  return Object.freeze({ minX, minY, minZ, maxX, maxY, maxZ });
 }
 
-function validateStreamCapacity(streams: VertexStreams, vertexCount: number): void {
+function validateStreamCapacity(
+  streams: BattlefieldEnvironmentSectionStreams,
+  vertexCount: number,
+): void {
   if (streams.positions.length < vertexCount * 3
-    || streams.normals.length < vertexCount * 3
     || streams.colors.length < vertexCount * 4) {
     throw new Error('环境批次顶点流容量不足。');
   }

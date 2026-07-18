@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { Node } from 'cc';
 import { type PlanarMovementConstraint } from '../../../../core/contracts/planar-movement-constraint';
 import { BattlefieldEnvironmentObstacleField } from '../collision/battlefield-environment-obstacle-field';
 import {
@@ -18,7 +18,7 @@ export interface MutableBattlefieldMonsterNestPosition {
 /**
  * 战场环境 ECS 门面。
  *
- * 门面只编排确定性 Chunk 生成、静态障碍索引和按原型批渲染，不承载造型配方。
+ * 门面只编排确定性 Chunk 生成、静态障碍索引和统一大网格，不承载造型配方。
  */
 export class BattlefieldEnvironmentPopulation {
   private readonly world = new BattlefieldEnvironmentWorldState();
@@ -29,14 +29,10 @@ export class BattlefieldEnvironmentPopulation {
   private centerChunkZ = 0;
   private disposed = false;
 
-  constructor(parent: Node, surfaceMaterialTemplate: Material) {
+  constructor(parent: Node) {
     this.generator.populate(this.centerChunkX, this.centerChunkZ, this.world);
     this.obstacles.rebuild(this.world, this.centerChunkX, this.centerChunkZ);
-    this.renderer = new BattlefieldEnvironmentRenderer(
-      parent,
-      this.world,
-      surfaceMaterialTemplate,
-    );
+    this.renderer = new BattlefieldEnvironmentRenderer(parent, this.world);
   }
 
   /** 玩家移动系统使用的无分配平面障碍约束。 */

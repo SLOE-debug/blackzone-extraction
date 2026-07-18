@@ -11,7 +11,9 @@ export const BATTLEFIELD_LAYOUT = Object.freeze({
   camera: Object.freeze({
     distance: 30,
     azimuthAngle: Math.atan2(17, 20),
-    polarAngle: Math.PI * 0.25,
+    pitchDegrees: 35,
+    minimumPitchDegrees: 20,
+    maximumPitchDegrees: 75,
     targetOffsetY: 1.3,
   }),
 });

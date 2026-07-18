@@ -3,8 +3,10 @@ import { BATTLEFIELD_LAYOUT } from '../../assets/bundles/battlefield/model/battl
 import { BATTLEFIELD_LIGHTING } from '../../assets/bundles/battlefield/scene/battlefield-lighting';
 
 describe('battlefield scene configuration', () => {
-  it('locks the production camera to a 45 degree overhead angle', () => {
-    expect(BATTLEFIELD_LAYOUT.camera.polarAngle).toBeCloseTo(Math.PI * 0.25, 8);
+  it('starts the production camera at 35 degrees within its debug range', () => {
+    expect(BATTLEFIELD_LAYOUT.camera.pitchDegrees).toBe(35);
+    expect(BATTLEFIELD_LAYOUT.camera.minimumPitchDegrees).toBe(20);
+    expect(BATTLEFIELD_LAYOUT.camera.maximumPitchDegrees).toBe(75);
   });
 
   it('uses only 2600 ambient illuminance with shadows disabled', () => {

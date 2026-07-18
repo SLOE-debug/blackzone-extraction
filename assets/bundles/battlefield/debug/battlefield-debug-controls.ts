@@ -7,9 +7,10 @@ export interface BattlefieldDebugSnapshot {
   readonly ambientSkyColor: string;
   readonly ambientGroundColor: string;
   readonly orbitCameraEnabled: boolean;
+  readonly followCameraPitchDegrees: number;
 }
 
-/** 把 Debug 面板修改映射到战场环境光和自由调试相机。 */
+/** 把 Debug 面板修改映射到战场环境光与相机参数。 */
 export class BattlefieldDebugControls {
   constructor(
     private readonly scene: Scene,
@@ -24,6 +25,7 @@ export class BattlefieldDebugControls {
       ambientSkyColor: colorToHex(ambient.skyLightingColor),
       ambientGroundColor: colorToHex(ambient.groundLightingColor),
       orbitCameraEnabled: this.cameraRig.orbitEnabled,
+      followCameraPitchDegrees: this.cameraRig.followPitchDegrees,
     });
   }
 
@@ -45,6 +47,11 @@ export class BattlefieldDebugControls {
   /** 开关脱离玩家跟随、支持平移和缩放的自由调试相机。 */
   public setOrbitCameraEnabled(value: boolean): void {
     this.cameraRig.setOrbitEnabled(value);
+  }
+
+  /** 设置正式跟随相机相对水平面的向下俯角。 */
+  public setFollowCameraPitchDegrees(value: number): void {
+    this.cameraRig.setFollowPitchDegrees(value);
   }
 }
 

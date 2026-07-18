@@ -1,4 +1,5 @@
 import { BrowserDebugPanel } from '../../../core/debug/browser-debug-panel';
+import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import { type BattlefieldDebugControls } from './battlefield-debug-controls';
 
 const PANEL_OPTIONS = Object.freeze({
@@ -9,7 +10,7 @@ const PANEL_OPTIONS = Object.freeze({
   width: 310,
 });
 
-/** 浏览器预览使用的战场环境光与自由相机调试面板。 */
+/** 浏览器预览使用的战场环境光与相机调试面板。 */
 export class BattlefieldDebugPanel {
   private readonly panel: BrowserDebugPanel;
 
@@ -19,6 +20,16 @@ export class BattlefieldDebugPanel {
     panel.addBoolean('自由调试相机', snapshot.orbitCameraEnabled, (value) => {
       controls.setOrbitCameraEnabled(value);
     });
+    panel.addNumber(
+      '正式相机俯角',
+      BATTLEFIELD_LAYOUT.camera.minimumPitchDegrees,
+      BATTLEFIELD_LAYOUT.camera.maximumPitchDegrees,
+      1,
+      snapshot.followCameraPitchDegrees,
+      (value) => {
+        controls.setFollowCameraPitchDegrees(value);
+      },
+    );
     panel.addNumber('环境光亮度', 0, 5000, 25, snapshot.ambientIlluminance, (value) => {
       controls.setAmbientIlluminance(value);
     });

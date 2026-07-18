@@ -86,10 +86,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let debugPanel: BattlefieldDebugPanel | null = null;
     try {
       battlefieldRenderer = new BattlefieldRenderer(runtimeRoot, this.surfaceMaterialTemplate);
-      environment = new BattlefieldEnvironmentPopulation(
-        runtimeRoot,
-        this.surfaceMaterialTemplate,
-      );
+      environment = new BattlefieldEnvironmentPopulation(runtimeRoot);
       player = new VanguardPopulation(runtimeRoot, this.surfaceMaterialTemplate, {
         position: BATTLEFIELD_LAYOUT.playerPosition,
         heading: Math.PI,

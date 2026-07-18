@@ -16,9 +16,14 @@ const CAMERA_TARGET = new Vec3(
   BATTLEFIELD_LAYOUT.playerPosition.y + BATTLEFIELD_LAYOUT.camera.targetOffsetY,
   BATTLEFIELD_LAYOUT.playerPosition.z,
 );
+const DEGREES_PER_RADIAN = 180 / Math.PI;
 const CAMERA_DISTANCE = BATTLEFIELD_LAYOUT.camera.distance;
 const CAMERA_AZIMUTH_ANGLE = BATTLEFIELD_LAYOUT.camera.azimuthAngle;
-const CAMERA_POLAR_ANGLE = BATTLEFIELD_LAYOUT.camera.polarAngle;
+const CAMERA_POLAR_ANGLE = (
+  90 - BATTLEFIELD_LAYOUT.camera.pitchDegrees
+) / DEGREES_PER_RADIAN;
+const MINIMUM_CAMERA_PITCH_DEGREES = BATTLEFIELD_LAYOUT.camera.minimumPitchDegrees;
+const MAXIMUM_CAMERA_PITCH_DEGREES = BATTLEFIELD_LAYOUT.camera.maximumPitchDegrees;
 const CAMERA_FOLLOW_SHARPNESS = 9.5;
 const CAMERA_TARGET_HEIGHT = BATTLEFIELD_LAYOUT.camera.targetOffsetY;
 
@@ -38,7 +43,7 @@ const ORBIT_CAMERA_OPTIONS: OrbitCameraOptions = Object.freeze({
   dampingFactor: 0.16,
 });
 
-/** 管理固定 45°玩家跟随机位与自由调试轨道相机之间的切换。 */
+/** 管理可调俯角的玩家跟随机位与自由调试轨道相机之间的切换。 */
 export class BattlefieldCameraRig {
   public readonly camera: Camera;
   private readonly currentTarget = new Vec3(
@@ -53,6 +58,7 @@ export class BattlefieldCameraRig {
   );
   private readonly cameraPosition = new Vec3();
   private azimuthAngle = CAMERA_AZIMUTH_ANGLE;
+  private polarAngle = CAMERA_POLAR_ANGLE;
   private azimuthDelta = 0;
   private orbitController: OrbitCameraController | null = null;
 
@@ -66,6 +72,28 @@ export class BattlefieldCameraRig {
     return this.orbitController !== null;
   }
 
+  /** 正式跟随相机相对水平面的向下俯角，单位为度。 */
+  public get followPitchDegrees(): number {
+    return 90 - this.polarAngle * DEGREES_PER_RADIAN;
+  }
+
+  /** 设置正式跟随相机俯角；自由调试相机开启期间只保存设置，不干扰调试视角。 */
+  public setFollowPitchDegrees(value: number): void {
+    if (
+      !Number.isFinite(value)
+      || value < MINIMUM_CAMERA_PITCH_DEGREES
+      || value > MAXIMUM_CAMERA_PITCH_DEGREES
+    ) {
+      throw new Error(
+        `战场正式相机俯角必须位于 ${MINIMUM_CAMERA_PITCH_DEGREES}° 到 ${MAXIMUM_CAMERA_PITCH_DEGREES}°。`,
+      );
+    }
+    this.polarAngle = (90 - value) / DEGREES_PER_RADIAN;
+    if (!this.orbitEnabled) {
+      this.applyFollowPose();
+    }
+  }
+
   /** 开关自由调试输入；关闭时恢复正式玩家跟随轨道。 */
   public setOrbitEnabled(enabled: boolean): void {
     if (enabled === this.orbitEnabled) {
@@ -76,7 +104,7 @@ export class BattlefieldCameraRig {
         ...ORBIT_CAMERA_OPTIONS,
         target: this.currentTarget,
         azimuthAngle: this.azimuthAngle,
-        polarAngle: CAMERA_POLAR_ANGLE,
+        polarAngle: this.polarAngle,
       });
       this.azimuthDelta = 0;
       return;
@@ -88,7 +116,7 @@ export class BattlefieldCameraRig {
     this.applyFollowPose();
   }
 
-  /** 累计正式战场的水平环绕输入；45°俯角没有对应输入通道。 */
+  /** 累计正式战场的水平环绕输入；正式俯角没有玩家输入通道。 */
   public queueOrbitRotation(deltaX: number): void {
     if (!Number.isFinite(deltaX)) {
       throw new Error('战场相机水平旋转增量必须是有限数值。');
@@ -165,12 +193,12 @@ export class BattlefieldCameraRig {
     this.azimuthDelta -= step;
   }
 
-  /** 按可变水平方位和固定 45°俯角保持相机围绕玩家平滑跟随。 */
+  /** 按可变水平方位和调试面板选定的俯角保持相机围绕玩家平滑跟随。 */
   private applyFollowPose(): void {
-    const horizontalDistance = CAMERA_DISTANCE * Math.sin(CAMERA_POLAR_ANGLE);
+    const horizontalDistance = CAMERA_DISTANCE * Math.sin(this.polarAngle);
     this.cameraPosition.set(
       this.currentTarget.x + horizontalDistance * Math.sin(this.azimuthAngle),
-      this.currentTarget.y + CAMERA_DISTANCE * Math.cos(CAMERA_POLAR_ANGLE),
+      this.currentTarget.y + CAMERA_DISTANCE * Math.cos(this.polarAngle),
       this.currentTarget.z + horizontalDistance * Math.cos(this.azimuthAngle),
     );
     this.camera.node.setPosition(this.cameraPosition);

@@ -1,84 +1,80 @@
-import { type Material, Node } from 'cc';
-import { GeometryIndexFormat } from '../../../../core/geometry/buffer-geometry';
+import { Node } from 'cc';
+import {
+  createSurfaceGeometry,
+  GeometryIndexFormat,
+  type SurfaceBufferGeometry,
+} from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
-import { CompiledMeshBatchRenderer } from '../../../../core/rendering/compiled-mesh-batch-renderer';
-import { BATTLEFIELD_ENVIRONMENT_MESH_PLANS } from '../geometry/battlefield-environment-mesh-plans';
-import { type BattlefieldEnvironmentMeshPlan } from '../geometry/battlefield-environment-mesh-plan';
 import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG,
-} from '../model/battlefield-environment-config';
-import { BattlefieldEnvironmentMaterialKind } from '../model/battlefield-environment-material-kind';
+  DynamicMeshBatch,
+  type DynamicMeshBatchOptions,
+} from '../../../../core/rendering/dynamic-mesh-batch';
 import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPES,
-  type BattlefieldEnvironmentPrototype,
-} from '../model/battlefield-environment-prototype';
-import {
-  type BattlefieldEnvironmentArchetypeState,
-  BattlefieldEnvironmentWorldState,
-} from '../model/battlefield-environment-state';
+  BATTLEFIELD_ENVIRONMENT_MEGA_MESH_LAYOUT,
+  type BattlefieldEnvironmentMegaMeshSection,
+  writeBattlefieldEnvironmentMegaMeshIndices,
+} from '../geometry/battlefield-environment-mega-mesh-layout';
+import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
 import { BattlefieldEnvironmentMaterials } from './battlefield-environment-materials';
 import {
-  BattlefieldEnvironmentMeshEvaluator,
-  computeBattlefieldEnvironmentBounds,
+  type BattlefieldEnvironmentSectionStreams,
+  evaluateBattlefieldEnvironmentSection,
+  type MutableBattlefieldEnvironmentBounds,
+  writeBattlefieldEnvironmentWorldBounds,
 } from './battlefield-environment-mesh-evaluator';
 
-enum BattlefieldEnvironmentRenderLayer {
-  Geometry = 'geometry',
+const ENVIRONMENT_SURFACE_OPTIONS: DynamicMeshBatchOptions = Object.freeze({
+  uploadLightingAttributes: false,
+  castShadows: false,
+  receiveShadows: false,
+});
+
+interface BattlefieldEnvironmentRenderSection {
+  readonly layout: BattlefieldEnvironmentMegaMeshSection;
+  readonly streams: BattlefieldEnvironmentSectionStreams;
 }
 
-interface BattlefieldEnvironmentRenderEntry {
-  readonly prototype: BattlefieldEnvironmentPrototype;
-  readonly state: BattlefieldEnvironmentArchetypeState;
-  readonly plan: BattlefieldEnvironmentMeshPlan;
-  readonly renderer: CompiledMeshBatchRenderer<
-    BattlefieldEnvironmentArchetypeState,
-    BattlefieldEnvironmentMeshPlan,
-    BattlefieldEnvironmentRenderLayer
-  >;
-}
-
-/** 以每原型一个固定拓扑批次渲染整个活动 Chunk 窗口。 */
+/** 将全部环境 Archetype 压入单材质、单 MeshRenderer 的统一大网格。 */
 export class BattlefieldEnvironmentRenderer {
   private readonly materials: BattlefieldEnvironmentMaterials;
-  private readonly entries: BattlefieldEnvironmentRenderEntry[] = [];
+  private readonly geometry: SurfaceBufferGeometry;
+  private readonly batch = new DynamicMeshBatch();
+  private readonly sections: readonly BattlefieldEnvironmentRenderSection[];
+  private readonly bounds: MutableBattlefieldEnvironmentBounds = {
+    minX: 0,
+    minY: 0,
+    minZ: 0,
+    maxX: 0,
+    maxY: 0,
+    maxZ: 0,
+  };
   private disposed = false;
 
-  constructor(
-    parent: Node,
-    world: BattlefieldEnvironmentWorldState,
-    surfaceMaterialTemplate: Material,
-  ) {
-    this.materials = new BattlefieldEnvironmentMaterials(surfaceMaterialTemplate);
+  constructor(parent: Node, private readonly world: BattlefieldEnvironmentWorldState) {
+    this.materials = new BattlefieldEnvironmentMaterials();
+    const layout = BATTLEFIELD_ENVIRONMENT_MEGA_MESH_LAYOUT;
+    this.geometry = createSurfaceGeometry(
+      layout.vertexCount,
+      layout.indexCount,
+      GeometryIndexFormat.Uint32,
+    );
+    this.geometry.commitCounts(layout.vertexCount, layout.indexCount);
+    writeBattlefieldEnvironmentMegaMeshIndices(this.geometry.index, layout);
+    this.sections = Object.freeze(layout.sections.map((section) => Object.freeze({
+      layout: section,
+      streams: createSectionStreams(this.geometry, section),
+    })));
     try {
-      for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-        const config = BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG[prototype];
-        const state = world.get(prototype);
-        const plan = BATTLEFIELD_ENVIRONMENT_MESH_PLANS[prototype];
-        const glowing = config.materialKind === BattlefieldEnvironmentMaterialKind.Glow;
-        const renderer = new CompiledMeshBatchRenderer({
-          parent,
-          state,
-          entityCount: state.count,
-          requestedBatchSize: config.requestedBatchSize,
-          indexFormat: GeometryIndexFormat.Uint16,
-          bounds: computeBattlefieldEnvironmentBounds(state, plan),
-          surfaceOptions: Object.freeze({
-            uploadLightingAttributes: !glowing,
-            castShadows: false,
-            receiveShadows: false,
-          }),
-          layers: Object.freeze([
-            Object.freeze({
-              id: BattlefieldEnvironmentRenderLayer.Geometry,
-              nodeName: config.nodeName,
-              material: this.materials.get(config.materialKind),
-              plan,
-              evaluator: new BattlefieldEnvironmentMeshEvaluator(),
-            }),
-          ]),
-        });
-        this.entries.push({ prototype, state, plan, renderer });
-      }
+      this.evaluateSections();
+      writeBattlefieldEnvironmentWorldBounds(this.world, this.bounds);
+      this.batch.initialize(
+        parent,
+        'BattlefieldEnvironmentMegaBatch',
+        this.geometry,
+        this.materials.unified,
+        this.bounds,
+        ENVIRONMENT_SURFACE_OPTIONS,
+      );
     } catch (error: unknown) {
       this.dispose();
       throw error;
@@ -90,24 +86,41 @@ export class BattlefieldEnvironmentRenderer {
     if (this.disposed) {
       throw new Error('战场环境渲染器已经释放。');
     }
-    for (const entry of this.entries) {
-      entry.renderer.update(
-        MeshDirty.All,
-        computeBattlefieldEnvironmentBounds(entry.state, entry.plan),
-      );
-    }
+    this.evaluateSections();
+    this.batch.uploadVertexAttributes(MeshDirty.Position | MeshDirty.Color);
+    writeBattlefieldEnvironmentWorldBounds(this.world, this.bounds);
+    this.batch.updateBounds(this.bounds);
   }
 
-  /** 先释放全部批次，再释放共享材质。 */
+  /** 先释放统一大网格，再释放其独占材质。 */
   public dispose(): void {
     if (this.disposed) {
       return;
     }
-    for (const entry of this.entries) {
-      entry.renderer.dispose();
-    }
-    this.entries.length = 0;
+    this.batch.dispose();
     this.materials.dispose();
     this.disposed = true;
   }
+
+  private evaluateSections(): void {
+    for (const section of this.sections) {
+      evaluateBattlefieldEnvironmentSection(
+        this.world.get(section.layout.prototype),
+        section.layout.plan,
+        section.streams,
+      );
+    }
+  }
+}
+
+function createSectionStreams(
+  geometry: SurfaceBufferGeometry,
+  section: Readonly<BattlefieldEnvironmentMegaMeshSection>,
+): BattlefieldEnvironmentSectionStreams {
+  const firstVertex = section.vertexOffset;
+  const endVertex = firstVertex + section.vertexCount;
+  return Object.freeze({
+    positions: geometry.positions.subarray(firstVertex * 3, endVertex * 3),
+    colors: geometry.colors.subarray(firstVertex * 4, endVertex * 4),
+  });
 }
