@@ -94,7 +94,7 @@ export class BattlefieldDebugControls {
     this.lightingRig.keyLight.shadowEnabled = value;
   }
 
-  /** 开关支持旋转、平移焦点和缩放的轨道相机。 */
+  /** 开关脱离玩家跟随、支持平移和缩放的自由调试相机。 */
   public setOrbitCameraEnabled(value: boolean): void {
     this.cameraRig.setOrbitEnabled(value);
   }

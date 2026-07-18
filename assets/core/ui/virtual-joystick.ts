@@ -100,7 +100,11 @@ export class VirtualJoystick {
 
   private handleTouchStart(event: EventTouch): void {
     const touchId = event.getID();
-    if (touchId === null || this.activeTouchId !== null) {
+    if (touchId === null) {
+      return;
+    }
+    if (this.activeTouchId !== null) {
+      event.propagationStopped = true;
       return;
     }
     this.activeTouchId = touchId;

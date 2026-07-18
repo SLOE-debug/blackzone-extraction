@@ -16,7 +16,7 @@ export class BattlefieldDebugPanel {
   constructor(controls: BattlefieldDebugControls) {
     const snapshot = controls.getSnapshot();
     const panel = new BrowserDebugPanel(PANEL_OPTIONS);
-    panel.addBoolean('轨道相机', snapshot.orbitCameraEnabled, (value) => {
+    panel.addBoolean('自由调试相机', snapshot.orbitCameraEnabled, (value) => {
       controls.setOrbitCameraEnabled(value);
     });
     panel.addNumber('环境光亮度', 0, 5000, 25, snapshot.ambientIlluminance, (value) => {

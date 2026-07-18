@@ -3,7 +3,14 @@ import {
   OrbitCameraController,
   type OrbitCameraOptions,
 } from '../../../core/camera/orbit-camera-controller';
+import { wrapAngle } from '../../../core/math/scalar';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
+import {
+  type MutableBattlefieldPlanarDirection,
+  writeBattlefieldCameraRelativeDirection,
+} from './battlefield-camera-direction';
+
+const MOTION_EPSILON = 0.00001;
 
 const CAMERA_POSITION = new Vec3(
   BATTLEFIELD_LAYOUT.cameraPosition.x,
@@ -16,14 +23,13 @@ const CAMERA_TARGET = new Vec3(
   BATTLEFIELD_LAYOUT.cameraTarget.z,
 );
 const CAMERA_DISTANCE = Vec3.distance(CAMERA_POSITION, CAMERA_TARGET);
-const CAMERA_OFFSET_X = CAMERA_POSITION.x - CAMERA_TARGET.x;
-const CAMERA_OFFSET_Y = CAMERA_POSITION.y - CAMERA_TARGET.y;
-const CAMERA_OFFSET_Z = CAMERA_POSITION.z - CAMERA_TARGET.z;
-const CAMERA_PLANAR_DISTANCE = Math.hypot(CAMERA_OFFSET_X, CAMERA_OFFSET_Z);
-const CAMERA_FORWARD_X = -CAMERA_OFFSET_X / CAMERA_PLANAR_DISTANCE;
-const CAMERA_FORWARD_Z = -CAMERA_OFFSET_Z / CAMERA_PLANAR_DISTANCE;
-const CAMERA_RIGHT_X = -CAMERA_FORWARD_Z;
-const CAMERA_RIGHT_Z = CAMERA_FORWARD_X;
+const CAMERA_AZIMUTH_ANGLE = Math.atan2(
+  CAMERA_POSITION.x - CAMERA_TARGET.x,
+  CAMERA_POSITION.z - CAMERA_TARGET.z,
+);
+const CAMERA_POLAR_ANGLE = Math.acos(
+  (CAMERA_POSITION.y - CAMERA_TARGET.y) / CAMERA_DISTANCE,
+);
 const CAMERA_FOLLOW_SHARPNESS = 9.5;
 const CAMERA_TARGET_HEIGHT = BATTLEFIELD_LAYOUT.cameraTarget.y
   - BATTLEFIELD_LAYOUT.playerPosition.y;
@@ -33,11 +39,8 @@ const ORBIT_CAMERA_OPTIONS: OrbitCameraOptions = Object.freeze({
   distance: CAMERA_DISTANCE,
   minimumDistance: 5,
   maximumDistance: 80,
-  azimuthAngle: Math.atan2(
-    CAMERA_POSITION.x - CAMERA_TARGET.x,
-    CAMERA_POSITION.z - CAMERA_TARGET.z,
-  ),
-  polarAngle: Math.acos((CAMERA_POSITION.y - CAMERA_TARGET.y) / CAMERA_DISTANCE),
+  azimuthAngle: CAMERA_AZIMUTH_ANGLE,
+  polarAngle: CAMERA_POLAR_ANGLE,
   minimumPolarAngle: 0.18,
   maximumPolarAngle: Math.PI * 0.48,
   rotateSpeed: 0.0045,
@@ -47,13 +50,7 @@ const ORBIT_CAMERA_OPTIONS: OrbitCameraOptions = Object.freeze({
   dampingFactor: 0.16,
 });
 
-/** 由调用方复用的世界 XZ 平面方向缓冲。 */
-export interface MutableBattlefieldPlanarDirection {
-  x: number;
-  z: number;
-}
-
-/** 管理玩家跟随机位与调试轨道相机之间的切换。 */
+/** 管理玩家跟随轨道、正式旋转输入与调试轨道相机之间的切换。 */
 export class BattlefieldCameraRig {
   public readonly camera: Camera;
   private readonly currentTarget = new Vec3(
@@ -67,6 +64,10 @@ export class BattlefieldCameraRig {
     BATTLEFIELD_LAYOUT.cameraTarget.z,
   );
   private readonly cameraPosition = new Vec3();
+  private azimuthAngle = CAMERA_AZIMUTH_ANGLE;
+  private polarAngle = CAMERA_POLAR_ANGLE;
+  private azimuthDelta = 0;
+  private polarDelta = 0;
   private orbitController: OrbitCameraController | null = null;
 
   constructor(parent: Node) {
@@ -74,12 +75,12 @@ export class BattlefieldCameraRig {
     this.applyFollowPose();
   }
 
-  /** 当前是否启用了轨道相机输入。 */
+  /** 当前是否启用了脱离玩家跟随的自由调试相机。 */
   public get orbitEnabled(): boolean {
     return this.orbitController !== null;
   }
 
-  /** 开关旋转、平移和缩放输入；关闭时恢复正式战场机位。 */
+  /** 开关自由调试输入；关闭时恢复正式玩家跟随轨道。 */
   public setOrbitEnabled(enabled: boolean): void {
     if (enabled === this.orbitEnabled) {
       return;
@@ -88,11 +89,15 @@ export class BattlefieldCameraRig {
       this.orbitController = new OrbitCameraController(this.camera, {
         ...ORBIT_CAMERA_OPTIONS,
         target: this.currentTarget,
+        azimuthAngle: this.azimuthAngle,
+        polarAngle: this.polarAngle,
       });
+      this.clearOrbitMotion();
       return;
     }
     this.orbitController?.dispose();
     this.orbitController = null;
+    this.clearOrbitMotion();
     Vec3.copy(this.currentTarget, this.desiredTarget);
     this.applyFollowPose();
   }
@@ -111,17 +116,31 @@ export class BattlefieldCameraRig {
     }
   }
 
-  /** 将屏幕二维输入映射为固定斜俯视机位下的世界 XZ 平面方向。 */
+  /** 累计正式战场中的鼠标或触摸旋转像素增量。 */
+  public queueOrbitRotation(deltaX: number, deltaY: number): void {
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) {
+      throw new Error('战场相机旋转增量必须是有限数值。');
+    }
+    if (this.orbitEnabled) {
+      return;
+    }
+    this.azimuthDelta -= deltaX * ORBIT_CAMERA_OPTIONS.rotateSpeed;
+    // 输入层统一使用屏幕向下为正，这里反转为“上拖上看”的战场操作语义。
+    this.polarDelta -= deltaY * ORBIT_CAMERA_OPTIONS.rotateSpeed;
+  }
+
+  /** 将屏幕二维输入映射为当前斜俯视机位下的世界 XZ 平面方向。 */
   public writeWorldPlanarDirection(
     screenX: number,
     screenY: number,
     result: MutableBattlefieldPlanarDirection,
   ): void {
-    if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) {
-      throw new Error('战场屏幕方向必须是有限数值。');
-    }
-    result.x = CAMERA_RIGHT_X * screenX + CAMERA_FORWARD_X * screenY;
-    result.z = CAMERA_RIGHT_Z * screenX + CAMERA_FORWARD_Z * screenY;
+    writeBattlefieldCameraRelativeDirection(
+      this.azimuthAngle,
+      screenX,
+      screenY,
+      result,
+    );
   }
 
   /** 推进轨道相机惯性或正式机位的平滑跟随。 */
@@ -133,6 +152,7 @@ export class BattlefieldCameraRig {
     if (!Number.isFinite(deltaTime) || deltaTime < 0) {
       throw new Error('战场相机帧时间必须是有限非负数。');
     }
+    this.consumeOrbitMotion(deltaTime);
     const response = 1 - Math.exp(-CAMERA_FOLLOW_SHARPNESS * deltaTime);
     this.currentTarget.x += (this.desiredTarget.x - this.currentTarget.x) * response;
     this.currentTarget.y += (this.desiredTarget.y - this.currentTarget.y) * response;
@@ -144,18 +164,59 @@ export class BattlefieldCameraRig {
   public dispose(): void {
     this.orbitController?.dispose();
     this.orbitController = null;
+    this.clearOrbitMotion();
   }
 
-  /** 保持相机固定方位和俯角，只平移观察中心。 */
+  /** 消费正式战场旋转阻尼，并限制俯仰角不穿越目标与地面。 */
+  private consumeOrbitMotion(deltaTime: number): void {
+    const damping = 1 - Math.pow(
+      1 - ORBIT_CAMERA_OPTIONS.dampingFactor,
+      deltaTime * 60,
+    );
+    if (Math.abs(this.azimuthDelta) > MOTION_EPSILON) {
+      const step = this.azimuthDelta * damping;
+      this.azimuthAngle = wrapAngle(this.azimuthAngle + step);
+      this.azimuthDelta -= step;
+    } else {
+      this.azimuthDelta = 0;
+    }
+    if (Math.abs(this.polarDelta) > MOTION_EPSILON) {
+      const step = this.polarDelta * damping;
+      const requested = this.polarAngle + step;
+      const next = clamp(
+        requested,
+        ORBIT_CAMERA_OPTIONS.minimumPolarAngle,
+        ORBIT_CAMERA_OPTIONS.maximumPolarAngle,
+      );
+      this.polarAngle = next;
+      this.polarDelta = next === requested ? this.polarDelta - step : 0;
+    } else {
+      this.polarDelta = 0;
+    }
+  }
+
+  /** 清空尚未消费的相机旋转惯性。 */
+  private clearOrbitMotion(): void {
+    this.azimuthDelta = 0;
+    this.polarDelta = 0;
+  }
+
+  /** 按当前轨道角保持相机围绕玩家平滑跟随。 */
   private applyFollowPose(): void {
+    const horizontalDistance = CAMERA_DISTANCE * Math.sin(this.polarAngle);
     this.cameraPosition.set(
-      this.currentTarget.x + CAMERA_OFFSET_X,
-      this.currentTarget.y + CAMERA_OFFSET_Y,
-      this.currentTarget.z + CAMERA_OFFSET_Z,
+      this.currentTarget.x + horizontalDistance * Math.sin(this.azimuthAngle),
+      this.currentTarget.y + CAMERA_DISTANCE * Math.cos(this.polarAngle),
+      this.currentTarget.z + horizontalDistance * Math.cos(this.azimuthAngle),
     );
     this.camera.node.setPosition(this.cameraPosition);
     this.camera.node.lookAt(this.currentTarget, Vec3.UNIT_Y);
   }
+}
+
+/** 把数值限制在闭区间内。 */
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(value, maximum));
 }
 
 /** 创建战场相机 Rig。 */

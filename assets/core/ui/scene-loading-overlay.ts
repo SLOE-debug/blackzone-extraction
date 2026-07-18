@@ -27,7 +27,7 @@ export class SceneLoadingOverlay {
   private readonly percentageLabel: Label;
   private targetProgress = 0;
   private displayedProgress = 0;
-  private rotation = 0;
+  private animationPhase = 0;
   private failed = false;
   private disposed = false;
 
@@ -44,8 +44,8 @@ export class SceneLoadingOverlay {
     this.graphics = graphicsNode.addComponent(Graphics);
 
     const style = SCENE_LOADING_OVERLAY_STYLE;
-    this.statusLabel = createLabel(root, 'SceneLoadingStatus', 24, style.statusY);
-    this.percentageLabel = createLabel(root, 'SceneLoadingPercentage', 16, style.percentageY);
+    this.statusLabel = createLabel(root, 'SceneLoadingStatus', 22, style.statusY);
+    this.percentageLabel = createLabel(root, 'SceneLoadingPercentage', 15, style.percentageY);
     this.statusLabel.string = '正在准备转场';
     this.percentageLabel.string = '0%';
     this.applyLabelPalette();
@@ -77,7 +77,7 @@ export class SceneLoadingOverlay {
     this.redraw();
   }
 
-  /** 推进淡入、旋转分片和进度插值。 */
+  /** 推进淡入、呼吸指示点和进度插值。 */
   public update(deltaTime: number): void {
     if (this.disposed) {
       return;
@@ -88,7 +88,9 @@ export class SceneLoadingOverlay {
     this.synchronizeFrame();
     const style = SCENE_LOADING_OVERLAY_STYLE;
     this.opacity.opacity = Math.min(255, this.opacity.opacity + style.fadeSpeed * safeDeltaTime);
-    this.rotation = (this.rotation + style.rotationSpeed * safeDeltaTime) % (Math.PI * 2);
+    this.animationPhase = (
+      this.animationPhase + style.pulseSpeed * safeDeltaTime
+    ) % (Math.PI * 2);
     const response = 1 - Math.exp(-style.progressResponse * safeDeltaTime);
     this.displayedProgress += (this.targetProgress - this.displayedProgress) * response;
     if (Math.abs(this.targetProgress - this.displayedProgress) < 0.001) {
@@ -130,7 +132,7 @@ export class SceneLoadingOverlay {
       this.transform.width,
       this.transform.height,
       this.displayedProgress,
-      this.rotation,
+      this.animationPhase,
       this.failed,
     );
   }
@@ -153,18 +155,16 @@ function createLabel(parent: Node, name: string, fontSize: number, y: number): L
   const style = SCENE_LOADING_OVERLAY_STYLE;
   const node = createUiNode(name, parent);
   node.setPosition(0, y, 0);
-  node.addComponent(UITransform).setContentSize(style.panelWidth - 80, 42);
+  node.addComponent(UITransform).setContentSize(style.panelWidth - 72, 36);
   const label = node.addComponent(Label);
   label.useSystemFont = true;
   label.fontSize = fontSize;
-  label.lineHeight = 40;
+  label.lineHeight = 34;
   label.isBold = true;
   label.horizontalAlign = HorizontalTextAlignment.CENTER;
   label.verticalAlign = VerticalTextAlignment.CENTER;
-  label.enableOutline = true;
-  label.outlineWidth = 2;
+  label.enableOutline = false;
   label.color = createLoadingOverlayColor(style.text);
-  label.outlineColor = createLoadingOverlayColor(style.textOutline);
   return label;
 }
 

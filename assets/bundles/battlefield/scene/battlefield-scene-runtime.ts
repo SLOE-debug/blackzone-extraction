@@ -19,8 +19,8 @@ import { BattlefieldControlHud } from '../ui/battlefield-control-hud';
 import {
   createBattlefieldCamera,
   type BattlefieldCameraRig,
-  type MutableBattlefieldPlanarDirection,
 } from './battlefield-camera';
+import { type MutableBattlefieldPlanarDirection } from './battlefield-camera-direction';
 import { createBattlefieldLighting } from './battlefield-lighting';
 
 enum BattlefieldSceneState {
@@ -182,6 +182,10 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     if (player === null || monsters === null || cameraRig === null || controls === undefined) {
       return;
     }
+    cameraRig.queueOrbitRotation(
+      controls.cameraOrbitDeltaX,
+      controls.cameraOrbitDeltaY,
+    );
     cameraRig.writeWorldPlanarDirection(
       controls.moveX,
       controls.moveY,

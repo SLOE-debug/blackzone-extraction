@@ -4,49 +4,33 @@ import {
   SCENE_LOADING_OVERLAY_STYLE,
 } from './scene-loading-overlay-style';
 
-const TAU = Math.PI * 2;
+const STYLE = SCENE_LOADING_OVERLAY_STYLE;
+const MASK_COLOR = createColor(STYLE.mask);
+const PANEL_BORDER_COLOR = createColor(STYLE.panelBorder);
+const PANEL_SURFACE_COLOR = createColor(STYLE.panelSurface);
+const TRACK_COLOR = createColor(STYLE.track);
+const ACCENT_COLOR = createColor(STYLE.accent);
+const ACCENT_DIM_COLOR = createColor(STYLE.accentDim);
+const ERROR_COLOR = createColor(STYLE.error);
+const animatedColor = new Color();
 
-/** 绘制全屏遮罩、仪表面板、旋转分片和阶段进度。 */
+/** 绘制全屏遮罩、扁平加载卡片、呼吸指示点和阶段进度。 */
 export function drawSceneLoadingOverlay(
   graphics: Graphics,
   width: number,
   height: number,
   progress: number,
-  rotation: number,
+  animationPhase: number,
   failed: boolean,
 ): void {
-  const style = SCENE_LOADING_OVERLAY_STYLE;
   graphics.clear();
-  graphics.fillColor = createColor(style.mask);
-  graphics.rect(-width * 0.5, -height * 0.5, width, height);
-  graphics.fill();
-
-  fillCutCornerPanel(
-    graphics,
-    style.panelWidth,
-    style.panelHeight,
-    style.panelCornerCut,
-    -8,
-    style.panelShadow,
-  );
-  fillCutCornerPanel(
-    graphics,
-    style.panelWidth,
-    style.panelHeight,
-    style.panelCornerCut,
-    0,
-    style.panelBorder,
-  );
-  fillCutCornerPanel(
-    graphics,
-    style.panelWidth - 6,
-    style.panelHeight - 6,
-    style.panelCornerCut - 3,
-    0,
-    style.panelSurface,
-  );
-  drawPanelFacet(graphics);
-  drawSpinner(graphics, rotation, failed);
+  fillRect(graphics, -width * 0.5, -height * 0.5, width, height, MASK_COLOR);
+  drawPanel(graphics);
+  if (failed) {
+    drawFailureIndicator(graphics);
+  } else {
+    drawActivityIndicator(graphics, animationPhase);
+  }
   drawProgressTrack(graphics, progress, failed);
 }
 
@@ -55,97 +39,141 @@ export function createLoadingOverlayColor(color: Readonly<LoadingOverlayColor>):
   return createColor(color);
 }
 
-function fillCutCornerPanel(
-  graphics: Graphics,
-  width: number,
-  height: number,
-  cornerCut: number,
-  offsetY: number,
-  color: Readonly<LoadingOverlayColor>,
-): void {
-  const halfWidth = width * 0.5;
-  const halfHeight = height * 0.5;
-  graphics.fillColor = createColor(color);
-  graphics.moveTo(-halfWidth + cornerCut, offsetY + halfHeight);
-  graphics.lineTo(halfWidth - cornerCut, offsetY + halfHeight);
-  graphics.lineTo(halfWidth, offsetY + halfHeight - cornerCut);
-  graphics.lineTo(halfWidth, offsetY - halfHeight + cornerCut);
-  graphics.lineTo(halfWidth - cornerCut, offsetY - halfHeight);
-  graphics.lineTo(-halfWidth + cornerCut, offsetY - halfHeight);
-  graphics.lineTo(-halfWidth, offsetY - halfHeight + cornerCut);
-  graphics.lineTo(-halfWidth, offsetY + halfHeight - cornerCut);
-  graphics.close();
-  graphics.fill();
+/** 绘制无阴影的圆角扁平卡片，并用短线保留轻量视觉焦点。 */
+function drawPanel(graphics: Graphics): void {
+  fillRoundedRect(
+    graphics,
+    STYLE.panelWidth,
+    STYLE.panelHeight,
+    STYLE.panelCornerRadius,
+    PANEL_BORDER_COLOR,
+  );
+  fillRoundedRect(
+    graphics,
+    STYLE.panelWidth - 4,
+    STYLE.panelHeight - 4,
+    STYLE.panelCornerRadius - 2,
+    PANEL_SURFACE_COLOR,
+  );
+  fillRoundedRect(graphics, 88, 3, 1.5, ACCENT_DIM_COLOR, STYLE.panelHeight * 0.5 - 12);
 }
 
-function drawPanelFacet(graphics: Graphics): void {
-  const style = SCENE_LOADING_OVERLAY_STYLE;
-  const halfWidth = style.panelWidth * 0.5 - 15;
-  const top = style.panelHeight * 0.5 - 15;
-  graphics.fillColor = createColor(style.panelFacet);
-  graphics.moveTo(-halfWidth + 16, top);
-  graphics.lineTo(halfWidth - 42, top);
-  graphics.lineTo(halfWidth - 66, top - 12);
-  graphics.lineTo(-halfWidth + 35, top - 12);
-  graphics.close();
-  graphics.fill();
-
-  graphics.fillColor = createColor(style.accentDim);
-  graphics.rect(-halfWidth + 20, -top + 17, 86, 3);
-  graphics.rect(halfWidth - 106, -top + 17, 86, 3);
-  graphics.fill();
-}
-
-function drawSpinner(graphics: Graphics, rotation: number, failed: boolean): void {
-  const style = SCENE_LOADING_OVERLAY_STYLE;
-  const baseColor = failed ? style.error : style.accent;
-  const centerY = style.spinnerY;
-  for (let segment = 0; segment < style.spinnerSegmentCount; segment++) {
-    const phase = segment / style.spinnerSegmentCount;
-    const angle = rotation + phase * TAU;
-    const radialX = Math.cos(angle);
-    const radialY = Math.sin(angle);
-    const tangentX = -radialY;
-    const tangentY = radialX;
-    const innerRadius = style.spinnerRadius - style.spinnerSegmentLength;
-    const outerRadius = style.spinnerRadius + style.spinnerSegmentLength;
-    const halfWidth = style.spinnerSegmentWidth;
-    const alpha = Math.round(48 + phase * 207);
-    graphics.fillColor = new Color(baseColor.red, baseColor.green, baseColor.blue, alpha);
-    graphics.moveTo(
-      radialX * innerRadius + tangentX * halfWidth,
-      centerY + radialY * innerRadius + tangentY * halfWidth,
+/** 绘制从左到右循环呼吸的三点动画。 */
+function drawActivityIndicator(graphics: Graphics, animationPhase: number): void {
+  for (let index = 0; index < 3; index++) {
+    const phase = animationPhase - index * 0.78;
+    const pulse = (Math.sin(phase) + 1) * 0.5;
+    const radius = STYLE.indicatorRadius * (0.78 + pulse * 0.32);
+    const alpha = Math.round(86 + pulse * 169);
+    animatedColor.set(
+      STYLE.accent.red,
+      STYLE.accent.green,
+      STYLE.accent.blue,
+      alpha,
     );
-    graphics.lineTo(
-      radialX * outerRadius + tangentX * halfWidth,
-      centerY + radialY * outerRadius + tangentY * halfWidth,
-    );
-    graphics.lineTo(
-      radialX * outerRadius - tangentX * halfWidth,
-      centerY + radialY * outerRadius - tangentY * halfWidth,
-    );
-    graphics.lineTo(
-      radialX * innerRadius - tangentX * halfWidth,
-      centerY + radialY * innerRadius - tangentY * halfWidth,
-    );
-    graphics.close();
-    graphics.fill();
+    const x = (index - 1) * STYLE.indicatorSpacing;
+    fillCircle(graphics, x, STYLE.indicatorY, radius, animatedColor);
   }
 }
 
-function drawProgressTrack(graphics: Graphics, progress: number, failed: boolean): void {
-  const style = SCENE_LOADING_OVERLAY_STYLE;
-  const left = -style.progressWidth * 0.5;
-  graphics.fillColor = createColor(style.track);
-  graphics.rect(left, style.progressY, style.progressWidth, style.progressHeight);
-  graphics.fill();
+/** 错误状态用静态圆形叹号替代持续动画。 */
+function drawFailureIndicator(graphics: Graphics): void {
+  graphics.strokeColor = ERROR_COLOR;
+  graphics.lineWidth = 3;
+  graphics.circle(0, STYLE.indicatorY, 12);
+  graphics.stroke();
+  fillRoundedRect(graphics, 3, 10, 1.5, ERROR_COLOR, STYLE.indicatorY + 2);
+  fillCircle(graphics, 0, STYLE.indicatorY - 6, 1.8, ERROR_COLOR);
+}
 
-  const fillWidth = style.progressWidth * Math.max(0, Math.min(progress, 1));
+/** 绘制圆角进度轨道及当前完成段。 */
+function drawProgressTrack(graphics: Graphics, progress: number, failed: boolean): void {
+  const clampedProgress = Math.max(0, Math.min(progress, 1));
+  const left = -STYLE.progressWidth * 0.5;
+  fillRoundedRectAt(
+    graphics,
+    left,
+    STYLE.progressY,
+    STYLE.progressWidth,
+    STYLE.progressHeight,
+    STYLE.progressHeight * 0.5,
+    TRACK_COLOR,
+  );
+
+  const fillWidth = STYLE.progressWidth * clampedProgress;
   if (fillWidth <= 0) {
     return;
   }
-  graphics.fillColor = createColor(failed ? style.error : style.accent);
-  graphics.rect(left, style.progressY, fillWidth, style.progressHeight);
+  fillRoundedRectAt(
+    graphics,
+    left,
+    STYLE.progressY,
+    fillWidth,
+    STYLE.progressHeight,
+    Math.min(STYLE.progressHeight * 0.5, fillWidth * 0.5),
+    failed ? ERROR_COLOR : ACCENT_COLOR,
+  );
+}
+
+/** 以中心点和可选 Y 偏移填充圆角矩形。 */
+function fillRoundedRect(
+  graphics: Graphics,
+  width: number,
+  height: number,
+  radius: number,
+  color: Readonly<Color>,
+  centerY = 0,
+): void {
+  fillRoundedRectAt(
+    graphics,
+    -width * 0.5,
+    centerY - height * 0.5,
+    width,
+    height,
+    radius,
+    color,
+  );
+}
+
+/** 按左下角坐标填充圆角矩形。 */
+function fillRoundedRectAt(
+  graphics: Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  color: Readonly<Color>,
+): void {
+  graphics.fillColor = color;
+  graphics.roundRect(x, y, width, height, radius);
+  graphics.fill();
+}
+
+/** 填充普通矩形。 */
+function fillRect(
+  graphics: Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  color: Readonly<Color>,
+): void {
+  graphics.fillColor = color;
+  graphics.rect(x, y, width, height);
+  graphics.fill();
+}
+
+/** 填充圆形。 */
+function fillCircle(
+  graphics: Graphics,
+  x: number,
+  y: number,
+  radius: number,
+  color: Readonly<Color>,
+): void {
+  graphics.fillColor = color;
+  graphics.circle(x, y, radius);
   graphics.fill();
 }
 
