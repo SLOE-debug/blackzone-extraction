@@ -74,6 +74,9 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
       this.evaluateColors(streams.colors, range.count);
       changed |= MeshDirty.Color;
     }
+    if ((requested & MeshDirty.Bounds) !== MeshDirty.None) {
+      changed |= MeshDirty.Bounds;
+    }
     return changed;
   }
 

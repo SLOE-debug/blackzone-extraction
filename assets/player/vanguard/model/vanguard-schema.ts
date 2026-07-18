@@ -19,9 +19,21 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
   },
   intent: {
     action: entityField(Uint8Array, 1),
+    moveX: entityField(Float32Array, 1),
+    moveZ: entityField(Float32Array, 1),
+    aimX: entityField(Float32Array, 1),
+    aimZ: entityField(Float32Array, 1),
+    aiming: entityField(Uint8Array, 1),
+  },
+  motion: {
+    velocityX: entityField(Float32Array, 1),
+    velocityZ: entityField(Float32Array, 1),
+    speed: entityField(Float32Array, 1),
   },
   animation: {
     idlePhase: entityField(Float32Array, 1),
+    locomotionPhase: entityField(Float32Array, 1),
+    locomotionBlend: entityField(Float32Array, 1),
   },
   pose: {
     boneMatrices: entityField(

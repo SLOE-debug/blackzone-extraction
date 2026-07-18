@@ -1,20 +1,40 @@
-import { Color, director, type Material, Node, renderer } from 'cc';
+import { Color, type Material, Node, renderer, type Scene } from 'cc';
 import { type SceneRuntime } from '../../../core/contracts/scene-runtime';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
-import { VanguardAction, VanguardPopulation } from '../../../player/vanguard';
+import {
+  VanguardAction,
+  type VanguardControlIntent,
+  VanguardPopulation,
+} from '../../../player/vanguard';
 import { BattlefieldDebugControls } from '../debug/battlefield-debug-controls';
 import { BattlefieldDebugPanel } from '../debug/battlefield-debug-panel';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
-import { BattlefieldMonsterPopulation } from '../population/battlefield-monster-population';
+import {
+  type MutableBattlefieldAimTarget,
+  BattlefieldMonsterPopulation,
+} from '../population/battlefield-monster-population';
 import { BattlefieldRenderer } from '../rendering/battlefield-renderer';
-import { createBattlefieldCamera, type BattlefieldCameraRig } from './battlefield-camera';
+import { BattlefieldControlHud } from '../ui/battlefield-control-hud';
+import {
+  createBattlefieldCamera,
+  type BattlefieldCameraRig,
+  type MutableBattlefieldPlanarDirection,
+} from './battlefield-camera';
 import { createBattlefieldLighting } from './battlefield-lighting';
 
 enum BattlefieldSceneState {
   Created,
   Initialized,
   Disposed,
+}
+
+interface MutableVanguardControlIntent extends VanguardControlIntent {
+  moveX: number;
+  moveZ: number;
+  aimX: number;
+  aimZ: number;
+  aiming: boolean;
 }
 
 /** 战场场景门面，只编排环境、玩家、灯光、相机和怪物群体生命周期。 */
@@ -25,10 +45,22 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private player: VanguardPopulation | null = null;
   private monsters: BattlefieldMonsterPopulation | null = null;
   private cameraRig: BattlefieldCameraRig | null = null;
+  private controlHud: BattlefieldControlHud | null = null;
   private debugPanel: BattlefieldDebugPanel | null = null;
+  private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
+  private readonly aimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
+  private readonly aimTarget: MutableBattlefieldAimTarget = { entityId: -1, x: 0, z: 0 };
+  private readonly playerControlIntent: MutableVanguardControlIntent = {
+    moveX: 0,
+    moveZ: 0,
+    aimX: 0,
+    aimZ: 1,
+    aiming: false,
+  };
 
   constructor(
     private readonly sceneEntry: Node,
+    private readonly scene: Scene,
     private readonly surfaceMaterialTemplate: Material,
   ) {}
 
@@ -37,17 +69,13 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     if (this.state !== BattlefieldSceneState.Created) {
       throw new Error('战场场景只能初始化一次。');
     }
-    const scene = director.getScene();
-    if (scene === null) {
-      throw new Error('战场初始化时没有活动场景。');
-    }
-
     const runtimeRoot = new Node('Battlefield');
     this.sceneEntry.addChild(runtimeRoot);
     let battlefieldRenderer: BattlefieldRenderer | null = null;
     let player: VanguardPopulation | null = null;
     let monsters: BattlefieldMonsterPopulation | null = null;
     let cameraRig: BattlefieldCameraRig | null = null;
+    let controlHud: BattlefieldControlHud | null = null;
     let debugPanel: BattlefieldDebugPanel | null = null;
     try {
       battlefieldRenderer = new BattlefieldRenderer(runtimeRoot, this.surfaceMaterialTemplate);
@@ -63,23 +91,26 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       );
       const lightingRig = createBattlefieldLighting(runtimeRoot);
       cameraRig = createBattlefieldCamera(runtimeRoot);
+      cameraRig.setFollowTarget(player.positionX, player.positionY, player.positionZ, true);
+      controlHud = new BattlefieldControlHud(runtimeRoot);
 
-      scene.globals.ambient.skyLightingColor = new Color(38, 48, 44, 255);
-      scene.globals.ambient.groundLightingColor = new Color(9, 14, 13, 255);
-      scene.globals.ambient.skyIllum = 920;
-      scene.globals.skybox.enabled = false;
-      scene.globals.fog.enabled = false;
-      scene.globals.shadows.enabled = true;
-      scene.globals.shadows.type = renderer.scene.ShadowType.ShadowMap;
-      scene.globals.shadows.shadowMapSize = 512;
-      scene.globals.shadows.maxReceived = 2;
-      scene.globals.shadows.shadowColor = new Color(5, 8, 8, 190);
+      this.scene.globals.ambient.skyLightingColor = new Color(38, 48, 44, 255);
+      this.scene.globals.ambient.groundLightingColor = new Color(9, 14, 13, 255);
+      this.scene.globals.ambient.skyIllum = 920;
+      this.scene.globals.skybox.enabled = false;
+      this.scene.globals.fog.enabled = false;
+      this.scene.globals.shadows.enabled = true;
+      this.scene.globals.shadows.type = renderer.scene.ShadowType.ShadowMap;
+      this.scene.globals.shadows.shadowMapSize = 512;
+      this.scene.globals.shadows.maxReceived = 2;
+      this.scene.globals.shadows.shadowColor = new Color(5, 8, 8, 190);
 
       debugPanel = new BattlefieldDebugPanel(
-        new BattlefieldDebugControls(scene, lightingRig, cameraRig),
+        new BattlefieldDebugControls(this.scene, lightingRig, cameraRig),
       );
     } catch (error: unknown) {
       debugPanel?.dispose();
+      controlHud?.dispose();
       cameraRig?.dispose();
       monsters?.dispose();
       player?.dispose();
@@ -94,17 +125,27 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.player = player;
     this.monsters = monsters;
     this.cameraRig = cameraRig;
+    this.controlHud = controlHud;
     this.debugPanel = debugPanel;
     this.state = BattlefieldSceneState.Initialized;
   }
 
-  /** 推进玩家待机姿态和玩家附近的基础怪物群体。 */
+  /** 推进双摇杆输入、玩家移动瞄准、怪物群体和跟随相机。 */
   public update(deltaTime: number): void {
     if (this.state !== BattlefieldSceneState.Initialized) {
       return;
     }
+    this.controlHud?.update();
+    this.applyPlayerControlIntent();
     this.player?.update(deltaTime);
     this.monsters?.update(deltaTime);
+    if (this.player !== null && this.cameraRig !== null) {
+      this.cameraRig.setFollowTarget(
+        this.player.positionX,
+        this.player.positionY,
+        this.player.positionZ,
+      );
+    }
     this.cameraRig?.update(deltaTime);
   }
 
@@ -114,6 +155,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       return;
     }
     this.debugPanel?.dispose();
+    this.controlHud?.dispose();
     this.cameraRig?.dispose();
     this.monsters?.dispose();
     this.player?.dispose();
@@ -126,7 +168,48 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.player = null;
     this.monsters = null;
     this.cameraRig = null;
+    this.controlHud = null;
     this.debugPanel = null;
     this.state = BattlefieldSceneState.Disposed;
+  }
+
+  /** 将屏幕摇杆映射为世界方向，并在右摇杆方向附近应用轻量怪物吸附。 */
+  private applyPlayerControlIntent(): void {
+    const player = this.player;
+    const monsters = this.monsters;
+    const cameraRig = this.cameraRig;
+    const controls = this.controlHud?.state;
+    if (player === null || monsters === null || cameraRig === null || controls === undefined) {
+      return;
+    }
+    cameraRig.writeWorldPlanarDirection(
+      controls.moveX,
+      controls.moveY,
+      this.movementDirection,
+    );
+    const intent = this.playerControlIntent;
+    intent.moveX = this.movementDirection.x;
+    intent.moveZ = this.movementDirection.z;
+    intent.aiming = controls.aiming;
+
+    if (controls.aiming) {
+      cameraRig.writeWorldPlanarDirection(controls.aimX, controls.aimY, this.aimDirection);
+      if (monsters.resolveAimTarget(
+        player.positionX,
+        player.positionZ,
+        this.aimDirection.x,
+        this.aimDirection.z,
+        this.aimTarget,
+      )) {
+        const targetDeltaX = this.aimTarget.x - player.positionX;
+        const targetDeltaZ = this.aimTarget.z - player.positionZ;
+        const inverseDistance = 1 / Math.max(Math.hypot(targetDeltaX, targetDeltaZ), 0.0001);
+        this.aimDirection.x = targetDeltaX * inverseDistance;
+        this.aimDirection.z = targetDeltaZ * inverseDistance;
+      }
+      intent.aimX = this.aimDirection.x;
+      intent.aimZ = this.aimDirection.z;
+    }
+    player.setControlIntent(intent);
   }
 }

@@ -27,6 +27,15 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 不得在垂直方向调用中省略第二个参数。否则 SpotLight 可能保持默认 `-Z` 方向，扩大 `range` 后误照前墙或后墙。
 - 如果方向并非严格垂直，也应检查视线与 up 的点积，避免接近共线时出现不稳定旋转。
 
+### 世界坐标投影到 UI 本地坐标
+
+- 不得把浏览器 DOM、CSS 或指针事件常见的“左上角为原点、Y 向下”经验套用到 `Camera.convertToUINode()` 的返回值上，也不得把这个问题误判为欧拉角的 `XYZ`、`ZYX` 或 `YXZ` 旋转顺序问题。
+- Cocos Creator 3.8.8 的 `Camera.convertToUINode(wpos, uiNode, out)` 返回 `wpos` 在指定 `uiNode` 本地坐标系中的位置。目标 UI 节点是 `uiNode` 的直接子节点时，可以把结果直接传给目标节点的 `setPosition()`，禁止再次手动执行 `out.y = -out.y`。
+- 需要转换的 `uiNode` 应当是接收位置的目标 UI 节点之父节点；目标存在更深层级时，不得固定传入 Canvas 后再忽略中间父节点的变换。
+- 在没有旋转或负缩放的普通 UI 父节点中，局部 Y 增大表示向上，局部 Y 减小表示向下。屏幕方向偏移应在 `convertToUINode()` 完成后直接加到本地坐标，例如向下偏移使用 `out.y += negativeOffsetY`。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/misc/camera-component.ts` 验证：实现先调用 `worldToScreen()`，按 View 缩放和可视尺寸换算，再调用目标节点的 `UITransform.convertToNodeSpaceAR()`；官方示例也是将转换结果直接赋给 UI 节点位置。
+- 隔离验证时，应固定一个可见的 3D 世界锚点，把转换结果直接赋给父节点下的 UI 标记，再分别添加正、负局部 Y 偏移；标记应在锚点上方、下方对称移动。若无偏移时位置正确而取反后上下镜像，即可确认错误来自额外的 Y 翻转。
+
 ## SpotLight 参数与验真
 
 - Cocos Creator 3.8 的 `SpotLight` 组件属性 `spotAngle` 使用角度制；组件内部会转换为弧度并向渲染场景传递半角余弦。业务代码应使用组件 API，不得直接套用底层渲染对象的角度契约。

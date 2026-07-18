@@ -34,7 +34,7 @@ function initializeVanguardData(
   data: VanguardData,
   options: Readonly<VanguardPopulationOptions>,
 ): void {
-  const { transform, morphology, intent, animation } = data;
+  const { transform, morphology, intent, motion, animation } = data;
   transform.x[0] = options.position.x;
   transform.y[0] = options.position.y;
   transform.z[0] = options.position.z;
@@ -43,5 +43,15 @@ function initializeVanguardData(
   morphology.scale[0] = VANGUARD_CONFIG.scale;
 
   intent.action[0] = options.action;
+  intent.moveX[0] = 0;
+  intent.moveZ[0] = 0;
+  intent.aimX[0] = 0;
+  intent.aimZ[0] = 0;
+  intent.aiming[0] = 0;
+  motion.velocityX[0] = 0;
+  motion.velocityZ[0] = 0;
+  motion.speed[0] = 0;
   animation.idlePhase[0] = 0;
+  animation.locomotionPhase[0] = 0;
+  animation.locomotionBlend[0] = 0;
 }

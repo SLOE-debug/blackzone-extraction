@@ -21,7 +21,7 @@ import {
 
 const LABEL_TEXT = '开始游戏';
 
-/** 管理大厅开始按钮的屏幕空间渲染、交互反馈和世界锚点跟随。 */
+/** 管理大厅开始按钮的玩家脚下吸附、渲染和交互反馈。 */
 export class LobbyStartButton {
   private readonly buttonNode: Node;
   private readonly plateGraphics: Graphics;
@@ -36,6 +36,10 @@ export class LobbyStartButton {
     private readonly camera: Camera,
     private readonly onStartRequested: () => void,
   ) {
+    const canvasTransform = canvasNode.getComponent(UITransform);
+    if (canvasTransform === null) {
+      throw new Error('大厅开始按钮必须挂在带 UITransform 的 Canvas 下。');
+    }
     const buttonElements = createButtonElements(this.canvasNode);
     this.buttonNode = buttonElements.buttonNode;
     this.plateGraphics = buttonElements.plateGraphics;
@@ -57,15 +61,16 @@ export class LobbyStartButton {
     }
   }
 
-  /** 把祭台中心下沿的世界坐标投影到 UI，使按钮始终位于玩家正下方。 */
+  /** 将玩家脚底世界坐标投影到 UI，并把按钮保持在玩家正下方。 */
   public update(): void {
     if (this.disposed) {
       return;
     }
-    const anchor = LOBBY_START_BUTTON_STYLE.worldAnchor;
+    const style = LOBBY_START_BUTTON_STYLE;
+    const anchor = style.worldAnchor;
     this.projectedPosition.set(anchor.x, anchor.y, anchor.z);
     this.camera.convertToUINode(this.projectedPosition, this.canvasNode, this.projectedPosition);
-    this.projectedPosition.y += LOBBY_START_BUTTON_STYLE.screenOffsetY;
+    this.projectedPosition.y += style.screenOffsetY;
     this.projectedPosition.z = 0;
     this.buttonNode.setPosition(this.projectedPosition);
   }

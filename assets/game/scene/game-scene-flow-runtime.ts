@@ -1,13 +1,14 @@
-import { error as logError, type Material, Node } from 'cc';
+import { error as logError, type Material, Node, type SceneAsset } from 'cc';
 import { BundleService } from '../../core/bundles/bundle-service';
 import { createLoadingProgress } from '../../core/contracts/loading-progress';
 import { type SceneRuntime } from '../../core/contracts/scene-runtime';
-import { FeatureId } from '../../core/contracts/runtime-id';
+import { FeatureId, SceneId } from '../../core/contracts/runtime-id';
 import { FeatureLoader } from '../../core/features/feature-loader';
 import { featureRegistry } from '../../core/features/feature-registry';
 import { RuntimePerformanceController } from '../../core/performance/runtime-performance-controller';
 import { RUNTIME_PERFORMANCE_PROFILE } from '../../core/performance/runtime-performance-platform';
 import { SceneLoadingOverlay } from '../../core/ui/scene-loading-overlay';
+import { SceneService } from '../../core/scenes/scene-service';
 import { LobbySceneEvent } from '../../lobby/model/lobby-scene-event';
 import { LobbySceneRuntime } from '../../lobby/scene/lobby-scene-runtime';
 
@@ -19,18 +20,19 @@ enum GameSceneFlowState {
   Created,
   Lobby,
   LoadingBattlefield,
-  Battlefield,
+  SwitchingBattlefield,
   Disposed,
 }
 
-/** 管理大厅、Loading 遮罩和动态战场 Feature 之间的主场景流程。 */
+/** 管理大厅、Loading 遮罩和独立战场 Scene 之间的切换流程。 */
 export class GameSceneFlowRuntime implements SceneRuntime {
-  private readonly featureLoader = new FeatureLoader(new BundleService(), featureRegistry);
+  private readonly bundleService = new BundleService();
+  private readonly featureLoader = new FeatureLoader(this.bundleService, featureRegistry);
+  private readonly sceneService = new SceneService(this.bundleService);
   private state = GameSceneFlowState.Created;
   private performanceController: RuntimePerformanceController | null = null;
   private lobby: LobbySceneRuntime | null = null;
-  private battlefield: SceneRuntime | null = null;
-  private pendingBattlefield: SceneRuntime | null = null;
+  private pendingBattlefieldScene: SceneAsset | null = null;
   private loadingOverlay: SceneLoadingOverlay | null = null;
   private loadingElapsed = 0;
   private readyElapsed = 0;
@@ -83,13 +85,12 @@ export class GameSceneFlowRuntime implements SceneRuntime {
       case GameSceneFlowState.LoadingBattlefield:
         this.updateBattlefieldTransition(deltaTime);
         return;
-      case GameSceneFlowState.Battlefield:
-        this.battlefield?.update(deltaTime);
+      case GameSceneFlowState.SwitchingBattlefield:
         return;
     }
   }
 
-  /** 释放当前场景、等待提交的战场和全局性能控制权。 */
+  /** 释放大厅、尚未切换的战场 SceneAsset 和全局性能控制权。 */
   public dispose(): void {
     if (this.state === GameSceneFlowState.Disposed) {
       return;
@@ -100,13 +101,11 @@ export class GameSceneFlowRuntime implements SceneRuntime {
       this,
     );
     this.loadingOverlay?.dispose();
-    this.pendingBattlefield?.dispose();
-    this.battlefield?.dispose();
+    this.pendingBattlefieldScene?.scene?.destroy();
     this.lobby?.dispose();
     this.performanceController?.dispose();
     this.loadingOverlay = null;
-    this.pendingBattlefield = null;
-    this.battlefield = null;
+    this.pendingBattlefieldScene = null;
     this.lobby = null;
     this.performanceController = null;
     this.state = GameSceneFlowState.Disposed;
@@ -125,16 +124,23 @@ export class GameSceneFlowRuntime implements SceneRuntime {
     void this.loadBattlefield();
   }
 
-  /** 加载战场 Feature，再由战场自身继续加载 Common Monsters。 */
+  /** 并行加载战场 Feature 与独立 Scene，再在未激活 Scene 中完成运行时装配。 */
   private async loadBattlefield(): Promise<void> {
     try {
-      const feature = await this.featureLoader.load(FeatureId.Battlefield);
+      const [feature, sceneAsset] = await Promise.all([
+        this.featureLoader.load(FeatureId.Battlefield),
+        this.sceneService.load(SceneId.Battlefield),
+      ]);
       if (this.state !== GameSceneFlowState.LoadingBattlefield) {
         return;
       }
       this.loadingOverlay?.setProgress(createLoadingProgress(0.12, '正在初始化战场'));
-      const runtime = await feature.createSceneRuntime(
-        this.sceneEntry,
+      const scene = sceneAsset.scene;
+      if (scene === null) {
+        throw new Error('加载完成的战场 SceneAsset 没有有效 Scene。');
+      }
+      await feature.prepareScene(
+        scene,
         this.surfaceMaterialTemplate,
         (progress) => {
           if (this.state === GameSceneFlowState.LoadingBattlefield) {
@@ -143,10 +149,10 @@ export class GameSceneFlowRuntime implements SceneRuntime {
         },
       );
       if (this.state !== GameSceneFlowState.LoadingBattlefield) {
-        runtime.dispose();
+        scene.destroy();
         return;
       }
-      this.pendingBattlefield = runtime;
+      this.pendingBattlefieldScene = sceneAsset;
     } catch (error: unknown) {
       if (this.state !== GameSceneFlowState.LoadingBattlefield) {
         return;
@@ -177,10 +183,10 @@ export class GameSceneFlowRuntime implements SceneRuntime {
       }
       return;
     }
-    if (this.pendingBattlefield !== null) {
+    if (this.pendingBattlefieldScene !== null) {
       this.readyElapsed += safeDeltaTime;
     }
-    if (this.pendingBattlefield !== null
+    if (this.pendingBattlefieldScene !== null
       && this.loadingElapsed >= MINIMUM_LOADING_DURATION
       && this.readyElapsed >= MINIMUM_READY_DISPLAY_DURATION) {
       this.commitBattlefieldTransition();
@@ -188,16 +194,12 @@ export class GameSceneFlowRuntime implements SceneRuntime {
   }
 
   private commitBattlefieldTransition(): void {
-    const battlefield = this.pendingBattlefield;
-    if (battlefield === null || this.state !== GameSceneFlowState.LoadingBattlefield) {
+    const sceneAsset = this.pendingBattlefieldScene;
+    if (sceneAsset === null || this.state !== GameSceneFlowState.LoadingBattlefield) {
       return;
     }
-    this.loadingOverlay?.dispose();
-    this.loadingOverlay = null;
-    this.lobby?.dispose();
-    this.lobby = null;
-    this.pendingBattlefield = null;
-    this.battlefield = battlefield;
-    this.state = GameSceneFlowState.Battlefield;
+    this.pendingBattlefieldScene = null;
+    this.state = GameSceneFlowState.SwitchingBattlefield;
+    this.sceneService.run(sceneAsset);
   }
 }

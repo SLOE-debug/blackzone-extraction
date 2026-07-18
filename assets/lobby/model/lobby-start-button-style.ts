@@ -1,4 +1,4 @@
-import { LOBBY_LAYOUT } from './lobby-layout';
+import { LOBBY_VANGUARD_OPTIONS } from './lobby-vanguard-options';
 
 /** 大厅开始按钮可切换的视觉状态。 */
 export enum LobbyStartButtonVisualState {
@@ -26,7 +26,7 @@ export interface LobbyStartButtonPalette {
   readonly textOutline: Readonly<LobbyUiColor>;
 }
 
-/** 大厅开始按钮的固定尺寸、锚点和状态色板。 */
+/** 大厅开始按钮的固定尺寸、玩家锚点和状态色板。 */
 export interface LobbyStartButtonStyle {
   readonly width: number;
   readonly height: number;
@@ -45,13 +45,13 @@ export const LOBBY_START_BUTTON_STYLE: LobbyStartButtonStyle = Object.freeze({
   height: 78,
   cornerCut: 15,
   shadowOffsetY: -7,
-  screenOffsetY: -58,
+  screenOffsetY: -126,
   labelFontSize: 29,
   labelSpacing: 5,
   worldAnchor: Object.freeze({
-    x: 0,
-    y: LOBBY_LAYOUT.altarTopY - 0.14,
-    z: LOBBY_LAYOUT.focusZ,
+    x: LOBBY_VANGUARD_OPTIONS.position.x,
+    y: LOBBY_VANGUARD_OPTIONS.position.y,
+    z: LOBBY_VANGUARD_OPTIONS.position.z,
   }),
   palettes: Object.freeze({
     [LobbyStartButtonVisualState.Idle]: createPalette(

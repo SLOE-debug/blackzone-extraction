@@ -1,4 +1,5 @@
 export { VanguardAction } from './model/vanguard-action';
+export type { VanguardControlIntent } from './model/vanguard-control-intent';
 export {
   type VanguardPopulationOptions,
   type VanguardPosition,

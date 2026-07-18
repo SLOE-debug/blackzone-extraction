@@ -1,5 +1,10 @@
 import { Node } from 'cc';
 import {
+  type MutablePlanarTargetResult,
+  type PlanarTargetPopulation,
+  type PlanarTargetQuery,
+} from '../../../../../core/contracts/planar-target';
+import {
   type MonsterObservationEvent,
   type MonsterObservationFootprint,
   type MonsterObservationPopulation,
@@ -20,6 +25,7 @@ import { CurveCrawlerRenderer } from '../rendering/curve-crawler-renderer';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
 import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
+import { CurveCrawlerTargeting } from './curve-crawler-targeting';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
@@ -30,13 +36,14 @@ const MAXIMUM_DELTA_TIME = 0.05;
  * 门面只负责编排系统顺序和资源生命周期，不承载行为、动画或几何细节。
  */
 export class CurveCrawlerPopulation
-implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation {
+implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation, PlanarTargetPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
   private readonly behavior = new CurveCrawlerBehaviorSystem();
   private readonly observation = new CurveCrawlerObservationSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
+  private readonly targeting = new CurveCrawlerTargeting();
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly renderer: CurveCrawlerRenderer;
   public readonly observationFootprint: Readonly<MonsterObservationFootprint>;
@@ -120,6 +127,15 @@ implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation 
       lateralSpeed,
       turnRate,
     );
+  }
+
+  /** 在群体局部平面中查找右摇杆方向附近的存活目标。 */
+  public findBestPlanarTarget(
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean {
+    this.ensureActive();
+    return this.targeting.findBest(this.state, query, result);
   }
 
   /** 释放群体持有的动态网格和材质。 */
