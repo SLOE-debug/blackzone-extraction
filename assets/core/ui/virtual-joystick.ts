@@ -83,6 +83,12 @@ export class VirtualJoystick {
     if (this.disposed) {
       return;
     }
+    this.disposed = true;
+    this.activeTouchId = null;
+    this.resetValue();
+    if (!this.root.isValid) {
+      return;
+    }
     this.root.off(Node.EventType.TOUCH_START, this.handleTouchStart, this);
     this.root.off(Node.EventType.TOUCH_MOVE, this.handleTouchMove, this);
     this.root.off(Node.EventType.TOUCH_END, this.handleTouchEnd, this);
@@ -90,9 +96,6 @@ export class VirtualJoystick {
     if (this.root.isValid) {
       this.root.destroy();
     }
-    this.activeTouchId = null;
-    this.resetValue();
-    this.disposed = true;
   }
 
   private handleTouchStart(event: EventTouch): void {

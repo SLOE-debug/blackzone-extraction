@@ -12,9 +12,13 @@ export class SceneService {
     const descriptor = SCENE_MANIFEST[id];
     const bundle = await this.bundles.load(descriptor.bundle);
     return new Promise<SceneAsset>((resolve, reject) => {
-      bundle.loadScene(descriptor.assetName, (error: Error | null, sceneAsset: SceneAsset) => {
-        if (error !== null) {
+      bundle.loadScene(descriptor.assetName, (error, sceneAsset) => {
+        if (error !== null && error !== undefined) {
           reject(error);
+          return;
+        }
+        if (sceneAsset === null || sceneAsset === undefined) {
+          reject(new Error(`场景加载完成但没有返回 SceneAsset：${descriptor.id}`));
           return;
         }
         if (sceneAsset.scene === null) {

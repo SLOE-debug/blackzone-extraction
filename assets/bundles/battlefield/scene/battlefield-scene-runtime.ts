@@ -154,6 +154,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     if (this.state === BattlefieldSceneState.Disposed) {
       return;
     }
+    this.state = BattlefieldSceneState.Disposed;
     this.debugPanel?.dispose();
     this.controlHud?.dispose();
     this.cameraRig?.dispose();
@@ -170,7 +171,6 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.cameraRig = null;
     this.controlHud = null;
     this.debugPanel = null;
-    this.state = BattlefieldSceneState.Disposed;
   }
 
   /** 将屏幕摇杆映射为世界方向，并在右摇杆方向附近应用轻量怪物吸附。 */

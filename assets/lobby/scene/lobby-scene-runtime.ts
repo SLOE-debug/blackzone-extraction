@@ -145,6 +145,7 @@ export class LobbySceneRuntime {
     if (this.state === LobbySceneState.Disposed) {
       return;
     }
+    this.state = LobbySceneState.Disposed;
     this.debugPanel?.dispose();
     this.startButton?.dispose();
     this.uiCanvas?.dispose();
@@ -163,6 +164,5 @@ export class LobbySceneRuntime {
     this.vanguard = null;
     this.uiCanvas = null;
     this.startButton = null;
-    this.state = LobbySceneState.Disposed;
   }
 }

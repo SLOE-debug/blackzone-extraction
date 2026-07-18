@@ -30,9 +30,13 @@ export class BundleService {
     }
 
     const request = new Promise<AssetManager.Bundle>((resolve, reject) => {
-      assetManager.loadBundle(descriptor.id, (error: Error | null, loadedBundle: AssetManager.Bundle) => {
-        if (error !== null) {
+      assetManager.loadBundle(descriptor.id, (error, loadedBundle) => {
+        if (error !== null && error !== undefined) {
           reject(error);
+          return;
+        }
+        if (loadedBundle === null || loadedBundle === undefined) {
+          reject(new Error(`Asset Bundle 加载完成但没有返回资源：${descriptor.id}`));
           return;
         }
 

@@ -87,7 +87,7 @@ export class StaticSurfaceMesh {
     if (this.state === StaticSurfaceMeshState.Disposed) {
       return;
     }
-    if (this.renderer !== null) {
+    if (this.renderer?.isValid === true) {
       this.renderer.mesh = null;
       this.renderer.setMaterial(null, 0);
     }

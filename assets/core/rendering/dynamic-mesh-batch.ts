@@ -200,7 +200,7 @@ export class DynamicMeshBatch {
       return;
     }
 
-    if (this.renderer !== null) {
+    if (this.renderer?.isValid === true) {
       this.renderer.mesh = null;
     }
     this.mesh?.destroy();

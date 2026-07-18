@@ -20,7 +20,6 @@ enum GameSceneFlowState {
   Created,
   Lobby,
   LoadingBattlefield,
-  SwitchingBattlefield,
   Disposed,
 }
 
@@ -85,8 +84,6 @@ export class GameSceneFlowRuntime implements SceneRuntime {
       case GameSceneFlowState.LoadingBattlefield:
         this.updateBattlefieldTransition(deltaTime);
         return;
-      case GameSceneFlowState.SwitchingBattlefield:
-        return;
     }
   }
 
@@ -95,11 +92,7 @@ export class GameSceneFlowRuntime implements SceneRuntime {
     if (this.state === GameSceneFlowState.Disposed) {
       return;
     }
-    this.sceneEntry.off(
-      LobbySceneEvent.StartGameRequested,
-      this.handleStartGameRequested,
-      this,
-    );
+    this.state = GameSceneFlowState.Disposed;
     this.loadingOverlay?.dispose();
     this.pendingBattlefieldScene?.scene?.destroy();
     this.lobby?.dispose();
@@ -108,7 +101,6 @@ export class GameSceneFlowRuntime implements SceneRuntime {
     this.pendingBattlefieldScene = null;
     this.lobby = null;
     this.performanceController = null;
-    this.state = GameSceneFlowState.Disposed;
   }
 
   private handleStartGameRequested(): void {
@@ -199,7 +191,13 @@ export class GameSceneFlowRuntime implements SceneRuntime {
       return;
     }
     this.pendingBattlefieldScene = null;
-    this.state = GameSceneFlowState.SwitchingBattlefield;
+    this.state = GameSceneFlowState.Disposed;
+    this.loadingOverlay?.dispose();
+    this.lobby?.dispose();
+    this.performanceController?.dispose();
+    this.loadingOverlay = null;
+    this.lobby = null;
+    this.performanceController = null;
     this.sceneService.run(sceneAsset);
   }
 }

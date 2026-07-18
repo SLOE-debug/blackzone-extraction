@@ -84,9 +84,21 @@ node.lookAt(target, Vec3.UNIT_Z);
 
 ## Cocos 资源与元数据
 
+- Cocos Creator 3.8.8 的 `AssetManager.loadBundle()` 与 `Bundle.loadScene()` 类型声明和文档把成功回调的错误参数描述为 `null`，但 HTML5 预览路径中已实际观察到成功时传入 `undefined`。业务 Promise 适配层不得用 `error !== null` 判断失败，否则会把成功加载转换成 `reject(undefined)`；必须同时排除 `null` 与 `undefined`，并独立校验成功资源是否存在。
+- 该行为已通过 HTML5 预览隔离复现：使用 `error !== null` 包装 `loadScene()` 时，点击开始游戏稳定记录“战场加载失败：undefined”；引擎自身在 `cocos/asset/asset-manager/bundle.ts` 和 `asset-manager.ts` 中也使用 `if (err)` 判断失败，而不是严格比较 `null`。
+- 验证资源回调适配时，应分别覆盖“错误参数为 `undefined` 且资源有效”“错误对象存在”“错误为空但资源缺失”三种输入；只有第一种可以成功解析，后两种必须返回包含资源标识的明确错误。
 - Cocos `.meta` 文件由编辑器管理，禁止手动创建、复制或修改 UUID。
 - 代码中能否按名称初始化内置 Effect 与 Editor 中能否选择该 Effect 不是同一契约。需要稳定引用内置 Standard 时，优先由 Editor 创建 Material 并通过场景或 Prefab 序列化引用。
 - 新增、移动或重命名资源时只修改实际源文件，让 Cocos Editor 生成或更新对应 `.meta`。
+
+## Scene 切换与递归销毁生命周期
+
+- Cocos Creator 3.8.8 的 `director.runScene()` 不会在调用点立即替换场景，而是在当前帧 `END_FRAME` 执行 `runSceneImmediate()`；旧 Scene 随后进入销毁和同帧 `_deferredDestroy()`。
+- 节点的 `_onPreDestroyBase()` 会先销毁自身事件处理器，再递归销毁所有子节点，最后销毁当前节点组件。因此场景入口组件执行 `onDestroy()` 时，它管理的运行时子节点可能已经完成销毁，禁止再对这些子节点调用 `off()`、修改组件或重复 `destroy()`。
+- 场景切换时，业务拥有的运行时资源必须在调用 `director.runScene()` 之前主动释放，并先把运行时状态标记为已释放；旧 Scene 随后触发入口组件 `onDestroy()` 时只能命中幂等返回，不得再次执行同一套清理。
+- Cocos 对象的 `obj.isValid` 在调用 `destroy()` 的当前帧仍可能为 `true`；`isValid(obj, true)` 虽然会排除 `ToDestroy`，但不表达父节点递归销毁期间的完整业务所有权。不得只靠 `isValid` 猜测是否应销毁，必须先明确资源由业务切场流程还是 Scene 递归销毁负责。
+- 节点封装类的兜底 `dispose()` 必须先记录已释放状态，再检查节点是否仍有效；只有节点有效时才能解除节点事件和请求销毁。Renderer 组件已经失效时，不得再清空其 Mesh 或 Material 属性，但独立创建且仍由业务持有的 GPU 资源仍需按其所有权释放。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/game/director.ts`、`cocos/scene-graph/node.ts` 和 `cocos/core/data/object.ts` 验证。隔离验证应在旧 Scene 中创建“入口组件 → 运行时根节点 → 带事件子节点”的层级，切换 Scene 后确认业务清理发生在 `runScene()` 调用前，且入口 `onDestroy()` 不再产生双重销毁或空事件处理器异常。
 
 ## 新差异的记录要求
 

@@ -80,6 +80,10 @@ export class LobbyStartButton {
     if (this.disposed) {
       return;
     }
+    this.disposed = true;
+    if (!this.buttonNode.isValid) {
+      return;
+    }
     this.buttonNode.off(Node.EventType.MOUSE_ENTER, this.handleMouseEnter, this);
     this.buttonNode.off(Node.EventType.MOUSE_LEAVE, this.handleMouseLeave, this);
     this.buttonNode.off(Node.EventType.TOUCH_START, this.handleTouchStart, this);
@@ -89,7 +93,6 @@ export class LobbyStartButton {
     if (this.buttonNode.isValid) {
       this.buttonNode.destroy();
     }
-    this.disposed = true;
   }
 
   /** 鼠标进入时切换到更明亮的氧化青铜色。 */
