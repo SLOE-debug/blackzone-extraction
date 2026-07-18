@@ -10,7 +10,7 @@ import { writeVanguardBounds } from './vanguard-bounds';
 import { VanguardMaterials } from './vanguard-materials';
 import { VANGUARD_MATTE_MESH_PALETTE } from './vanguard-mesh-palette';
 
-/** 主角皮肤、衣物与围巾共用的单一渲染层。 */
+/** 主角皮肤、衣物、帽子与披肩共用的单一渲染层。 */
 export enum VanguardRenderLayer {
   Character = 'character',
 }

@@ -1,7 +1,7 @@
 import { Color, type Material } from 'cc';
 import { StandardVertexColorMaterialFactory } from '../../../core/rendering/standard-vertex-color-material-factory';
 
-/** 管理主角皮肤、衣物与围巾共用的独占运行时材质。 */
+/** 管理主角皮肤、衣物、帽子与披肩共用的独占运行时材质。 */
 export class VanguardMaterials {
   public readonly character: Material;
   private disposed = false;

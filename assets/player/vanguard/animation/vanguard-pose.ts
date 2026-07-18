@@ -206,53 +206,40 @@ export function writeVanguardPoseMatrices(
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftThigh,
     leftHipX, VANGUARD_ANATOMY.pelvisY + bodyBob, 0,
-    -0.32, leftKneeY, leftKneeZ,
+    -0.35, leftKneeY, leftKneeZ,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftShin,
-    -0.32, leftKneeY, leftKneeZ,
-    -0.33, leftAnkleY, stride * 0.82,
+    -0.35, leftKneeY, leftKneeZ,
+    -0.36, leftAnkleY, stride * 0.82,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftFoot,
-    -0.33, leftAnkleY, stride * 0.82,
-    -0.33, VANGUARD_ANATOMY.toeY + leftStepLift, leftFootZ,
+    -0.36, leftAnkleY, stride * 0.82,
+    -0.36, VANGUARD_ANATOMY.toeY + leftStepLift, leftFootZ,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightThigh,
     rightHipX, VANGUARD_ANATOMY.pelvisY + bodyBob, 0,
-    0.31, rightKneeY, rightKneeZ,
+    0.35, rightKneeY, rightKneeZ,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightShin,
-    0.31, rightKneeY, rightKneeZ,
-    0.32, rightAnkleY, -stride * 0.82,
+    0.35, rightKneeY, rightKneeZ,
+    0.36, rightAnkleY, -stride * 0.82,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightFoot,
-    0.32, rightAnkleY, -stride * 0.82,
-    0.32, VANGUARD_ANATOMY.toeY + rightStepLift, rightFootZ,
+    0.36, rightAnkleY, -stride * 0.82,
+    0.36, VANGUARD_ANATOMY.toeY + rightStepLift, rightFootZ,
     positionX, positionY, positionZ, heading, scale,
   );
 
-  const scarfWave = Math.sin(phase * 2) * 0.034 + Math.sin(phase) * 0.012;
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.LeftScarfTail,
-    -0.12, 3.08 + breath * 0.7 + bodyBob, 0.18,
-    -0.42 + scarfWave, 2.35 + bodyBob, 0.24 - stride * 0.08,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.RightScarfTail,
-    0.12, 3.08 + breath * 0.7 + bodyBob, 0.04,
-    0.34 - scarfWave * 0.65, 2.55 + bodyBob, -0.14 - stride * 0.08,
-    positionX, positionY, positionZ, heading, scale,
-  );
 }
 
 /** 写入以局部 Y 为骨骼轴线、局部 Z 尽量朝向角色正面的稳定矩阵。 */

@@ -11,7 +11,7 @@ export interface MutableVanguardBounds {
   maxZ: number;
 }
 
-/** 根据主角站位创建覆盖碎发、围巾、双臂、任意朝向和待机摆动的保守包围盒。 */
+/** 根据主角站位创建覆盖宽檐帽、披肩、双臂、任意朝向和待机摆动的保守包围盒。 */
 export function createVanguardBounds(state: VanguardState): GeometryBounds {
   const bounds = {
     minX: 0,
@@ -43,7 +43,7 @@ export function writeVanguardBounds(state: VanguardState, bounds: MutableVanguar
     minY = Math.min(minY, y - 0.03);
     minZ = Math.min(minZ, z - 1.7);
     maxX = Math.max(maxX, x + 1.7);
-    maxY = Math.max(maxY, y + 4.12);
+    maxY = Math.max(maxY, y + 4.2);
     maxZ = Math.max(maxZ, z + 1.7);
   }
 
