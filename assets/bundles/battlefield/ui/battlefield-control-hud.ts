@@ -7,6 +7,10 @@ import {
 } from 'cc';
 import { ScreenUiCanvas } from '../../../core/ui/screen-ui-canvas';
 import { VirtualJoystick } from '../../../core/ui/virtual-joystick';
+import {
+  BattlefieldCameraOrbitInput,
+  type MutableBattlefieldCameraAzimuthDelta,
+} from './battlefield-camera-orbit-input';
 import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
 
 /** 战场场景持续读取的屏幕空间控制状态。 */
@@ -16,6 +20,7 @@ export interface BattlefieldScreenControlState {
   readonly aimX: number;
   readonly aimY: number;
   readonly aiming: boolean;
+  readonly cameraOrbitDeltaX: number;
 }
 
 interface MutableBattlefieldScreenControlState {
@@ -24,6 +29,7 @@ interface MutableBattlefieldScreenControlState {
   aimX: number;
   aimY: number;
   aiming: boolean;
+  cameraOrbitDeltaX: number;
 }
 
 /** 装配左右虚拟摇杆，并提供便于桌面预览的键盘输入。 */
@@ -32,12 +38,15 @@ export class BattlefieldControlHud {
   private readonly canvas: ScreenUiCanvas;
   private readonly movementJoystick: VirtualJoystick;
   private readonly aimJoystick: VirtualJoystick;
+  private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
+  private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
   private readonly mutableState: MutableBattlefieldScreenControlState = {
     moveX: 0,
     moveY: 0,
     aimX: 0,
     aimY: 0,
     aiming: false,
+    cameraOrbitDeltaX: 0,
   };
   private layoutWidth = -1;
   private layoutHeight = -1;
@@ -57,6 +66,7 @@ export class BattlefieldControlHud {
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
     let movementJoystick: VirtualJoystick | null = null;
     let aimJoystick: VirtualJoystick | null = null;
+    let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
     try {
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
@@ -68,11 +78,14 @@ export class BattlefieldControlHud {
         'AimJoystick',
         BATTLEFIELD_CONTROL_STYLE.aim,
       );
+      cameraOrbitInput = new BattlefieldCameraOrbitInput(this.canvas.node);
       this.movementJoystick = movementJoystick;
       this.aimJoystick = aimJoystick;
+      this.cameraOrbitInput = cameraOrbitInput;
       this.synchronizeLayout();
       this.canvas.node.active = false;
     } catch (error: unknown) {
+      cameraOrbitInput?.dispose();
       movementJoystick?.dispose();
       aimJoystick?.dispose();
       this.canvas.dispose();
@@ -95,6 +108,7 @@ export class BattlefieldControlHud {
     this.synchronizeLayout();
     this.writeMovementState();
     this.writeAimState();
+    this.writeCameraOrbitState();
   }
 
   /** 解除全局键盘监听并销毁双摇杆 Canvas。 */
@@ -106,6 +120,7 @@ export class BattlefieldControlHud {
       input.off(Input.EventType.KEY_DOWN, this.handleKeyDown, this);
       input.off(Input.EventType.KEY_UP, this.handleKeyUp, this);
     }
+    this.cameraOrbitInput.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
     this.canvas.dispose();
@@ -162,6 +177,12 @@ export class BattlefieldControlHud {
     this.mutableState.aimX = aimX * inverseLength;
     this.mutableState.aimY = aimY * inverseLength;
     this.mutableState.aiming = aiming;
+  }
+
+  /** 只取走水平旋转增量；输入层不产生任何纵向俯仰量。 */
+  private writeCameraOrbitState(): void {
+    this.cameraOrbitInput.consume(this.cameraAzimuthDelta);
+    this.mutableState.cameraOrbitDeltaX = this.cameraAzimuthDelta.x;
   }
 
   private handleKeyDown(event: EventKeyboard): void {

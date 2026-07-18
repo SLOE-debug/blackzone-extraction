@@ -3,12 +3,14 @@ import {
   OrbitCameraController,
   type OrbitCameraOptions,
 } from '../../../core/camera/orbit-camera-controller';
+import { wrapAngle } from '../../../core/math/scalar';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import {
   type MutableBattlefieldPlanarDirection,
   writeBattlefieldCameraRelativeDirection,
 } from './battlefield-camera-direction';
 
+const MOTION_EPSILON = 0.00001;
 const CAMERA_TARGET = new Vec3(
   BATTLEFIELD_LAYOUT.playerPosition.x,
   BATTLEFIELD_LAYOUT.playerPosition.y + BATTLEFIELD_LAYOUT.camera.targetOffsetY,
@@ -50,6 +52,8 @@ export class BattlefieldCameraRig {
     CAMERA_TARGET.z,
   );
   private readonly cameraPosition = new Vec3();
+  private azimuthAngle = CAMERA_AZIMUTH_ANGLE;
+  private azimuthDelta = 0;
   private orbitController: OrbitCameraController | null = null;
 
   constructor(parent: Node) {
@@ -71,15 +75,27 @@ export class BattlefieldCameraRig {
       this.orbitController = new OrbitCameraController(this.camera, {
         ...ORBIT_CAMERA_OPTIONS,
         target: this.currentTarget,
-        azimuthAngle: CAMERA_AZIMUTH_ANGLE,
+        azimuthAngle: this.azimuthAngle,
         polarAngle: CAMERA_POLAR_ANGLE,
       });
+      this.azimuthDelta = 0;
       return;
     }
     this.orbitController?.dispose();
     this.orbitController = null;
+    this.azimuthDelta = 0;
     Vec3.copy(this.currentTarget, this.desiredTarget);
     this.applyFollowPose();
+  }
+
+  /** 累计正式战场的水平环绕输入；45°俯角没有对应输入通道。 */
+  public queueOrbitRotation(deltaX: number): void {
+    if (!Number.isFinite(deltaX)) {
+      throw new Error('战场相机水平旋转增量必须是有限数值。');
+    }
+    if (!this.orbitEnabled) {
+      this.azimuthDelta -= deltaX * ORBIT_CAMERA_OPTIONS.rotateSpeed;
+    }
   }
 
   /** 写入玩家脚底位置，供正式机位平滑跟随。 */
@@ -103,7 +119,7 @@ export class BattlefieldCameraRig {
     result: MutableBattlefieldPlanarDirection,
   ): void {
     writeBattlefieldCameraRelativeDirection(
-      CAMERA_AZIMUTH_ANGLE,
+      this.azimuthAngle,
       screenX,
       screenY,
       result,
@@ -119,6 +135,7 @@ export class BattlefieldCameraRig {
     if (!Number.isFinite(deltaTime) || deltaTime < 0) {
       throw new Error('战场相机帧时间必须是有限非负数。');
     }
+    this.consumeAzimuthMotion(deltaTime);
     const response = 1 - Math.exp(-CAMERA_FOLLOW_SHARPNESS * deltaTime);
     this.currentTarget.x += (this.desiredTarget.x - this.currentTarget.x) * response;
     this.currentTarget.y += (this.desiredTarget.y - this.currentTarget.y) * response;
@@ -130,15 +147,31 @@ export class BattlefieldCameraRig {
   public dispose(): void {
     this.orbitController?.dispose();
     this.orbitController = null;
+    this.azimuthDelta = 0;
   }
 
-  /** 按固定方位和 45°俯角保持相机围绕玩家平滑跟随。 */
+  /** 消费正式相机的水平旋转惯性，纵向极角始终不参与更新。 */
+  private consumeAzimuthMotion(deltaTime: number): void {
+    const damping = 1 - Math.pow(
+      1 - ORBIT_CAMERA_OPTIONS.dampingFactor,
+      deltaTime * 60,
+    );
+    if (Math.abs(this.azimuthDelta) <= MOTION_EPSILON) {
+      this.azimuthDelta = 0;
+      return;
+    }
+    const step = this.azimuthDelta * damping;
+    this.azimuthAngle = wrapAngle(this.azimuthAngle + step);
+    this.azimuthDelta -= step;
+  }
+
+  /** 按可变水平方位和固定 45°俯角保持相机围绕玩家平滑跟随。 */
   private applyFollowPose(): void {
     const horizontalDistance = CAMERA_DISTANCE * Math.sin(CAMERA_POLAR_ANGLE);
     this.cameraPosition.set(
-      this.currentTarget.x + horizontalDistance * Math.sin(CAMERA_AZIMUTH_ANGLE),
+      this.currentTarget.x + horizontalDistance * Math.sin(this.azimuthAngle),
       this.currentTarget.y + CAMERA_DISTANCE * Math.cos(CAMERA_POLAR_ANGLE),
-      this.currentTarget.z + horizontalDistance * Math.cos(CAMERA_AZIMUTH_ANGLE),
+      this.currentTarget.z + horizontalDistance * Math.cos(this.azimuthAngle),
     );
     this.camera.node.setPosition(this.cameraPosition);
     this.camera.node.lookAt(this.currentTarget, Vec3.UNIT_Y);

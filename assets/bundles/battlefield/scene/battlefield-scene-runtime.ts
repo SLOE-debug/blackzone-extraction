@@ -210,6 +210,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     if (player === null || monsters === null || cameraRig === null || controls === undefined) {
       return;
     }
+    cameraRig.queueOrbitRotation(controls.cameraOrbitDeltaX);
     cameraRig.writeWorldPlanarDirection(
       controls.moveX,
       controls.moveY,
