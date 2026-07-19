@@ -11,6 +11,11 @@ export interface BundleDescriptor<TId extends BundleId = BundleId> {
 
 /** Asset Bundle 的唯一运行时清单。 */
 export const BUNDLE_MANIFEST = Object.freeze({
+  [BundleId.Main]: Object.freeze({
+    id: BundleId.Main,
+    priority: 30,
+    preload: true,
+  }),
   [BundleId.Battlefield]: Object.freeze({
     id: BundleId.Battlefield,
     priority: 20,

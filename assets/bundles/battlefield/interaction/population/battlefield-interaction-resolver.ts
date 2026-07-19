@@ -57,7 +57,10 @@ export class BattlefieldInteractionResolver {
     if (this.nearestProvider === null) {
       return false;
     }
-    return this.nearestProvider.activateInteraction(this.nearestCandidate.sourceId);
+    return this.nearestProvider.activateInteraction(
+      this.nearestCandidate.sourceId,
+      this.nearestCandidate.action,
+    );
   }
 }
 

@@ -16,9 +16,9 @@ import {
 } from '../../../../core/equipment/equipment';
 import { EQUIPMENT_RARITY_STYLE } from './equipment-rarity-style';
 
-const PANEL_WIDTH = 310;
-const PANEL_HEIGHT = 70;
-const WORLD_LABEL_OFFSET_Y = 48;
+const PANEL_WIDTH = 176;
+const PANEL_HEIGHT = 38;
+const WORLD_LABEL_OFFSET_Y = 30;
 const PANEL_COLOR = new Color(9, 12, 15, 224);
 
 /** 一件靠近玩家的装备在世界标签中所需的最小信息。 */
@@ -53,11 +53,11 @@ export class BattlefieldEquipmentLabelHud {
     const labelNode = new Node('BattlefieldEquipmentLabelText');
     labelNode.layer = Layers.Enum.UI_2D;
     root.addChild(labelNode);
-    labelNode.addComponent(UITransform).setContentSize(PANEL_WIDTH - 28, PANEL_HEIGHT - 12);
+    labelNode.addComponent(UITransform).setContentSize(PANEL_WIDTH - 18, PANEL_HEIGHT - 8);
     const label = labelNode.addComponent(Label);
     label.useSystemFont = true;
-    label.fontSize = 18;
-    label.lineHeight = 25;
+    label.fontSize = 14;
+    label.lineHeight = 18;
     label.isBold = true;
     label.horizontalAlign = HorizontalTextAlignment.CENTER;
     label.verticalAlign = VerticalTextAlignment.CENTER;
@@ -101,7 +101,7 @@ export class BattlefieldEquipmentLabelHud {
   private applyEquipment(equipmentId: EquipmentId): void {
     const definition = this.equipmentLibrary.get(equipmentId);
     const rarity = EQUIPMENT_RARITY_STYLE[definition.rarity];
-    this.label.string = `${rarity.displayName} · ${definition.displayName}\n${definition.description}`;
+    this.label.string = definition.displayName;
     this.label.color = rarity.color;
     this.graphics.clear();
     drawCutCornerPanel(this.graphics, rarity.color);
@@ -113,7 +113,7 @@ export class BattlefieldEquipmentLabelHud {
 function drawCutCornerPanel(graphics: Graphics, borderColor: Readonly<Color>): void {
   const halfWidth = PANEL_WIDTH * 0.5;
   const halfHeight = PANEL_HEIGHT * 0.5;
-  const cut = 10;
+  const cut = 7;
   graphics.moveTo(-halfWidth + cut, halfHeight);
   graphics.lineTo(halfWidth - cut, halfHeight);
   graphics.lineTo(halfWidth, halfHeight - cut);
@@ -126,6 +126,6 @@ function drawCutCornerPanel(graphics: Graphics, borderColor: Readonly<Color>): v
   graphics.fillColor = PANEL_COLOR;
   graphics.fill();
   graphics.strokeColor = borderColor;
-  graphics.lineWidth = 3;
+  graphics.lineWidth = 2;
   graphics.stroke();
 }

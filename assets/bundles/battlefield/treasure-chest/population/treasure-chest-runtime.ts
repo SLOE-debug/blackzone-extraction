@@ -8,6 +8,7 @@ import { normalizeRandomSeed } from '../../../../core/math/xorshift32';
 import {
   type MutableDroppedEquipmentInspection,
   DroppedEquipmentPopulation,
+  DroppedEquipmentInstanceIdSequence,
 } from '../../equipment/population/dropped-equipment-population';
 import { createLootScatterTrajectories } from '../../loot/model/loot-scatter-trajectory';
 import {
@@ -50,6 +51,7 @@ export class TreasureChestRuntime {
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
     private readonly equipmentLibrary: EquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
+    instanceIds: DroppedEquipmentInstanceIdSequence,
   ) {
     this.id = spawn.id;
     this.x = spawn.x;
@@ -64,7 +66,11 @@ export class TreasureChestRuntime {
       spawn.heading,
     );
     try {
-      this.drops = new DroppedEquipmentPopulation(parent, surfaceMaterialTemplate);
+      this.drops = new DroppedEquipmentPopulation(
+        parent,
+        surfaceMaterialTemplate,
+        instanceIds,
+      );
     } catch (error: unknown) {
       this.renderer.dispose();
       throw error;
@@ -131,6 +137,16 @@ export class TreasureChestRuntime {
     result: MutableDroppedEquipmentInspection,
   ): boolean {
     return this.drops.writeNearestInspection(playerX, playerZ, result);
+  }
+
+  /** 查询本宝箱掉落群中的稳定装备实例。 */
+  public getDroppedEquipmentId(instanceId: number): EquipmentId | null {
+    return this.drops.getEquipmentId(instanceId);
+  }
+
+  /** 移除本宝箱掉落群中已经完成拾取的装备实例。 */
+  public removeDroppedEquipment(instanceId: number): boolean {
+    return this.drops.remove(instanceId);
   }
 
   public dispose(): void {

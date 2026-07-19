@@ -18,7 +18,7 @@ describe('Curve Crawler 辅助瞄准查询', () => {
     state.data.transform.x.set([10, 5, 3]);
     state.data.transform.y.set([0, 2, 0]);
     state.data.vitality.phase[2] = CurveCrawlerLifePhase.Gone;
-    const result = { entityId: -1, x: 0, y: 0 };
+    const result = { entityId: -1, x: 0, y: 0, elevation: 0 };
 
     const found = new CurveCrawlerTargeting().findBest(state, {
       originX: 0,
@@ -33,6 +33,7 @@ describe('Curve Crawler 辅助瞄准查询', () => {
     expect(result.entityId).toBe(0);
     expect(result.x).toBe(10);
     expect(result.y).toBe(0);
+    expect(result.elevation).toBeGreaterThan(0);
   });
 
   it('目标超出距离或吸附角时不返回候选', () => {
@@ -52,6 +53,6 @@ describe('Curve Crawler 辅助瞄准查询', () => {
       directionY: 0,
       maximumDistance: 5,
       minimumAlignment: 0.8,
-    }, { entityId: -1, x: 0, y: 0 })).toBe(false);
+    }, { entityId: -1, x: 0, y: 0, elevation: 0 })).toBe(false);
   });
 });

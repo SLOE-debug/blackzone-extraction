@@ -8,22 +8,35 @@ const EQUIPMENT_INSPECTION_RADIUS = 3.5;
 
 /** HUD 复用的最近落地装备结果。 */
 export interface MutableDroppedEquipmentInspection {
+  instanceId: number;
   equipmentId: EquipmentId;
   x: number;
   y: number;
   z: number;
 }
 
+/** 为同一战场中的全部掉落装备分配不会跨宝箱冲突的运行时标识。 */
+export class DroppedEquipmentInstanceIdSequence {
+  private nextInstanceId = 1;
+
+  public allocate(): number {
+    if (!Number.isSafeInteger(this.nextInstanceId)) {
+      throw new Error('战场掉落装备实例标识已经耗尽。');
+    }
+    return this.nextInstanceId++;
+  }
+}
+
 /** 管理一个宝箱爆出的全部掉落装备、共享材质和近距离查询。 */
 export class DroppedEquipmentPopulation {
   private readonly material: Material;
   private readonly items: DroppedEquipmentRuntime[] = [];
-  private nextInstanceId = 1;
   private disposed = false;
 
   constructor(
     private readonly parent: Node,
     surfaceMaterialTemplate: Material,
+    private readonly instanceIds: DroppedEquipmentInstanceIdSequence,
   ) {
     this.material = createDroppedEquipmentMaterial(surfaceMaterialTemplate);
   }
@@ -48,7 +61,7 @@ export class DroppedEquipmentPopulation {
         const item = new DroppedEquipmentRuntime(
           this.parent,
           this.material,
-          this.nextInstanceId++,
+          this.instanceIds.allocate(),
           equipmentId,
           trajectory,
         );
@@ -104,9 +117,43 @@ export class DroppedEquipmentPopulation {
       return false;
     }
     result.equipmentId = best.equipmentId;
+    result.instanceId = best.instanceId;
     result.x = best.x;
     result.y = best.y + 0.72;
     result.z = best.z;
+    return true;
+  }
+
+  /** 返回指定落地实例当前携带的装备标识。 */
+  public getEquipmentId(instanceId: number): EquipmentId | null {
+    if (this.disposed) {
+      return null;
+    }
+    for (const item of this.items) {
+      if (item.instanceId === instanceId && item.landed) {
+        return item.equipmentId;
+      }
+    }
+    return null;
+  }
+
+  /** 从世界中移除已经被玩家成功装备的落地实例。 */
+  public remove(instanceId: number): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    const index = this.items.findIndex(
+      (item) => item.instanceId === instanceId && item.landed,
+    );
+    if (index < 0) {
+      return false;
+    }
+    const item = this.items[index];
+    if (item === undefined) {
+      throw new Error('掉落装备索引存在但实例缺失。');
+    }
+    this.items.splice(index, 1);
+    item.dispose();
     return true;
   }
 

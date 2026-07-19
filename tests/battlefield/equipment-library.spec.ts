@@ -3,6 +3,7 @@ import {
   EquipmentCategory,
   EquipmentId,
   EquipmentRarity,
+  WeaponAmmunitionMode,
   WeaponClass,
 } from '../../assets/core/equipment/equipment';
 import {
@@ -20,7 +21,9 @@ describe('战场装备库', () => {
     expect(weapon.rarity).toBe(EquipmentRarity.Epic);
     expect(weapon.weaponClass).toBe(WeaponClass.Handgun);
     expect(weapon.damage).toBeGreaterThan(0);
-    expect(weapon.magazineCapacity).toBe(7);
+    expect(weapon.ammunition.mode).toBe(WeaponAmmunitionMode.Infinite);
+    expect(weapon.projectile.speed).toBeGreaterThan(0);
+    expect(weapon.projectile.maximumRange).toBeGreaterThan(0);
   });
 
   it('宝箱掉落数量由表配置随机化且只返回已登记装备标识', () => {

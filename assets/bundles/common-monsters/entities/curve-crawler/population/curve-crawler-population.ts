@@ -4,6 +4,11 @@ import {
   type PlanarMonsterCombatTarget,
 } from '../../../../../core/contracts/monster-combat';
 import {
+  type MutablePlanarMonsterHitResult,
+  type PlanarMonsterHitPopulation,
+  type PlanarMonsterHitQuery,
+} from '../../../../../core/contracts/monster-hit';
+import {
   type MutablePlanarTargetResult,
   type PlanarTargetPopulation,
   type PlanarTargetQuery,
@@ -33,6 +38,7 @@ import { CurveCrawlerRenderer } from '../rendering/curve-crawler-renderer';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
 import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
+import { CurveCrawlerProjectileHitSystem } from './curve-crawler-projectile-hit-system';
 import { CurveCrawlerTargeting } from './curve-crawler-targeting';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
@@ -45,7 +51,7 @@ const MAXIMUM_DELTA_TIME = 0.05;
  */
 export class CurveCrawlerPopulation
 implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation,
-MonsterCombatPopulation, PlanarTargetPopulation {
+MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
@@ -54,6 +60,7 @@ MonsterCombatPopulation, PlanarTargetPopulation {
   private readonly observation = new CurveCrawlerObservationSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
   private readonly targeting = new CurveCrawlerTargeting();
+  private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly emergence = new CurveCrawlerEmergenceSystem();
   private readonly renderer: CurveCrawlerRenderer;
@@ -171,6 +178,15 @@ MonsterCombatPopulation, PlanarTargetPopulation {
   ): boolean {
     this.ensureActive();
     return this.targeting.findBest(this.state, query, result);
+  }
+
+  /** 在群体局部平面中查找一段子弹位移最先接触的存活实体。 */
+  public findFirstPlanarHit(
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean {
+    this.ensureActive();
+    return this.projectileHit.findFirst(this.state, query, result);
   }
 
   /** 把场景目标同步给自主战斗系统。 */

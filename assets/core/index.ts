@@ -11,10 +11,13 @@ export {
   EquipmentCategory,
   EquipmentId,
   EquipmentRarity,
+  WeaponAmmunitionMode,
   WeaponClass,
   type EquipmentDefinition,
   type EquipmentLibrary,
+  type WeaponAmmunitionDefinition,
   type WeaponEquipmentDefinition,
+  type WeaponProjectileDefinition,
 } from './equipment/equipment';
 export {
   WeightedLootTable,
@@ -26,6 +29,11 @@ export type {
   MonsterCombatPopulation,
   PlanarMonsterCombatTarget,
 } from './contracts/monster-combat';
+export type {
+  MutablePlanarMonsterHitResult,
+  PlanarMonsterHitPopulation,
+  PlanarMonsterHitQuery,
+} from './contracts/monster-hit';
 export type {
   MutablePlanarTargetResult,
   PlanarTargetPopulation,

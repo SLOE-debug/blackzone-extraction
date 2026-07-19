@@ -1,8 +1,7 @@
 import { type Material, Node } from 'cc';
 import { EquipmentId } from '../../../../core/equipment/equipment';
-import { type StaticSurfaceBufferGeometry } from '../../../../core/geometry/buffer-geometry';
 import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
-import { DESERT_EAGLE_GEOMETRY } from '../geometry/desert-eagle-geometry';
+import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
 
 const EQUIPMENT_MODEL_SCALE = 0.34;
 const EQUIPMENT_SURFACE_OPTIONS = Object.freeze({
@@ -10,11 +9,6 @@ const EQUIPMENT_SURFACE_OPTIONS = Object.freeze({
   receiveShadows: true,
   uploadLightingAttributes: true,
 });
-
-/** 装备标识到程序化固定拓扑的完整工厂映射。 */
-const EQUIPMENT_GEOMETRY = Object.freeze({
-  [EquipmentId.DesertEagle]: DESERT_EAGLE_GEOMETRY,
-} satisfies Readonly<Record<EquipmentId, StaticSurfaceBufferGeometry>>);
 
 /** 单件掉落装备的 Cocos 节点与 Mesh 适配器。 */
 export class DroppedEquipmentRenderer {
@@ -32,7 +26,7 @@ export class DroppedEquipmentRenderer {
       this.mesh.initialize(
         root,
         'DroppedEquipmentSurface',
-        EQUIPMENT_GEOMETRY[equipmentId],
+        getBattlefieldEquipmentGeometry(equipmentId),
         material,
         EQUIPMENT_SURFACE_OPTIONS,
       );

@@ -47,8 +47,12 @@ class TestProvider implements BattlefieldInteractionProvider {
     return true;
   }
 
-  public activateInteraction(sourceId: number): boolean {
-    this.activated = sourceId === this.id;
+  public activateInteraction(
+    sourceId: number,
+    action: BattlefieldInteractionAction,
+  ): boolean {
+    this.activated = sourceId === this.id
+      && action === BattlefieldInteractionAction.OpenContainer;
     return this.activated;
   }
 }

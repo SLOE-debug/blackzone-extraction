@@ -50,6 +50,7 @@ function initializeVanguardData(
   intent.aimX[0] = 0;
   intent.aimZ[0] = 0;
   intent.aiming[0] = 0;
+  intent.weaponReady[0] = 0;
   motion.velocityX[0] = 0;
   motion.velocityZ[0] = 0;
   motion.speed[0] = 0;
@@ -59,6 +60,7 @@ function initializeVanguardData(
   animation.idlePhase[0] = 0;
   animation.locomotionPhase[0] = 0;
   animation.locomotionBlend[0] = 0;
+  animation.weaponStanceBlend[0] = 0;
   animation.hitFlash[0] = 0;
   writeVanguardMantleRestState(
     mantle,

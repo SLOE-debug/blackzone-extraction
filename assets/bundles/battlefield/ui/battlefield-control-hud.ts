@@ -20,9 +20,11 @@ import {
   type MutableBattlefieldCameraAzimuthDelta,
 } from './battlefield-camera-orbit-input';
 import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
+import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
   [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
+  [BattlefieldInteractionAction.PickupEquipment]: VirtualJoystickActionIcon.PickupEquipment,
 } satisfies Readonly<Record<BattlefieldInteractionAction, VirtualJoystickActionIcon>>);
 
 /** 战场场景持续读取的屏幕空间控制状态。 */
@@ -51,6 +53,7 @@ export class BattlefieldControlHud {
   private readonly movementJoystick: VirtualJoystick;
   private readonly aimJoystick: VirtualJoystick;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
+  private readonly defeatDialog: BattlefieldDefeatDialog;
   private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
   private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
   private readonly mutableState: MutableBattlefieldScreenControlState = {
@@ -81,6 +84,7 @@ export class BattlefieldControlHud {
     parent: Node,
     worldCamera: Camera,
     equipmentLibrary: EquipmentLibrary,
+    onReturnToLobbyRequested: () => void,
   ) {
     this.state = this.mutableState;
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
@@ -88,6 +92,7 @@ export class BattlefieldControlHud {
     let aimJoystick: VirtualJoystick | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
     let equipmentLabel: BattlefieldEquipmentLabelHud | null = null;
+    let defeatDialog: BattlefieldDefeatDialog | null = null;
     try {
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
@@ -105,13 +110,19 @@ export class BattlefieldControlHud {
         worldCamera,
         equipmentLibrary,
       );
+      defeatDialog = new BattlefieldDefeatDialog(
+        this.canvas.node,
+        onReturnToLobbyRequested,
+      );
       this.movementJoystick = movementJoystick;
       this.aimJoystick = aimJoystick;
       this.cameraOrbitInput = cameraOrbitInput;
       this.equipmentLabel = equipmentLabel;
+      this.defeatDialog = defeatDialog;
       this.synchronizeLayout();
       this.canvas.node.active = false;
     } catch (error: unknown) {
+      defeatDialog?.dispose();
       equipmentLabel?.dispose();
       cameraOrbitInput?.dispose();
       movementJoystick?.dispose();
@@ -137,6 +148,7 @@ export class BattlefieldControlHud {
     this.writeMovementState();
     this.writeAimState();
     this.writeCameraOrbitState();
+    this.defeatDialog.update();
     if (this.aimJoystick.consumeActionPress()) {
       this.contextActionPressed = true;
     }
@@ -168,6 +180,21 @@ export class BattlefieldControlHud {
     this.equipmentLabel.present(presentation);
   }
 
+  /** 显示死亡弹窗，并清除仍残留的场景交互提示。 */
+  public showDefeatDialog(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.setContextAction(null);
+    this.presentEquipmentLabel(null);
+    this.defeatDialog.show();
+  }
+
+  /** 同步返回大厅异步加载的等待状态。 */
+  public setReturnToLobbyPending(pending: boolean): void {
+    this.defeatDialog.setPending(pending);
+  }
+
   /** 解除全局键盘监听并销毁双摇杆 Canvas。 */
   public dispose(): void {
     if (this.disposed) {
@@ -179,6 +206,7 @@ export class BattlefieldControlHud {
       input.off(Input.EventType.KEY_UP, this.handleKeyUp, this);
     }
     this.cameraOrbitInput.dispose();
+    this.defeatDialog.dispose();
     this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();

@@ -40,6 +40,13 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
         speed > 0.05 ? 13 : 18,
         deltaTime,
       );
+      const weaponReady = (intent.weaponReady[index] ?? 0) !== 0;
+      animation.weaponStanceBlend[index] = damp(
+        animation.weaponStanceBlend[index] ?? 0,
+        weaponReady ? 1 : 0,
+        weaponReady ? 18 : 14,
+        deltaTime,
+      );
       this.writePose(state, index);
     }
   }
@@ -58,6 +65,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       animation.idlePhase[index] ?? 0,
       animation.locomotionPhase[index] ?? 0,
       animation.locomotionBlend[index] ?? 0,
+      animation.weaponStanceBlend[index] ?? 0,
     );
   }
 }

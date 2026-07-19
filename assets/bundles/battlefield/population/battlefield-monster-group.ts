@@ -4,6 +4,11 @@ import {
   type PlanarMonsterCombatTarget,
 } from '../../../core/contracts/monster-combat';
 import {
+  type MutablePlanarMonsterHitResult,
+  type PlanarMonsterHitPopulation,
+  type PlanarMonsterHitQuery,
+} from '../../../core/contracts/monster-hit';
+import {
   type MutablePlanarTargetResult,
   type PlanarTargetPopulation,
   type PlanarTargetQuery,
@@ -15,12 +20,15 @@ import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
+  type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 
 const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 19;
 const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(24 / 180 * Math.PI);
+const AUTO_LOCK_MINIMUM_ALIGNMENT = Math.cos(68 / 180 * Math.PI);
 
-interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation {
+interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation,
+PlanarMonsterHitPopulation {
   readonly count: number;
   update(deltaTime: number): void;
   dispose(): void;
@@ -41,6 +49,16 @@ interface MutablePlanarMonsterCombatTarget extends PlanarMonsterCombatTarget {
   collisionRadius: number;
 }
 
+interface MutablePlanarMonsterHitQuery extends PlanarMonsterHitQuery {
+  startX: number;
+  startY: number;
+  startElevation: number;
+  endX: number;
+  endY: number;
+  endElevation: number;
+  impactRadius: number;
+}
+
 /** 把一个地图随机怪物群的本地二维坐标装配到战场 XZ 地面。 */
 export class BattlefieldMonsterGroup {
   private readonly modelRoot: Node;
@@ -57,11 +75,28 @@ export class BattlefieldMonsterGroup {
     entityId: -1,
     x: 0,
     y: 0,
+    elevation: 0,
   };
   private readonly localCombatTarget: MutablePlanarMonsterCombatTarget = {
     x: 0,
     y: 0,
     collisionRadius: 0,
+  };
+  private readonly localHitQuery: MutablePlanarMonsterHitQuery = {
+    startX: 0,
+    startY: 0,
+    startElevation: 0,
+    endX: 0,
+    endY: 0,
+    endElevation: 0,
+    impactRadius: 0,
+  };
+  private readonly localHitResult: MutablePlanarMonsterHitResult = {
+    entityId: -1,
+    x: 0,
+    y: 0,
+    elevation: 0,
+    segmentProgress: 0,
   };
   private combatTargetActive = false;
   private disposed = false;
@@ -125,6 +160,87 @@ export class BattlefieldMonsterGroup {
     directionZ: number,
     result: MutableBattlefieldAimTarget,
   ): boolean {
+    return this.writeTarget(
+      originX,
+      originZ,
+      directionX,
+      directionZ,
+      AIM_ASSIST_MINIMUM_ALIGNMENT,
+      result,
+    );
+  }
+
+  /** 在玩家移动朝向的宽锥体内执行自动锁定。 */
+  public writeAutoTarget(
+    originX: number,
+    originZ: number,
+    directionX: number,
+    directionZ: number,
+    result: MutableBattlefieldAimTarget,
+  ): boolean {
+    return this.writeTarget(
+      originX,
+      originZ,
+      directionX,
+      directionZ,
+      AUTO_LOCK_MINIMUM_ALIGNMENT,
+      result,
+    );
+  }
+
+  /** 查询一段世界空间子弹位移最先接触的本群怪物。 */
+  public writeProjectileHit(
+    startX: number,
+    startY: number,
+    startZ: number,
+    endX: number,
+    endY: number,
+    endZ: number,
+    impactRadius: number,
+    result: MutableBattlefieldProjectileHit,
+  ): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    const config = BATTLEFIELD_MONSTER_SPAWN;
+    const inverseScale = 1 / config.modelScale;
+    const query = this.localHitQuery;
+    query.startX = (startX - this.centerX) * inverseScale;
+    query.startY = -(startZ - this.centerZ) * inverseScale;
+    query.startElevation = (startY - config.groundOffsetY) * inverseScale;
+    query.endX = (endX - this.centerX) * inverseScale;
+    query.endY = -(endZ - this.centerZ) * inverseScale;
+    query.endElevation = (endY - config.groundOffsetY) * inverseScale;
+    query.impactRadius = impactRadius * inverseScale;
+    if (!this.population.findFirstPlanarHit(query, this.localHitResult)) {
+      return false;
+    }
+    result.entityId = this.localHitResult.entityId;
+    result.x = this.centerX + this.localHitResult.x * config.modelScale;
+    result.y = config.groundOffsetY
+      + this.localHitResult.elevation * config.modelScale;
+    result.z = this.centerZ - this.localHitResult.y * config.modelScale;
+    result.segmentProgress = this.localHitResult.segmentProgress;
+    return true;
+  }
+
+  /** 把伤害路由到本群稳定实体标识。 */
+  public damageMonster(entityId: number, amount: number): void {
+    if (this.disposed) {
+      return;
+    }
+    this.population.damage(entityId, amount);
+  }
+
+  /** 把战场世界方向转换到本群体局部平面并执行指定角度的目标查询。 */
+  private writeTarget(
+    originX: number,
+    originZ: number,
+    directionX: number,
+    directionZ: number,
+    minimumAlignment: number,
+    result: MutableBattlefieldAimTarget,
+  ): boolean {
     if (this.disposed) {
       return false;
     }
@@ -136,10 +252,13 @@ export class BattlefieldMonsterGroup {
     query.directionX = directionX;
     query.directionY = -directionZ;
     query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE * inverseScale;
+    query.minimumAlignment = minimumAlignment;
     if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
       return false;
     }
     result.x = this.centerX + this.localTargetResult.x * config.modelScale;
+    result.y = config.groundOffsetY
+      + this.localTargetResult.elevation * config.modelScale;
     result.z = this.centerZ - this.localTargetResult.y * config.modelScale;
     return true;
   }

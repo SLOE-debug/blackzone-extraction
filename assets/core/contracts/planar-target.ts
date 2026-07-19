@@ -14,14 +14,15 @@ export interface PlanarTargetQuery {
   readonly minimumAlignment: number;
 }
 
-/** 由调用方复用的二维目标查询结果，避免高频查询创建临时对象。 */
+/** 由调用方复用的地面目标查询结果，平面坐标外同时返回正交高度。 */
 export interface MutablePlanarTargetResult {
   entityId: number;
   x: number;
   y: number;
+  elevation: number;
 }
 
-/** 能够在自身局部二维平面中提供瞄准候选的群体契约。 */
+/** 能够在自身局部地面平面中提供位置与正交高度瞄准候选的群体契约。 */
 export interface PlanarTargetPopulation {
   /**
    * 查找查询方向附近最适合辅助瞄准的存活目标。

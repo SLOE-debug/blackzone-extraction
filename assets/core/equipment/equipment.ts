@@ -21,6 +21,26 @@ export enum WeaponClass {
   Handgun = 'handgun',
 }
 
+/** 武器弹药消耗规则的稳定标识。 */
+export enum WeaponAmmunitionMode {
+  Infinite = 'infinite',
+}
+
+/** 默认不消耗库存的无限弹药规则。 */
+export interface InfiniteWeaponAmmunitionDefinition {
+  readonly mode: WeaponAmmunitionMode.Infinite;
+}
+
+/** 武器定义能够声明的完整弹药规则联合。 */
+export type WeaponAmmunitionDefinition = InfiniteWeaponAmmunitionDefinition;
+
+/** 实体子弹的速度、射程与命中半径。 */
+export interface WeaponProjectileDefinition {
+  readonly speed: number;
+  readonly maximumRange: number;
+  readonly impactRadius: number;
+}
+
 /** 所有装备定义共享的只读身份与展示契约。 */
 export interface EquipmentDefinitionBase<TCategory extends EquipmentCategory> {
   readonly id: EquipmentId;
@@ -36,7 +56,8 @@ extends EquipmentDefinitionBase<EquipmentCategory.Weapon> {
   readonly weaponClass: WeaponClass;
   readonly damage: number;
   readonly fireIntervalSeconds: number;
-  readonly magazineCapacity: number;
+  readonly ammunition: Readonly<WeaponAmmunitionDefinition>;
+  readonly projectile: Readonly<WeaponProjectileDefinition>;
 }
 
 /** 当前装备库允许返回的完整判别联合。 */

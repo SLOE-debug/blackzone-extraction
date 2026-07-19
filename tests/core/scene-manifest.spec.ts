@@ -4,6 +4,14 @@ import { BundleId, SceneId } from '../../assets/core/contracts/runtime-id';
 import { SCENE_MANIFEST } from '../../assets/core/scenes/scene-manifest';
 
 describe('类型化独立场景清单', () => {
+  it('将大厅 Scene 固定映射到主包', () => {
+    const lobby = SCENE_MANIFEST[SceneId.Lobby];
+
+    expect(lobby.id).toBe(SceneId.Lobby);
+    expect(lobby.assetName).toBe('lobby');
+    expect(lobby.bundle).toBe(BUNDLE_MANIFEST[BundleId.Main]);
+  });
+
   it('将战场 Scene 固定映射到 Battlefield Asset Bundle', () => {
     const battlefield = SCENE_MANIFEST[SceneId.Battlefield];
 

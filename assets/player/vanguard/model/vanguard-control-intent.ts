@@ -8,8 +8,10 @@ export interface VanguardControlIntent {
   readonly aimX: number;
   /** 世界 Z 轴上的归一化瞄准方向。 */
   readonly aimZ: number;
-  /** 右摇杆是否正在提供有效瞄准。 */
+  /** 是否应由瞄准方向而非移动方向控制角色朝向。 */
   readonly aiming: boolean;
+  /** 是否已经装备需要呈现持枪姿势的武器。 */
+  readonly weaponReady: boolean;
 }
 
 /** 校验场景写入的控制值，避免无效输入污染连续状态。 */

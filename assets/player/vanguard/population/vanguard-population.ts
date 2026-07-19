@@ -1,6 +1,7 @@
 import { type Material, Node } from 'cc';
 import { type PlanarMovementConstraint } from '../../../core/contracts/planar-movement-constraint';
 import { VanguardAnimationSystem } from '../animation/vanguard-animation-system';
+import { writeVanguardMainHandWeaponSocket } from '../animation/vanguard-weapon-socket-pose';
 import { VanguardDamageSystem } from '../combat/vanguard-damage-system';
 import {
   type VanguardControlIntent,
@@ -10,6 +11,7 @@ import { type VanguardPopulationOptions } from '../model/vanguard-options';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { VANGUARD_MAX_HEALTH, VanguardLifePhase } from '../model/vanguard-life';
 import { VanguardState } from '../model/vanguard-state';
+import { type MutableVanguardWeaponSocketPosition } from '../model/vanguard-weapon-socket';
 import { VanguardMovementSystem } from '../movement/vanguard-movement-system';
 import { VanguardRenderer } from '../rendering/vanguard-renderer';
 import { VanguardMantleSimulationSystem } from '../simulation/vanguard-mantle-system';
@@ -91,6 +93,15 @@ export class VanguardPopulation {
     data.aimX[0] = intent.aimX;
     data.aimZ[0] = intent.aimZ;
     data.aiming[0] = intent.aiming ? 1 : 0;
+    data.weaponReady[0] = intent.weaponReady ? 1 : 0;
+  }
+
+  /** 把当前右手骨骼上的掌心挂点写入调用方复用的世界坐标。 */
+  public writeMainHandWeaponSocket(
+    result: MutableVanguardWeaponSocketPosition,
+  ): void {
+    this.ensureActive();
+    writeVanguardMainHandWeaponSocket(this.state, 0, result);
   }
 
   /** 对主角施加聚合战斗伤害。 */

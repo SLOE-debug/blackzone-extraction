@@ -14,6 +14,7 @@ import {
 import {
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
+  type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 
@@ -21,8 +22,10 @@ const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
 const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
 
 export type {
+  BattlefieldAimTarget,
   BattlefieldMonsterCombatTarget,
   MutableBattlefieldAimTarget,
+  MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 
 /**
@@ -34,7 +37,14 @@ export type {
 export class BattlefieldMonsterPopulation
 implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable {
   private readonly groups: BattlefieldMonsterGroup[] = [];
-  private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, z: 0 };
+  private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
+  private readonly projectileHitCandidate: MutableBattlefieldProjectileHit = {
+    entityId: -1,
+    x: 0,
+    y: 0,
+    z: 0,
+    segmentProgress: 0,
+  };
   private debugGroup: BattlefieldMonsterGroup | null = null;
   private disposed = false;
 
@@ -148,12 +158,97 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
       const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
       if (distanceSquared < bestDistanceSquared) {
         result.x = this.aimCandidate.x;
+        result.y = this.aimCandidate.y;
         result.z = this.aimCandidate.z;
         bestDistanceSquared = distanceSquared;
         found = true;
       }
     }
     return found;
+  }
+
+  /** 在全部活动群体中使用更宽的移动朝向锥体选择自动射击目标。 */
+  public resolveAutoTarget(
+    originX: number,
+    originZ: number,
+    directionX: number,
+    directionZ: number,
+    result: MutableBattlefieldAimTarget,
+  ): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    let found = false;
+    let bestDistanceSquared = Number.POSITIVE_INFINITY;
+    for (const group of this.groups) {
+      if (!group.writeAutoTarget(
+        originX,
+        originZ,
+        directionX,
+        directionZ,
+        this.aimCandidate,
+      )) {
+        continue;
+      }
+      const deltaX = this.aimCandidate.x - originX;
+      const deltaZ = this.aimCandidate.z - originZ;
+      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+      if (distanceSquared < bestDistanceSquared) {
+        result.x = this.aimCandidate.x;
+        result.y = this.aimCandidate.y;
+        result.z = this.aimCandidate.z;
+        bestDistanceSquared = distanceSquared;
+        found = true;
+      }
+    }
+    return found;
+  }
+
+  /** 查找一段世界子弹位移最先接触的怪物，并只对该实体施加一次伤害。 */
+  public damageFirstAlongSegment(
+    startX: number,
+    startY: number,
+    startZ: number,
+    endX: number,
+    endY: number,
+    endZ: number,
+    impactRadius: number,
+    damage: number,
+    result: MutableBattlefieldProjectileHit,
+  ): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    let bestGroup: BattlefieldMonsterGroup | null = null;
+    let bestProgress = Number.POSITIVE_INFINITY;
+    let bestEntityId = -1;
+    for (const group of this.groups) {
+      if (!group.writeProjectileHit(
+        startX,
+        startY,
+        startZ,
+        endX,
+        endY,
+        endZ,
+        impactRadius,
+        this.projectileHitCandidate,
+      ) || this.projectileHitCandidate.segmentProgress >= bestProgress) {
+        continue;
+      }
+      bestGroup = group;
+      bestProgress = this.projectileHitCandidate.segmentProgress;
+      bestEntityId = this.projectileHitCandidate.entityId;
+      result.entityId = bestEntityId;
+      result.x = this.projectileHitCandidate.x;
+      result.y = this.projectileHitCandidate.y;
+      result.z = this.projectileHitCandidate.z;
+      result.segmentProgress = bestProgress;
+    }
+    if (bestGroup === null) {
+      return false;
+    }
+    bestGroup.damageMonster(bestEntityId, damage);
+    return true;
   }
 
   /** 兜底释放仍登记的群体；正常流程会先由 Chunk 注册表清空作用域。 */

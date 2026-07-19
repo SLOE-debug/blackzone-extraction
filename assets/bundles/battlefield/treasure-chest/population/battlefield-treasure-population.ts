@@ -10,7 +10,10 @@ import {
   type ChunkRuntimeParticipant,
   type ChunkRuntimeScope,
 } from '../../../../core/world/chunk-runtime-registry';
-import { type MutableDroppedEquipmentInspection } from '../../equipment/population/dropped-equipment-population';
+import {
+  DroppedEquipmentInstanceIdSequence,
+  type MutableDroppedEquipmentInspection,
+} from '../../equipment/population/dropped-equipment-population';
 import { BattlefieldEnvironmentPopulation } from '../../environment/population/battlefield-environment-population';
 import {
   BattlefieldInteractionAction,
@@ -29,11 +32,13 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>,
 BattlefieldInteractionProvider, Disposable {
   private readonly chests: TreasureChestRuntime[] = [];
   private readonly inspectionCandidate: MutableDroppedEquipmentInspection = {
+    instanceId: -1,
     equipmentId: EquipmentId.DesertEagle,
     x: 0,
     y: 0,
     z: 0,
   };
+  private readonly equipmentInstanceIds = new DroppedEquipmentInstanceIdSequence();
   private disposed = false;
 
   constructor(
@@ -59,6 +64,7 @@ BattlefieldInteractionProvider, Disposable {
         spawn,
         this.equipmentLibrary,
         this.lootTable,
+        this.equipmentInstanceIds,
       );
       this.chests.push(chest);
       scope.own(new TreasureChestOwnership(this.chests, chest));
@@ -121,8 +127,11 @@ BattlefieldInteractionProvider, Disposable {
   }
 
   /** 打开仍处于活动 Chunk 且标识匹配的宝箱。 */
-  public activateInteraction(sourceId: number): boolean {
-    if (this.disposed) {
+  public activateInteraction(
+    sourceId: number,
+    action: BattlefieldInteractionAction,
+  ): boolean {
+    if (this.disposed || action !== BattlefieldInteractionAction.OpenContainer) {
       return false;
     }
     for (const chest of this.chests) {
@@ -157,6 +166,7 @@ BattlefieldInteractionProvider, Disposable {
       const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
       if (distanceSquared < bestDistanceSquared) {
         result.equipmentId = this.inspectionCandidate.equipmentId;
+        result.instanceId = this.inspectionCandidate.instanceId;
         result.x = this.inspectionCandidate.x;
         result.y = this.inspectionCandidate.y;
         result.z = this.inspectionCandidate.z;
@@ -165,6 +175,33 @@ BattlefieldInteractionProvider, Disposable {
       }
     }
     return found;
+  }
+
+  /** 在全部活动宝箱中查找指定掉落实例携带的装备。 */
+  public getDroppedEquipmentId(instanceId: number): EquipmentId | null {
+    if (this.disposed) {
+      return null;
+    }
+    for (const chest of this.chests) {
+      const equipmentId = chest.getDroppedEquipmentId(instanceId);
+      if (equipmentId !== null) {
+        return equipmentId;
+      }
+    }
+    return null;
+  }
+
+  /** 从拥有指定实例的活动宝箱中移除已经完成拾取的装备。 */
+  public removeDroppedEquipment(instanceId: number): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    for (const chest of this.chests) {
+      if (chest.removeDroppedEquipment(instanceId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public dispose(): void {

@@ -1,6 +1,7 @@
 /** 右侧操作区能够呈现和触发的强类型场景交互。 */
 export enum BattlefieldInteractionAction {
   OpenContainer,
+  PickupEquipment,
 }
 
 /** 交互提供者写入的可复用最近候选。 */
@@ -22,5 +23,5 @@ export interface BattlefieldInteractionProvider {
   ): boolean;
 
   /** 激活此前返回的候选；候选已失效时返回 false。 */
-  activateInteraction(sourceId: number): boolean;
+  activateInteraction(sourceId: number, action: BattlefieldInteractionAction): boolean;
 }

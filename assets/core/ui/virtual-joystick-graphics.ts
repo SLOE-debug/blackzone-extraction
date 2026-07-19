@@ -11,6 +11,7 @@ enum JoystickDirectionMarker {
 /** 虚拟摇杆切换为场景操作按钮时可绘制的中心图案。 */
 export enum VirtualJoystickActionIcon {
   OpenContainer,
+  PickupEquipment,
 }
 
 /** 虚拟摇杆的扁平圆形配色。 */
@@ -75,7 +76,38 @@ function drawActionIcon(
     case VirtualJoystickActionIcon.OpenContainer:
       drawOpenContainerIcon(graphics, centerX, centerY, color);
       break;
+    case VirtualJoystickActionIcon.PickupEquipment:
+      drawPickupEquipmentIcon(graphics, centerX, centerY, color);
+      break;
   }
+}
+
+/** 用倾斜枪身和向上箭头表达“拾取装备”。 */
+function drawPickupEquipmentIcon(
+  graphics: Graphics,
+  centerX: number,
+  centerY: number,
+  color: Readonly<Color>,
+): void {
+  graphics.strokeColor = color;
+  graphics.fillColor = color;
+  graphics.lineWidth = 3;
+  graphics.moveTo(centerX - 16, centerY - 5);
+  graphics.lineTo(centerX + 8, centerY + 7);
+  graphics.lineTo(centerX + 15, centerY + 5);
+  graphics.lineTo(centerX + 16, centerY + 1);
+  graphics.lineTo(centerX + 7, centerY - 1);
+  graphics.lineTo(centerX - 4, centerY - 12);
+  graphics.lineTo(centerX - 10, centerY - 11);
+  graphics.lineTo(centerX - 8, centerY - 5);
+  graphics.close();
+  graphics.stroke();
+  graphics.moveTo(centerX, centerY - 3);
+  graphics.lineTo(centerX, centerY + 14);
+  graphics.lineTo(centerX - 5, centerY + 9);
+  graphics.moveTo(centerX, centerY + 14);
+  graphics.lineTo(centerX + 5, centerY + 9);
+  graphics.stroke();
 }
 
 /** 用不规则箱体、抬起的箱盖和向上短箭头表达“打开”。 */

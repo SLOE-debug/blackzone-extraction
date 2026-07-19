@@ -1,4 +1,5 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { CURVE_CRAWLER_BODY_SHAPE } from '../model/curve-crawler-body-shape';
 import {
   CURVE_CRAWLER_FRAGMENT_COUNT,
   CURVE_CRAWLER_LEG_COUNT,
@@ -205,8 +206,9 @@ export function evaluateCurveCrawlerBodyMesh(
 
   const abdomenFragment = fragmentOffset + CurveCrawlerFragmentIndex.Abdomen;
   const thoraxFragment = fragmentOffset + CurveCrawlerFragmentIndex.Thorax;
-  const abdomenRadiusZ = bodyWidth * 0.42;
-  const thoraxRadiusZ = bodyWidth * 0.36;
+  const bodyShape = CURVE_CRAWLER_BODY_SHAPE;
+  const abdomenRadiusZ = bodyWidth * bodyShape.abdomenHeightRadiusScale;
+  const thoraxRadiusZ = bodyWidth * bodyShape.thoraxHeightRadiusScale;
   const biteForwardOffset = bodyLength * 0.16 * biteAmount;
   evaluateEllipsoid(
     plan.bodyEllipsoid,
@@ -216,7 +218,10 @@ export function evaluateCurveCrawlerBodyMesh(
       + (animation.fragmentOffsetX[abdomenFragment] ?? 0),
     originY - headingSine * (bodyLength * 0.15 + biteForwardOffset * 0.14)
       + (animation.fragmentOffsetY[abdomenFragment] ?? 0),
-    abdomenRadiusZ * (0.92 - crouchAmount * 0.22) + (animation.fragmentOffsetZ[abdomenFragment] ?? 0),
+    abdomenRadiusZ * (
+      bodyShape.abdomenCenterHeightScale
+      - crouchAmount * bodyShape.abdomenCrouchCenterScale
+    ) + (animation.fragmentOffsetZ[abdomenFragment] ?? 0),
     Math.max(bodyLength * 0.48 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.52 * fragmentScale, 0.0001),
     Math.max(abdomenRadiusZ * fragmentScale, 0.0001),
@@ -232,7 +237,11 @@ export function evaluateCurveCrawlerBodyMesh(
       + (animation.fragmentOffsetX[thoraxFragment] ?? 0),
     originY + headingSine * (bodyLength * 0.28 + biteForwardOffset)
       + (animation.fragmentOffsetY[thoraxFragment] ?? 0),
-    thoraxRadiusZ * (1.08 - crouchAmount * 0.2 - biteAmount * 0.12)
+    thoraxRadiusZ * (
+      bodyShape.thoraxCenterHeightScale
+      - crouchAmount * bodyShape.thoraxCrouchCenterScale
+      - biteAmount * bodyShape.thoraxBiteCenterScale
+    )
       + (animation.fragmentOffsetZ[thoraxFragment] ?? 0),
     Math.max(bodyLength * 0.3 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.42 * fragmentScale, 0.0001),

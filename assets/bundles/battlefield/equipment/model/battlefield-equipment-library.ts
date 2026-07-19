@@ -4,6 +4,7 @@ import {
   EquipmentId,
   type EquipmentLibrary,
   EquipmentRarity,
+  WeaponAmmunitionMode,
   WeaponClass,
 } from '../../../../core/equipment/equipment';
 
@@ -18,7 +19,14 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
     weaponClass: WeaponClass.Handgun,
     damage: 74,
     fireIntervalSeconds: 0.32,
-    magazineCapacity: 7,
+    ammunition: Object.freeze({
+      mode: WeaponAmmunitionMode.Infinite,
+    }),
+    projectile: Object.freeze({
+      speed: 31,
+      maximumRange: 20,
+      impactRadius: 0.12,
+    }),
   }),
 } satisfies Readonly<Record<EquipmentId, EquipmentDefinition>>);
 

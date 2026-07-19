@@ -2,6 +2,7 @@ import {
   type MutablePlanarTargetResult,
   type PlanarTargetQuery,
 } from '../../../../../core/contracts/planar-target';
+import { calculateCurveCrawlerAimElevation } from '../model/curve-crawler-combat-volume';
 import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
@@ -16,7 +17,7 @@ export class CurveCrawlerTargeting {
     result: MutablePlanarTargetResult,
   ): boolean {
     validateQuery(query);
-    const { identity, transform, vitality } = state.data;
+    const { identity, transform, morphology, vitality, animation } = state.data;
     let bestIndex = -1;
     let bestScore = Number.POSITIVE_INFINITY;
 
@@ -51,6 +52,12 @@ export class CurveCrawlerTargeting {
     result.entityId = identity.id[bestIndex] ?? bestIndex;
     result.x = transform.x[bestIndex] ?? 0;
     result.y = transform.y[bestIndex] ?? 0;
+    result.elevation = calculateCurveCrawlerAimElevation(
+      morphology.bodyWidth[bestIndex] ?? 0,
+      animation.bodyPulse[bestIndex] ?? 0,
+      animation.crouchAmount[bestIndex] ?? 0,
+      animation.biteAmount[bestIndex] ?? 0,
+    );
     return true;
   }
 }
