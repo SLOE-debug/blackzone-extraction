@@ -1,4 +1,4 @@
-import { type SurfaceBufferGeometry } from '../../../../../core/geometry/buffer-geometry';
+import { type UnlitColorBufferGeometry } from '../../../../../core/geometry/buffer-geometry';
 import { type BattlefieldProjectileState } from '../model/battlefield-projectile-state';
 
 /** 一发低密度分面弹体使用八个独立三角面。 */
@@ -28,7 +28,7 @@ const DIRECTION_EPSILON = 0.000001;
 
 /** 初始化全部子弹槽位的固定索引和确定性分面颜色。 */
 export function initializeBattlefieldProjectileGeometry(
-  geometry: SurfaceBufferGeometry,
+  geometry: UnlitColorBufferGeometry,
   capacity: number,
 ): void {
   const topology = BATTLEFIELD_PROJECTILE_TOPOLOGY;
@@ -52,7 +52,6 @@ export function initializeBattlefieldProjectileGeometry(
     geometry.colors[colorOffset + 3] = color.alpha;
   }
   geometry.positions.fill(0);
-  geometry.normals.fill(0);
   geometry.commitCounts(vertexCount, indexCount);
 }
 

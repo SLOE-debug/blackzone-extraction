@@ -134,7 +134,7 @@ LobbySceneRuntime.update(deltaTime)
       ├─ evaluateFacetedCenters()
       │  └─ 四角平均值 + 当前面法线 × ridge
       ├─ expandRenderPositions()
-      └─ computeFlatNormals()
+      └─ Core writeSequentialFlatNormals()
          ↓
       DynamicMeshBatch.uploadVertexAttributes(MeshDirty.Pose)
       └─ 只上传 Position + Normal；Color 与 Index 不重传
@@ -194,23 +194,21 @@ writeLobbyFrontWall()
    │  ├─ 交替对角线策略
    │  ├─ 三角形绕序
    │  └─ 固定 seed 与形变参数
-   └─ appendFlatGridPatch(writer, spec, context)
-      ├─ 采样 (columns + 1) × (rows + 1) 个共享网格点
-      ├─ sampleLobbySurface()
-      │  ├─ 切向 U/V 确定性扰动
-      │  └─ 法向 Jitter 或 CaveRelief
-      │     ├─ 边缘衰减
-      │     ├─ 两组宽缓岩体隆起
-      │     ├─ 正弦脊线
-      │     └─ 固定 seed 细节
-      ├─ SurfaceFrame 将局部 U/V/N 映射到世界 XYZ
-      └─ 每个 Grid Cell 按交替对角线拆成 2 个三角形
-         └─ appendLobbyTriangle()
-            ├─ 由绕序计算单位面法线
-            └─ 每个三角形写 3 个独立顶点
+   ├─ Core sampleFlatGrid(plan, lobbyGridSampler, context, workspace)
+   │  ├─ 采样 (columns + 1) × (rows + 1) 个共享网格点
+   │  └─ sampleLobbySurface()
+   │     ├─ 切向 U/V 确定性扰动
+   │     └─ 法向 Jitter 或 CaveRelief
+   │        ├─ 边缘衰减
+   │        ├─ 两组宽缓岩体隆起
+   │        ├─ 正弦脊线
+   │        └─ 固定 seed 细节
+   └─ Core emitSampledFlatGrid()
+      ├─ FlatGridPlan 按交替对角线展开样本索引
+      └─ Faceted Emitter 计算面法线并写入独立顶点
 ```
 
-`SurfaceFrame` 让同一个 Grid Patch 算法能够生成水平地面、向下的天花板和朝向大厅内部的不同墙面，而不在核心算法里硬编码世界轴。
+Core `SurfaceFrame` 让同一个 Grid Plan 能够生成水平地面、向下的天花板和朝向大厅内部的不同墙面，而不在核心算法里硬编码世界轴。
 
 ### 7.3 带圆形观察窗的后墙特殊路线
 

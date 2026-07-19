@@ -1,4 +1,5 @@
 import { type EntityRange } from '../../../core/entities/entity-range';
+import { writeSequentialFlatNormals } from '../../../core/geometry/faceted/sequential-flat-normal';
 import { MeshDirty } from '../../../core/mesh/mesh-dirty';
 import { type MeshEvaluator } from '../../../core/mesh/mesh-evaluator';
 import { type VertexStreams } from '../../../core/mesh/vertex-streams';
@@ -99,7 +100,7 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
     this.applyMantleControls(state, entityIndex);
     this.evaluateFacetedCenters();
     this.expandRenderPositions(streams.positions, vertexOffset);
-    this.computeFlatNormals(streams.normals, vertexOffset);
+    writeSequentialFlatNormals(this.renderPositions, streams.normals, vertexOffset);
   }
 
   /** 用角色本地披风中面和粒子法线覆盖骨骼蒙皮后的自由披片控制点。 */
@@ -322,35 +323,6 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
       positions[targetOffset] = x;
       positions[targetOffset + 1] = y;
       positions[targetOffset + 2] = z;
-    }
-  }
-
-  /** 从双精度展开位置计算每组三个独立顶点的硬分面法线。 */
-  private computeFlatNormals(normals: Float32Array, vertexOffset: number): void {
-    for (let offset = 0; offset < this.renderPositions.length; offset += 9) {
-      const ax = this.renderPositions[offset] ?? 0;
-      const ay = this.renderPositions[offset + 1] ?? 0;
-      const az = this.renderPositions[offset + 2] ?? 0;
-      const edgeABX = (this.renderPositions[offset + 3] ?? 0) - ax;
-      const edgeABY = (this.renderPositions[offset + 4] ?? 0) - ay;
-      const edgeABZ = (this.renderPositions[offset + 5] ?? 0) - az;
-      const edgeACX = (this.renderPositions[offset + 6] ?? 0) - ax;
-      const edgeACY = (this.renderPositions[offset + 7] ?? 0) - ay;
-      const edgeACZ = (this.renderPositions[offset + 8] ?? 0) - az;
-      const crossX = edgeABY * edgeACZ - edgeABZ * edgeACY;
-      const crossY = edgeABZ * edgeACX - edgeABX * edgeACZ;
-      const crossZ = edgeABX * edgeACY - edgeABY * edgeACX;
-      const inverseLength = 1 / Math.max(Math.hypot(crossX, crossY, crossZ), EPSILON);
-      const normalX = crossX * inverseLength;
-      const normalY = crossY * inverseLength;
-      const normalZ = crossZ * inverseLength;
-      const firstVertex = vertexOffset + offset / 3;
-      for (let vertex = 0; vertex < 3; vertex++) {
-        const targetOffset = (firstVertex + vertex) * 3;
-        normals[targetOffset] = normalX;
-        normals[targetOffset + 1] = normalY;
-        normals[targetOffset + 2] = normalZ;
-      }
     }
   }
 

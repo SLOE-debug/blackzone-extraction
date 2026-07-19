@@ -46,7 +46,6 @@ export class VanguardRenderer {
         indexFormat: GeometryIndexFormat.Uint16,
         bounds: this.bounds,
         surfaceOptions: Object.freeze({
-          uploadLightingAttributes: true,
           castShadows: true,
           receiveShadows: true,
         }),

@@ -1,4 +1,21 @@
 import { type TriangleMeshWriter } from '../../core/geometry/triangle-mesh-writer';
+import {
+  emitSampledRadialTopology,
+  sampleRadialTopology,
+} from '../../core/geometry/radial/radial-emitter';
+import { type RadialRingSource } from '../../core/geometry/radial/radial-ring-source';
+import {
+  compileRadialTopologyPlan,
+  RadialDegeneratePolicy,
+  RadialSegmentOperationKind,
+  RadialTopologyPassKind,
+  RadialTriangleOrder,
+  RadialWinding,
+} from '../../core/geometry/radial/radial-topology-plan';
+import {
+  createRadialWorkspace,
+  type RadialPositionArray,
+} from '../../core/geometry/radial/radial-workspace';
 import { LOBBY_LAYOUT } from '../model/lobby-layout';
 import {
   appendLobbyTriangle,
@@ -17,21 +34,47 @@ enum ObservationWallBand {
   Boundary,
 }
 
+const OBSERVATION_WALL_PLAN = compileRadialTopologyPlan({
+  ringCount: 3,
+  segmentCount: LOBBY_OBSERVATION_WINDOW_SEGMENTS,
+  centerCount: 0,
+  degeneratePolicy: RadialDegeneratePolicy.PreserveFixedTopology,
+  passes: Object.freeze([Object.freeze({
+    kind: RadialTopologyPassKind.SegmentSequence,
+    operations: Object.freeze([
+      Object.freeze({
+        kind: RadialSegmentOperationKind.SideBand,
+        firstRing: ObservationWallBand.Opening,
+        secondRing: ObservationWallBand.Relief,
+        winding: RadialWinding.Forward,
+        triangleOrder: RadialTriangleOrder.PrimaryFirst,
+      }),
+      Object.freeze({
+        kind: RadialSegmentOperationKind.SideBand,
+        firstRing: ObservationWallBand.Relief,
+        secondRing: ObservationWallBand.Boundary,
+        winding: RadialWinding.Forward,
+        triangleOrder: RadialTriangleOrder.PrimaryFirst,
+      }),
+    ]),
+  })]),
+});
+const OBSERVATION_WALL_WORKSPACE = createRadialWorkspace(OBSERVATION_WALL_PLAN);
+
 /** 写入直径严格等于墙高的圆形开口后墙。 */
 export function writeLobbyObservationWall(writer: TriangleMeshWriter): void {
-  for (let segment = 0; segment < LOBBY_OBSERVATION_WINDOW_SEGMENTS; segment++) {
-    const opening0 = createObservationWallPoint(segment, ObservationWallBand.Opening);
-    const opening1 = createObservationWallPoint(segment + 1, ObservationWallBand.Opening);
-    const relief0 = createObservationWallPoint(segment, ObservationWallBand.Relief);
-    const relief1 = createObservationWallPoint(segment + 1, ObservationWallBand.Relief);
-    const boundary0 = createObservationWallPoint(segment, ObservationWallBand.Boundary);
-    const boundary1 = createObservationWallPoint(segment + 1, ObservationWallBand.Boundary);
-
-    appendLobbyTriangle(writer, opening0, relief0, relief1);
-    appendLobbyTriangle(writer, opening0, relief1, opening1);
-    appendLobbyTriangle(writer, relief0, boundary0, boundary1);
-    appendLobbyTriangle(writer, relief0, boundary1, relief1);
-  }
+  sampleRadialTopology(
+    OBSERVATION_WALL_PLAN,
+    OBSERVATION_WALL_SOURCE,
+    undefined,
+    OBSERVATION_WALL_WORKSPACE,
+  );
+  emitSampledRadialTopology(
+    OBSERVATION_WALL_PLAN,
+    OBSERVATION_WALL_WORKSPACE,
+    writer,
+    undefined,
+  );
 }
 
 /** 写入嵌入后墙开口、同时覆盖洞口切面的厚重分面框。 */
@@ -72,29 +115,46 @@ export function writeLobbyObservationGlass(writer: TriangleMeshWriter): void {
   }
 }
 
-/** 生成圆形洞口、岩壁起伏层或矩形墙边界上的径向点。 */
-function createObservationWallPoint(
-  segment: number,
-  band: ObservationWallBand,
-): LobbyPoint3 {
-  const normalized = normalizeSegment(segment);
-  const angle = normalized / LOBBY_OBSERVATION_WINDOW_SEGMENTS * Math.PI * 2;
-  const boundaryDistance = getWallBoundaryDistance(angle);
-  const openingDistance = LOBBY_LAYOUT.observationRadius;
-  const radialSpan = boundaryDistance - openingDistance;
-  const distance = band === ObservationWallBand.Opening
-    ? openingDistance
-    : band === ObservationWallBand.Relief
-      ? openingDistance + radialSpan * 0.54
-      : boundaryDistance;
-  const relief = band === ObservationWallBand.Relief && radialSpan > 0.0001
-    ? 0.2 + getLobbyGeometryJitter(normalized, 3, 131, 0.16)
-    : 0;
-  return {
-    x: Math.cos(angle) * distance,
-    y: LOBBY_LAYOUT.observationCenterY + Math.sin(angle) * distance,
-    z: LOBBY_LAYOUT.observationWallZ + relief,
-  };
+/** 圆形洞口、岩壁起伏层和矩形墙边界的领域 Ring Source。 */
+const OBSERVATION_WALL_SOURCE: RadialRingSource<undefined> = Object.freeze({
+  sampleRing(_context, ringIndex, segment, output, outputOffset): void {
+    const band = ringIndex as ObservationWallBand;
+    const angle = segment / LOBBY_OBSERVATION_WINDOW_SEGMENTS * Math.PI * 2;
+    const boundaryDistance = getWallBoundaryDistance(angle);
+    const openingDistance = LOBBY_LAYOUT.observationRadius;
+    const radialSpan = boundaryDistance - openingDistance;
+    const distance = band === ObservationWallBand.Opening
+      ? openingDistance
+      : band === ObservationWallBand.Relief
+        ? openingDistance + radialSpan * 0.54
+        : boundaryDistance;
+    const relief = band === ObservationWallBand.Relief && radialSpan > 0.0001
+      ? 0.2 + getLobbyGeometryJitter(segment, 3, 131, 0.16)
+      : 0;
+    writeRadialPosition(
+      output,
+      outputOffset,
+      Math.cos(angle) * distance,
+      LOBBY_LAYOUT.observationCenterY + Math.sin(angle) * distance,
+      LOBBY_LAYOUT.observationWallZ + relief,
+    );
+  },
+  sampleCenter(): void {
+    throw new Error('大厅观察墙 Radial Plan 不包含 Fan 中心。');
+  },
+});
+
+/** 原地写入观察墙的双精度 Radial 采样点。 */
+function writeRadialPosition(
+  output: RadialPositionArray,
+  outputOffset: number,
+  x: number,
+  y: number,
+  z: number,
+): void {
+  output[outputOffset] = x;
+  output[outputOffset + 1] = y;
+  output[outputOffset + 2] = z;
 }
 
 /** 计算从洞口中心沿指定方向到矩形后墙外边界的距离。 */

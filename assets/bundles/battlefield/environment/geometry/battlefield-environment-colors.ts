@@ -1,4 +1,4 @@
-import { type BattlefieldEnvironmentColor } from './battlefield-environment-mesh-builder';
+import { type BattlefieldEnvironmentColor } from './battlefield-environment-mesh-sink';
 
 const BYTE_COLOR_SCALE = 1 / 255;
 

@@ -1,4 +1,4 @@
-import { type FacetedColor } from '../../../../core/geometry/faceted-mesh-builder';
+import { type FacetedColor } from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
 
 /** 宝箱木材、金属和内衬使用的线性顶点色。 */
 export const TREASURE_CHEST_PALETTE = Object.freeze({

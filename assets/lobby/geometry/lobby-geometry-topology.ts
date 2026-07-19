@@ -1,5 +1,5 @@
 import { type FixedTopologyMetrics } from '../../core/geometry/fixed-topology';
-import { type GeometrySectionMap } from './infrastructure/geometry-section-composer';
+import { type GeometrySectionMap } from '../../core/geometry/sections/geometry-section-composer';
 import { LOBBY_ALTAR_TRIANGLE_COUNT } from './lobby-altar-layout';
 import { LOBBY_FLOOR_CRACK_SEGMENT_COUNT } from './lobby-floor-crack-layout';
 import {

@@ -1,3 +1,8 @@
+import {
+  type VertexLayout,
+  type VertexSemantic,
+} from './vertex-layout';
+
 /** 单实体局部网格计划支持的索引缓冲类型。 */
 export type MeshPlanIndexArray = Uint16Array | Uint32Array;
 
@@ -13,6 +18,12 @@ export interface MeshPlan {
   readonly indexCount: number;
   /** 相对于单实体顶点起点的固定索引。 */
   readonly indices: MeshPlanIndexArray;
+}
+
+/** 把固定拓扑计划与其精确运行时顶点布局绑定。 */
+export interface VertexLayoutMeshPlan<TSemantics extends VertexSemantic>
+  extends MeshPlan {
+  readonly vertexLayout: VertexLayout<TSemantics>;
 }
 
 /**

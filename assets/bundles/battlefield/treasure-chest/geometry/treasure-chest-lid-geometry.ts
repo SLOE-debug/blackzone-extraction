@@ -1,7 +1,8 @@
 import {
-  FacetedMeshBuilder,
-  type FacetedPoint,
-} from '../../../../core/geometry/faceted-mesh-builder';
+  emitOrientedFlatQuad,
+} from '../../../../core/geometry/faceted/faceted-emitter';
+import { type FacetedPoint } from '../../../../core/geometry/faceted/facet-orientation';
+import { StaticFacetedMeshSink } from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TREASURE_CHEST_PALETTE } from './treasure-chest-palette';
 
@@ -22,16 +23,16 @@ const LID_PROFILE = Object.freeze([
 
 /** 编译具有不等宽拱面和错落切面的宝箱盖固定拓扑。 */
 export function createTreasureChestLidGeometry() {
-  const builder = new FacetedMeshBuilder();
-  appendArchedShell(builder);
-  appendEndFaces(builder);
-  appendUnderside(builder);
-  appendMetalBand(builder, 0.3, 0.39);
-  appendMetalBand(builder, 0.84, 0.94);
-  return builder.build();
+  const sink = new StaticFacetedMeshSink();
+  appendArchedShell(sink);
+  appendEndFaces(sink);
+  appendUnderside(sink);
+  appendMetalBand(sink, 0.3, 0.39);
+  appendMetalBand(sink, 0.84, 0.94);
+  return sink.build();
 }
 
-function appendArchedShell(builder: FacetedMeshBuilder): void {
+function appendArchedShell(sink: StaticFacetedMeshSink): void {
   for (let index = 0; index < LID_PROFILE.length - 1; index++) {
     const current = requireSection(index);
     const next = requireSection(index + 1);
@@ -44,7 +45,8 @@ function appendArchedShell(builder: FacetedMeshBuilder): void {
       : index % 3 === 1
         ? TREASURE_CHEST_PALETTE.timber
         : TREASURE_CHEST_PALETTE.timberDark;
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       color,
       leftCurrent,
       rightCurrent,
@@ -55,7 +57,8 @@ function appendArchedShell(builder: FacetedMeshBuilder): void {
       current.z + next.z - 1.1,
     );
 
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       index % 2 === 0 ? TREASURE_CHEST_PALETTE.timberDark : TREASURE_CHEST_PALETTE.timber,
       leftCurrent,
       leftNext,
@@ -65,7 +68,8 @@ function appendArchedShell(builder: FacetedMeshBuilder): void {
       0,
       0,
     );
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       index % 2 === 0 ? TREASURE_CHEST_PALETTE.timber : TREASURE_CHEST_PALETTE.timberDark,
       rightCurrent,
       basePoint(current, 1),
@@ -78,10 +82,11 @@ function appendArchedShell(builder: FacetedMeshBuilder): void {
   }
 }
 
-function appendEndFaces(builder: FacetedMeshBuilder): void {
+function appendEndFaces(sink: StaticFacetedMeshSink): void {
   const rear = requireSection(0);
   const front = requireSection(LID_PROFILE.length - 1);
-  builder.orientedQuad(
+  emitOrientedFlatQuad(
+    sink,
     TREASURE_CHEST_PALETTE.metalDark,
     sectionPoint(rear, -1, 0),
     basePoint(rear, -1),
@@ -91,7 +96,8 @@ function appendEndFaces(builder: FacetedMeshBuilder): void {
     0,
     -1,
   );
-  builder.orientedQuad(
+  emitOrientedFlatQuad(
+    sink,
     TREASURE_CHEST_PALETTE.metal,
     sectionPoint(front, -1, LID_PROFILE.length - 1),
     sectionPoint(front, 1, LID_PROFILE.length - 1),
@@ -103,10 +109,11 @@ function appendEndFaces(builder: FacetedMeshBuilder): void {
   );
 }
 
-function appendUnderside(builder: FacetedMeshBuilder): void {
+function appendUnderside(sink: StaticFacetedMeshSink): void {
   const rear = requireSection(0);
   const front = requireSection(LID_PROFILE.length - 1);
-  builder.orientedQuad(
+  emitOrientedFlatQuad(
+    sink,
     TREASURE_CHEST_PALETTE.cavity,
     basePoint(rear, -1),
     basePoint(front, -1),
@@ -119,7 +126,7 @@ function appendUnderside(builder: FacetedMeshBuilder): void {
 }
 
 /** 沿拱面插值一条具有轻微偏心的金属束带。 */
-function appendMetalBand(builder: FacetedMeshBuilder, startZ: number, endZ: number): void {
+function appendMetalBand(sink: StaticFacetedMeshSink, startZ: number, endZ: number): void {
   const start = sampleProfile(startZ);
   const end = sampleProfile(endZ);
   const widthScale = TREASURE_CHEST_LAYOUT.widthScale;
@@ -127,7 +134,8 @@ function appendMetalBand(builder: FacetedMeshBuilder, startZ: number, endZ: numb
   const rightStart = Object.freeze({ x: start.halfWidth * widthScale + 0.012, y: start.y + 0.025, z: start.z });
   const leftEnd = Object.freeze({ x: -end.halfWidth * widthScale - 0.014, y: end.y + 0.025, z: end.z });
   const rightEnd = Object.freeze({ x: end.halfWidth * widthScale + 0.02, y: end.y + 0.025, z: end.z });
-  builder.orientedQuad(
+  emitOrientedFlatQuad(
+    sink,
     TREASURE_CHEST_PALETTE.metalLight,
     leftStart,
     rightStart,

@@ -1,29 +1,33 @@
-import { type SurfaceBufferGeometry } from '../geometry/buffer-geometry';
+import {
+  type GeometryIndexArray,
+  type VertexLayoutBufferGeometry,
+} from '../geometry/buffer-geometry';
+import {
+  type LitColorVertexSemantic,
+  type VertexSemantic,
+  type VertexStreams as LayoutVertexStreams,
+} from './vertex-layout';
+
+/** 精确包含指定布局语义的运行时 SoA 顶点流视图。 */
+export type VertexStreams<
+  TSemantics extends VertexSemantic = LitColorVertexSemantic,
+> = LayoutVertexStreams<TSemantics>;
 
 /**
- * 动态表面网格可由 Evaluator 原地写入的有效顶点流。
+ * 从已经提交有效计数的布局几何创建运行时顶点流视图。
  *
- * 每个数组都是 SurfaceBufferGeometry 当前有效范围的零拷贝视图，不拥有缓冲区。
+ * @param geometry 提供布局和底层强类型缓冲的几何。
+ * @returns 与几何有效顶点范围共享底层 ArrayBuffer 的精确流集合。
  */
-export interface VertexStreams {
-  /** 每个顶点三个分量的位置流。 */
-  readonly positions: Float32Array;
-  /** 每个顶点三个分量的单位法线流。 */
-  readonly normals: Float32Array;
-  /** 每个顶点四个分量的线性 RGBA 颜色流。 */
-  readonly colors: Float32Array;
-}
-
-/**
- * 从已经提交有效计数的表面几何创建运行时顶点流视图。
- *
- * @param geometry 提供底层强类型缓冲的表面几何。
- * @returns 与几何有效顶点范围共享底层 ArrayBuffer 的只读流集合。
- */
-export function createVertexStreams(geometry: SurfaceBufferGeometry): VertexStreams {
-  return Object.freeze({
-    positions: geometry.getPositionView(),
-    normals: geometry.getNormalView(),
-    colors: geometry.getColorView(),
-  });
+export function createVertexStreams<
+  TSemantics extends VertexSemantic,
+  TIndex extends GeometryIndexArray,
+>(
+  geometry: VertexLayoutBufferGeometry<TSemantics, TIndex>,
+): VertexStreams<TSemantics> {
+  const streams: Partial<Record<VertexSemantic, Float32Array>> = {};
+  for (const semantic of geometry.layout.semantics) {
+    streams[semantic] = geometry.getStreamView(semantic);
+  }
+  return Object.freeze(streams) as VertexStreams<TSemantics>;
 }

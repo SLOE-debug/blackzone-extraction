@@ -9,6 +9,14 @@ export interface BattlefieldGroundPatchFrame {
   readonly firstGlobalRow: number;
 }
 
+/** Ground Geometry 持有并在 Chunk 变化时原地覆盖的定位帧。 */
+export interface MutableBattlefieldGroundPatchFrame extends BattlefieldGroundPatchFrame {
+  centerWorldX: number;
+  centerWorldZ: number;
+  firstGlobalColumn: number;
+  firstGlobalRow: number;
+}
+
 /** 可复用的地面格点采样结果。 */
 export interface BattlefieldGroundPoint {
   x: number;
@@ -41,18 +49,32 @@ export function createBattlefieldGroundPatchFrame(
   centerChunkX: number,
   centerChunkZ: number,
 ): BattlefieldGroundPatchFrame {
+  const frame: MutableBattlefieldGroundPatchFrame = {
+    centerWorldX: 0,
+    centerWorldZ: 0,
+    firstGlobalColumn: 0,
+    firstGlobalRow: 0,
+  };
+  writeBattlefieldGroundPatchFrame(frame, centerChunkX, centerChunkZ);
+  return frame;
+}
+
+/** 原地更新可复用定位帧，避免 Chunk 切换时创建临时上下文。 */
+export function writeBattlefieldGroundPatchFrame(
+  frame: MutableBattlefieldGroundPatchFrame,
+  centerChunkX: number,
+  centerChunkZ: number,
+): void {
   if (!Number.isInteger(centerChunkX) || !Number.isInteger(centerChunkZ)) {
     throw new Error('地面补丁中心必须使用整数 Chunk 坐标。');
   }
 
   const centerGlobalColumn = centerChunkX * CELLS_PER_CHUNK_X;
   const centerGlobalRow = centerChunkZ * CELLS_PER_CHUNK_Z;
-  return {
-    centerWorldX: centerChunkX * BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize,
-    centerWorldZ: centerChunkZ * BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize,
-    firstGlobalColumn: centerGlobalColumn - HALF_COLUMN_COUNT,
-    firstGlobalRow: centerGlobalRow - HALF_ROW_COUNT,
-  };
+  frame.centerWorldX = centerChunkX * BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize;
+  frame.centerWorldZ = centerChunkZ * BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize;
+  frame.firstGlobalColumn = centerGlobalColumn - HALF_COLUMN_COUNT;
+  frame.firstGlobalRow = centerGlobalRow - HALF_ROW_COUNT;
 }
 
 /**

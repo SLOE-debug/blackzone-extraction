@@ -5,11 +5,14 @@ import {
   randomRange,
 } from '../../../../core/math/xorshift32';
 import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG,
   BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG,
 } from '../model/battlefield-environment-config';
+import {
+  BattlefieldEnvironmentPrototype,
+  type BattlefieldEnvironmentPrototype as BattlefieldEnvironmentPrototypeId,
+  getBattlefieldEnvironmentDefinition,
+} from '../catalog/battlefield-environment-catalog';
 import { BATTLEFIELD_ENVIRONMENT_LANDMARKS } from '../model/battlefield-environment-landmarks';
-import { BattlefieldEnvironmentPrototype } from '../model/battlefield-environment-prototype';
 import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
 
 const TAU = Math.PI * 2;
@@ -269,7 +272,7 @@ export class BattlefieldEnvironmentGenerator {
 
   private spawnRing(
     world: BattlefieldEnvironmentWorldState,
-    prototype: BattlefieldEnvironmentPrototype,
+    prototype: BattlefieldEnvironmentPrototypeId,
     centerX: number,
     centerZ: number,
     count: number,
@@ -294,20 +297,25 @@ export class BattlefieldEnvironmentGenerator {
 
   private spawnRandom(
     world: BattlefieldEnvironmentWorldState,
-    prototype: BattlefieldEnvironmentPrototype,
+    prototype: BattlefieldEnvironmentPrototypeId,
     x: number,
     z: number,
     chunkX: number,
     chunkZ: number,
   ): void {
-    const config = BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG[prototype];
+    const definition = getBattlefieldEnvironmentDefinition(prototype);
     this.spawnExact(
       world,
       prototype,
       x,
       z,
       randomRange(this.randomState, 0, -Math.PI, Math.PI),
-      randomRange(this.randomState, 0, config.minimumScale, config.maximumScale),
+      randomRange(
+        this.randomState,
+        0,
+        definition.minimumScale,
+        definition.maximumScale,
+      ),
       chunkX,
       chunkZ,
     );
@@ -315,7 +323,7 @@ export class BattlefieldEnvironmentGenerator {
 
   private spawnExact(
     world: BattlefieldEnvironmentWorldState,
-    prototype: BattlefieldEnvironmentPrototype,
+    prototype: BattlefieldEnvironmentPrototypeId,
     x: number,
     z: number,
     heading: number,

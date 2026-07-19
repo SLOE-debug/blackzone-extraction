@@ -1,8 +1,29 @@
 import {
+  emitDoubleSidedFlatQuad,
+  emitOrientedFlatQuad,
+  emitOrientedFlatTriangle,
+} from '../../../../core/geometry/faceted/faceted-emitter';
+import { type FacetedPoint } from '../../../../core/geometry/faceted/facet-orientation';
+import {
+  emitSampledRadialTopology,
+  sampleRadialTopology,
+} from '../../../../core/geometry/radial/radial-emitter';
+import { type RadialRingSource } from '../../../../core/geometry/radial/radial-ring-source';
+import {
+  compileRadialTopologyPlan,
+  RadialDegeneratePolicy,
+  RadialTopologyPassKind,
+  RadialTriangleOrder,
+  RadialWinding,
+} from '../../../../core/geometry/radial/radial-topology-plan';
+import {
+  createRadialWorkspace,
+  type RadialPositionArray,
+} from '../../../../core/geometry/radial/radial-workspace';
+import {
   type BattlefieldEnvironmentColor,
-  BattlefieldEnvironmentMeshBuilder,
-  type BattlefieldEnvironmentPoint,
-} from './battlefield-environment-mesh-builder';
+  BattlefieldEnvironmentMeshSink,
+} from './battlefield-environment-mesh-sink';
 
 const TAU = Math.PI * 2;
 
@@ -48,71 +69,60 @@ export const Z_AXIS_TUBE_BASIS: BattlefieldEnvironmentTubeBasis = Object.freeze(
 
 /** 生成低段数、非均匀半径且带端盖的确定性管体。 */
 export function appendIrregularTube(
-  builder: BattlefieldEnvironmentMeshBuilder,
+  sink: BattlefieldEnvironmentMeshSink,
   color: Readonly<BattlefieldEnvironmentColor>,
   rings: readonly BattlefieldEnvironmentTubeRing[],
   segments: number,
   variationSeed: number,
   basis: Readonly<BattlefieldEnvironmentTubeBasis> = HORIZONTAL_TUBE_BASIS,
-  doubleSided = false,
 ): void {
   if (rings.length < 2 || !Number.isInteger(segments) || segments < 3) {
     throw new Error('环境管体至少需要两个环和三个截面分段。');
   }
-  const ringPoints = rings.map((ring, ringIndex) => createRingPoints(
-    ring,
+  const plan = compileRadialTopologyPlan({
+    ringCount: rings.length,
+    segmentCount: segments,
+    centerCount: 2,
+    degeneratePolicy: RadialDegeneratePolicy.Reject,
+    passes: Object.freeze([
+      Object.freeze({
+        kind: RadialTopologyPassKind.SideBands,
+        firstRing: 0,
+        lastRing: rings.length - 1,
+        winding: RadialWinding.Forward,
+        triangleOrder: RadialTriangleOrder.PrimaryFirst,
+      }),
+      Object.freeze({
+        kind: RadialTopologyPassKind.Fan,
+        ring: 0,
+        center: 0,
+        winding: RadialWinding.Forward,
+      }),
+      Object.freeze({
+        kind: RadialTopologyPassKind.Fan,
+        ring: rings.length - 1,
+        center: 1,
+        winding: RadialWinding.Reverse,
+      }),
+    ]),
+  });
+  const workspace = createRadialWorkspace(plan);
+  const context: EnvironmentTubeSampleContext = {
+    rings,
     segments,
-    variationSeed + ringIndex * 17,
+    variationSeed,
     basis,
-  ));
-  for (let ringIndex = 0; ringIndex < ringPoints.length - 1; ringIndex++) {
-    const lower = ringPoints[ringIndex];
-    const upper = ringPoints[ringIndex + 1];
-    const lowerSpec = rings[ringIndex];
-    const upperSpec = rings[ringIndex + 1];
-    if (lower === undefined || upper === undefined
-      || lowerSpec === undefined || upperSpec === undefined) {
-      throw new Error('环境管体环数据不完整。');
-    }
-    for (let segment = 0; segment < segments; segment++) {
-      const next = (segment + 1) % segments;
-      const a = lower[segment];
-      const b = upper[segment];
-      const c = upper[next];
-      const d = lower[next];
-      if (a === undefined || b === undefined || c === undefined || d === undefined) {
-        throw new Error('环境管体截面点不存在。');
-      }
-      const outwardX = (a.x + b.x + c.x + d.x) * 0.25
-        - (lowerSpec.x + upperSpec.x) * 0.5;
-      const outwardY = (a.y + b.y + c.y + d.y) * 0.25
-        - (lowerSpec.y + upperSpec.y) * 0.5;
-      const outwardZ = (a.z + b.z + c.z + d.z) * 0.25
-        - (lowerSpec.z + upperSpec.z) * 0.5;
-      if (doubleSided) {
-        builder.doubleSidedQuad(color, a, b, c, d);
-      } else {
-        builder.orientedQuad(color, a, b, c, d, outwardX, outwardY, outwardZ);
-      }
-    }
-  }
-  appendTubeCap(builder, color, ringPoints[0], rings[0], rings[1], doubleSided);
-  appendTubeCap(
-    builder,
-    color,
-    ringPoints[ringPoints.length - 1],
-    rings[rings.length - 1],
-    rings[rings.length - 2],
-    doubleSided,
-  );
+  };
+  sampleRadialTopology(plan, ENVIRONMENT_TUBE_SOURCE, context, workspace);
+  emitSampledRadialTopology(plan, workspace, sink, color);
 }
 
 /** 写入四点底面与四点顶面构成的领域化偏斜箱体。 */
 export function appendSkewedPrism(
-  builder: BattlefieldEnvironmentMeshBuilder,
+  sink: BattlefieldEnvironmentMeshSink,
   color: Readonly<BattlefieldEnvironmentColor>,
-  bottom: readonly BattlefieldEnvironmentPoint[],
-  top: readonly BattlefieldEnvironmentPoint[],
+  bottom: readonly FacetedPoint[],
+  top: readonly FacetedPoint[],
 ): void {
   if (bottom.length !== top.length || bottom.length < 3) {
     throw new Error('偏斜棱柱的上下轮廓必须拥有相同且不少于三个顶点。');
@@ -130,78 +140,78 @@ export function appendSkewedPrism(
     const outwardX = (a.x + b.x + c.x + d.x) * 0.25 - center.x;
     const outwardY = (a.y + b.y + c.y + d.y) * 0.25 - center.y;
     const outwardZ = (a.z + b.z + c.z + d.z) * 0.25 - center.z;
-    builder.orientedQuad(color, a, b, c, d, outwardX, outwardY, outwardZ);
+    emitOrientedFlatQuad(sink, color, a, b, c, d, outwardX, outwardY, outwardZ);
   }
-  appendPolygonCap(builder, color, bottom, 0, -1, 0);
-  appendPolygonCap(builder, color, top, 0, 1, 0);
+  appendPolygonCap(sink, color, bottom, 0, -1, 0);
+  appendPolygonCap(sink, color, top, 0, 1, 0);
 }
 
 /** 写入具有厚度感的双面叶片或破损金属板。 */
 export function appendFacetedBlade(
-  builder: BattlefieldEnvironmentMeshBuilder,
+  sink: BattlefieldEnvironmentMeshSink,
   color: Readonly<BattlefieldEnvironmentColor>,
-  rootLeft: Readonly<BattlefieldEnvironmentPoint>,
-  rootRight: Readonly<BattlefieldEnvironmentPoint>,
-  shoulder: Readonly<BattlefieldEnvironmentPoint>,
-  tip: Readonly<BattlefieldEnvironmentPoint>,
+  rootLeft: Readonly<FacetedPoint>,
+  rootRight: Readonly<FacetedPoint>,
+  shoulder: Readonly<FacetedPoint>,
+  tip: Readonly<FacetedPoint>,
 ): void {
-  builder.doubleSidedQuad(color, rootLeft, rootRight, shoulder, tip);
+  emitDoubleSidedFlatQuad(sink, color, rootLeft, rootRight, shoulder, tip);
 }
 
-function createRingPoints(
-  ring: Readonly<BattlefieldEnvironmentTubeRing>,
-  segments: number,
-  seed: number,
-  basis: Readonly<BattlefieldEnvironmentTubeBasis>,
-): readonly BattlefieldEnvironmentPoint[] {
-  const points: BattlefieldEnvironmentPoint[] = [];
-  for (let segment = 0; segment < segments; segment++) {
-    const angle = ring.rotation + segment / segments * TAU;
+interface EnvironmentTubeSampleContext {
+  readonly rings: readonly BattlefieldEnvironmentTubeRing[];
+  readonly segments: number;
+  readonly variationSeed: number;
+  readonly basis: Readonly<BattlefieldEnvironmentTubeBasis>;
+}
+
+/** 环境领域负责的半径扰动、截面基和弯曲中心采样。 */
+const ENVIRONMENT_TUBE_SOURCE: RadialRingSource<EnvironmentTubeSampleContext> = Object.freeze({
+  sampleRing(context, ringIndex, segment, output, outputOffset): void {
+    const ring = context.rings[ringIndex];
+    if (ring === undefined) {
+      throw new Error('环境管体环数据不完整。');
+    }
+    const angle = ring.rotation + segment / context.segments * TAU;
+    const seed = context.variationSeed + ringIndex * 17;
     const variation = 1 + Math.sin((segment + 1) * 2.173 + seed * 0.731) * 0.09;
     const u = Math.cos(angle) * ring.radiusU * variation;
     const v = Math.sin(angle) * ring.radiusV * (2 - variation);
-    points.push(Object.freeze({
-      x: ring.x + basis.ux * u + basis.vx * v,
-      y: ring.y + basis.uy * u + basis.vy * v,
-      z: ring.z + basis.uz * u + basis.vz * v,
-    }));
-  }
-  return Object.freeze(points);
-}
+    writeRadialPosition(
+      output,
+      outputOffset,
+      ring.x + context.basis.ux * u + context.basis.vx * v,
+      ring.y + context.basis.uy * u + context.basis.vy * v,
+      ring.z + context.basis.uz * u + context.basis.vz * v,
+    );
+  },
+  sampleCenter(context, centerIndex, output, outputOffset): void {
+    const ringIndex = centerIndex === 0 ? 0 : context.rings.length - 1;
+    const ring = context.rings[ringIndex];
+    if (ring === undefined) {
+      throw new Error('环境管体端盖中心不存在。');
+    }
+    writeRadialPosition(output, outputOffset, ring.x, ring.y, ring.z);
+  },
+});
 
-function appendTubeCap(
-  builder: BattlefieldEnvironmentMeshBuilder,
-  color: Readonly<BattlefieldEnvironmentColor>,
-  points: readonly BattlefieldEnvironmentPoint[] | undefined,
-  ring: Readonly<BattlefieldEnvironmentTubeRing> | undefined,
-  neighbor: Readonly<BattlefieldEnvironmentTubeRing> | undefined,
-  doubleSided: boolean,
+/** 原地写入环境管体的双精度 Radial 采样点。 */
+function writeRadialPosition(
+  output: RadialPositionArray,
+  outputOffset: number,
+  x: number,
+  y: number,
+  z: number,
 ): void {
-  if (points === undefined || ring === undefined || neighbor === undefined) {
-    throw new Error('环境管体端盖数据不完整。');
-  }
-  const center = Object.freeze({ x: ring.x, y: ring.y, z: ring.z });
-  const outwardX = ring.x - neighbor.x;
-  const outwardY = ring.y - neighbor.y;
-  const outwardZ = ring.z - neighbor.z;
-  for (let segment = 0; segment < points.length; segment++) {
-    const next = (segment + 1) % points.length;
-    const a = points[segment];
-    const b = points[next];
-    if (a === undefined || b === undefined) {
-      throw new Error('环境管体端盖顶点不存在。');
-    }
-    builder.orientedTriangle(color, center, a, b, outwardX, outwardY, outwardZ);
-    if (doubleSided) {
-      builder.orientedTriangle(color, center, b, a, -outwardX, -outwardY, -outwardZ);
-    }
-  }
+  output[outputOffset] = x;
+  output[outputOffset + 1] = y;
+  output[outputOffset + 2] = z;
 }
 
 function appendPolygonCap(
-  builder: BattlefieldEnvironmentMeshBuilder,
+  sink: BattlefieldEnvironmentMeshSink,
   color: Readonly<BattlefieldEnvironmentColor>,
-  points: readonly BattlefieldEnvironmentPoint[],
+  points: readonly FacetedPoint[],
   outwardX: number,
   outwardY: number,
   outwardZ: number,
@@ -214,11 +224,11 @@ function appendPolygonCap(
     if (a === undefined || b === undefined) {
       throw new Error('多边形端盖顶点不存在。');
     }
-    builder.orientedTriangle(color, center, a, b, outwardX, outwardY, outwardZ);
+    emitOrientedFlatTriangle(sink, color, center, a, b, outwardX, outwardY, outwardZ);
   }
 }
 
-function averagePoints(points: readonly BattlefieldEnvironmentPoint[]): BattlefieldEnvironmentPoint {
+function averagePoints(points: readonly FacetedPoint[]): FacetedPoint {
   let x = 0;
   let y = 0;
   let z = 0;

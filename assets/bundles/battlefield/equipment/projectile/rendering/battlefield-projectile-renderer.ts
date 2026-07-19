@@ -1,8 +1,8 @@
 import { Color, type Material, Node } from 'cc';
 import {
-  createSurfaceGeometry,
+  createUnlitColorGeometry,
   GeometryIndexFormat,
-  type SurfaceBufferGeometry,
+  type UnlitColorBufferGeometry,
 } from '../../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../../core/rendering/dynamic-mesh-batch';
@@ -27,7 +27,7 @@ const BOUNDS_PADDING = 0.5;
 
 /** 使用一个固定索引动态批次渲染全部存活子弹。 */
 export class BattlefieldProjectileRenderer {
-  private readonly geometry: SurfaceBufferGeometry;
+  private readonly geometry: UnlitColorBufferGeometry;
   private readonly material: Material;
   private readonly batch = new DynamicMeshBatch();
   private readonly bounds: MutableProjectileBounds = {
@@ -42,7 +42,7 @@ export class BattlefieldProjectileRenderer {
 
   constructor(parent: Node, private readonly state: BattlefieldProjectileState) {
     const topology = BATTLEFIELD_PROJECTILE_TOPOLOGY;
-    this.geometry = createSurfaceGeometry(
+    this.geometry = createUnlitColorGeometry(
       topology.verticesPerProjectile * state.capacity,
       topology.indicesPerProjectile * state.capacity,
       GeometryIndexFormat.Uint16,
@@ -61,7 +61,6 @@ export class BattlefieldProjectileRenderer {
         this.material,
         this.bounds,
         Object.freeze({
-          uploadLightingAttributes: false,
           castShadows: false,
           receiveShadows: false,
         }),

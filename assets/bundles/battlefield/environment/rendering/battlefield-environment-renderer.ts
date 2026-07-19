@@ -1,8 +1,8 @@
 import { Node } from 'cc';
 import {
-  createSurfaceGeometry,
+  createVertexLayoutGeometry,
   GeometryIndexFormat,
-  type SurfaceBufferGeometry,
+  type UnlitColorBufferGeometry,
 } from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
 import {
@@ -10,10 +10,9 @@ import {
   type DynamicMeshBatchOptions,
 } from '../../../../core/rendering/dynamic-mesh-batch';
 import {
-  BATTLEFIELD_ENVIRONMENT_MEGA_MESH_LAYOUT,
   type BattlefieldEnvironmentMegaMeshSection,
-  writeBattlefieldEnvironmentMegaMeshIndices,
 } from '../geometry/battlefield-environment-mega-mesh-layout';
+import { type PreparedBattlefieldEnvironment } from '../compilation/battlefield-environment-preparation';
 import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
 import { BattlefieldEnvironmentMaterials } from './battlefield-environment-materials';
 import {
@@ -24,7 +23,6 @@ import {
 } from './battlefield-environment-mesh-evaluator';
 
 const ENVIRONMENT_SURFACE_OPTIONS: DynamicMeshBatchOptions = Object.freeze({
-  uploadLightingAttributes: false,
   castShadows: false,
   receiveShadows: false,
 });
@@ -37,7 +35,7 @@ interface BattlefieldEnvironmentRenderSection {
 /** 将全部环境 Archetype 压入单材质、单 MeshRenderer 的统一大网格。 */
 export class BattlefieldEnvironmentRenderer {
   private readonly materials: BattlefieldEnvironmentMaterials;
-  private readonly geometry: SurfaceBufferGeometry;
+  private readonly geometry: UnlitColorBufferGeometry;
   private readonly batch = new DynamicMeshBatch();
   private readonly sections: readonly BattlefieldEnvironmentRenderSection[];
   private readonly bounds: MutableBattlefieldEnvironmentBounds = {
@@ -50,23 +48,32 @@ export class BattlefieldEnvironmentRenderer {
   };
   private disposed = false;
 
-  constructor(parent: Node, private readonly world: BattlefieldEnvironmentWorldState) {
+  constructor(
+    parent: Node,
+    private readonly world: BattlefieldEnvironmentWorldState,
+    private readonly preparation: PreparedBattlefieldEnvironment,
+  ) {
     this.materials = new BattlefieldEnvironmentMaterials();
-    const layout = BATTLEFIELD_ENVIRONMENT_MEGA_MESH_LAYOUT;
-    this.geometry = createSurfaceGeometry(
+    const layout = preparation.megaMeshLayout;
+    this.geometry = createVertexLayoutGeometry(
+      layout.vertexLayout,
       layout.vertexCount,
       layout.indexCount,
       GeometryIndexFormat.Uint32,
     );
     this.geometry.commitCounts(layout.vertexCount, layout.indexCount);
-    writeBattlefieldEnvironmentMegaMeshIndices(this.geometry.index, layout);
+    this.geometry.index.set(layout.indices);
     this.sections = Object.freeze(layout.sections.map((section) => Object.freeze({
       layout: section,
       streams: createSectionStreams(this.geometry, section),
     })));
     try {
       this.evaluateSections();
-      writeBattlefieldEnvironmentWorldBounds(this.world, this.bounds);
+      writeBattlefieldEnvironmentWorldBounds(
+        this.world,
+        this.preparation.prototypes,
+        this.bounds,
+      );
       this.batch.initialize(
         parent,
         'BattlefieldEnvironmentMegaBatch',
@@ -88,7 +95,11 @@ export class BattlefieldEnvironmentRenderer {
     }
     this.evaluateSections();
     this.batch.uploadVertexAttributes(MeshDirty.Position | MeshDirty.Color);
-    writeBattlefieldEnvironmentWorldBounds(this.world, this.bounds);
+    writeBattlefieldEnvironmentWorldBounds(
+      this.world,
+      this.preparation.prototypes,
+      this.bounds,
+    );
     this.batch.updateBounds(this.bounds);
   }
 
@@ -105,7 +116,7 @@ export class BattlefieldEnvironmentRenderer {
   private evaluateSections(): void {
     for (const section of this.sections) {
       evaluateBattlefieldEnvironmentSection(
-        this.world.get(section.layout.prototype),
+        this.world.get(section.layout.id),
         section.layout.plan,
         section.streams,
       );
@@ -114,7 +125,7 @@ export class BattlefieldEnvironmentRenderer {
 }
 
 function createSectionStreams(
-  geometry: SurfaceBufferGeometry,
+  geometry: UnlitColorBufferGeometry,
   section: Readonly<BattlefieldEnvironmentMegaMeshSection>,
 ): BattlefieldEnvironmentSectionStreams {
   const firstVertex = section.vertexOffset;

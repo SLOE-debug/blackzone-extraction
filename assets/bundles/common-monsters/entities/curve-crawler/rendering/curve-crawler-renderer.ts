@@ -58,7 +58,6 @@ export class CurveCrawlerRenderer {
         indexFormat: GeometryIndexFormat.Uint32,
         bounds: this.bounds,
         surfaceOptions: Object.freeze({
-          uploadLightingAttributes: true,
           castShadows: true,
           receiveShadows: true,
         }),

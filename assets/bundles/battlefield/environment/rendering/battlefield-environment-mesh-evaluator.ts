@@ -1,6 +1,7 @@
-import { BATTLEFIELD_ENVIRONMENT_MESH_PLANS } from '../geometry/battlefield-environment-mesh-plans';
+import { type VertexStreams } from '../../../../core/mesh/vertex-streams';
+import { type UnlitColorVertexSemantic } from '../../../../core/mesh/vertex-layout';
+import { type PreparedBattlefieldEnvironmentCatalog } from '../geometry/battlefield-environment-prepared-catalog';
 import { type BattlefieldEnvironmentMeshPlan } from '../geometry/battlefield-environment-mesh-plan';
-import { BATTLEFIELD_ENVIRONMENT_PROTOTYPES } from '../model/battlefield-environment-prototype';
 import {
   type BattlefieldEnvironmentArchetypeState,
   BattlefieldEnvironmentWorldState,
@@ -9,11 +10,9 @@ import {
 const FACET_VARIANT_DENOMINATOR = 6;
 const HIDDEN_Y = -1000;
 
-/** 统一环境大网格中一个原型区段可写的顶点流。 */
-export interface BattlefieldEnvironmentSectionStreams {
-  readonly positions: Float32Array;
-  readonly colors: Float32Array;
-}
+/** 统一环境大网格中一个原型区段可写的精确无光顶点流。 */
+export type BattlefieldEnvironmentSectionStreams =
+  VertexStreams<UnlitColorVertexSemantic>;
 
 /** 可复用的世界环境包围盒写入目标。 */
 export interface MutableBattlefieldEnvironmentBounds {
@@ -80,6 +79,7 @@ export function evaluateBattlefieldEnvironmentSection(
 /** 聚合全部活动原型并原地写入统一大网格包围盒。 */
 export function writeBattlefieldEnvironmentWorldBounds(
   world: BattlefieldEnvironmentWorldState,
+  preparedCatalog: PreparedBattlefieldEnvironmentCatalog,
   target: MutableBattlefieldEnvironmentBounds,
 ): void {
   target.minX = Number.POSITIVE_INFINITY;
@@ -89,8 +89,12 @@ export function writeBattlefieldEnvironmentWorldBounds(
   target.maxY = Number.NEGATIVE_INFINITY;
   target.maxZ = Number.NEGATIVE_INFINITY;
 
-  for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-    expandBounds(world.get(prototype), BATTLEFIELD_ENVIRONMENT_MESH_PLANS[prototype], target);
+  for (const prepared of preparedCatalog) {
+    expandBounds(
+      world.get(prepared.definition.prototype),
+      prepared.plan,
+      target,
+    );
   }
   if (!Number.isFinite(target.minX)) {
     target.minX = -1;

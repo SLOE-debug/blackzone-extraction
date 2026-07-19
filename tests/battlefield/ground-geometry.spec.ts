@@ -67,6 +67,29 @@ describe('battlefield ground geometry', () => {
     expect(compared).toBeGreaterThan(9_000);
   });
 
+  it('keeps the initialized index stream unchanged when a later chunk only rewrites vertex data', () => {
+    const geometry = createSurfaceGeometry(
+      BATTLEFIELD_GROUND_TOPOLOGY.verticesPerEntity,
+      BATTLEFIELD_GROUND_TOPOLOGY.indicesPerEntity,
+      GeometryIndexFormat.Uint16,
+    );
+    const writer = new TriangleMeshWriter(geometry);
+    writer.reset(true);
+    battlefieldGroundGeometry.write(writer, 0, 0);
+    writer.commit();
+    const initializedIndices = geometry.getIndexView().slice();
+
+    writer.reset(false);
+    battlefieldGroundGeometry.write(writer, 1, -1);
+    writer.assertCounts(
+      BATTLEFIELD_GROUND_TOPOLOGY.verticesPerEntity,
+      BATTLEFIELD_GROUND_TOPOLOGY.indicesPerEntity,
+    );
+    writer.commit();
+
+    expect(geometry.getIndexView()).toEqual(initializedIndices);
+  });
+
   it('does not repeat the old ten-cell height pattern', () => {
     const frame = createBattlefieldGroundPatchFrame(0, 0);
     const first: BattlefieldGroundPoint = { x: 0, y: 0, z: 0 };

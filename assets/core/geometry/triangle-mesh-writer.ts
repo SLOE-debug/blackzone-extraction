@@ -1,4 +1,5 @@
 import { type GeometryIndexArray } from './buffer-geometry';
+import { type FacetedTriangleSink } from './faceted/faceted-emitter';
 
 /**
  * TriangleMeshWriter 所需的最小可写几何契约。
@@ -15,7 +16,7 @@ export interface WritableTriangleGeometry {
 /**
  * 按固定顺序写入三角形位置、法线和索引拓扑。
  */
-export class TriangleMeshWriter {
+export class TriangleMeshWriter implements FacetedTriangleSink<undefined> {
   private writeTopology = true;
   private vertexCursor = 0;
   private indexCursor = 0;
@@ -80,6 +81,28 @@ export class TriangleMeshWriter {
     }
 
     this.indexCursor += 3;
+  }
+
+  /** 将 Emitter 已解析的独立分面三角形写入连续顶点与索引流。 */
+  public appendFlatTriangle(
+    ax: number,
+    ay: number,
+    az: number,
+    bx: number,
+    by: number,
+    bz: number,
+    cx: number,
+    cy: number,
+    cz: number,
+    normalX: number,
+    normalY: number,
+    normalZ: number,
+    _meta: undefined,
+  ): void {
+    const indexA = this.vertex(ax, ay, az, normalX, normalY, normalZ);
+    const indexB = this.vertex(bx, by, bz, normalX, normalY, normalZ);
+    const indexC = this.vertex(cx, cy, cz, normalX, normalY, normalZ);
+    this.triangle(indexA, indexB, indexC);
   }
 
   /** 将当前游标提交为几何有效范围。 */

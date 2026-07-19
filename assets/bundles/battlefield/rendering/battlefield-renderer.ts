@@ -19,7 +19,6 @@ import { shadeBattlefieldGround } from './battlefield-vertex-shading';
 const GROUND_SURFACE_OPTIONS: DynamicMeshBatchOptions = Object.freeze({
   castShadows: false,
   receiveShadows: false,
-  uploadLightingAttributes: true,
 });
 
 /** 创建战场程序化岩地并管理对应 GPU 资源。 */

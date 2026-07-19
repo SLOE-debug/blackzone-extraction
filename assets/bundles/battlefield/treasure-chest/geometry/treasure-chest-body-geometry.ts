@@ -1,8 +1,12 @@
 import {
-  FacetedMeshBuilder,
+  emitOrientedFlatQuad,
+  emitOrientedFlatTriangle,
+} from '../../../../core/geometry/faceted/faceted-emitter';
+import { type FacetedPoint } from '../../../../core/geometry/faceted/facet-orientation';
+import {
   type FacetedColor,
-  type FacetedPoint,
-} from '../../../../core/geometry/faceted-mesh-builder';
+  StaticFacetedMeshSink,
+} from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TREASURE_CHEST_PALETTE } from './treasure-chest-palette';
 
@@ -14,21 +18,22 @@ const INNER_FLOOR = createRing(0.28, 0.61);
 
 /** 编译起始宝箱的不规则岩雕木箱主体。 */
 export function createTreasureChestBodyGeometry() {
-  const builder = new FacetedMeshBuilder();
-  appendOuterShell(builder);
-  appendCavity(builder);
-  appendFrontClasp(builder);
-  return builder.build();
+  const sink = new StaticFacetedMeshSink();
+  appendOuterShell(sink);
+  appendCavity(sink);
+  appendFrontClasp(sink);
+  return sink.build();
 }
 
-function appendOuterShell(builder: FacetedMeshBuilder): void {
+function appendOuterShell(sink: StaticFacetedMeshSink): void {
   for (let index = 0; index < OUTER_BOTTOM.length; index++) {
     const next = (index + 1) % OUTER_BOTTOM.length;
     const outwardX = ((OUTER_BOTTOM[index]?.x ?? 0) + (OUTER_BOTTOM[next]?.x ?? 0)) * 0.5;
     const outwardZ = ((OUTER_BOTTOM[index]?.z ?? 0) + (OUTER_BOTTOM[next]?.z ?? 0)) * 0.5;
     const lowerColor = selectTimberColor(index);
     const upperColor = selectTimberColor(index + 3);
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       lowerColor,
       requirePoint(OUTER_BOTTOM, index),
       requirePoint(OUTER_BOTTOM, next),
@@ -38,7 +43,8 @@ function appendOuterShell(builder: FacetedMeshBuilder): void {
       0,
       outwardZ,
     );
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       upperColor,
       requirePoint(OUTER_SHOULDER, index),
       requirePoint(OUTER_SHOULDER, next),
@@ -51,10 +57,11 @@ function appendOuterShell(builder: FacetedMeshBuilder): void {
   }
 }
 
-function appendCavity(builder: FacetedMeshBuilder): void {
+function appendCavity(sink: StaticFacetedMeshSink): void {
   for (let index = 0; index < OUTER_TOP.length; index++) {
     const next = (index + 1) % OUTER_TOP.length;
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       index % 3 === 0 ? TREASURE_CHEST_PALETTE.metal : TREASURE_CHEST_PALETTE.timberLight,
       requirePoint(OUTER_TOP, index),
       requirePoint(OUTER_TOP, next),
@@ -66,7 +73,8 @@ function appendCavity(builder: FacetedMeshBuilder): void {
     );
     const inwardX = -((INNER_RIM[index]?.x ?? 0) + (INNER_RIM[next]?.x ?? 0)) * 0.5;
     const inwardZ = -((INNER_RIM[index]?.z ?? 0) + (INNER_RIM[next]?.z ?? 0)) * 0.5;
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       TREASURE_CHEST_PALETTE.cavity,
       requirePoint(INNER_RIM, index),
       requirePoint(INNER_RIM, next),
@@ -81,7 +89,8 @@ function appendCavity(builder: FacetedMeshBuilder): void {
   const center = Object.freeze({ x: 0.025, y: 0.275, z: -0.015 });
   for (let index = 0; index < INNER_FLOOR.length; index++) {
     const next = (index + 1) % INNER_FLOOR.length;
-    builder.orientedTriangle(
+    emitOrientedFlatTriangle(
+      sink,
       TREASURE_CHEST_PALETTE.cavity,
       center,
       requirePoint(INNER_FLOOR, index),
@@ -94,7 +103,7 @@ function appendCavity(builder: FacetedMeshBuilder): void {
 }
 
 /** 在面向玩家的一侧写入具有厚度的五边形锁扣，而不是叠放规则 Box。 */
-function appendFrontClasp(builder: FacetedMeshBuilder): void {
+function appendFrontClasp(sink: StaticFacetedMeshSink): void {
   const backZ = 0.665;
   const frontZ = 0.735;
   const back = createClaspRing(backZ);
@@ -102,7 +111,8 @@ function appendFrontClasp(builder: FacetedMeshBuilder): void {
   const center = Object.freeze({ x: 0.018, y: 0.49, z: frontZ });
   for (let index = 0; index < front.length; index++) {
     const next = (index + 1) % front.length;
-    builder.orientedTriangle(
+    emitOrientedFlatTriangle(
+      sink,
       index % 2 === 0 ? TREASURE_CHEST_PALETTE.metalLight : TREASURE_CHEST_PALETTE.metal,
       center,
       requirePoint(front, index),
@@ -113,7 +123,8 @@ function appendFrontClasp(builder: FacetedMeshBuilder): void {
     );
     const outwardX = ((front[index]?.x ?? 0) + (front[next]?.x ?? 0)) * 0.5;
     const outwardY = ((front[index]?.y ?? 0) + (front[next]?.y ?? 0)) * 0.5 - center.y;
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       TREASURE_CHEST_PALETTE.metalDark,
       requirePoint(back, index),
       requirePoint(back, next),

@@ -98,7 +98,7 @@ LobbySceneRuntime.update(deltaTime)
       ├─ evaluateFacetedCenters()
       │  └─ 四角平均值 + 当前面法线 × ridge
       ├─ expandRenderPositions()
-      └─ computeFlatNormals()
+      └─ Core writeSequentialFlatNormals()
          ↓
       DynamicMeshBatch.uploadVertexAttributes(MeshDirty.Pose)
       └─ 只上传 Position + Normal；Color 与 Index 不重传

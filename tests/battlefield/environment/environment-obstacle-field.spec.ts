@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BattlefieldEnvironmentObstacleField } from '../../../assets/bundles/battlefield/environment/collision/battlefield-environment-obstacle-field';
 import { BattlefieldEnvironmentGenerator } from '../../../assets/bundles/battlefield/environment/generation/battlefield-environment-generator';
-import { BattlefieldEnvironmentPrototype } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-prototype';
+import { BattlefieldEnvironmentPrototype } from '../../../assets/bundles/battlefield/environment/catalog/battlefield-environment-catalog';
 import { BattlefieldEnvironmentWorldState } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-state';
 
 describe('战场环境平面障碍场', () => {

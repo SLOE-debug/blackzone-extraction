@@ -1,8 +1,12 @@
 import {
-  FacetedMeshBuilder,
+  emitOrientedFlatQuad,
+  emitOrientedFlatTriangle,
+} from '../../../../core/geometry/faceted/faceted-emitter';
+import { type FacetedPoint } from '../../../../core/geometry/faceted/facet-orientation';
+import {
   type FacetedColor,
-  type FacetedPoint,
-} from '../../../../core/geometry/faceted-mesh-builder';
+  StaticFacetedMeshSink,
+} from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
 
 interface SilhouettePoint {
   readonly x: number;
@@ -51,20 +55,20 @@ const GRIP = Object.freeze([
 
 /** 编译具有厚重滑套、倾斜握把、镂空扳机护圈和多边形枪口的沙漠之鹰。 */
 export function createDesertEagleGeometry() {
-  const builder = new FacetedMeshBuilder();
-  appendExtrudedSilhouette(builder, SLIDE, 0.18, PALETTE.slide, PALETTE.slideDark);
-  appendExtrudedSilhouette(builder, FRAME, 0.205, PALETTE.frame, PALETTE.slideDark);
-  appendExtrudedSilhouette(builder, GRIP, 0.17, PALETTE.grip, PALETTE.gripDark);
-  appendTriggerGuard(builder);
-  appendMuzzle(builder);
-  appendSights(builder);
-  appendEpicInlay(builder);
-  return builder.build();
+  const sink = new StaticFacetedMeshSink();
+  appendExtrudedSilhouette(sink, SLIDE, 0.18, PALETTE.slide, PALETTE.slideDark);
+  appendExtrudedSilhouette(sink, FRAME, 0.205, PALETTE.frame, PALETTE.slideDark);
+  appendExtrudedSilhouette(sink, GRIP, 0.17, PALETTE.grip, PALETTE.gripDark);
+  appendTriggerGuard(sink);
+  appendMuzzle(sink);
+  appendSights(sink);
+  appendEpicInlay(sink);
+  return sink.build();
 }
 
 /** 把领域侧轮廓挤出为带独立硬边的非规则枪械部件。 */
 function appendExtrudedSilhouette(
-  builder: FacetedMeshBuilder,
+  sink: StaticFacetedMeshSink,
   points: readonly Readonly<SilhouettePoint>[],
   halfDepth: number,
   faceColor: Readonly<FacetedColor>,
@@ -81,8 +85,9 @@ function appendExtrudedSilhouette(
     const frontNext = point3(nextPoint.x, nextPoint.y, halfDepth);
     const backCurrent = point3(currentPoint.x, currentPoint.y, -halfDepth * 0.94);
     const backNext = point3(nextPoint.x, nextPoint.y, -halfDepth * 0.94);
-    builder.orientedTriangle(faceColor, frontCenter, frontCurrent, frontNext, 0, 0, 1);
-    builder.orientedTriangle(
+    emitOrientedFlatTriangle(sink, faceColor, frontCenter, frontCurrent, frontNext, 0, 0, 1);
+    emitOrientedFlatTriangle(
+      sink,
       index % 2 === 0 ? faceColor : edgeColor,
       backCenter,
       backNext,
@@ -93,7 +98,8 @@ function appendExtrudedSilhouette(
     );
     const outwardX = (currentPoint.x + nextPoint.x) * 0.5 - center.x;
     const outwardY = (currentPoint.y + nextPoint.y) * 0.5 - center.y;
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       index % 3 === 0 ? PALETTE.slideLight : edgeColor,
       backCurrent,
       frontCurrent,
@@ -107,7 +113,7 @@ function appendExtrudedSilhouette(
 }
 
 /** 写入六段式扳机护圈，内环保持真实通孔。 */
-function appendTriggerGuard(builder: FacetedMeshBuilder): void {
+function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
   const outer = Object.freeze([
     Object.freeze({ x: 0.02, y: -0.31 }),
     Object.freeze({ x: 0.72, y: -0.28 }),
@@ -132,7 +138,8 @@ function appendTriggerGuard(builder: FacetedMeshBuilder): void {
     const outerNext = requireSilhouettePoint(outer, next);
     const innerCurrent = requireSilhouettePoint(inner, index);
     const innerNext = requireSilhouettePoint(inner, next);
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       PALETTE.frame,
       point3(outerCurrent.x, outerCurrent.y, frontZ),
       point3(outerNext.x, outerNext.y, frontZ),
@@ -142,7 +149,8 @@ function appendTriggerGuard(builder: FacetedMeshBuilder): void {
       0,
       1,
     );
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       PALETTE.slideDark,
       point3(outerCurrent.x, outerCurrent.y, backZ),
       point3(innerCurrent.x, innerCurrent.y, backZ),
@@ -152,7 +160,8 @@ function appendTriggerGuard(builder: FacetedMeshBuilder): void {
       0,
       -1,
     );
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       PALETTE.slideDark,
       point3(innerCurrent.x, innerCurrent.y, backZ),
       point3(innerCurrent.x, innerCurrent.y, frontZ),
@@ -166,7 +175,7 @@ function appendTriggerGuard(builder: FacetedMeshBuilder): void {
 }
 
 /** 枪口使用不等半径八边环和向内收束的真实膛孔。 */
-function appendMuzzle(builder: FacetedMeshBuilder): void {
+function appendMuzzle(sink: StaticFacetedMeshSink): void {
   const segmentCount = 8;
   for (let segment = 0; segment < segmentCount; segment++) {
     const next = (segment + 1) % segmentCount;
@@ -176,7 +185,8 @@ function appendMuzzle(builder: FacetedMeshBuilder): void {
     const innerNext = muzzlePoint(1.615, next, 0.105, 0);
     const tunnelCurrent = muzzlePoint(1.39, segment, 0.088, 0);
     const tunnelNext = muzzlePoint(1.39, next, 0.088, 0);
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       segment % 2 === 0 ? PALETTE.slideLight : PALETTE.slide,
       outerCurrent,
       outerNext,
@@ -186,7 +196,8 @@ function appendMuzzle(builder: FacetedMeshBuilder): void {
       0,
       0,
     );
-    builder.orientedQuad(
+    emitOrientedFlatQuad(
+      sink,
       PALETTE.bore,
       innerCurrent,
       innerNext,
@@ -199,9 +210,9 @@ function appendMuzzle(builder: FacetedMeshBuilder): void {
   }
 }
 
-function appendSights(builder: FacetedMeshBuilder): void {
+function appendSights(sink: StaticFacetedMeshSink): void {
   appendExtrudedSilhouette(
-    builder,
+    sink,
     Object.freeze([
       Object.freeze({ x: -1.23, y: 0.43 }),
       Object.freeze({ x: -1.06, y: 0.6 }),
@@ -213,7 +224,7 @@ function appendSights(builder: FacetedMeshBuilder): void {
     PALETTE.slideDark,
   );
   appendExtrudedSilhouette(
-    builder,
+    sink,
     Object.freeze([
       Object.freeze({ x: 1.08, y: 0.46 }),
       Object.freeze({ x: 1.2, y: 0.58 }),
@@ -227,8 +238,9 @@ function appendSights(builder: FacetedMeshBuilder): void {
 }
 
 /** 在握把侧面嵌入紫色三角品质刻印。 */
-function appendEpicInlay(builder: FacetedMeshBuilder): void {
-  builder.orientedTriangle(
+function appendEpicInlay(sink: StaticFacetedMeshSink): void {
+  emitOrientedFlatTriangle(
+    sink,
     PALETTE.epic,
     point3(-0.63, -0.65, 0.176),
     point3(-0.24, -0.82, 0.176),

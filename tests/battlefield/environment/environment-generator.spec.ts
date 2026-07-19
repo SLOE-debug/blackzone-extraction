@@ -1,37 +1,37 @@
 import { describe, expect, it } from 'vitest';
+import { prepareBattlefieldEnvironment } from '../../../assets/bundles/battlefield/environment/compilation/battlefield-environment-preparation';
 import { BattlefieldEnvironmentGenerator } from '../../../assets/bundles/battlefield/environment/generation/battlefield-environment-generator';
-import { BATTLEFIELD_ENVIRONMENT_MESH_PLANS } from '../../../assets/bundles/battlefield/environment/geometry/battlefield-environment-mesh-plans';
-import { BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-config';
-import { BATTLEFIELD_ENVIRONMENT_LANDMARKS } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-landmarks';
 import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPES,
+  BATTLEFIELD_ENVIRONMENT_CATALOG,
   BattlefieldEnvironmentPrototype,
-} from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-prototype';
+} from '../../../assets/bundles/battlefield/environment/catalog/battlefield-environment-catalog';
+import { BATTLEFIELD_ENVIRONMENT_LANDMARKS } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-landmarks';
 import { BattlefieldEnvironmentWorldState } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-state';
 import {
   BATTLEFIELD_MONSTER_SPAWN,
   createBattlefieldMonsterSpawn,
 } from '../../../assets/bundles/battlefield/model/battlefield-monster-spawn';
 
+const PREPARED_ENVIRONMENT = prepareBattlefieldEnvironment();
+
 describe('战场无限环境生成', () => {
   it('在起始窗口生成全部环境原型并保留固定展示地标', () => {
     const world = new BattlefieldEnvironmentWorldState();
     new BattlefieldEnvironmentGenerator().populate(0, 0, world);
 
-    for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-      expect(world.get(prototype).enabledCount).toBeGreaterThan(0);
+    for (const definition of BATTLEFIELD_ENVIRONMENT_CATALOG) {
+      expect(world.get(definition.prototype).enabledCount).toBeGreaterThan(0);
     }
-    const activeVertexCount = BATTLEFIELD_ENVIRONMENT_PROTOTYPES.reduce(
-      (total, prototype) => total
-        + world.get(prototype).enabledCount
-        * BATTLEFIELD_ENVIRONMENT_MESH_PLANS[prototype].vertexCount,
+    const activeVertexCount = PREPARED_ENVIRONMENT.prototypes.reduce(
+      (total, prepared) => total
+        + world.get(prepared.definition.prototype).enabledCount
+        * prepared.plan.vertexCount,
       0,
     );
     expect(activeVertexCount).toBeLessThan(500_000);
-    const allocatedVertexCount = BATTLEFIELD_ENVIRONMENT_PROTOTYPES.reduce(
-      (total, prototype) => total
-        + BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG[prototype].capacity
-        * BATTLEFIELD_ENVIRONMENT_MESH_PLANS[prototype].vertexCount,
+    const allocatedVertexCount = PREPARED_ENVIRONMENT.prototypes.reduce(
+      (total, prepared) => total
+        + prepared.definition.capacity * prepared.plan.vertexCount,
       0,
     );
     expect(allocatedVertexCount).toBeLessThan(600_000);
@@ -68,8 +68,8 @@ describe('战场无限环境生成', () => {
     expect(snapshotWorld(world)).toEqual(first);
 
     generator.populate(24, -31, world);
-    for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-      const state = world.get(prototype);
+    for (const definition of BATTLEFIELD_ENVIRONMENT_CATALOG) {
+      const state = world.get(definition.prototype);
       expect(state.enabledCount).toBeLessThanOrEqual(state.count);
     }
   });
@@ -80,8 +80,8 @@ describe('战场无限环境生成', () => {
     for (let chunkZ = -18; chunkZ <= 18; chunkZ += 3) {
       for (let chunkX = -18; chunkX <= 18; chunkX += 3) {
         generator.populate(chunkX, chunkZ, world);
-        for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-          const state = world.get(prototype);
+        for (const definition of BATTLEFIELD_ENVIRONMENT_CATALOG) {
+          const state = world.get(definition.prototype);
           expect(state.enabledCount).toBeLessThanOrEqual(state.count);
         }
       }
@@ -90,8 +90,8 @@ describe('战场无限环境生成', () => {
 });
 
 function snapshotWorld(world: BattlefieldEnvironmentWorldState): readonly number[][] {
-  return BATTLEFIELD_ENVIRONMENT_PROTOTYPES.map((prototype) => {
-    const state = world.get(prototype);
+  return BATTLEFIELD_ENVIRONMENT_CATALOG.map((definition) => {
+    const state = world.get(definition.prototype);
     const values: number[] = [state.enabledCount];
     for (let index = 0; index < state.enabledCount; index++) {
       values.push(

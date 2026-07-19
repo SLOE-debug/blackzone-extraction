@@ -3,8 +3,8 @@ import {
   type PlanarMovementConstraint,
 } from '../../../../core/contracts/planar-movement-constraint';
 import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPES,
-} from '../model/battlefield-environment-prototype';
+  BATTLEFIELD_ENVIRONMENT_CATALOG,
+} from '../catalog/battlefield-environment-catalog';
 import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../model/battlefield-environment-config';
 import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
 
@@ -57,8 +57,8 @@ export class BattlefieldEnvironmentObstacleField implements PlanarMovementConstr
     this.obstacleCount = 0;
     this.maximumObstacleRadius = 0;
 
-    for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-      const state = world.get(prototype);
+    for (const definition of BATTLEFIELD_ENVIRONMENT_CATALOG) {
+      const state = world.get(definition.prototype);
       const { identity, transform, collision } = state.data;
       for (let index = 0; index < state.enabledCount; index++) {
         if ((identity.active[index] ?? 0) === 0

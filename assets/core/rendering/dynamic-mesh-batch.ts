@@ -10,8 +10,10 @@ import {
 import {
   type GeometryBounds,
   type SurfaceBufferGeometry,
+  type UnlitColorBufferGeometry,
 } from '../geometry/buffer-geometry';
 import { MeshDirty } from '../mesh/mesh-dirty';
+import { VertexSemantic } from '../mesh/vertex-layout';
 
 enum DynamicMeshBatchState {
   Created,
@@ -19,15 +21,19 @@ enum DynamicMeshBatchState {
   Disposed,
 }
 
-/** 动态网格使用的顶点流和阴影策略。 */
+/** 动态网格使用的阴影策略。 */
 export interface DynamicMeshBatchOptions {
-  readonly uploadLightingAttributes: boolean;
   readonly castShadows: boolean;
   readonly receiveShadows: boolean;
 }
 
+/** DynamicMeshBatch 当前支持的精确颜色顶点布局。 */
+export type DynamicColorBufferGeometry =
+  | SurfaceBufferGeometry
+  | UnlitColorBufferGeometry;
+
 /**
- * 管理一个固定索引拓扑、动态位置、可选法线与颜色流的 Cocos MeshRenderer。
+ * 管理一个固定索引拓扑及由 VertexLayout 声明的动态 Cocos MeshRenderer。
  */
 export class DynamicMeshBatch {
   private state = DynamicMeshBatchState.Created;
@@ -52,7 +58,7 @@ export class DynamicMeshBatch {
   public initialize(
     parent: Node,
     name: string,
-    geometry: SurfaceBufferGeometry,
+    geometry: DynamicColorBufferGeometry,
     material: Material,
     bounds: GeometryBounds,
     options: Readonly<DynamicMeshBatchOptions>,
@@ -79,9 +85,9 @@ export class DynamicMeshBatch {
     if (colors.byteOffset !== 0 || colors.byteLength !== colors.buffer.byteLength) {
       throw new Error('动态颜色流必须完整覆盖其底层 ArrayBuffer。');
     }
-    const normals = geometry.getNormalView();
+    const normals = getNormalView(geometry);
     let normalSource: ArrayBuffer | null = null;
-    if (options.uploadLightingAttributes) {
+    if (normals !== null) {
       if (!(normals.buffer instanceof ArrayBuffer)) {
         throw new Error('动态法线流必须由 ArrayBuffer 支持。');
       }
@@ -97,9 +103,9 @@ export class DynamicMeshBatch {
       minPos: { x: bounds.minX, y: bounds.minY, z: bounds.minZ },
       maxPos: { x: bounds.maxX, y: bounds.maxY, z: bounds.maxZ },
     };
-    const surfaceGeometry = options.uploadLightingAttributes
-      ? { ...commonGeometry, normals }
-      : commonGeometry;
+    const surfaceGeometry = normals === null
+      ? commonGeometry
+      : { ...commonGeometry, normals };
     const dynamicGeometry = indices instanceof Uint16Array
       ? { ...surfaceGeometry, indices16: indices }
       : { ...surfaceGeometry, indices32: indices };
@@ -109,16 +115,18 @@ export class DynamicMeshBatch {
       maxSubMeshIndices: geometry.indexCount,
     });
     const renderingSubMesh = mesh.renderingSubMeshes[0];
-    const vertexBuffer = renderingSubMesh?.vertexBuffers[0];
-    const normalBuffer = options.uploadLightingAttributes
-      ? renderingSubMesh?.vertexBuffers[1]
-      : undefined;
-    const colorBuffer = renderingSubMesh?.vertexBuffers[
-      options.uploadLightingAttributes ? 2 : 1
-    ];
+    const semantics: readonly VertexSemantic[] = geometry.layout.semantics;
+    const positionBufferIndex = semantics.indexOf(VertexSemantic.Position);
+    const normalBufferIndex = semantics.indexOf(VertexSemantic.Normal);
+    const colorBufferIndex = semantics.indexOf(VertexSemantic.Color);
+    const vertexBuffer = renderingSubMesh?.vertexBuffers[positionBufferIndex];
+    const normalBuffer = normalBufferIndex < 0
+      ? undefined
+      : renderingSubMesh?.vertexBuffers[normalBufferIndex];
+    const colorBuffer = renderingSubMesh?.vertexBuffers[colorBufferIndex];
     if (vertexBuffer === undefined
       || colorBuffer === undefined
-      || (options.uploadLightingAttributes && normalBuffer === undefined)) {
+      || (normals !== null && normalBuffer === undefined)) {
       mesh.destroy();
       throw new Error('动态网格没有可更新的位置、法线或颜色顶点缓冲。');
     }
@@ -146,7 +154,7 @@ export class DynamicMeshBatch {
     this.normalSource = normalSource;
     this.colorSource = colors.buffer;
     this.positionByteLength = positions.byteLength;
-    this.normalByteLength = options.uploadLightingAttributes ? normals.byteLength : 0;
+    this.normalByteLength = normals?.byteLength ?? 0;
     this.colorByteLength = colors.byteLength;
     this.state = DynamicMeshBatchState.Initialized;
   }
@@ -169,9 +177,10 @@ export class DynamicMeshBatch {
     if ((dirty & MeshDirty.Position) !== 0) {
       this.positionBuffer.update(this.positionSource, this.positionByteLength);
     }
-    if ((dirty & MeshDirty.Normal) !== 0
-      && this.normalBuffer !== null
-      && this.normalSource !== null) {
+    if ((dirty & MeshDirty.Normal) !== 0) {
+      if (this.normalBuffer === null || this.normalSource === null) {
+        throw new Error('当前顶点布局不包含可上传的法线流。');
+      }
       this.normalBuffer.update(this.normalSource, this.normalByteLength);
     }
     if ((dirty & MeshDirty.Color) !== 0) {
@@ -222,4 +231,19 @@ export class DynamicMeshBatch {
     this.colorByteLength = 0;
     this.state = DynamicMeshBatchState.Disposed;
   }
+}
+
+/** 根据布局声明读取法线流；无光布局不会产生占位缓冲。 */
+function getNormalView(geometry: DynamicColorBufferGeometry): Float32Array | null {
+  const semantics: readonly VertexSemantic[] = geometry.layout.semantics;
+  if (!semantics.includes(VertexSemantic.Normal)) {
+    return null;
+  }
+
+  const streams = geometry.streams as Partial<Record<VertexSemantic, Float32Array>>;
+  const normals = streams[VertexSemantic.Normal];
+  if (normals === undefined) {
+    throw new Error('顶点布局声明了法线语义，但几何没有对应流。');
+  }
+  return normals.subarray(0, geometry.vertexCount * 3);
 }

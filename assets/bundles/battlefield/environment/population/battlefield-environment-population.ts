@@ -5,6 +5,7 @@ import {
   type ChunkWindowTransition,
 } from '../../../../core/world/chunk-window-tracker';
 import { BattlefieldEnvironmentObstacleField } from '../collision/battlefield-environment-obstacle-field';
+import { prepareBattlefieldEnvironment } from '../compilation/battlefield-environment-preparation';
 import {
   BattlefieldEnvironmentGenerator,
 } from '../generation/battlefield-environment-generator';
@@ -19,6 +20,7 @@ import { BattlefieldEnvironmentRenderer } from '../rendering/battlefield-environ
  * 门面只编排确定性 Chunk 生成、静态障碍索引和统一大网格，不承载造型配方。
  */
 export class BattlefieldEnvironmentPopulation {
+  private readonly preparation = prepareBattlefieldEnvironment();
   private readonly world = new BattlefieldEnvironmentWorldState();
   private readonly generator = new BattlefieldEnvironmentGenerator();
   private readonly obstacles = new BattlefieldEnvironmentObstacleField();
@@ -34,7 +36,11 @@ export class BattlefieldEnvironmentPopulation {
   constructor(parent: Node) {
     this.generator.populate(this.centerChunkX, this.centerChunkZ, this.world);
     this.obstacles.rebuild(this.world, this.centerChunkX, this.centerChunkZ);
-    this.renderer = new BattlefieldEnvironmentRenderer(parent, this.world);
+    this.renderer = new BattlefieldEnvironmentRenderer(
+      parent,
+      this.world,
+      this.preparation,
+    );
     this.pendingChunkTransition = this.chunkWindow.synchronize(
       this.centerChunkX,
       this.centerChunkZ,

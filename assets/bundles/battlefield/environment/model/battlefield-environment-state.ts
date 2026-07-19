@@ -1,11 +1,9 @@
 import { EntityTable } from '../../../../core/entities/entity-table';
 import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG,
-} from './battlefield-environment-config';
-import {
-  BATTLEFIELD_ENVIRONMENT_PROTOTYPES,
-  BattlefieldEnvironmentPrototype,
-} from './battlefield-environment-prototype';
+  BATTLEFIELD_ENVIRONMENT_CATALOG,
+  type BattlefieldEnvironmentPrototype,
+  type BattlefieldEnvironmentPrototypeDefinition,
+} from '../catalog/battlefield-environment-catalog';
 import {
   BATTLEFIELD_ENVIRONMENT_SCHEMA,
   type BattlefieldEnvironmentData,
@@ -33,12 +31,16 @@ export class BattlefieldEnvironmentArchetypeState {
   public readonly data: BattlefieldEnvironmentData;
   private activeCount = 0;
 
-  constructor(public readonly prototype: BattlefieldEnvironmentPrototype) {
-    const config = BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG[prototype];
-    this.table = new EntityTable(BATTLEFIELD_ENVIRONMENT_SCHEMA, config.capacity);
-    this.table.allocate(config.capacity);
+  constructor(public readonly definition: BattlefieldEnvironmentPrototypeDefinition) {
+    this.table = new EntityTable(BATTLEFIELD_ENVIRONMENT_SCHEMA, definition.capacity);
+    this.table.allocate(definition.capacity);
     this.data = this.table.data;
     this.reset();
+  }
+
+  /** 该 Archetype 使用的稳定原型标识。 */
+  public get prototype(): BattlefieldEnvironmentPrototype {
+    return this.definition.prototype;
   }
 
   /** 固定缓冲包含的实体槽位数量。 */
@@ -66,7 +68,6 @@ export class BattlefieldEnvironmentArchetypeState {
       throw new Error(`环境 Archetype 容量不足：${this.prototype}。`);
     }
     const index = this.activeCount;
-    const config = BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG[this.prototype];
     const { identity, transform, appearance, collision, chunk } = this.data;
     identity.id[index] = index;
     identity.active[index] = 1;
@@ -79,8 +80,8 @@ export class BattlefieldEnvironmentArchetypeState {
     appearance.tintRed[index] = spawn.tintRed;
     appearance.tintGreen[index] = spawn.tintGreen;
     appearance.tintBlue[index] = spawn.tintBlue;
-    collision.radius[index] = config.baseCollisionRadius * spawn.scale;
-    collision.blocksPlayer[index] = config.blocksPlayer ? 1 : 0;
+    collision.radius[index] = this.definition.baseCollisionRadius * spawn.scale;
+    collision.blocksPlayer[index] = this.definition.blocksPlayer ? 1 : 0;
     chunk.x[index] = spawn.chunkX;
     chunk.z[index] = spawn.chunkZ;
     this.activeCount += 1;
@@ -90,14 +91,17 @@ export class BattlefieldEnvironmentArchetypeState {
 
 /** 聚合全部环境原型 Archetype 的固定容量世界状态。 */
 export class BattlefieldEnvironmentWorldState {
-  private readonly archetypes = BATTLEFIELD_ENVIRONMENT_PROTOTYPES.map(
-    (prototype) => new BattlefieldEnvironmentArchetypeState(prototype),
+  private readonly archetypes = BATTLEFIELD_ENVIRONMENT_CATALOG.map(
+    (definition) => new BattlefieldEnvironmentArchetypeState(definition),
+  );
+  private readonly archetypesByPrototype = new Map(
+    this.archetypes.map((state) => [state.prototype, state] as const),
   );
 
   /** 返回指定稳定原型的连续 SoA 表。 */
   public get(prototype: BattlefieldEnvironmentPrototype): BattlefieldEnvironmentArchetypeState {
-    const state = this.archetypes[prototype];
-    if (state === undefined || state.prototype !== prototype) {
+    const state = this.archetypesByPrototype.get(prototype);
+    if (state === undefined) {
       throw new Error(`环境 Archetype 不存在：${prototype}。`);
     }
     return state;
@@ -117,8 +121,8 @@ export class BattlefieldEnvironmentWorldState {
       state: BattlefieldEnvironmentArchetypeState,
     ) => void,
   ): void {
-    for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
-      callback(prototype, this.get(prototype));
+    for (const definition of BATTLEFIELD_ENVIRONMENT_CATALOG) {
+      callback(definition.prototype, this.get(definition.prototype));
     }
   }
 }
