@@ -35,8 +35,8 @@ describe('战场无限环境生成', () => {
     const nest = world.get(BattlefieldEnvironmentPrototype.MonsterNest);
     expect(nest.data.transform.x[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.primaryNest.x);
     expect(nest.data.transform.z[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.primaryNest.z);
-    expect(BATTLEFIELD_MONSTER_SPAWN.center.x).toBe(BATTLEFIELD_ENVIRONMENT_LANDMARKS.primaryNest.x);
-    expect(BATTLEFIELD_MONSTER_SPAWN.center.z).toBe(BATTLEFIELD_ENVIRONMENT_LANDMARKS.primaryNest.z);
+    expect(BATTLEFIELD_MONSTER_SPAWN.count).toBeGreaterThan(0);
+    expect(BATTLEFIELD_MONSTER_SPAWN.groundOffsetY).toBeGreaterThan(0);
   });
 
   it('相同 Chunk 窗口重复生成完全一致并能安全生成远处窗口', () => {

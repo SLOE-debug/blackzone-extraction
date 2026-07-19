@@ -8,6 +8,11 @@ enum JoystickDirectionMarker {
   Right,
 }
 
+/** 虚拟摇杆切换为场景操作按钮时可绘制的中心图案。 */
+export enum VirtualJoystickActionIcon {
+  OpenContainer,
+}
+
 /** 虚拟摇杆的扁平圆形配色。 */
 export interface VirtualJoystickPalette {
   readonly base: Readonly<Color>;
@@ -25,19 +30,24 @@ export function drawVirtualJoystick(
   handleY: number,
   palette: Readonly<VirtualJoystickPalette>,
   active: boolean,
+  actionIcon: VirtualJoystickActionIcon | null,
 ): void {
   graphics.clear();
   fillCircle(graphics, radius, 0, 0, palette.base);
   strokeCircle(graphics, radius - 2, 0, 0, palette.rim, 4);
-  drawDirectionMarkers(
-    graphics,
-    radius,
-    handleX,
-    handleY,
-    palette.rim,
-    palette.accent,
-    active,
-  );
+  if (actionIcon === null) {
+    drawDirectionMarkers(
+      graphics,
+      radius,
+      handleX,
+      handleY,
+      palette.rim,
+      palette.accent,
+      active,
+    );
+  } else {
+    strokeCircle(graphics, radius - 13, 0, 0, palette.accent, active ? 4 : 2);
+  }
 
   fillCircle(graphics, handleRadius, handleX, handleY, palette.handle);
   strokeCircle(
@@ -48,6 +58,53 @@ export function drawVirtualJoystick(
     active ? palette.accent : palette.rim,
     4,
   );
+  if (actionIcon !== null) {
+    drawActionIcon(graphics, actionIcon, handleX, handleY, palette.accent);
+  }
+}
+
+/** 在摇杆帽内部绘制与场景动作对应的无字体矢量图案。 */
+function drawActionIcon(
+  graphics: Graphics,
+  icon: VirtualJoystickActionIcon,
+  centerX: number,
+  centerY: number,
+  color: Readonly<Color>,
+): void {
+  switch (icon) {
+    case VirtualJoystickActionIcon.OpenContainer:
+      drawOpenContainerIcon(graphics, centerX, centerY, color);
+      break;
+  }
+}
+
+/** 用不规则箱体、抬起的箱盖和向上短箭头表达“打开”。 */
+function drawOpenContainerIcon(
+  graphics: Graphics,
+  centerX: number,
+  centerY: number,
+  color: Readonly<Color>,
+): void {
+  graphics.strokeColor = color;
+  graphics.fillColor = color;
+  graphics.lineWidth = 3;
+  graphics.moveTo(centerX - 15, centerY + 1);
+  graphics.lineTo(centerX - 11, centerY - 13);
+  graphics.lineTo(centerX + 12, centerY - 12);
+  graphics.lineTo(centerX + 16, centerY + 2);
+  graphics.close();
+  graphics.stroke();
+  graphics.moveTo(centerX - 16, centerY + 7);
+  graphics.lineTo(centerX - 9, centerY + 15);
+  graphics.lineTo(centerX + 10, centerY + 13);
+  graphics.lineTo(centerX + 15, centerY + 7);
+  graphics.stroke();
+  graphics.moveTo(centerX, centerY - 7);
+  graphics.lineTo(centerX, centerY + 7);
+  graphics.lineTo(centerX - 5, centerY + 2);
+  graphics.moveTo(centerX, centerY + 7);
+  graphics.lineTo(centerX + 5, centerY + 2);
+  graphics.stroke();
 }
 
 /** 绘制四个方向点，并按摇杆帽当前主方向点亮其中一个。 */

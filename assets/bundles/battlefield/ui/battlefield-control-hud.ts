@@ -1,17 +1,29 @@
 import {
+  type Camera,
   type EventKeyboard,
   input,
   Input,
   KeyCode,
   Node,
 } from 'cc';
+import { type EquipmentLibrary } from '../../../core/equipment/equipment';
 import { ScreenUiCanvas } from '../../../core/ui/screen-ui-canvas';
 import { VirtualJoystick } from '../../../core/ui/virtual-joystick';
+import { VirtualJoystickActionIcon } from '../../../core/ui/virtual-joystick-graphics';
+import {
+  BattlefieldEquipmentLabelHud,
+  type BattlefieldEquipmentLabelPresentation,
+} from '../equipment/ui/battlefield-equipment-label-hud';
+import { BattlefieldInteractionAction } from '../interaction/model/battlefield-interaction';
 import {
   BattlefieldCameraOrbitInput,
   type MutableBattlefieldCameraAzimuthDelta,
 } from './battlefield-camera-orbit-input';
 import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
+
+const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
+  [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
+} satisfies Readonly<Record<BattlefieldInteractionAction, VirtualJoystickActionIcon>>);
 
 /** 战场场景持续读取的屏幕空间控制状态。 */
 export interface BattlefieldScreenControlState {
@@ -38,6 +50,7 @@ export class BattlefieldControlHud {
   private readonly canvas: ScreenUiCanvas;
   private readonly movementJoystick: VirtualJoystick;
   private readonly aimJoystick: VirtualJoystick;
+  private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
   private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
   private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
   private readonly mutableState: MutableBattlefieldScreenControlState = {
@@ -58,15 +71,23 @@ export class BattlefieldControlHud {
   private aimDown = false;
   private aimLeft = false;
   private aimRight = false;
+  private contextAction: BattlefieldInteractionAction | null = null;
+  private contextActionPressed = false;
+  private interactionKeyDown = false;
   private inputRegistered = false;
   private disposed = false;
 
-  constructor(parent: Node) {
+  constructor(
+    parent: Node,
+    worldCamera: Camera,
+    equipmentLibrary: EquipmentLibrary,
+  ) {
     this.state = this.mutableState;
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
     let movementJoystick: VirtualJoystick | null = null;
     let aimJoystick: VirtualJoystick | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
+    let equipmentLabel: BattlefieldEquipmentLabelHud | null = null;
     try {
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
@@ -79,12 +100,19 @@ export class BattlefieldControlHud {
         BATTLEFIELD_CONTROL_STYLE.aim,
       );
       cameraOrbitInput = new BattlefieldCameraOrbitInput(this.canvas.node);
+      equipmentLabel = new BattlefieldEquipmentLabelHud(
+        this.canvas.node,
+        worldCamera,
+        equipmentLibrary,
+      );
       this.movementJoystick = movementJoystick;
       this.aimJoystick = aimJoystick;
       this.cameraOrbitInput = cameraOrbitInput;
+      this.equipmentLabel = equipmentLabel;
       this.synchronizeLayout();
       this.canvas.node.active = false;
     } catch (error: unknown) {
+      equipmentLabel?.dispose();
       cameraOrbitInput?.dispose();
       movementJoystick?.dispose();
       aimJoystick?.dispose();
@@ -109,6 +137,35 @@ export class BattlefieldControlHud {
     this.writeMovementState();
     this.writeAimState();
     this.writeCameraOrbitState();
+    if (this.aimJoystick.consumeActionPress()) {
+      this.contextActionPressed = true;
+    }
+  }
+
+  /** 切换右摇杆的普通瞄准与场景操作图案。 */
+  public setContextAction(action: BattlefieldInteractionAction | null): void {
+    if (this.disposed || this.contextAction === action) {
+      return;
+    }
+    this.contextAction = action;
+    this.contextActionPressed = false;
+    this.aimJoystick.setActionIcon(action === null
+      ? null
+      : BATTLEFIELD_INTERACTION_ICONS[action]);
+  }
+
+  /** 读取并清除触摸或 E 键产生的一次场景操作。 */
+  public consumeContextActionPress(): boolean {
+    const pressed = this.contextAction !== null && this.contextActionPressed;
+    this.contextActionPressed = false;
+    return pressed;
+  }
+
+  /** 同步靠近玩家的装备世界标签。 */
+  public presentEquipmentLabel(
+    presentation: Readonly<BattlefieldEquipmentLabelPresentation> | null,
+  ): void {
+    this.equipmentLabel.present(presentation);
   }
 
   /** 解除全局键盘监听并销毁双摇杆 Canvas。 */
@@ -116,16 +173,17 @@ export class BattlefieldControlHud {
     if (this.disposed) {
       return;
     }
+    this.disposed = true;
     if (this.inputRegistered) {
       input.off(Input.EventType.KEY_DOWN, this.handleKeyDown, this);
       input.off(Input.EventType.KEY_UP, this.handleKeyUp, this);
     }
     this.cameraOrbitInput.dispose();
+    this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
     this.canvas.dispose();
     this.inputRegistered = false;
-    this.disposed = true;
   }
 
   private synchronizeLayout(): void {
@@ -163,6 +221,12 @@ export class BattlefieldControlHud {
 
   /** 右摇杆优先，未触摸时使用方向键或 IJKL，并把瞄准值归一化。 */
   private writeAimState(): void {
+    if (this.contextAction !== null) {
+      this.mutableState.aimX = 0;
+      this.mutableState.aimY = 0;
+      this.mutableState.aiming = false;
+      return;
+    }
     const joystick = this.aimJoystick.value;
     let aimX = joystick.x;
     let aimY = joystick.y;
@@ -207,6 +271,12 @@ export class BattlefieldControlHud {
         break;
       case KeyCode.KEY_D:
         this.moveRight = pressed;
+        break;
+      case KeyCode.KEY_E:
+        if (pressed && !this.interactionKeyDown && this.contextAction !== null) {
+          this.contextActionPressed = true;
+        }
+        this.interactionKeyDown = pressed;
         break;
       case KeyCode.ARROW_UP:
       case KeyCode.KEY_I:

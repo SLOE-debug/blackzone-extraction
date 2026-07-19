@@ -9,6 +9,7 @@ import {
 } from 'cc';
 import {
   drawVirtualJoystick,
+  VirtualJoystickActionIcon,
   type VirtualJoystickPalette,
 } from './virtual-joystick-graphics';
 
@@ -41,6 +42,8 @@ export class VirtualJoystick {
   private activeTouchId: number | null = null;
   private handleX = 0;
   private handleY = 0;
+  private actionIcon: VirtualJoystickActionIcon | null = null;
+  private actionPressPending = false;
   private disposed = false;
 
   constructor(
@@ -78,6 +81,25 @@ export class VirtualJoystick {
     }
   }
 
+  /** 在轴输入与单次场景操作按钮之间切换中心图案和触摸语义。 */
+  public setActionIcon(icon: VirtualJoystickActionIcon | null): void {
+    if (this.disposed || this.actionIcon === icon) {
+      return;
+    }
+    this.actionIcon = icon;
+    this.activeTouchId = null;
+    this.actionPressPending = false;
+    this.resetValue();
+    this.redraw();
+  }
+
+  /** 读取并清除动作模式下最近一次 TOUCH_START。 */
+  public consumeActionPress(): boolean {
+    const pressed = this.actionPressPending;
+    this.actionPressPending = false;
+    return pressed;
+  }
+
   /** 解除触摸监听并销毁摇杆节点。 */
   public dispose(): void {
     if (this.disposed) {
@@ -85,6 +107,7 @@ export class VirtualJoystick {
     }
     this.disposed = true;
     this.activeTouchId = null;
+    this.actionPressPending = false;
     this.resetValue();
     if (!this.root.isValid) {
       return;
@@ -108,7 +131,13 @@ export class VirtualJoystick {
       return;
     }
     this.activeTouchId = touchId;
-    this.updateFromTouch(event);
+    if (this.actionIcon === null) {
+      this.updateFromTouch(event);
+    } else {
+      this.actionPressPending = true;
+      this.resetValue();
+      this.redraw();
+    }
     event.propagationStopped = true;
   }
 
@@ -116,7 +145,9 @@ export class VirtualJoystick {
     if (!this.matchesActiveTouch(event)) {
       return;
     }
-    this.updateFromTouch(event);
+    if (this.actionIcon === null) {
+      this.updateFromTouch(event);
+    }
     event.propagationStopped = true;
   }
 
@@ -187,6 +218,7 @@ export class VirtualJoystick {
       this.handleY,
       this.options.palette,
       this.active,
+      this.actionIcon,
     );
   }
 }

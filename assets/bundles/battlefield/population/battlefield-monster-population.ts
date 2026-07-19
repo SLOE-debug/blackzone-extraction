@@ -1,145 +1,71 @@
 import { type Material, Node } from 'cc';
-import {
-  type MonsterCombatPopulation,
-  type PlanarMonsterCombatTarget,
-} from '../../../core/contracts/monster-combat';
-import {
-  type MutablePlanarTargetResult,
-  type PlanarTargetPopulation,
-  type PlanarTargetQuery,
-} from '../../../core/contracts/planar-target';
-import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
+import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
-import { BATTLEFIELD_COMBAT_CONFIG } from '../model/battlefield-combat-config';
-import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
+import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
+import {
+  type ChunkRuntimeParticipant,
+  type ChunkRuntimeScope,
+} from '../../../core/world/chunk-runtime-registry';
+import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
+import {
+  type BattlefieldMonsterCombatTarget,
+  type MutableBattlefieldAimTarget,
+} from './battlefield-monster-contracts';
+import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 
-const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 19;
-const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(24 / 180 * Math.PI);
+export type {
+  BattlefieldMonsterCombatTarget,
+  MutableBattlefieldAimTarget,
+} from './battlefield-monster-contracts';
 
-interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation {
-  readonly count: number;
-  update(deltaTime: number): void;
-  dispose(): void;
-}
-
-interface BattlefieldMonsterAssembly {
-  readonly root: Node;
-  readonly population: BattlefieldMonsterRuntime;
-}
-
-interface MutablePlanarTargetQuery extends PlanarTargetQuery {
-  originX: number;
-  originY: number;
-  directionX: number;
-  directionY: number;
-  maximumDistance: number;
-  minimumAlignment: number;
-}
-
-/** 战场世界 XZ 平面中可被怪物感知和攻击的目标。 */
-export interface BattlefieldMonsterCombatTarget {
-  readonly x: number;
-  readonly z: number;
-  readonly collisionRadius: number;
-}
-
-interface MutablePlanarMonsterCombatTarget extends PlanarMonsterCombatTarget {
-  x: number;
-  y: number;
-  collisionRadius: number;
-}
-
-/** 战场世界 XZ 平面中复用的瞄准吸附结果。 */
-export interface MutableBattlefieldAimTarget {
-  entityId: number;
-  x: number;
-  z: number;
-}
-
-/** 将 Common Monsters 的二维本地群体装配到战场 XZ 地面。 */
-export class BattlefieldMonsterPopulation {
-  private modelRoot: Node;
-  private population: BattlefieldMonsterRuntime;
-  private centerX: number;
-  private centerZ: number;
-  private readonly localTargetQuery: MutablePlanarTargetQuery = {
-    originX: 0,
-    originY: 0,
-    directionX: 0,
-    directionY: 1,
-    maximumDistance: AIM_ASSIST_MAXIMUM_WORLD_DISTANCE,
-    minimumAlignment: AIM_ASSIST_MINIMUM_ALIGNMENT,
-  };
-  private readonly localTargetResult: MutablePlanarTargetResult = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-  };
-  private readonly localCombatTarget: MutablePlanarMonsterCombatTarget = {
-    x: 0,
-    y: 0,
-    collisionRadius: 0,
-  };
-  private combatTargetActive = false;
+/**
+ * 聚合活动 Chunk 中的全部巢穴怪物群体。
+ *
+ * 每个群体的真实所有权位于创建它的 ChunkRuntimeScope；本类只负责跨群体更新、
+ * 战斗汇总和瞄准查询，不再把旧群体迁移到其他 Chunk。
+ */
+export class BattlefieldMonsterPopulation
+implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable {
+  private readonly groups: BattlefieldMonsterGroup[] = [];
+  private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, z: 0 };
   private disposed = false;
 
   constructor(
     private readonly parent: Node,
     private readonly surfaceMaterialTemplate: Material,
     private readonly commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
-  ) {
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    const assembly = this.createAssembly(config.center.x, config.center.z);
-    this.modelRoot = assembly.root;
-    this.population = assembly.population;
-    this.centerX = config.center.x;
-    this.centerZ = config.center.z;
-  }
+  ) {}
 
-  /** 当前怪物群体所属密林巢穴的世界 X。 */
-  public get nestX(): number {
-    return this.centerX;
-  }
-
-  /** 当前怪物群体所属密林巢穴的世界 Z。 */
-  public get nestZ(): number {
-    return this.centerZ;
-  }
-
-  /** 当前战场基础怪物数量。 */
+  /** 当前所有活动巢穴中的怪物总数。 */
   public get count(): number {
-    return this.population.count;
+    let count = 0;
+    for (const group of this.groups) {
+      count += group.count;
+    }
+    return count;
   }
 
-  /**
-   * 旧巢穴离开活动窗口后，在最近的新巢穴内部重建固定数量怪物。
-   *
-   * 新群体完整创建成功后才释放旧批次，避免切换失败破坏当前运行时。
-   */
-  public relocateToNest(x: number, z: number): void {
-    if (this.disposed) {
-      throw new Error('战场怪物群体已经释放。');
-    }
-    if (!Number.isFinite(x) || !Number.isFinite(z)) {
-      throw new Error('怪物巢穴坐标必须是有限数值。');
-    }
-    if (Math.hypot(x - this.centerX, z - this.centerZ) <= 0.01) {
-      return;
-    }
-    const next = this.createAssembly(x, z);
-    const previousPopulation = this.population;
-    const previousRoot = this.modelRoot;
-    this.population = next.population;
-    this.modelRoot = next.root;
-    this.centerX = x;
-    this.centerZ = z;
-    previousPopulation.dispose();
-    if (previousRoot.isValid) {
-      previousRoot.destroy();
-    }
+  /** 为新加载 Chunk 中的每个巢穴创建独立群体并交给该 Chunk 作用域持有。 */
+  public populate(
+    scope: ChunkRuntimeScope,
+    environment: BattlefieldEnvironmentPopulation,
+  ): void {
+    this.ensureActive();
+    environment.forEachMonsterNestInChunk(scope.chunk, (nest) => {
+      const group = new BattlefieldMonsterGroup(
+        this.parent,
+        this.surfaceMaterialTemplate,
+        this.commonMonsters,
+        nest.x,
+        nest.z,
+        nest.seed,
+      );
+      this.groups.push(group);
+      scope.own(new BattlefieldMonsterGroupOwnership(this.groups, group));
+    });
   }
 
-  /** 同步玩家目标，推进怪物群体并返回本帧全部有效啃咬伤害。 */
+  /** 推进全部活动巢穴群体并汇总本帧伤害。 */
   public update(
     deltaTime: number,
     target: Readonly<BattlefieldMonsterCombatTarget> | null,
@@ -147,21 +73,14 @@ export class BattlefieldMonsterPopulation {
     if (this.disposed) {
       return 0;
     }
-    if (target === null) {
-      if (this.combatTargetActive) {
-        this.population.clearCombatTarget();
-        this.combatTargetActive = false;
-      }
-    } else {
-      this.writeLocalCombatTarget(target);
-      this.population.synchronizeCombatTarget(this.localCombatTarget);
-      this.combatTargetActive = true;
+    let damage = 0;
+    for (const group of this.groups) {
+      damage += group.update(deltaTime, target);
     }
-    this.population.update(deltaTime);
-    return this.population.consumeAttackDamage();
+    return damage;
   }
 
-  /** 将战场世界方向转换到怪物局部平面并执行轻量辅助瞄准。 */
+  /** 在所有活动巢穴中选择距离玩家最近的有效瞄准吸附结果。 */
   public resolveAimTarget(
     originX: number,
     originZ: number,
@@ -172,86 +91,67 @@ export class BattlefieldMonsterPopulation {
     if (this.disposed) {
       return false;
     }
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    const inverseScale = 1 / config.modelScale;
-    const query = this.localTargetQuery;
-    query.originX = (originX - this.centerX) * inverseScale;
-    query.originY = -(originZ - this.centerZ) * inverseScale;
-    query.directionX = directionX;
-    query.directionY = -directionZ;
-    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE * inverseScale;
-    if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
-      return false;
+    let found = false;
+    let bestDistanceSquared = Number.POSITIVE_INFINITY;
+    for (const group of this.groups) {
+      if (!group.writeAimTarget(
+        originX,
+        originZ,
+        directionX,
+        directionZ,
+        this.aimCandidate,
+      )) {
+        continue;
+      }
+      const deltaX = this.aimCandidate.x - originX;
+      const deltaZ = this.aimCandidate.z - originZ;
+      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+      if (distanceSquared < bestDistanceSquared) {
+        result.x = this.aimCandidate.x;
+        result.z = this.aimCandidate.z;
+        bestDistanceSquared = distanceSquared;
+        found = true;
+      }
     }
-    result.entityId = this.localTargetResult.entityId;
-    result.x = this.centerX + this.localTargetResult.x * config.modelScale;
-    result.z = this.centerZ - this.localTargetResult.y * config.modelScale;
-    return true;
+    return found;
   }
 
-  /** 释放怪物动态网格和坐标转换根节点。 */
+  /** 兜底释放仍登记的群体；正常流程会先由 Chunk 注册表清空作用域。 */
   public dispose(): void {
     if (this.disposed) {
       return;
     }
-    this.population.dispose();
-    if (this.modelRoot.isValid) {
-      this.modelRoot.destroy();
+    this.disposed = true;
+    while (this.groups.length > 0) {
+      this.groups.pop()?.dispose();
+    }
+  }
+
+  private ensureActive(): void {
+    if (this.disposed) {
+      throw new Error('战场怪物聚合群体已经释放。');
+    }
+  }
+}
+
+/** 在作用域卸载时同时释放群体并从聚合查询列表移除。 */
+class BattlefieldMonsterGroupOwnership implements Disposable {
+  private disposed = false;
+
+  constructor(
+    private readonly groups: BattlefieldMonsterGroup[],
+    private readonly group: BattlefieldMonsterGroup,
+  ) {}
+
+  public dispose(): void {
+    if (this.disposed) {
+      return;
     }
     this.disposed = true;
-  }
-
-  /** 在指定巢穴中心创建一套独立坐标根和怪物批次。 */
-  private createAssembly(centerX: number, centerZ: number): BattlefieldMonsterAssembly {
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    const modelRoot = new Node('BattlefieldCommonMonsters');
-    this.parent.addChild(modelRoot);
-    modelRoot.setPosition(centerX, config.center.y, centerZ);
-    // Curve Crawler 原生位于 XY 平面并以 Z 为高度；旋转后对齐世界 XZ 地面与 Y-up。
-    modelRoot.setRotationFromEuler(-90, 0, 0);
-    modelRoot.setScale(config.modelScale, config.modelScale, config.modelScale);
-
-    try {
-      const localDiameter = config.worldDiameter / config.modelScale;
-      const combat = BATTLEFIELD_COMBAT_CONFIG.monster;
-      const inverseScale = 1 / config.modelScale;
-      const population = this.commonMonsters.createCurveCrawler(modelRoot, {
-        count: config.count,
-        spawnArea: Object.freeze({
-          width: localDiameter,
-          height: localDiameter,
-        }),
-        seed: config.seed ^ Math.imul(Math.trunc(centerX * 10), 0x45d9f3b)
-          ^ Math.imul(Math.trunc(centerZ * 10), 0x119de1f3),
-        surfaceMaterialTemplate: this.surfaceMaterialTemplate,
-        combat: Object.freeze({
-          detectionRadius: combat.detectionRadius * inverseScale,
-          disengageRadius: combat.disengageRadius * inverseScale,
-          attackReach: combat.attackReach * inverseScale,
-          impactTolerance: combat.impactTolerance * inverseScale,
-          pursuitSpeedMultiplier: combat.pursuitSpeedMultiplier,
-          damage: combat.damage,
-          biteTiming: combat.biteTiming,
-        }),
-      });
-      return Object.freeze({ root: modelRoot, population });
-    } catch (error: unknown) {
-      modelRoot.destroy();
-      throw error;
+    const index = this.groups.indexOf(this.group);
+    if (index >= 0) {
+      this.groups.splice(index, 1);
     }
-  }
-
-  /** 将战场世界目标转换成 Curve Crawler 原生 XY 平面。 */
-  private writeLocalCombatTarget(target: Readonly<BattlefieldMonsterCombatTarget>): void {
-    if (!Number.isFinite(target.x)
-      || !Number.isFinite(target.z)
-      || !Number.isFinite(target.collisionRadius)
-      || target.collisionRadius < 0) {
-      throw new Error('战场怪物目标必须使用有限坐标和非负碰撞半径。');
-    }
-    const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    this.localCombatTarget.x = (target.x - this.centerX) * inverseScale;
-    this.localCombatTarget.y = -(target.z - this.centerZ) * inverseScale;
-    this.localCombatTarget.collisionRadius = target.collisionRadius * inverseScale;
+    this.group.dispose();
   }
 }

@@ -1,6 +1,7 @@
 import { Color, type Material, Node, type Scene } from 'cc';
 import { type SceneRuntime } from '../../../core/contracts/scene-runtime';
 import { FeatureId } from '../../../core/contracts/runtime-id';
+import { ChunkRuntimeRegistry } from '../../../core/world/chunk-runtime-registry';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
 import {
   VanguardAction,
@@ -9,10 +10,10 @@ import {
 } from '../../../player/vanguard';
 import { BattlefieldDebugControls } from '../debug/battlefield-debug-controls';
 import { BattlefieldDebugPanel } from '../debug/battlefield-debug-panel';
-import {
-  BattlefieldEnvironmentPopulation,
-  type MutableBattlefieldMonsterNestPosition,
-} from '../environment/population/battlefield-environment-population';
+import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
+import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../equipment/model/battlefield-equipment-library';
+import { BattlefieldSceneInteractionSystem } from '../interaction/population/battlefield-scene-interaction-system';
+import { BATTLEFIELD_TREASURE_LOOT_TABLE } from '../loot/model/battlefield-treasure-loot-table';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import {
   type MutableBattlefieldAimTarget,
@@ -20,6 +21,7 @@ import {
   BattlefieldMonsterPopulation,
 } from '../population/battlefield-monster-population';
 import { BattlefieldRenderer } from '../rendering/battlefield-renderer';
+import { BattlefieldTreasurePopulation } from '../treasure-chest/population/battlefield-treasure-population';
 import { BattlefieldControlHud } from '../ui/battlefield-control-hud';
 import {
   createBattlefieldCamera,
@@ -56,13 +58,15 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private environment: BattlefieldEnvironmentPopulation | null = null;
   private player: VanguardPopulation | null = null;
   private monsters: BattlefieldMonsterPopulation | null = null;
+  private treasures: BattlefieldTreasurePopulation | null = null;
+  private chunkRuntimes: ChunkRuntimeRegistry<BattlefieldEnvironmentPopulation> | null = null;
   private cameraRig: BattlefieldCameraRig | null = null;
   private controlHud: BattlefieldControlHud | null = null;
+  private interactionSystem: BattlefieldSceneInteractionSystem | null = null;
   private debugPanel: BattlefieldDebugPanel | null = null;
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
   private readonly aimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
-  private readonly aimTarget: MutableBattlefieldAimTarget = { entityId: -1, x: 0, z: 0 };
-  private readonly nearestNest: MutableBattlefieldMonsterNestPosition = { x: 0, z: 0 };
+  private readonly aimTarget: MutableBattlefieldAimTarget = { x: 0, z: 0 };
   private readonly monsterCombatTarget: MutableBattlefieldMonsterCombatTarget = {
     x: 0,
     z: 0,
@@ -93,8 +97,11 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let environment: BattlefieldEnvironmentPopulation | null = null;
     let player: VanguardPopulation | null = null;
     let monsters: BattlefieldMonsterPopulation | null = null;
+    let treasures: BattlefieldTreasurePopulation | null = null;
+    let chunkRuntimes: ChunkRuntimeRegistry<BattlefieldEnvironmentPopulation> | null = null;
     let cameraRig: BattlefieldCameraRig | null = null;
     let controlHud: BattlefieldControlHud | null = null;
+    let interactionSystem: BattlefieldSceneInteractionSystem | null = null;
     let debugPanel: BattlefieldDebugPanel | null = null;
     try {
       battlefieldRenderer = new BattlefieldRenderer(runtimeRoot, this.surfaceMaterialTemplate);
@@ -109,9 +116,29 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         this.surfaceMaterialTemplate,
         commonMonsters,
       );
+      treasures = new BattlefieldTreasurePopulation(
+        runtimeRoot,
+        this.surfaceMaterialTemplate,
+        BATTLEFIELD_EQUIPMENT_LIBRARY,
+        BATTLEFIELD_TREASURE_LOOT_TABLE,
+      );
+      chunkRuntimes = new ChunkRuntimeRegistry<BattlefieldEnvironmentPopulation>();
+      chunkRuntimes.register(monsters);
+      chunkRuntimes.register(treasures);
+      const initialChunkTransition = environment.consumeChunkTransition();
+      if (initialChunkTransition === null) {
+        throw new Error('战场环境初始化后缺少首个 Chunk 窗口差集。');
+      }
+      chunkRuntimes.synchronize(initialChunkTransition, environment);
       cameraRig = createBattlefieldCamera(runtimeRoot);
       cameraRig.setFollowTarget(player.positionX, player.positionY, player.positionZ, true);
-      controlHud = new BattlefieldControlHud(runtimeRoot);
+      controlHud = new BattlefieldControlHud(
+        runtimeRoot,
+        cameraRig.camera,
+        BATTLEFIELD_EQUIPMENT_LIBRARY,
+      );
+      interactionSystem = new BattlefieldSceneInteractionSystem(treasures, controlHud);
+      interactionSystem.synchronize(player.positionX, player.positionZ);
 
       this.scene.globals.ambient.skyLightingColor = new Color(38, 48, 44, 255);
       this.scene.globals.ambient.groundLightingColor = new Color(9, 14, 13, 255);
@@ -125,8 +152,11 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       );
     } catch (error: unknown) {
       debugPanel?.dispose();
+      interactionSystem?.dispose();
       controlHud?.dispose();
       cameraRig?.dispose();
+      chunkRuntimes?.dispose();
+      treasures?.dispose();
       monsters?.dispose();
       player?.dispose();
       environment?.dispose();
@@ -141,8 +171,11 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.environment = environment;
     this.player = player;
     this.monsters = monsters;
+    this.treasures = treasures;
+    this.chunkRuntimes = chunkRuntimes;
     this.cameraRig = cameraRig;
     this.controlHud = controlHud;
+    this.interactionSystem = interactionSystem;
     this.debugPanel = debugPanel;
     this.state = BattlefieldSceneState.Initialized;
   }
@@ -153,23 +186,17 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       return;
     }
     this.controlHud?.update();
+    this.interactionSystem?.consumeActionInput();
     this.applyPlayerControlIntent();
     this.player?.update(deltaTime);
     if (this.player !== null) {
-      const environmentChanged = this.environment?.update(
+      this.environment?.update(
         this.player.positionX,
         this.player.positionZ,
-      ) ?? false;
-      if (environmentChanged
-        && this.environment !== null
-        && this.monsters !== null
-        && !this.environment.containsMonsterNest(this.monsters.nestX, this.monsters.nestZ)
-        && this.environment.writeNearestMonsterNest(
-          this.player.positionX,
-          this.player.positionZ,
-          this.nearestNest,
-        )) {
-        this.monsters.relocateToNest(this.nearestNest.x, this.nearestNest.z);
+      );
+      const chunkTransition = this.environment?.consumeChunkTransition() ?? null;
+      if (chunkTransition !== null && this.environment !== null) {
+        this.chunkRuntimes?.synchronize(chunkTransition, this.environment);
       }
       this.renderer?.updateCenter(this.player.positionX, this.player.positionZ);
     }
@@ -188,6 +215,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     } else {
       this.monsters?.update(deltaTime, null);
     }
+    this.treasures?.update(deltaTime);
     if (this.player !== null && this.cameraRig !== null) {
       this.cameraRig.setFollowTarget(
         this.player.positionX,
@@ -196,6 +224,9 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       );
     }
     this.cameraRig?.update(deltaTime);
+    if (this.player !== null) {
+      this.interactionSystem?.synchronize(this.player.positionX, this.player.positionZ);
+    }
   }
 
   /** 释放战场程序化 Mesh、动态实体与场景节点。 */
@@ -205,8 +236,11 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     }
     this.state = BattlefieldSceneState.Disposed;
     this.debugPanel?.dispose();
+    this.interactionSystem?.dispose();
     this.controlHud?.dispose();
     this.cameraRig?.dispose();
+    this.chunkRuntimes?.dispose();
+    this.treasures?.dispose();
     this.monsters?.dispose();
     this.player?.dispose();
     this.environment?.dispose();
@@ -219,8 +253,11 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.environment = null;
     this.player = null;
     this.monsters = null;
+    this.treasures = null;
+    this.chunkRuntimes = null;
     this.cameraRig = null;
     this.controlHud = null;
+    this.interactionSystem = null;
     this.debugPanel = null;
   }
 

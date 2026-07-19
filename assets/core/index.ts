@@ -7,6 +7,21 @@ export {
   type LoadingProgressReporter,
 } from './contracts/loading-progress';
 export type { MonsterPopulation } from './contracts/monster-population';
+export {
+  EquipmentCategory,
+  EquipmentId,
+  EquipmentRarity,
+  WeaponClass,
+  type EquipmentDefinition,
+  type EquipmentLibrary,
+  type WeaponEquipmentDefinition,
+} from './equipment/equipment';
+export {
+  WeightedLootTable,
+  type LootTable,
+  type WeightedLootEntry,
+  type WeightedLootTableOptions,
+} from './loot/weighted-loot-table';
 export type {
   MonsterCombatPopulation,
   PlanarMonsterCombatTarget,
@@ -28,3 +43,19 @@ export { FeatureLoader } from './features/feature-loader';
 export { FeatureRegistry, featureRegistry } from './features/feature-registry';
 export { SCENE_MANIFEST } from './scenes/scene-manifest';
 export { SceneService } from './scenes/scene-service';
+export {
+  createChunkCoordinate,
+  isSameChunkCoordinate,
+  toChunkCoordinateKey,
+  type ChunkCoordinate,
+  type ChunkCoordinateKey,
+} from './world/chunk-coordinate';
+export {
+  ChunkRuntimeRegistry,
+  type ChunkRuntimeParticipant,
+  type ChunkRuntimeScope,
+} from './world/chunk-runtime-registry';
+export {
+  ChunkWindowTracker,
+  type ChunkWindowTransition,
+} from './world/chunk-window-tracker';
