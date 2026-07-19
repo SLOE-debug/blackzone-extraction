@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { UNCONSTRAINED_PLANAR_MOVEMENT } from '../../assets/core/contracts/planar-movement-constraint';
 import { VanguardMovementSystem } from '../../assets/player/vanguard/movement/vanguard-movement-system';
 import { VanguardAction } from '../../assets/player/vanguard/model/vanguard-action';
+import { VanguardLifePhase } from '../../assets/player/vanguard/model/vanguard-life';
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
 
@@ -50,5 +51,17 @@ describe('主角第三人称双摇杆移动', () => {
     state.data.intent.moveZ[0] = 0;
     movement.update(state, 0.2);
     expect(state.data.motion.speed[0]).toBeCloseTo(0, 6);
+  });
+
+  it('生命归零后忽略残留移动意图并保持当前位置', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
+    state.data.intent.moveX[0] = 1;
+    state.data.vitality.phase[0] = VanguardLifePhase.Defeated;
+
+    movement.update(state, 0.1);
+
+    expect(state.data.transform.x[0]).toBe(0);
+    expect(state.data.motion.speed[0]).toBe(0);
   });
 });

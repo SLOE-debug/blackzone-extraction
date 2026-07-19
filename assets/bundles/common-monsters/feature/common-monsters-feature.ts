@@ -5,6 +5,7 @@ import { type FeaturePlugin } from '../../../core/features/feature-plugin';
 import {
   CurveCrawlerMotionProfile,
   CurveCrawlerPopulation,
+  type CurveCrawlerDisplayOptions,
   type CurveCrawlerPopulationOptions,
 } from '../entities/curve-crawler';
 import { CommonMonsterId } from '../contracts/common-monster-id';
@@ -34,7 +35,7 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
   /** 创建供场景陈列和观察窗使用的受控 Curve Crawler。 */
   createCurveCrawlerDisplay(
     parent: Node,
-    options: Readonly<CurveCrawlerPopulationOptions>,
+    options: Readonly<CurveCrawlerDisplayOptions>,
   ): MonsterObservationPopulation;
 
   /**
@@ -77,7 +78,7 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
 
   public createCurveCrawlerDisplay(
     parent: Node,
-    options: Readonly<CurveCrawlerPopulationOptions>,
+    options: Readonly<CurveCrawlerDisplayOptions>,
   ): MonsterObservationPopulation {
     return new CurveCrawlerPopulation(
       parent,

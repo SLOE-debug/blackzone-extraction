@@ -179,6 +179,37 @@ describe('主角编译式网格计划', () => {
       .toBeGreaterThan(0.01);
   });
 
+  it('受击颜色流提高红色并压低其余通道', () => {
+    const fixture = createFixture();
+    const evaluator = new VanguardMeshEvaluator(
+      VANGUARD_MATTE_MESH_PLAN,
+      VANGUARD_MATTE_MESH_PALETTE,
+    );
+    const skinVertex = getSpan(
+      VANGUARD_MATTE_MESH_PLAN,
+      VanguardMatteSurface.Skin,
+    ).startVertex;
+    const normal = evaluatePlan(
+      fixture.state,
+      VANGUARD_MATTE_MESH_PLAN,
+      evaluator,
+      MeshDirty.All,
+    );
+    const normalColor = getColor(normal, skinVertex);
+    fixture.state.data.animation.hitFlash[0] = 1;
+    const hit = evaluatePlan(
+      fixture.state,
+      VANGUARD_MATTE_MESH_PLAN,
+      evaluator,
+      MeshDirty.Color,
+    );
+    const hitColor = getColor(hit, skinVertex);
+
+    expect(hitColor.red).toBeGreaterThan(normalColor.red);
+    expect(hitColor.green).toBeLessThan(normalColor.green);
+    expect(hitColor.blue).toBeLessThan(normalColor.blue);
+  });
+
   it('用宽檐帽和左长右短的披风建立成熟远景轮廓', () => {
     const fixture = createFixture();
     const matte = evaluatePlan(

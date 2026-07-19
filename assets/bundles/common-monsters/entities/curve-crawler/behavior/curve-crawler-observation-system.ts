@@ -5,7 +5,10 @@ import {
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
-import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
+import {
+  CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS,
+  CurveCrawlerMotionProfile,
+} from '../model/curve-crawler-motion-profile';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 const OBSERVING_MOTION_DEAD_ZONE = 0.24;
@@ -23,7 +26,7 @@ export class CurveCrawlerObservationSystem implements EntitySystem<CurveCrawlerS
       if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
         intent.targetSpeed[index] = 0;
         intent.targetCrouch[index] = 0;
-        intent.targetWave[index] = 0;
+        intent.targetBite[index] = 0;
         intent.targetTurn[index] = 0;
         intent.gaitMultiplier[index] = 0;
         continue;
@@ -47,7 +50,7 @@ export class CurveCrawlerObservationSystem implements EntitySystem<CurveCrawlerS
       let locomotionSpeed = Math.max(linearSpeed, turnTravelSpeed);
 
       intent.targetCrouch[index] = 0;
-      intent.targetWave[index] = 0;
+      intent.targetBite[index] = 0;
       intent.targetTurn[index] = 0;
       intent.gaitMultiplier[index] = 1;
       intent.turnDirection[index] = Math.sign(
@@ -88,6 +91,7 @@ export class CurveCrawlerObservationSystem implements EntitySystem<CurveCrawlerS
       }
 
       intent.targetSpeed[index] = locomotionSpeed;
+      intent.speedSharpness[index] = CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS;
     }
   }
 

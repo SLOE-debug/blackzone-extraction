@@ -16,6 +16,7 @@ import {
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import {
   type MutableBattlefieldAimTarget,
+  type BattlefieldMonsterCombatTarget,
   BattlefieldMonsterPopulation,
 } from '../population/battlefield-monster-population';
 import { BattlefieldRenderer } from '../rendering/battlefield-renderer';
@@ -41,6 +42,12 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   aiming: boolean;
 }
 
+interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombatTarget {
+  x: number;
+  z: number;
+  collisionRadius: number;
+}
+
 /** 战场场景门面，只编排环境、玩家、相机和怪物群体生命周期。 */
 export class BattlefieldSceneRuntime implements SceneRuntime {
   private state = BattlefieldSceneState.Created;
@@ -56,6 +63,11 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private readonly aimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
   private readonly aimTarget: MutableBattlefieldAimTarget = { entityId: -1, x: 0, z: 0 };
   private readonly nearestNest: MutableBattlefieldMonsterNestPosition = { x: 0, z: 0 };
+  private readonly monsterCombatTarget: MutableBattlefieldMonsterCombatTarget = {
+    x: 0,
+    z: 0,
+    collisionRadius: 0,
+  };
   private readonly playerControlIntent: MutableVanguardControlIntent = {
     moveX: 0,
     moveZ: 0,
@@ -161,7 +173,21 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       }
       this.renderer?.updateCenter(this.player.positionX, this.player.positionZ);
     }
-    this.monsters?.update(deltaTime);
+    if (this.player !== null && this.monsters !== null) {
+      const target = this.monsterCombatTarget;
+      target.x = this.player.positionX;
+      target.z = this.player.positionZ;
+      target.collisionRadius = this.player.collisionRadius;
+      const attackDamage = this.monsters.update(
+        deltaTime,
+        this.player.isAlive ? target : null,
+      );
+      if (attackDamage > 0) {
+        this.player.damage(attackDamage);
+      }
+    } else {
+      this.monsters?.update(deltaTime, null);
+    }
     if (this.player !== null && this.cameraRig !== null) {
       this.cameraRig.setFollowTarget(
         this.player.positionX,

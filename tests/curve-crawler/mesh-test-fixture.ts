@@ -35,17 +35,13 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       eyeRadius: filled(entityCount, 0.5),
       liquidRadiusScales: filled(liquidRayCount, 1),
     },
-    behavior: {
-      selectedWaveLeg: new Uint8Array(entityCount),
-    },
     animation: {
       phase: new Float32Array(Array.from({ length: entityCount }, (_, index) => index * 0.6)),
       bodyPulse: filled(entityCount, 0),
       crouchAmount: filled(entityCount, 0.12),
-      waveAmount: filled(entityCount, 0),
+      biteAmount: filled(entityCount, 0),
       turnAmount: filled(entityCount, 0),
       turnDirection: filled(entityCount, 1),
-      wavePhase: filled(entityCount, 0),
       blinkScale: filled(entityCount, 1),
       hitFlash: filled(entityCount, 0),
       surfaceCollapse: filled(entityCount, 0),

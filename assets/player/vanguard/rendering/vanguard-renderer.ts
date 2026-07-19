@@ -31,6 +31,7 @@ export class VanguardRenderer {
     VanguardMeshPlan,
     VanguardRenderLayer
   > | null = null;
+  private previousHitFlash = 0;
   private disposed = false;
 
   constructor(parent: Node, state: VanguardState, surfaceMaterialTemplate: Material) {
@@ -75,7 +76,13 @@ export class VanguardRenderer {
       throw new Error('主角渲染器尚未初始化或已经释放。');
     }
     writeVanguardBounds(state, this.bounds);
-    this.batches.update(MeshDirty.Geometry, this.bounds);
+    const hitFlash = state.data.animation.hitFlash[0] ?? 0;
+    const colorChanged = Math.abs(hitFlash - this.previousHitFlash) > 0.001;
+    this.batches.update(
+      colorChanged ? MeshDirty.All : MeshDirty.Geometry,
+      this.bounds,
+    );
+    this.previousHitFlash = hitFlash;
   }
 
   /** 先释放动态网格，再释放其引用的材质。 */

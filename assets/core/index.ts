@@ -8,6 +8,10 @@ export {
 } from './contracts/loading-progress';
 export type { MonsterPopulation } from './contracts/monster-population';
 export type {
+  MonsterCombatPopulation,
+  PlanarMonsterCombatTarget,
+} from './contracts/monster-combat';
+export type {
   MutablePlanarTargetResult,
   PlanarTargetPopulation,
   PlanarTargetQuery,

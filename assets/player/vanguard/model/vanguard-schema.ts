@@ -31,10 +31,16 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     velocityZ: entityField(Float32Array, 1),
     speed: entityField(Float32Array, 1),
   },
+  vitality: {
+    health: entityField(Float32Array, 1),
+    phase: entityField(Uint8Array, 1),
+    hitTime: entityField(Float32Array, 1),
+  },
   animation: {
     idlePhase: entityField(Float32Array, 1),
     locomotionPhase: entityField(Float32Array, 1),
     locomotionBlend: entityField(Float32Array, 1),
+    hitFlash: entityField(Float32Array, 1),
   },
   pose: {
     boneMatrices: entityField(

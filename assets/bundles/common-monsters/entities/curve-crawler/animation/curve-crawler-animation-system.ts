@@ -22,10 +22,10 @@ export class CurveCrawlerAnimationSystem implements EntitySystem<CurveCrawlerSta
         7,
         deltaTime,
       );
-      const waveAmount = damp(
-        animation.waveAmount[index] ?? 0,
-        intent.targetWave[index] ?? 0,
-        8,
+      const biteAmount = damp(
+        animation.biteAmount[index] ?? 0,
+        intent.targetBite[index] ?? 0,
+        22,
         deltaTime,
       );
       const turnAmount = damp(
@@ -49,13 +49,12 @@ export class CurveCrawlerAnimationSystem implements EntitySystem<CurveCrawlerSta
       );
 
       animation.crouchAmount[index] = crouchAmount;
-      animation.waveAmount[index] = waveAmount;
+      animation.biteAmount[index] = biteAmount;
       animation.turnAmount[index] = turnAmount;
       if ((intent.targetTurn[index] ?? 0) > 0.001) {
         animation.turnDirection[index] = intent.turnDirection[index] ?? 1;
       }
       animation.phase[index] = phase;
-      animation.wavePhase[index] = wrapAngle((animation.wavePhase[index] ?? 0) + deltaTime * 7.5);
       animation.nextBlinkTime[index] = (animation.nextBlinkTime[index] ?? 0) - deltaTime;
 
       if ((animation.nextBlinkTime[index] ?? 0) <= 0 && (animation.blinkTime[index] ?? 0) <= 0) {

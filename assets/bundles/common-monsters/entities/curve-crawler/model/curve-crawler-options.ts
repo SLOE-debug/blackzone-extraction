@@ -1,4 +1,5 @@
 import { type Material } from 'cc';
+import { type CurveCrawlerCombatOptions } from './curve-crawler-combat-options';
 import { CurveCrawlerMotionProfile } from './curve-crawler-motion-profile';
 
 /** Curve Crawler 群体使用的二维初始生成区域尺寸。 */
@@ -7,12 +8,17 @@ export interface CurveCrawlerSpawnAreaSize {
   readonly height: number;
 }
 
-/** 创建 Curve Crawler 群体所需的公开参数。 */
-export interface CurveCrawlerPopulationOptions {
+/** 创建无自主战斗逻辑的 Curve Crawler 展示群体所需的公开参数。 */
+export interface CurveCrawlerDisplayOptions {
   readonly count: number;
   readonly spawnArea: Readonly<CurveCrawlerSpawnAreaSize>;
   readonly seed: number;
   readonly surfaceMaterialTemplate: Material;
+}
+
+/** 创建自主战斗 Curve Crawler 群体所需的公开参数。 */
+export interface CurveCrawlerPopulationOptions extends CurveCrawlerDisplayOptions {
+  readonly combat: Readonly<CurveCrawlerCombatOptions>;
 }
 
 /** 完成边界校验后的群体参数。 */
@@ -28,7 +34,7 @@ export interface NormalizedCurveCrawlerPopulationOptions {
  * 校验并冻结群体参数，避免各系统重复处理输入边界。
  */
 export function normalizeCurveCrawlerOptions(
-  options: Readonly<CurveCrawlerPopulationOptions>,
+  options: Readonly<CurveCrawlerDisplayOptions>,
   motionProfile: CurveCrawlerMotionProfile,
 ): NormalizedCurveCrawlerPopulationOptions {
   if (!Number.isInteger(options.count) || options.count <= 0) {

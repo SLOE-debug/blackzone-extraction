@@ -12,7 +12,11 @@ import { CURVE_CRAWLER_MAX_HEALTH, CurveCrawlerLifePhase } from './curve-crawler
 import {
   type NormalizedCurveCrawlerPopulationOptions,
 } from './curve-crawler-options';
-import { CurveCrawlerMotionProfile } from './curve-crawler-motion-profile';
+import {
+  CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
+  CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS,
+  CurveCrawlerMotionProfile,
+} from './curve-crawler-motion-profile';
 import {
   CURVE_CRAWLER_LEG_COUNT,
   CURVE_CRAWLER_FRAGMENT_COUNT,
@@ -62,6 +66,7 @@ function initializeCurveCrawlerData(
     vitality,
     death,
     behavior,
+    combat,
     observation,
     intent,
     motion,
@@ -167,8 +172,12 @@ function initializeCurveCrawlerData(
     behavior.action[index] = CurveCrawlerAction.Crawl;
     behavior.actionTime[index] = randomRange(identity.randomState, index, 0.3, 3.5);
     behavior.actionDuration[index] = behavior.actionTime[index] ?? 1;
-    behavior.selectedWaveLeg[index] = 0;
     behavior.nextTurnTime[index] = randomRange(identity.randomState, index, 0.8, 4.5);
+
+    combat.engaged[index] = 0;
+    combat.attackTime[index] = 0;
+    combat.attackCooldown[index] = 0;
+    combat.impactApplied[index] = 0;
 
     observation.eventType[index] = MonsterObservationEventType.Wander;
     observation.eventTime[index] = 0;
@@ -179,8 +188,12 @@ function initializeCurveCrawlerData(
     observation.turnRate[index] = 0;
 
     intent.targetSpeed[index] = morphology.cruiseSpeed[index] ?? 0;
+    intent.speedSharpness[index] = options.motionProfile
+      === CurveCrawlerMotionProfile.ObservationDisplay
+      ? CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS
+      : CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS;
     intent.targetCrouch[index] = 0;
-    intent.targetWave[index] = 0;
+    intent.targetBite[index] = 0;
     intent.targetTurn[index] = 0;
     intent.turnDirection[index] = 1;
     intent.gaitMultiplier[index] = 1;
@@ -191,10 +204,9 @@ function initializeCurveCrawlerData(
     animation.phase[index] = randomRange(identity.randomState, index, 0, TAU);
     animation.bodyPulse[index] = 0;
     animation.crouchAmount[index] = 0;
-    animation.waveAmount[index] = 0;
+    animation.biteAmount[index] = 0;
     animation.turnAmount[index] = 0;
     animation.turnDirection[index] = 1;
-    animation.wavePhase[index] = randomRange(identity.randomState, index, 0, TAU);
     animation.blinkScale[index] = 1;
     animation.nextBlinkTime[index] = randomRange(identity.randomState, index, 1.5, 6);
     animation.blinkTime[index] = 0;

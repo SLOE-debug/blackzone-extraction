@@ -1,11 +1,14 @@
 import { type Material, Node } from 'cc';
 import { type PlanarMovementConstraint } from '../../../core/contracts/planar-movement-constraint';
 import { VanguardAnimationSystem } from '../animation/vanguard-animation-system';
+import { VanguardDamageSystem } from '../combat/vanguard-damage-system';
 import {
   type VanguardControlIntent,
   validateVanguardControlIntent,
 } from '../model/vanguard-control-intent';
 import { type VanguardPopulationOptions } from '../model/vanguard-options';
+import { VANGUARD_CONFIG } from '../model/vanguard-config';
+import { VANGUARD_MAX_HEALTH, VanguardLifePhase } from '../model/vanguard-life';
 import { VanguardState } from '../model/vanguard-state';
 import { VanguardMovementSystem } from '../movement/vanguard-movement-system';
 import { VanguardRenderer } from '../rendering/vanguard-renderer';
@@ -17,6 +20,7 @@ const MAXIMUM_DELTA_TIME = 0.05;
 /** 可复用主角的公开运行时门面，只编排姿态更新、渲染和资源生命周期。 */
 export class VanguardPopulation {
   private readonly state: VanguardState;
+  private readonly damageSystem = new VanguardDamageSystem();
   private readonly movement: VanguardMovementSystem;
   private readonly animation = new VanguardAnimationSystem();
   private readonly mantle = new VanguardMantleSimulationSystem();
@@ -51,6 +55,27 @@ export class VanguardPopulation {
     return this.state.data.transform.z[0] ?? 0;
   }
 
+  /** 当前主角参与近战距离计算的世界碰撞半径。 */
+  public get collisionRadius(): number {
+    return VANGUARD_CONFIG.collisionRadius;
+  }
+
+  /** 当前剩余生命值。 */
+  public get health(): number {
+    return this.state.data.vitality.health[0] ?? 0;
+  }
+
+  /** 主角稳定的最大生命值。 */
+  public get maximumHealth(): number {
+    return VANGUARD_MAX_HEALTH;
+  }
+
+  /** 主角是否仍可移动并被怪物锁定。 */
+  public get isAlive(): boolean {
+    return (this.state.data.vitality.phase[0] as VanguardLifePhase)
+      === VanguardLifePhase.Alive;
+  }
+
   /** 写入下一帧持续使用的移动与瞄准意图。 */
   public setControlIntent(intent: Readonly<VanguardControlIntent>): void {
     this.ensureActive();
@@ -63,13 +88,20 @@ export class VanguardPopulation {
     data.aiming[0] = intent.aiming ? 1 : 0;
   }
 
-  /** 按移动、动画、披风模拟和渲染的固定顺序推进主角。 */
+  /** 对主角施加聚合战斗伤害。 */
+  public damage(amount: number): void {
+    this.ensureActive();
+    this.damageSystem.damage(this.state, amount);
+  }
+
+  /** 按承伤、移动、动画、披风模拟和渲染的固定顺序推进主角。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
       throw new Error('主角帧时间必须是有限数值。');
     }
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
+    this.damageSystem.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
     this.mantle.update(this.state, safeDeltaTime);

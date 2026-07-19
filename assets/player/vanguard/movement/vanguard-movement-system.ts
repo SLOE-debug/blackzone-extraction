@@ -5,6 +5,7 @@ import {
 } from '../../../core/contracts/planar-movement-constraint';
 import { dampAngle } from '../../../core/math/scalar';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
+import { VanguardLifePhase } from '../model/vanguard-life';
 import { type VanguardState } from '../model/vanguard-state';
 
 const DIRECTION_EPSILON = 0.0001;
@@ -17,8 +18,14 @@ export class VanguardMovementSystem implements EntitySystem<VanguardState, numbe
 
   /** 根据持续控制意图推进单实体运动状态。 */
   public update(state: VanguardState, deltaTime: number): void {
-    const { transform, intent, motion } = state.data;
+    const { transform, intent, motion, vitality } = state.data;
     for (let index = 0; index < state.count; index++) {
+      if ((vitality.phase[index] as VanguardLifePhase) !== VanguardLifePhase.Alive) {
+        motion.velocityX[index] = 0;
+        motion.velocityZ[index] = 0;
+        motion.speed[index] = 0;
+        continue;
+      }
       const moveX = intent.moveX[index] ?? 0;
       const moveZ = intent.moveZ[index] ?? 0;
       const targetVelocityX = moveX * VANGUARD_CONFIG.maximumMoveSpeed;

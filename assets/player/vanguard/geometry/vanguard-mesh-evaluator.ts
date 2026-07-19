@@ -79,7 +79,7 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
       changed |= MeshDirty.Pose;
     }
     if ((requested & MeshDirty.Color) !== MeshDirty.None) {
-      this.evaluateColors(streams.colors, range.count);
+      this.evaluateColors(state, streams.colors, range);
       changed |= MeshDirty.Color;
     }
     if ((requested & MeshDirty.Bounds) !== MeshDirty.None) {
@@ -355,12 +355,21 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
   }
 
   /** 在初始化或显式颜色事件中写入稳定的语义配色。 */
-  private evaluateColors(colors: Float32Array, entityCount: number): void {
+  private evaluateColors(
+    state: VanguardState,
+    colors: Float32Array,
+    range: EntityRange,
+  ): void {
     const plan = this.compiledPlan;
     const trianglesPerEntity = plan.vertexCount / 3;
-    for (let entity = 0; entity < entityCount; entity++) {
-      const vertexOffset = entity * plan.vertexCount;
-      const entityVariantOffset = entity * trianglesPerEntity;
+    for (let localEntity = 0; localEntity < range.count; localEntity++) {
+      const entityIndex = range.start + localEntity;
+      const vertexOffset = localEntity * plan.vertexCount;
+      const entityVariantOffset = entityIndex * trianglesPerEntity;
+      const hitFlash = Math.max(
+        0,
+        Math.min(state.data.animation.hitFlash[entityIndex] ?? 0, 1),
+      );
       for (let vertex = 0; vertex < plan.vertexCount; vertex++) {
         const semantic = plan.semanticIds[vertex] ?? 0;
         const color = this.palette.entries[semantic];
@@ -372,9 +381,12 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
         const shade = 1 - color.facetVariation * 0.55
           + variant / (COLOR_VARIANT_COUNT - 1) * color.facetVariation;
         const offset = (vertexOffset + vertex) * 4;
-        colors[offset] = Math.min(1, color.red * shade);
-        colors[offset + 1] = Math.min(1, color.green * shade);
-        colors[offset + 2] = Math.min(1, color.blue * shade);
+        const baseRed = Math.min(1, color.red * shade);
+        const baseGreen = Math.min(1, color.green * shade);
+        const baseBlue = Math.min(1, color.blue * shade);
+        colors[offset] = baseRed + (1 - baseRed) * hitFlash * 0.72;
+        colors[offset + 1] = baseGreen * (1 - hitFlash * 0.62);
+        colors[offset + 2] = baseBlue * (1 - hitFlash * 0.68);
         colors[offset + 3] = color.alpha;
       }
     }

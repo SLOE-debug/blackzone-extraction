@@ -1,17 +1,22 @@
 import { type Material, Node } from 'cc';
 import {
+  type MonsterCombatPopulation,
+  type PlanarMonsterCombatTarget,
+} from '../../../core/contracts/monster-combat';
+import {
   type MutablePlanarTargetResult,
   type PlanarTargetPopulation,
   type PlanarTargetQuery,
 } from '../../../core/contracts/planar-target';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
 import { FeatureId } from '../../../core/contracts/runtime-id';
+import { BATTLEFIELD_COMBAT_CONFIG } from '../model/battlefield-combat-config';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 
 const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 19;
 const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(24 / 180 * Math.PI);
 
-interface BattlefieldMonsterRuntime extends PlanarTargetPopulation {
+interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation {
   readonly count: number;
   update(deltaTime: number): void;
   dispose(): void;
@@ -29,6 +34,19 @@ interface MutablePlanarTargetQuery extends PlanarTargetQuery {
   directionY: number;
   maximumDistance: number;
   minimumAlignment: number;
+}
+
+/** 战场世界 XZ 平面中可被怪物感知和攻击的目标。 */
+export interface BattlefieldMonsterCombatTarget {
+  readonly x: number;
+  readonly z: number;
+  readonly collisionRadius: number;
+}
+
+interface MutablePlanarMonsterCombatTarget extends PlanarMonsterCombatTarget {
+  x: number;
+  y: number;
+  collisionRadius: number;
 }
 
 /** 战场世界 XZ 平面中复用的瞄准吸附结果。 */
@@ -57,6 +75,12 @@ export class BattlefieldMonsterPopulation {
     x: 0,
     y: 0,
   };
+  private readonly localCombatTarget: MutablePlanarMonsterCombatTarget = {
+    x: 0,
+    y: 0,
+    collisionRadius: 0,
+  };
+  private combatTargetActive = false;
   private disposed = false;
 
   constructor(
@@ -115,11 +139,26 @@ export class BattlefieldMonsterPopulation {
     }
   }
 
-  /** 推进基础怪物行为、移动、动画和渲染。 */
-  public update(deltaTime: number): void {
-    if (!this.disposed) {
-      this.population.update(deltaTime);
+  /** 同步玩家目标，推进怪物群体并返回本帧全部有效啃咬伤害。 */
+  public update(
+    deltaTime: number,
+    target: Readonly<BattlefieldMonsterCombatTarget> | null,
+  ): number {
+    if (this.disposed) {
+      return 0;
     }
+    if (target === null) {
+      if (this.combatTargetActive) {
+        this.population.clearCombatTarget();
+        this.combatTargetActive = false;
+      }
+    } else {
+      this.writeLocalCombatTarget(target);
+      this.population.synchronizeCombatTarget(this.localCombatTarget);
+      this.combatTargetActive = true;
+    }
+    this.population.update(deltaTime);
+    return this.population.consumeAttackDamage();
   }
 
   /** 将战场世界方向转换到怪物局部平面并执行轻量辅助瞄准。 */
@@ -174,6 +213,8 @@ export class BattlefieldMonsterPopulation {
 
     try {
       const localDiameter = config.worldDiameter / config.modelScale;
+      const combat = BATTLEFIELD_COMBAT_CONFIG.monster;
+      const inverseScale = 1 / config.modelScale;
       const population = this.commonMonsters.createCurveCrawler(modelRoot, {
         count: config.count,
         spawnArea: Object.freeze({
@@ -183,11 +224,34 @@ export class BattlefieldMonsterPopulation {
         seed: config.seed ^ Math.imul(Math.trunc(centerX * 10), 0x45d9f3b)
           ^ Math.imul(Math.trunc(centerZ * 10), 0x119de1f3),
         surfaceMaterialTemplate: this.surfaceMaterialTemplate,
+        combat: Object.freeze({
+          detectionRadius: combat.detectionRadius * inverseScale,
+          disengageRadius: combat.disengageRadius * inverseScale,
+          attackReach: combat.attackReach * inverseScale,
+          impactTolerance: combat.impactTolerance * inverseScale,
+          pursuitSpeedMultiplier: combat.pursuitSpeedMultiplier,
+          damage: combat.damage,
+          biteTiming: combat.biteTiming,
+        }),
       });
       return Object.freeze({ root: modelRoot, population });
     } catch (error: unknown) {
       modelRoot.destroy();
       throw error;
     }
+  }
+
+  /** 将战场世界目标转换成 Curve Crawler 原生 XY 平面。 */
+  private writeLocalCombatTarget(target: Readonly<BattlefieldMonsterCombatTarget>): void {
+    if (!Number.isFinite(target.x)
+      || !Number.isFinite(target.z)
+      || !Number.isFinite(target.collisionRadius)
+      || target.collisionRadius < 0) {
+      throw new Error('战场怪物目标必须使用有限坐标和非负碰撞半径。');
+    }
+    const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    this.localCombatTarget.x = (target.x - this.centerX) * inverseScale;
+    this.localCombatTarget.y = -(target.z - this.centerZ) * inverseScale;
+    this.localCombatTarget.collisionRadius = target.collisionRadius * inverseScale;
   }
 }

@@ -79,12 +79,12 @@ describe('Curve Crawler 系统', () => {
     expect(bounds.maxX).toBeGreaterThan(1000);
   });
 
-  it('动画系统独立混合步态、挥腿和蜷缩姿态', () => {
+  it('动画系统独立混合步态、啃咬前探和蜷缩姿态', () => {
     const state = createState();
     const animation = new CurveCrawlerAnimationSystem();
     const initialPhase = state.data.animation.phase[0] ?? 0;
     state.data.intent.targetCrouch[0] = 1;
-    state.data.intent.targetWave[0] = 1;
+    state.data.intent.targetBite[0] = 1;
     state.data.intent.gaitMultiplier[0] = 1;
     state.data.motion.currentSpeed[0] = state.data.morphology.cruiseSpeed[0] ?? 0;
     state.data.animation.nextBlinkTime[0] = 10;
@@ -93,7 +93,7 @@ describe('Curve Crawler 系统', () => {
 
     expect(state.data.animation.phase[0]).not.toBe(initialPhase);
     expect(state.data.animation.crouchAmount[0] ?? 0).toBeGreaterThan(0);
-    expect(state.data.animation.waveAmount[0] ?? 0).toBeGreaterThan(0);
+    expect(state.data.animation.biteAmount[0] ?? 0).toBeGreaterThan(0);
     expect(Number.isFinite(state.data.animation.bodyPulse[0])).toBe(true);
   });
 

@@ -4,4 +4,8 @@ export {
   type CurveCrawlerCommand,
 } from './population/curve-crawler-command';
 export { CurveCrawlerMotionProfile } from './model/curve-crawler-motion-profile';
-export type { CurveCrawlerPopulationOptions } from './model/curve-crawler-options';
+export type { CurveCrawlerCombatOptions } from './model/curve-crawler-combat-options';
+export type {
+  CurveCrawlerDisplayOptions,
+  CurveCrawlerPopulationOptions,
+} from './model/curve-crawler-options';

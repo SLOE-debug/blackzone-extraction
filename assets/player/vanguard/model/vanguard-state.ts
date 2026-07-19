@@ -1,5 +1,6 @@
 import { EntityTable } from '../../../core/entities/entity-table';
 import { VANGUARD_CONFIG } from './vanguard-config';
+import { VANGUARD_MAX_HEALTH, VanguardLifePhase } from './vanguard-life';
 import {
   type VanguardPopulationOptions,
   validateVanguardOptions,
@@ -35,7 +36,7 @@ function initializeVanguardData(
   data: VanguardData,
   options: Readonly<VanguardPopulationOptions>,
 ): void {
-  const { transform, morphology, intent, motion, animation, mantle } = data;
+  const { transform, morphology, intent, motion, vitality, animation, mantle } = data;
   transform.x[0] = options.position.x;
   transform.y[0] = options.position.y;
   transform.z[0] = options.position.z;
@@ -52,9 +53,13 @@ function initializeVanguardData(
   motion.velocityX[0] = 0;
   motion.velocityZ[0] = 0;
   motion.speed[0] = 0;
+  vitality.health[0] = VANGUARD_MAX_HEALTH;
+  vitality.phase[0] = VanguardLifePhase.Alive;
+  vitality.hitTime[0] = 0;
   animation.idlePhase[0] = 0;
   animation.locomotionPhase[0] = 0;
   animation.locomotionBlend[0] = 0;
+  animation.hitFlash[0] = 0;
   writeVanguardMantleRestState(
     mantle,
     0,

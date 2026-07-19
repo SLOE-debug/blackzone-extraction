@@ -2,7 +2,10 @@ import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { damp, dampAngle } from '../../../../../core/math/scalar';
 import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
+import {
+  CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
+  CurveCrawlerMotionProfile,
+} from '../model/curve-crawler-motion-profile';
 
 /** 负责速度、朝向和不受区域边界限制的位移。 */
 export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerState, number> {
@@ -19,7 +22,7 @@ export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerStat
       const currentSpeed = damp(
         motion.currentSpeed[index] ?? 0,
         intent.targetSpeed[index] ?? 0,
-        state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay ? 9 : 4.5,
+        intent.speedSharpness[index] ?? CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
         deltaTime,
       );
       const heading = dampAngle(

@@ -37,13 +37,14 @@ export function evaluateCurveCrawlerEyeMesh(
   const headingSine = Math.sin(heading);
   const bodyLength = morphology.bodyLength[entityIndex] ?? 0;
   const bodyWidth = morphology.bodyWidth[entityIndex] ?? 0;
-  const forward = bodyLength * 0.48;
+  const biteAmount = animation.biteAmount[entityIndex] ?? 0;
+  const forward = bodyLength * (0.48 + biteAmount * 0.16);
   const sideOffset = bodyWidth * 0.17;
   const radiusX = Math.max((morphology.eyeRadius[entityIndex] ?? 0) * fragmentScale, 0.0001);
   const radiusY = radiusX * 0.92;
   const radiusZ = radiusX * Math.max(animation.blinkScale[entityIndex] ?? 1, 0.08);
   const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
-  const eyeCenterZ = bodyWidth * 0.36 * (1.8 - crouchAmount * 0.2);
+  const eyeCenterZ = bodyWidth * 0.36 * (1.8 - crouchAmount * 0.2 - biteAmount * 0.12);
   const fragmentOffset = entityIndex * CURVE_CRAWLER_FRAGMENT_COUNT;
 
   evaluateEye(
