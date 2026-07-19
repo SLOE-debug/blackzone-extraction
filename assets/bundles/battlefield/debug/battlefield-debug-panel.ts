@@ -39,6 +39,9 @@ export class BattlefieldDebugPanel {
     panel.addColor('地面环境色', snapshot.ambientGroundColor, (value) => {
       controls.setAmbientGroundColor(value);
     });
+    panel.addButton('在玩家正前方生成蜘蛛', () => {
+      controls.spawnCurveCrawlerAhead();
+    });
     this.panel = panel;
   }
 

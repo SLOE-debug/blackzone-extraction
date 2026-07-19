@@ -15,6 +15,7 @@ import {
 } from '../../../../../core/contracts/monster-observation';
 import { type MonsterPopulation } from '../../../../../core/contracts/monster-population';
 import { CurveCrawlerAnimationSystem } from '../animation/curve-crawler-animation-system';
+import { CurveCrawlerEmergenceSystem } from '../animation/curve-crawler-emergence-system';
 import { CurveCrawlerBehaviorSystem } from '../behavior/curve-crawler-behavior-system';
 import { CurveCrawlerCombatSystem } from '../behavior/curve-crawler-combat-system';
 import { CurveCrawlerObservationSystem } from '../behavior/curve-crawler-observation-system';
@@ -54,6 +55,7 @@ MonsterCombatPopulation, PlanarTargetPopulation {
   private readonly movement = new CurveCrawlerMovementSystem();
   private readonly targeting = new CurveCrawlerTargeting();
   private readonly animation = new CurveCrawlerAnimationSystem();
+  private readonly emergence = new CurveCrawlerEmergenceSystem();
   private readonly renderer: CurveCrawlerRenderer;
   public readonly observationFootprint: Readonly<MonsterObservationFootprint>;
   private disposed = false;
@@ -100,7 +102,7 @@ MonsterCombatPopulation, PlanarTargetPopulation {
     return this.state.count;
   }
 
-  /** 按受击、死亡、行为、观察、战斗、移动、动画、渲染的固定顺序推进一帧。 */
+  /** 按出生、受击、死亡、行为、观察、战斗、移动、动画、渲染的固定顺序推进一帧。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
@@ -108,6 +110,7 @@ MonsterCombatPopulation, PlanarTargetPopulation {
     }
 
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
+    this.emergence.update(this.state, safeDeltaTime);
     this.hit.update(this.state, safeDeltaTime);
     this.death.update(this.state, safeDeltaTime);
     this.behavior.update(this.state, safeDeltaTime);

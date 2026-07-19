@@ -55,6 +55,11 @@ export class VanguardPopulation {
     return this.state.data.transform.z[0] ?? 0;
   }
 
+  /** 当前主角绕世界 Y 轴的朝向弧度，零值朝向世界正 Z。 */
+  public get heading(): number {
+    return this.state.data.transform.heading[0] ?? 0;
+  }
+
   /** 当前主角参与近战距离计算的世界碰撞半径。 */
   public get collisionRadius(): number {
     return VANGUARD_CONFIG.collisionRadius;

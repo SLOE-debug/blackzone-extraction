@@ -15,7 +15,7 @@ const DISTANCE_EPSILON = 0.00001;
 /**
  * 为静态环境障碍建立无逐帧分配的均匀网格。
  *
- * 树干、岩体、残骸、祭台和巢穴仅使用平面圆形占地；可视 Mesh 不参与碰撞。
+ * 树干、岩体、残骸和祭台仅使用平面圆形占地；可视 Mesh 不参与碰撞。
  */
 export class BattlefieldEnvironmentObstacleField implements PlanarMovementConstraint {
   private readonly obstacleX = new Float32Array(MAXIMUM_OBSTACLE_COUNT);

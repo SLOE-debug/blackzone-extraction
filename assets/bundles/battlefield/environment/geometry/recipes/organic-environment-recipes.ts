@@ -1,7 +1,6 @@
 import {
   appendFacetedBlade,
   appendIrregularTube,
-  HORIZONTAL_TUBE_BASIS,
   type BattlefieldEnvironmentTubeRing,
 } from '../battlefield-environment-geometry-kernels';
 import {
@@ -21,10 +20,6 @@ const MUSHROOM_GILL = environmentColor(38, 108, 91);
 const GLOW_STALK = environmentColor(41, 112, 83);
 const GLOW_LEAF = environmentColor(54, 190, 116);
 const GLOW_BULB = environmentColor(102, 255, 180);
-const NEST_ROOT = environmentColor(43, 31, 27);
-const NEST_CANOPY = environmentColor(19, 49, 35);
-const NEST_CANOPY_HIGHLIGHT = environmentColor(33, 75, 49);
-const NEST_CANOPY_DARK = environmentColor(12, 31, 25);
 
 /** 编译枯死弯曲树干、错位枝条和三簇不规则树冠。 */
 export function createDeadTreeMeshPlan(): BattlefieldEnvironmentMeshPlan {
@@ -79,49 +74,6 @@ export function createGlowPlantMeshPlan(): BattlefieldEnvironmentMeshPlan {
   appendBulb(builder, -0.12, 1.66, 0.08, 0.32, 211);
   appendBulb(builder, -0.74, 1.18, 0.2, 0.25, 223);
   appendBulb(builder, 0.7, 1.31, -0.28, 0.28, 227);
-  return builder.build();
-}
-
-/**
- * 编译完全闭合的多层密林巢穴。
- *
- * 三重双面树冠壳覆盖侧面、顶部和内部观察方向，怪物可以穿过几何向外出现，
- * 玩家则由独立圆形占地阻止进入。
- */
-export function createMonsterNestMeshPlan(): BattlefieldEnvironmentMeshPlan {
-  const builder = new BattlefieldEnvironmentMeshBuilder();
-  appendNestCanopy(builder, 6.8, 0.03, 12, 251, NEST_CANOPY);
-  appendNestCanopy(builder, 4.45, 0.48, 10, 269, NEST_CANOPY_HIGHLIGHT);
-  appendNestCanopy(builder, 2.35, 0.72, 8, 283, NEST_CANOPY_DARK);
-  for (let trunk = 0; trunk < 12; trunk++) {
-    const angle = trunk / 12 * Math.PI * 2 + (trunk % 2) * 0.08;
-    const radius = 5.65 + Math.sin(trunk * 2.4) * 0.36;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    const leanX = Math.cos(angle) * -0.55 + Math.sin(angle * 2.1) * 0.22;
-    const leanZ = Math.sin(angle) * -0.55 + Math.cos(angle * 1.7) * 0.22;
-    appendIrregularTube(builder, trunk % 3 === 0 ? TREE_BARK : NEST_ROOT, Object.freeze([
-      ring(x, 0, z, 0.48, 0.42, angle),
-      ring(x + leanX * 0.2, 2.2, z + leanZ * 0.2, 0.39, 0.34, angle + 0.08),
-      ring(x + leanX * 0.58, 4.65, z + leanZ * 0.58, 0.27, 0.24, angle - 0.07),
-      ring(x + leanX, 6.85, z + leanZ, 0.08, 0.07, angle + 0.14),
-    ]), 6, 307 + trunk * 13);
-  }
-  for (let root = 0; root < 10; root++) {
-    const angle = root / 10 * Math.PI * 2 + 0.14;
-    const innerX = Math.cos(angle) * 4.8;
-    const innerZ = Math.sin(angle) * 4.8;
-    const outerX = Math.cos(angle) * 7.45;
-    const outerZ = Math.sin(angle) * 7.45;
-    appendFacetedBlade(
-      builder,
-      NEST_ROOT,
-      point(innerX - Math.sin(angle) * 0.28, 0.04, innerZ + Math.cos(angle) * 0.28),
-      point(innerX + Math.sin(angle) * 0.28, 0.04, innerZ - Math.cos(angle) * 0.28),
-      point(outerX, 0.12, outerZ),
-      point((innerX + outerX) * 0.5, 0.58, (innerZ + outerZ) * 0.5),
-    );
-  }
   return builder.build();
 }
 
@@ -210,32 +162,6 @@ function appendBulb(
     ring(x - radius * 0.1, y + radius * 0.72, z + radius * 0.07,
       radius * 0.16, radius * 0.14, -0.08),
   ]), 6, seed);
-}
-
-function appendNestCanopy(
-  builder: BattlefieldEnvironmentMeshBuilder,
-  radius: number,
-  baseY: number,
-  segments: number,
-  seed: number,
-  color: ReturnType<typeof environmentColor>,
-): void {
-  const rings: readonly BattlefieldEnvironmentTubeRing[] = Object.freeze([
-    ring(0, baseY, 0, radius * 0.94, radius, 0.02),
-    ring(0.18, 2.75, -0.12, radius * 1.04, radius * 0.98, -0.07),
-    ring(-0.24, 5.65, 0.18, radius * 0.9, radius * 0.86, 0.11),
-    ring(0.12, 7.75, -0.08, radius * 0.52, radius * 0.48, -0.12),
-    ring(-0.06, 8.85, 0.04, radius * 0.08, radius * 0.075, 0.2),
-  ]);
-  appendIrregularTube(
-    builder,
-    color,
-    rings,
-    segments,
-    seed,
-    HORIZONTAL_TUBE_BASIS,
-    true,
-  );
 }
 
 function ring(

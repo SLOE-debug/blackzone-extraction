@@ -8,10 +8,17 @@ import {
 } from '../../../core/world/chunk-runtime-registry';
 import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
 import {
+  BATTLEFIELD_MONSTER_SPAWN,
+  createBattlefieldMonsterSpawn,
+} from '../model/battlefield-monster-spawn';
+import {
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
+
+const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
+const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
 
 export type {
   BattlefieldMonsterCombatTarget,
@@ -19,7 +26,7 @@ export type {
 } from './battlefield-monster-contracts';
 
 /**
- * 聚合活动 Chunk 中的全部巢穴怪物群体。
+ * 聚合活动 Chunk 中的全部地图随机怪物群体。
  *
  * 每个群体的真实所有权位于创建它的 ChunkRuntimeScope；本类只负责跨群体更新、
  * 战斗汇总和瞄准查询，不再把旧群体迁移到其他 Chunk。
@@ -28,6 +35,7 @@ export class BattlefieldMonsterPopulation
 implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable {
   private readonly groups: BattlefieldMonsterGroup[] = [];
   private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, z: 0 };
+  private debugGroup: BattlefieldMonsterGroup | null = null;
   private disposed = false;
 
   constructor(
@@ -36,7 +44,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     private readonly commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
   ) {}
 
-  /** 当前所有活动巢穴中的怪物总数。 */
+  /** 当前所有活动 Chunk 中的怪物总数。 */
   public get count(): number {
     let count = 0;
     for (const group of this.groups) {
@@ -45,27 +53,59 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     return count;
   }
 
-  /** 为新加载 Chunk 中的每个巢穴创建独立群体并交给该 Chunk 作用域持有。 */
+  /** 为新加载 Chunk 创建确定性随机群体并交给该 Chunk 作用域持有。 */
   public populate(
     scope: ChunkRuntimeScope,
-    environment: BattlefieldEnvironmentPopulation,
+    _environment: BattlefieldEnvironmentPopulation,
   ): void {
     this.ensureActive();
-    environment.forEachMonsterNestInChunk(scope.chunk, (nest) => {
-      const group = new BattlefieldMonsterGroup(
-        this.parent,
-        this.surfaceMaterialTemplate,
-        this.commonMonsters,
-        nest.x,
-        nest.z,
-        nest.seed,
-      );
-      this.groups.push(group);
-      scope.own(new BattlefieldMonsterGroupOwnership(this.groups, group));
-    });
+    const spawn = createBattlefieldMonsterSpawn(scope.chunk);
+    if (spawn === null) {
+      return;
+    }
+    const group = new BattlefieldMonsterGroup(
+      this.parent,
+      this.surfaceMaterialTemplate,
+      this.commonMonsters,
+      spawn.x,
+      spawn.z,
+      spawn.count,
+      spawn.seed,
+      BATTLEFIELD_MONSTER_SPAWN.worldDiameter,
+    );
+    this.groups.push(group);
+    scope.own(new BattlefieldMonsterGroupOwnership(this.groups, group));
   }
 
-  /** 推进全部活动巢穴群体并汇总本帧伤害。 */
+  /**
+   * 在精确世界坐标创建一只用于观察出生演出的蜘蛛。
+   *
+   * 再次触发时先替换旧观察实体，避免调试点击持续积累完整怪物批次。
+   */
+  public spawnDebugCurveCrawler(x: number, z: number): void {
+    this.ensureActive();
+    if (!Number.isFinite(x) || !Number.isFinite(z)) {
+      throw new Error('Debug 蜘蛛生成坐标必须是有限数值。');
+    }
+    if (this.debugGroup !== null) {
+      removeMonsterGroup(this.groups, this.debugGroup);
+      this.debugGroup.dispose();
+    }
+    const group = new BattlefieldMonsterGroup(
+      this.parent,
+      this.surfaceMaterialTemplate,
+      this.commonMonsters,
+      x,
+      z,
+      1,
+      DEBUG_CURVE_CRAWLER_SEED,
+      DEBUG_CURVE_CRAWLER_WORLD_DIAMETER,
+    );
+    this.groups.push(group);
+    this.debugGroup = group;
+  }
+
+  /** 推进全部活动地图群体并汇总本帧伤害。 */
   public update(
     deltaTime: number,
     target: Readonly<BattlefieldMonsterCombatTarget> | null,
@@ -80,7 +120,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     return damage;
   }
 
-  /** 在所有活动巢穴中选择距离玩家最近的有效瞄准吸附结果。 */
+  /** 在所有活动地图群体中选择距离玩家最近的有效瞄准吸附结果。 */
   public resolveAimTarget(
     originX: number,
     originZ: number,
@@ -125,6 +165,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     while (this.groups.length > 0) {
       this.groups.pop()?.dispose();
     }
+    this.debugGroup = null;
   }
 
   private ensureActive(): void {
@@ -148,10 +189,18 @@ class BattlefieldMonsterGroupOwnership implements Disposable {
       return;
     }
     this.disposed = true;
-    const index = this.groups.indexOf(this.group);
-    if (index >= 0) {
-      this.groups.splice(index, 1);
-    }
+    removeMonsterGroup(this.groups, this.group);
     this.group.dispose();
+  }
+}
+
+/** 从聚合更新列表移除指定群体。 */
+function removeMonsterGroup(
+  groups: BattlefieldMonsterGroup[],
+  group: BattlefieldMonsterGroup,
+): void {
+  const index = groups.indexOf(group);
+  if (index >= 0) {
+    groups.splice(index, 1);
   }
 }

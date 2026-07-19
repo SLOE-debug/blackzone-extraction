@@ -193,11 +193,27 @@ export class BattlefieldControlHud {
       return;
     }
     const style = BATTLEFIELD_CONTROL_STYLE;
-    const leftX = -width * 0.5 + style.movement.interactionRadius + style.edgeMargin;
-    const rightX = width * 0.5 - style.aim.interactionRadius - style.edgeMargin;
+    const maximumInteractionRadius = Math.max(
+      style.movement.interactionRadius,
+      style.aim.interactionRadius,
+    );
+    const maximumHorizontalInset = Math.max(
+      0,
+      width * 0.5
+        - style.movement.interactionRadius
+        - style.aim.interactionRadius
+        - style.minimumCenterGap * 0.5,
+    );
+    const horizontalInset = Math.min(style.horizontalEdgeInset, maximumHorizontalInset);
+    const bottomInset = Math.min(
+      style.bottomEdgeInset,
+      Math.max(0, height - maximumInteractionRadius * 2),
+    );
+    const leftX = -width * 0.5 + style.movement.interactionRadius + horizontalInset;
+    const rightX = width * 0.5 - style.aim.interactionRadius - horizontalInset;
     const centerY = -height * 0.5
-      + Math.max(style.movement.interactionRadius, style.aim.interactionRadius)
-      + style.edgeMargin;
+      + maximumInteractionRadius
+      + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
     this.aimJoystick.setPosition(rightX, centerY);
     this.layoutWidth = width;

@@ -131,6 +131,33 @@ export class BrowserDebugPanel {
     body.appendChild(row);
   }
 
+  /** 添加一个立即触发调试动作的按钮。 */
+  public addButton(label: string, onClick: () => void): void {
+    const body = this.body;
+    if (body === null) {
+      return;
+    }
+    if (label.length === 0) {
+      throw new Error('调试按钮标签不能为空。');
+    }
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    Object.assign(button.style, {
+      width: '100%',
+      minHeight: '30px',
+      marginTop: '6px',
+      color: '#fff',
+      background: this.options.accentColor,
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      borderRadius: '3px',
+      cursor: 'pointer',
+      fontWeight: '700',
+    });
+    button.addEventListener('click', onClick);
+    body.appendChild(button);
+  }
+
   /** 从浏览器页面移除面板。 */
   public dispose(): void {
     this.root?.remove();

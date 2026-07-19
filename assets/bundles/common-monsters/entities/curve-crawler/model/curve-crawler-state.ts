@@ -8,6 +8,7 @@ import {
 } from '../../../../../core/math/xorshift32';
 import { TAU } from '../../../../../core/math/scalar';
 import { CurveCrawlerAction } from './curve-crawler-action';
+import { CURVE_CRAWLER_EMERGENCE_TIMING } from './curve-crawler-emergence';
 import { CURVE_CRAWLER_MAX_HEALTH, CurveCrawlerLifePhase } from './curve-crawler-life';
 import {
   type NormalizedCurveCrawlerPopulationOptions,
@@ -84,6 +85,7 @@ function initializeCurveCrawlerData(
   for (let index = 0; index < options.count; index++) {
     identity.id[index] = index;
     identity.randomState[index] = mixRandomSeed(options.seed, index);
+    identity.appearanceSeed[index] = mixRandomSeed(options.seed ^ 0x73a4d91, index);
 
     const column = index % columns;
     const row = Math.floor(index / columns);
@@ -133,8 +135,19 @@ function initializeCurveCrawlerData(
     }
 
     vitality.health[index] = CURVE_CRAWLER_MAX_HEALTH;
-    vitality.phase[index] = CurveCrawlerLifePhase.Alive;
-    vitality.phaseTime[index] = 0;
+    const emerging = options.motionProfile === CurveCrawlerMotionProfile.Autonomous;
+    vitality.phase[index] = emerging
+      ? CurveCrawlerLifePhase.Emerging
+      : CurveCrawlerLifePhase.Alive;
+    vitality.phaseTime[index] = emerging
+      ? -(index * CURVE_CRAWLER_EMERGENCE_TIMING.staggerPerEntity
+        + randomRange(
+          identity.randomState,
+          index,
+          0,
+          CURVE_CRAWLER_EMERGENCE_TIMING.maximumStaggerJitter,
+        ))
+      : 0;
     vitality.hitTime[index] = 0;
 
     const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
@@ -211,6 +224,13 @@ function initializeCurveCrawlerData(
     animation.nextBlinkTime[index] = randomRange(identity.randomState, index, 1.5, 6);
     animation.blinkTime[index] = 0;
     animation.hitFlash[index] = 0;
+    animation.crackSpread[index] = 0;
+    animation.crackVisibility[index] = 0;
+    animation.eggScale[index] = 0;
+    animation.eggBulge[index] = 0;
+    animation.eggBurst[index] = emerging ? 0 : 1;
+    animation.emergenceBodyScale[index] = emerging ? 0 : 1;
+    animation.emergenceLegScale[index] = emerging ? 0 : 1;
     animation.surfaceCollapse[index] = 0;
     animation.liquidSpread[index] = 0;
     animation.liquidDrain[index] = 0;

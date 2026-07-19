@@ -4,7 +4,6 @@ import {
   createDeadTreeMeshPlan,
   createGlowPlantMeshPlan,
   createLuminousMushroomMeshPlan,
-  createMonsterNestMeshPlan,
 } from './recipes/organic-environment-recipes';
 import {
   createCorruptedPoolMeshPlan,
@@ -26,5 +25,4 @@ export const BATTLEFIELD_ENVIRONMENT_MESH_PLANS = Object.freeze({
   [BattlefieldEnvironmentPrototype.GlowPlant]: createGlowPlantMeshPlan(),
   [BattlefieldEnvironmentPrototype.CorruptedPool]: createCorruptedPoolMeshPlan(),
   [BattlefieldEnvironmentPrototype.RitualAltar]: createRitualAltarMeshPlan(),
-  [BattlefieldEnvironmentPrototype.MonsterNest]: createMonsterNestMeshPlan(),
 } satisfies Readonly<Record<BattlefieldEnvironmentPrototype, BattlefieldEnvironmentMeshPlan>>);

@@ -8,10 +8,13 @@ import {
   BattlefieldEnvironmentPrototype,
 } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-prototype';
 import { BattlefieldEnvironmentWorldState } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-state';
-import { BATTLEFIELD_MONSTER_SPAWN } from '../../../assets/bundles/battlefield/model/battlefield-monster-spawn';
+import {
+  BATTLEFIELD_MONSTER_SPAWN,
+  createBattlefieldMonsterSpawn,
+} from '../../../assets/bundles/battlefield/model/battlefield-monster-spawn';
 
 describe('战场无限环境生成', () => {
-  it('在起始窗口生成全部环境原型并把主巢穴放到固定地标', () => {
+  it('在起始窗口生成全部环境原型并保留固定展示地标', () => {
     const world = new BattlefieldEnvironmentWorldState();
     new BattlefieldEnvironmentGenerator().populate(0, 0, world);
 
@@ -32,11 +35,28 @@ describe('战场无限环境生成', () => {
       0,
     );
     expect(allocatedVertexCount).toBeLessThan(600_000);
-    const nest = world.get(BattlefieldEnvironmentPrototype.MonsterNest);
-    expect(nest.data.transform.x[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.primaryNest.x);
-    expect(nest.data.transform.z[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.primaryNest.z);
-    expect(BATTLEFIELD_MONSTER_SPAWN.count).toBeGreaterThan(0);
+    const altar = world.get(BattlefieldEnvironmentPrototype.RitualAltar);
+    expect(altar.data.transform.x[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.ritualAltar.x);
+    expect(altar.data.transform.z[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.ritualAltar.z);
+    expect(BATTLEFIELD_MONSTER_SPAWN.minimumCount).toBeGreaterThan(0);
     expect(BATTLEFIELD_MONSTER_SPAWN.groundOffsetY).toBeGreaterThan(0);
+  });
+
+  it('怪物不依赖环境设施并按 Chunk 坐标确定性随机生成', () => {
+    const origin = createBattlefieldMonsterSpawn({ x: 0, z: 0 });
+    expect(origin).not.toBeNull();
+    expect(createBattlefieldMonsterSpawn({ x: 0, z: 0 })).toEqual(origin);
+    expect(origin?.count ?? 0).toBeGreaterThanOrEqual(BATTLEFIELD_MONSTER_SPAWN.minimumCount);
+    expect(origin?.count ?? 0).toBeLessThan(BATTLEFIELD_MONSTER_SPAWN.maximumCountExclusive);
+    expect(Math.hypot(origin?.x ?? 0, origin?.z ?? 0)).toBeGreaterThanOrEqual(11);
+
+    const samples = Array.from({ length: 64 }, (_, index) => createBattlefieldMonsterSpawn({
+      x: index - 32,
+      z: index % 9 - 4,
+    })).filter((spawn) => spawn !== null);
+    expect(samples.length).toBeGreaterThan(4);
+    expect(new Set(samples.map((spawn) => `${spawn.x.toFixed(3)}/${spawn.z.toFixed(3)}`)).size)
+      .toBe(samples.length);
   });
 
   it('相同 Chunk 窗口重复生成完全一致并能安全生成远处窗口', () => {
@@ -60,8 +80,6 @@ describe('战场无限环境生成', () => {
     for (let chunkZ = -18; chunkZ <= 18; chunkZ += 3) {
       for (let chunkX = -18; chunkX <= 18; chunkX += 3) {
         generator.populate(chunkX, chunkZ, world);
-        expect(world.get(BattlefieldEnvironmentPrototype.MonsterNest).enabledCount)
-          .toBeGreaterThan(0);
         for (const prototype of BATTLEFIELD_ENVIRONMENT_PROTOTYPES) {
           const state = world.get(prototype);
           expect(state.enabledCount).toBeLessThanOrEqual(state.count);

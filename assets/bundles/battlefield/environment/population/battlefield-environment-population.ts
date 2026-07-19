@@ -1,6 +1,5 @@
 import { Node } from 'cc';
 import { type PlanarMovementConstraint } from '../../../../core/contracts/planar-movement-constraint';
-import { type ChunkCoordinate } from '../../../../core/world/chunk-coordinate';
 import {
   ChunkWindowTracker,
   type ChunkWindowTransition,
@@ -12,16 +11,7 @@ import {
 import { worldCoordinateToEnvironmentChunk } from '../model/battlefield-environment-chunk';
 import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../model/battlefield-environment-config';
 import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
-import { BattlefieldEnvironmentPrototype } from '../model/battlefield-environment-prototype';
 import { BattlefieldEnvironmentRenderer } from '../rendering/battlefield-environment-renderer';
-
-/** 环境窗口中一个可生成怪物群体的巢穴描述。 */
-export interface BattlefieldMonsterNestSpawn {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-  readonly seed: number;
-}
 
 /**
  * 战场环境 ECS 门面。
@@ -81,27 +71,6 @@ export class BattlefieldEnvironmentPopulation {
     const transition = this.pendingChunkTransition;
     this.pendingChunkTransition = null;
     return transition;
-  }
-
-  /** 遍历指定活动 Chunk 中的全部怪物巢穴。 */
-  public forEachMonsterNestInChunk(
-    chunk: Readonly<ChunkCoordinate>,
-    callback: (spawn: Readonly<BattlefieldMonsterNestSpawn>) => void,
-  ): void {
-    this.ensureActive();
-    const nests = this.world.get(BattlefieldEnvironmentPrototype.MonsterNest);
-    for (let index = 0; index < nests.enabledCount; index++) {
-      if ((nests.data.chunk.x[index] ?? 0) !== chunk.x
-        || (nests.data.chunk.z[index] ?? 0) !== chunk.z) {
-        continue;
-      }
-      callback(Object.freeze({
-        x: nests.data.transform.x[index] ?? 0,
-        y: nests.data.transform.y[index] ?? 0,
-        z: nests.data.transform.z[index] ?? 0,
-        seed: nests.data.identity.randomSeed[index] ?? 1,
-      }));
-    }
   }
 
   /** 释放全部环境批次和共享材质。 */

@@ -35,12 +35,16 @@ export function evaluateCurveCrawlerEyeMesh(
   const heading = transform.heading[entityIndex] ?? 0;
   const headingCosine = Math.cos(heading);
   const headingSine = Math.sin(heading);
-  const bodyLength = morphology.bodyLength[entityIndex] ?? 0;
-  const bodyWidth = morphology.bodyWidth[entityIndex] ?? 0;
+  const emergenceBodyScale = Math.max(animation.emergenceBodyScale[entityIndex] ?? 1, 0.0001);
+  const bodyLength = (morphology.bodyLength[entityIndex] ?? 0) * emergenceBodyScale;
+  const bodyWidth = (morphology.bodyWidth[entityIndex] ?? 0) * emergenceBodyScale;
   const biteAmount = animation.biteAmount[entityIndex] ?? 0;
   const forward = bodyLength * (0.48 + biteAmount * 0.16);
   const sideOffset = bodyWidth * 0.17;
-  const radiusX = Math.max((morphology.eyeRadius[entityIndex] ?? 0) * fragmentScale, 0.0001);
+  const radiusX = Math.max(
+    (morphology.eyeRadius[entityIndex] ?? 0) * emergenceBodyScale * fragmentScale,
+    0.0001,
+  );
   const radiusY = radiusX * 0.92;
   const radiusZ = radiusX * Math.max(animation.blinkScale[entityIndex] ?? 1, 0.08);
   const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;

@@ -3,6 +3,7 @@ import {
   CURVE_CRAWLER_LEG_COUNT,
   CURVE_CRAWLER_LIQUID_RAY_COUNT,
 } from '../model/curve-crawler-schema';
+import { CURVE_CRAWLER_EMERGENCE_TOPOLOGY } from '../model/curve-crawler-emergence';
 
 export const CURVE_CRAWLER_LEG_SEGMENTS = 6;
 export const CURVE_CRAWLER_LEG_RADIAL_SEGMENTS = 4;
@@ -41,6 +42,12 @@ const EYE_INDICES = getEllipsoidIndexCount(
 );
 const LIQUID_VERTICES = CURVE_CRAWLER_LIQUID_RAY_COUNT + 1;
 const LIQUID_INDICES = CURVE_CRAWLER_LIQUID_RAY_COUNT * 3;
+const CRACK_VERTICES = CURVE_CRAWLER_EMERGENCE_TOPOLOGY.crackRayCount
+  * CURVE_CRAWLER_EMERGENCE_TOPOLOGY.crackSegmentCount * 6;
+const EGG_VERTICES = CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS
+  * CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS * 6;
+const EGG_SHARD_VERTICES = CURVE_CRAWLER_EMERGENCE_TOPOLOGY.eggShardCount
+  * CURVE_CRAWLER_EMERGENCE_TOPOLOGY.eggShardFaceVertexCount;
 
 /** Curve Crawler 黑色身体层的固定拓扑。 */
 export const CURVE_CRAWLER_BODY_TOPOLOGY = Object.freeze({
@@ -70,12 +77,20 @@ export const CURVE_CRAWLER_LIQUID_TOPOLOGY = Object.freeze({
   indicesPerEntity: LIQUID_INDICES,
 }) satisfies FixedTopologyMetrics;
 
+/** Curve Crawler 地裂、分面蛋壳和爆裂碎片的固定出生拓扑。 */
+export const CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY = Object.freeze({
+  verticesPerEntity: CRACK_VERTICES + EGG_VERTICES + EGG_SHARD_VERTICES,
+  indicesPerEntity: CRACK_VERTICES + EGG_VERTICES + EGG_SHARD_VERTICES,
+}) satisfies FixedTopologyMetrics;
+
 /** Curve Crawler 身体、双眼和死亡液体合并后的单批表面拓扑。 */
 export const CURVE_CRAWLER_SURFACE_TOPOLOGY = Object.freeze({
   verticesPerEntity: CURVE_CRAWLER_BODY_TOPOLOGY.verticesPerEntity
     + CURVE_CRAWLER_EYE_TOPOLOGY.verticesPerEntity
-    + CURVE_CRAWLER_LIQUID_TOPOLOGY.verticesPerEntity,
+    + CURVE_CRAWLER_LIQUID_TOPOLOGY.verticesPerEntity
+    + CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY.verticesPerEntity,
   indicesPerEntity: CURVE_CRAWLER_BODY_TOPOLOGY.indicesPerEntity
     + CURVE_CRAWLER_EYE_TOPOLOGY.indicesPerEntity
-    + CURVE_CRAWLER_LIQUID_TOPOLOGY.indicesPerEntity,
+    + CURVE_CRAWLER_LIQUID_TOPOLOGY.indicesPerEntity
+    + CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY.indicesPerEntity,
 }) satisfies FixedTopologyMetrics;

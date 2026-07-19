@@ -5,28 +5,28 @@ import { BattlefieldEnvironmentPrototype } from '../../../assets/bundles/battlef
 import { BattlefieldEnvironmentWorldState } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-state';
 
 describe('战场环境平面障碍场', () => {
-  it('阻止玩家进入密林巢穴的圆形遮蔽区域', () => {
+  it('阻止玩家穿过仪式祭台的圆形占地区域', () => {
     const world = new BattlefieldEnvironmentWorldState();
     new BattlefieldEnvironmentGenerator().populate(0, 0, world);
     const field = new BattlefieldEnvironmentObstacleField();
     field.rebuild(world, 0, 0);
 
-    const nest = world.get(BattlefieldEnvironmentPrototype.MonsterNest);
-    const nestX = nest.data.transform.x[0] ?? 0;
-    const nestZ = nest.data.transform.z[0] ?? 0;
-    const nestRadius = nest.data.collision.radius[0] ?? 0;
+    const altar = world.get(BattlefieldEnvironmentPrototype.RitualAltar);
+    const altarX = altar.data.transform.x[0] ?? 0;
+    const altarZ = altar.data.transform.z[0] ?? 0;
+    const altarRadius = altar.data.collision.radius[0] ?? 0;
     const playerRadius = 0.44;
     const result = { x: 0, z: 0 };
     field.resolve(
-      nestX - nestRadius - playerRadius - 0.1,
-      nestZ,
-      nestX - nestRadius + 0.2,
-      nestZ,
+      altarX - altarRadius - playerRadius - 0.1,
+      altarZ,
+      altarX - altarRadius + 0.2,
+      altarZ,
       playerRadius,
       result,
     );
 
-    expect(Math.hypot(result.x - nestX, result.z - nestZ))
-      .toBeGreaterThanOrEqual(nestRadius + playerRadius - 0.0001);
+    expect(Math.hypot(result.x - altarX, result.z - altarZ))
+      .toBeGreaterThanOrEqual(altarRadius + playerRadius - 0.0001);
   });
 });

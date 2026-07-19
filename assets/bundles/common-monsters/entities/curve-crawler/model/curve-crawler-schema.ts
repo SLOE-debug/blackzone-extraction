@@ -31,6 +31,7 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
   identity: {
     id: entityField(Uint32Array, 1),
     randomState: entityField(Uint32Array, 1),
+    appearanceSeed: entityField(Uint32Array, 1),
   },
   transform: {
     x: entityField(Float32Array, 1),
@@ -106,6 +107,13 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
     nextBlinkTime: entityField(Float32Array, 1),
     blinkTime: entityField(Float32Array, 1),
     hitFlash: entityField(Float32Array, 1),
+    crackSpread: entityField(Float32Array, 1),
+    crackVisibility: entityField(Float32Array, 1),
+    eggScale: entityField(Float32Array, 1),
+    eggBulge: entityField(Float32Array, 1),
+    eggBurst: entityField(Float32Array, 1),
+    emergenceBodyScale: entityField(Float32Array, 1),
+    emergenceLegScale: entityField(Float32Array, 1),
     surfaceCollapse: entityField(Float32Array, 1),
     liquidSpread: entityField(Float32Array, 1),
     liquidDrain: entityField(Float32Array, 1),

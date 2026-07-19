@@ -1,5 +1,14 @@
 import { Color, type Scene } from 'cc';
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
+import {
+  createBattlefieldDebugSpiderSpawnPosition,
+  type BattlefieldDebugPlayerAnchor,
+} from './battlefield-debug-spider-spawn';
+
+/** Debug 动作写入的临时蜘蛛生成门面。 */
+export interface BattlefieldDebugMonsterSpawner {
+  spawnDebugCurveCrawler(x: number, z: number): void;
+}
 
 /** 战场调试面板首次显示时读取的参数快照。 */
 export interface BattlefieldDebugSnapshot {
@@ -15,6 +24,8 @@ export class BattlefieldDebugControls {
   constructor(
     private readonly scene: Scene,
     private readonly cameraRig: BattlefieldCameraRig,
+    private readonly player: BattlefieldDebugPlayerAnchor,
+    private readonly monsters: BattlefieldDebugMonsterSpawner,
   ) {}
 
   /** 获取面板全部控件的当前值。 */
@@ -52,6 +63,12 @@ export class BattlefieldDebugControls {
   /** 设置正式跟随相机相对水平面的向下俯角。 */
   public setFollowCameraPitchDegrees(value: number): void {
     this.cameraRig.setFollowPitchDegrees(value);
+  }
+
+  /** 在玩家真实朝向前方生成一只用于检查出生动画的蜘蛛。 */
+  public spawnCurveCrawlerAhead(): void {
+    const spawn = createBattlefieldDebugSpiderSpawnPosition(this.player);
+    this.monsters.spawnDebugCurveCrawler(spawn.x, spawn.z);
   }
 }
 

@@ -41,7 +41,7 @@ interface MutablePlanarMonsterCombatTarget extends PlanarMonsterCombatTarget {
   collisionRadius: number;
 }
 
-/** 把一个怪物巢穴内部的本地二维群体装配到战场 XZ 地面。 */
+/** 把一个地图随机怪物群的本地二维坐标装配到战场 XZ 地面。 */
 export class BattlefieldMonsterGroup {
   private readonly modelRoot: Node;
   private readonly population: BattlefieldMonsterRuntime;
@@ -72,7 +72,9 @@ export class BattlefieldMonsterGroup {
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
     public readonly centerX: number,
     public readonly centerZ: number,
-    nestSeed: number,
+    count: number,
+    spawnSeed: number,
+    worldDiameter: number,
   ) {
     const assembly = createMonsterAssembly(
       parent,
@@ -80,13 +82,15 @@ export class BattlefieldMonsterGroup {
       commonMonsters,
       centerX,
       centerZ,
-      nestSeed,
+      count,
+      spawnSeed,
+      worldDiameter,
     );
     this.modelRoot = assembly.root;
     this.population = assembly.population;
   }
 
-  /** 当前巢穴群体的怪物数量。 */
+  /** 当前地图群体的怪物数量。 */
   public get count(): number {
     return this.population.count;
   }
@@ -113,7 +117,7 @@ export class BattlefieldMonsterGroup {
     return this.population.consumeAttackDamage();
   }
 
-  /** 把战场世界方向转换到本巢穴局部平面并执行轻量辅助瞄准。 */
+  /** 把战场世界方向转换到本群体局部平面并执行轻量辅助瞄准。 */
   public writeAimTarget(
     originX: number,
     originZ: number,
@@ -140,7 +144,7 @@ export class BattlefieldMonsterGroup {
     return true;
   }
 
-  /** 释放本巢穴的怪物动态网格和坐标根节点。 */
+  /** 释放本群体的怪物动态网格和坐标根节点。 */
   public dispose(): void {
     if (this.disposed) {
       return;
@@ -171,14 +175,16 @@ interface BattlefieldMonsterAssembly {
   readonly population: BattlefieldMonsterRuntime;
 }
 
-/** 在指定巢穴中心创建一套独立坐标根和怪物批次。 */
+/** 在指定地图坐标创建一套独立坐标根和怪物批次。 */
 function createMonsterAssembly(
   parent: Node,
   surfaceMaterialTemplate: Material,
   commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
   centerX: number,
   centerZ: number,
-  nestSeed: number,
+  count: number,
+  spawnSeed: number,
+  worldDiameter: number,
 ): BattlefieldMonsterAssembly {
   const config = BATTLEFIELD_MONSTER_SPAWN;
   const modelRoot = new Node('BattlefieldCommonMonsters');
@@ -189,16 +195,19 @@ function createMonsterAssembly(
   modelRoot.setScale(config.modelScale, config.modelScale, config.modelScale);
 
   try {
-    const localDiameter = config.worldDiameter / config.modelScale;
+    if (!Number.isFinite(worldDiameter) || worldDiameter <= 0) {
+      throw new Error('战场怪物群生成直径必须是有限正数。');
+    }
+    const localDiameter = worldDiameter / config.modelScale;
     const combat = BATTLEFIELD_COMBAT_CONFIG.monster;
     const inverseScale = 1 / config.modelScale;
     const population = commonMonsters.createCurveCrawler(modelRoot, {
-      count: config.count,
+      count,
       spawnArea: Object.freeze({
         width: localDiameter,
         height: localDiameter,
       }),
-      seed: config.seed ^ nestSeed,
+      seed: config.seed ^ spawnSeed,
       surfaceMaterialTemplate,
       combat: Object.freeze({
         detectionRadius: combat.detectionRadius * inverseScale,

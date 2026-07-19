@@ -9,6 +9,7 @@ import {
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-evaluator';
 import {
   CURVE_CRAWLER_BODY_TOPOLOGY,
+  CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY,
   CURVE_CRAWLER_EYE_TOPOLOGY,
   CURVE_CRAWLER_LIQUID_TOPOLOGY,
   CURVE_CRAWLER_SURFACE_TOPOLOGY,
@@ -19,7 +20,7 @@ import {
 } from './mesh-test-fixture';
 
 describe('Curve Crawler 编译式动态几何', () => {
-  it('单实体计划按 Body、Eye、Liquid 连续布局并写出完整流', () => {
+  it('单实体计划按身体、眼睛、液体和出生几何连续布局并写出完整流', () => {
     const state = createCurveCrawlerMeshTestState(2);
     const range = createEntityRange(0, state.count, state.count);
     const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, range.count);
@@ -32,6 +33,9 @@ describe('Curve Crawler 编译式动态几何', () => {
     );
     expect(curveCrawlerMeshPlan.liquidFan.vertexCount).toBe(
       CURVE_CRAWLER_LIQUID_TOPOLOGY.verticesPerEntity,
+    );
+    expect(curveCrawlerMeshPlan.emergence.vertexCount).toBe(
+      CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY.verticesPerEntity,
     );
     expect(curveCrawlerMeshPlan.vertexCount).toBe(
       CURVE_CRAWLER_SURFACE_TOPOLOGY.verticesPerEntity,
@@ -92,7 +96,8 @@ describe('Curve Crawler 编译式动态几何', () => {
     const drainedY = streams.positions[liquidStart + 1] ?? 0;
     expect(drainedY).toBeLessThan(expandedCenterY);
     for (let vertex = curveCrawlerMeshPlan.liquid.vertexOffset;
-      vertex < curveCrawlerMeshPlan.vertexCount;
+      vertex < curveCrawlerMeshPlan.liquid.vertexOffset
+        + curveCrawlerMeshPlan.liquidFan.vertexCount;
       vertex++) {
       expect(streams.positions[vertex * 3 + 1]).toBeCloseTo(drainedY, 5);
     }

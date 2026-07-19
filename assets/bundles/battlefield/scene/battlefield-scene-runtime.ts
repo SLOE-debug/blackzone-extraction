@@ -148,7 +148,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       this.scene.globals.shadows.enabled = BATTLEFIELD_LIGHTING.shadowsEnabled;
 
       debugPanel = new BattlefieldDebugPanel(
-        new BattlefieldDebugControls(this.scene, cameraRig),
+        new BattlefieldDebugControls(this.scene, cameraRig, player, monsters),
       );
     } catch (error: unknown) {
       debugPanel?.dispose();

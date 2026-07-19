@@ -78,12 +78,18 @@ export function evaluateCurveCrawlerBodyMesh(
   const headingSine = Math.sin(heading);
   const bodyPulse = animation.bodyPulse[entityIndex] ?? 0;
   const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
+  const emergenceBodyScale = Math.max(animation.emergenceBodyScale[entityIndex] ?? 1, 0.0001);
+  const emergenceLegScale = Math.max(animation.emergenceLegScale[entityIndex] ?? 1, 0.0001);
   const originalBodyLength = morphology.bodyLength[entityIndex] ?? 0;
   const originalBodyWidth = morphology.bodyWidth[entityIndex] ?? 0;
-  const bodyLength = originalBodyLength * (1 + bodyPulse);
-  const bodyWidth = originalBodyWidth * (1 - bodyPulse * 0.35 - crouchAmount * 0.08);
-  const legLength = (morphology.legLength[entityIndex] ?? 0) * (1 + crouchAmount * 0.08);
-  const legWidth = morphology.legWidth[entityIndex] ?? 0;
+  const bodyLength = originalBodyLength * (1 + bodyPulse) * emergenceBodyScale;
+  const bodyWidth = originalBodyWidth
+    * (1 - bodyPulse * 0.35 - crouchAmount * 0.08)
+    * emergenceBodyScale;
+  const legLength = (morphology.legLength[entityIndex] ?? 0)
+    * (1 + crouchAmount * 0.08)
+    * emergenceLegScale;
+  const legWidth = (morphology.legWidth[entityIndex] ?? 0) * emergenceLegScale;
   const fragmentOffset = entityIndex * CURVE_CRAWLER_FRAGMENT_COUNT;
   const phase = animation.phase[entityIndex] ?? 0;
   const turnAmount = animation.turnAmount[entityIndex] ?? 0;

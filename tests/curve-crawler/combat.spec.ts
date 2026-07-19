@@ -4,7 +4,10 @@ import { CurveCrawlerCombatSystem } from '../../assets/bundles/common-monsters/e
 import { CurveCrawlerAction } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-action';
 import { type CurveCrawlerCombatOptions } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-combat-options';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
-import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
+import {
+  completeCurveCrawlerTestEmergence,
+  createNormalizedCurveCrawlerTestOptions,
+} from './state-test-fixture';
 
 const COMBAT_OPTIONS = Object.freeze({
   detectionRadius: 10,
@@ -27,6 +30,7 @@ function createState(count = 4): CurveCrawlerState {
     spawnArea: { width: 40, height: 40 },
     seed: 17,
   }));
+  completeCurveCrawlerTestEmergence(state);
   state.data.transform.x.fill(0);
   state.data.transform.y.fill(0);
   state.data.transform.heading.fill(Math.PI * 0.5);

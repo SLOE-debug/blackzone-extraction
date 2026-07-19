@@ -17,7 +17,9 @@ const AIM_PALETTE = Object.freeze({
 
 /** 战场双摇杆的共享尺寸和左右职责配色。 */
 export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
-  edgeMargin: 28,
+  horizontalEdgeInset: 64,
+  bottomEdgeInset: 56,
+  minimumCenterGap: 24,
   aimActivationMagnitude: 0.24,
   movement: Object.freeze({
     radius: 72,

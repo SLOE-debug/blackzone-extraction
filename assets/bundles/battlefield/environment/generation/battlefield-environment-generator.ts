@@ -52,8 +52,6 @@ export class BattlefieldEnvironmentGenerator {
 
   private populateOriginShowcase(world: BattlefieldEnvironmentWorldState): void {
     const landmarks = BATTLEFIELD_ENVIRONMENT_LANDMARKS;
-    this.spawnNestCluster(world, landmarks.primaryNest.x, landmarks.primaryNest.z, 0, 0, true);
-
     this.spawnExact(
       world,
       BattlefieldEnvironmentPrototype.RitualAltar,
@@ -248,16 +246,7 @@ export class BattlefieldEnvironmentGenerator {
     }
 
     const landmarkSelector = hashChunkCoordinates(chunkX, chunkZ, 0x3f29b1);
-    if (positiveModulo(chunkX, 4) === 0 && positiveModulo(chunkZ, 4) === 0) {
-      this.spawnNestCluster(
-        world,
-        centerX + randomRange(this.randomState, 0, -7, 7),
-        centerZ + randomRange(this.randomState, 0, -7, 7),
-        chunkX,
-        chunkZ,
-        false,
-      );
-    } else if (landmarkSelector % 13 === 0) {
+    if (landmarkSelector % 13 === 0) {
       this.spawnRandom(
         world,
         BattlefieldEnvironmentPrototype.RitualAltar,
@@ -276,59 +265,6 @@ export class BattlefieldEnvironmentGenerator {
         chunkZ,
       );
     }
-  }
-
-  private spawnNestCluster(
-    world: BattlefieldEnvironmentWorldState,
-    x: number,
-    z: number,
-    chunkX: number,
-    chunkZ: number,
-    primary: boolean,
-  ): void {
-    this.spawnExact(
-      world,
-      BattlefieldEnvironmentPrototype.MonsterNest,
-      x,
-      z,
-      primary ? 0.08 : randomRange(this.randomState, 0, -Math.PI, Math.PI),
-      primary ? 1 : randomRange(this.randomState, 0, 0.96, 1.06),
-      chunkX,
-      chunkZ,
-    );
-    this.spawnRing(
-      world,
-      BattlefieldEnvironmentPrototype.DeadTree,
-      x,
-      z,
-      13,
-      7.4,
-      9.2,
-      chunkX,
-      chunkZ,
-    );
-    this.spawnRing(
-      world,
-      BattlefieldEnvironmentPrototype.LuminousMushroom,
-      x,
-      z,
-      10,
-      7.8,
-      11.2,
-      chunkX,
-      chunkZ,
-    );
-    this.spawnRing(
-      world,
-      BattlefieldEnvironmentPrototype.GlowPlant,
-      x,
-      z,
-      8,
-      8.1,
-      12.5,
-      chunkX,
-      chunkZ,
-    );
   }
 
   private spawnRing(
@@ -427,8 +363,4 @@ function hashChunkCoordinates(chunkX: number, chunkZ: number, seed: number): num
   value = Math.imul(value, 0x45d9f3b);
   value ^= value >>> 16;
   return normalizeRandomSeed(value);
-}
-
-function positiveModulo(value: number, divisor: number): number {
-  return (value % divisor + divisor) % divisor;
 }

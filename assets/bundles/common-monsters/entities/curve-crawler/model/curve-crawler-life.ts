@@ -1,5 +1,6 @@
 /** Curve Crawler 从存活到液体消失的生命周期阶段。 */
 export enum CurveCrawlerLifePhase {
+  Emerging,
   Alive,
   Bursting,
   Liquefying,

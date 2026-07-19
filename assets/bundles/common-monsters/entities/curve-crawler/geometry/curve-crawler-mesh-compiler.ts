@@ -21,6 +21,7 @@ import {
 import { compileCubicTubeSamplePlan } from './kernels/cubic-tube-sample-plan';
 import { compileEllipsoidSamplePlan } from './kernels/ellipsoid-sample-plan';
 import { compileFanSamplePlan } from './kernels/fan-sample-plan';
+import { compileCurveCrawlerEmergenceMesh } from './curve-crawler-emergence-mesh-compiler';
 
 /**
  * 编译 Curve Crawler 的单实体局部 MeshPlan。
@@ -47,6 +48,7 @@ export function compileCurveCrawlerMeshPlan(): CurveCrawlerMeshPlan {
     CURVE_CRAWLER_EYE_LATITUDE_SEGMENTS,
   );
   const liquidFan = compileFanSamplePlan(CURVE_CRAWLER_LIQUID_RAY_COUNT);
+  const emergenceMesh = compileCurveCrawlerEmergenceMesh(bodyEllipsoid);
 
   const vertexCount = CURVE_CRAWLER_SURFACE_TOPOLOGY.verticesPerEntity;
   const indexCount = CURVE_CRAWLER_SURFACE_TOPOLOGY.indicesPerEntity;
@@ -112,6 +114,21 @@ export function compileCurveCrawlerMeshPlan(): CurveCrawlerMeshPlan {
   indexOffset += liquidFan.indexCount;
   semanticIds.fill(CurveCrawlerMeshSemantic.Liquid, liquidVertexOffset, vertexOffset);
 
+  const emergenceVertexOffset = vertexOffset;
+  const emergenceIndexOffset = indexOffset;
+  appendLocalIndices(indices, indexOffset, vertexOffset, emergenceMesh.indices);
+  vertexOffset += emergenceMesh.vertexCount;
+  indexOffset += emergenceMesh.indexCount;
+  const crackEnd = emergenceVertexOffset + emergenceMesh.eggVertexOffset;
+  const eggEnd = crackEnd + emergenceMesh.eggVertexCount;
+  semanticIds.fill(
+    CurveCrawlerMeshSemantic.EmergenceCrack,
+    emergenceVertexOffset,
+    crackEnd,
+  );
+  semanticIds.fill(CurveCrawlerMeshSemantic.EmergenceEgg, crackEnd, eggEnd);
+  semanticIds.fill(CurveCrawlerMeshSemantic.EmergenceShard, eggEnd, vertexOffset);
+
   if (vertexOffset !== vertexCount || indexOffset !== indexCount) {
     throw new Error('Curve Crawler 编译计划的实际计数与固定拓扑声明不一致。');
   }
@@ -151,6 +168,18 @@ export function compileCurveCrawlerMeshPlan(): CurveCrawlerMeshPlan {
     liquid: Object.freeze({
       vertexOffset: liquidVertexOffset,
       indexOffset: liquidIndexOffset,
+    }),
+    emergence: Object.freeze({
+      vertexOffset: emergenceVertexOffset,
+      indexOffset: emergenceIndexOffset,
+      vertexCount: emergenceMesh.vertexCount,
+      indexCount: emergenceMesh.indexCount,
+      crackVertexOffset: emergenceMesh.crackVertexOffset,
+      eggVertexOffset: emergenceMesh.eggVertexOffset,
+      eggVertexCount: emergenceMesh.eggVertexCount,
+      eggUnitDirections: emergenceMesh.eggUnitDirections,
+      eggSourceVertexIds: emergenceMesh.eggSourceVertexIds,
+      shardVertexOffsets: emergenceMesh.shardVertexOffsets,
     }),
   });
   assertMeshPlan(plan);

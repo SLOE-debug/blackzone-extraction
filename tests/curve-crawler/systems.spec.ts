@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CurveCrawlerAnimationSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/animation/curve-crawler-animation-system';
+import { CurveCrawlerEmergenceSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/animation/curve-crawler-emergence-system';
 import { CurveCrawlerBehaviorSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/behavior/curve-crawler-behavior-system';
 import { CurveCrawlerAction } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-action';
 import {
@@ -15,17 +16,55 @@ import {
   createCurveCrawlerBounds,
   updateCurveCrawlerBounds,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-bounds';
-import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
+import { CURVE_CRAWLER_EMERGENCE_TIMING } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-emergence';
+import {
+  completeCurveCrawlerTestEmergence,
+  createNormalizedCurveCrawlerTestOptions,
+} from './state-test-fixture';
 
 function createState(): CurveCrawlerState {
-  return new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
+  const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
     count: 2,
     spawnArea: { width: 320, height: 180 },
     seed: 7,
   }));
+  completeCurveCrawlerTestEmergence(state);
+  return state;
 }
 
 describe('Curve Crawler 系统', () => {
+  it('出生演出依次推进地裂、蛋壳爆裂和四肢生长后才允许存活', () => {
+    const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
+      count: 1,
+      spawnArea: { width: 20, height: 20 },
+      seed: 71,
+    }));
+    const emergence = new CurveCrawlerEmergenceSystem();
+    state.data.vitality.phaseTime[0] = 0;
+
+    emergence.update(state, CURVE_CRAWLER_EMERGENCE_TIMING.crackSeconds * 0.5);
+    expect(state.data.animation.crackSpread[0] ?? 0).toBeGreaterThan(0);
+    expect(state.data.animation.eggScale[0]).toBe(0);
+    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Emerging);
+
+    emergence.update(state,
+      CURVE_CRAWLER_EMERGENCE_TIMING.crackSeconds * 0.5
+      + CURVE_CRAWLER_EMERGENCE_TIMING.eggGrowthSeconds
+      + CURVE_CRAWLER_EMERGENCE_TIMING.eggBulgeSeconds
+      + CURVE_CRAWLER_EMERGENCE_TIMING.eggBurstSeconds * 0.5);
+    expect(state.data.animation.eggBurst[0] ?? 0).toBeGreaterThan(0);
+    expect(state.data.animation.emergenceBodyScale[0] ?? 0).toBeGreaterThan(0);
+    expect(state.data.animation.emergenceLegScale[0]).toBe(0);
+
+    emergence.update(state,
+      CURVE_CRAWLER_EMERGENCE_TIMING.eggBurstSeconds * 0.5
+      + CURVE_CRAWLER_EMERGENCE_TIMING.limbGrowthSeconds);
+    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Alive);
+    expect(state.data.animation.emergenceBodyScale[0]).toBe(1);
+    expect(state.data.animation.emergenceLegScale[0]).toBe(1);
+    expect(state.data.animation.crackVisibility[0]).toBe(0);
+  });
+
   it('疾跑命令统一改变行为并产生高速意图', () => {
     const state = createState();
     const behavior = new CurveCrawlerBehaviorSystem();

@@ -111,7 +111,7 @@ export class BattlefieldEnvironmentMeshBuilder {
     }
   }
 
-  /** 写入正反两组面，供巢穴遮蔽壳从任意观察侧保持不透明。 */
+  /** 写入正反两组面，供薄片几何从任意观察侧保持不透明。 */
   public doubleSidedQuad(
     color: Readonly<BattlefieldEnvironmentColor>,
     a: Readonly<BattlefieldEnvironmentPoint>,

@@ -47,6 +47,15 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(Array.from(freshPlan.semanticIds).filter(
       (semantic) => semantic === CurveCrawlerMeshSemantic.Liquid,
     )).toHaveLength(freshPlan.liquidFan.vertexCount);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceCrack,
+    ).length).toBeGreaterThan(0);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceEgg,
+    )).toHaveLength(freshPlan.emergence.eggVertexCount);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceShard,
+    ).length).toBeGreaterThan(0);
     expect(Array.from(freshPlan.indices)).toEqual(Array.from(curveCrawlerMeshPlan.indices));
   });
 

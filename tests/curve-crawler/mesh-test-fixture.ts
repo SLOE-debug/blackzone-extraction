@@ -22,6 +22,11 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
     return values;
   };
   const data = {
+    identity: {
+      appearanceSeed: new Uint32Array(
+        Array.from({ length: entityCount }, (_, index) => 0x731a5 + index * 97),
+      ),
+    },
     transform: {
       x: new Float32Array(Array.from({ length: entityCount }, (_, index) => 10 + index * 20)),
       y: new Float32Array(Array.from({ length: entityCount }, (_, index) => -6 - index * 8)),
@@ -44,6 +49,13 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       turnDirection: filled(entityCount, 1),
       blinkScale: filled(entityCount, 1),
       hitFlash: filled(entityCount, 0),
+      crackSpread: filled(entityCount, 0),
+      crackVisibility: filled(entityCount, 0),
+      eggScale: filled(entityCount, 0),
+      eggBulge: filled(entityCount, 0),
+      eggBurst: filled(entityCount, 1),
+      emergenceBodyScale: filled(entityCount, 1),
+      emergenceLegScale: filled(entityCount, 1),
       surfaceCollapse: filled(entityCount, 0),
       liquidSpread: filled(entityCount, 0),
       liquidDrain: filled(entityCount, 0),

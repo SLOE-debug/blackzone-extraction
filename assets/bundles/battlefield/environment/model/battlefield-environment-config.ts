@@ -67,13 +67,6 @@ export const BATTLEFIELD_ENVIRONMENT_PROTOTYPE_CONFIG = Object.freeze({
     minimumScale: 0.9,
     maximumScale: 1.12,
   }),
-  [BattlefieldEnvironmentPrototype.MonsterNest]: Object.freeze({
-    capacity: 8,
-    baseCollisionRadius: 7.1,
-    blocksPlayer: true,
-    minimumScale: 0.96,
-    maximumScale: 1.06,
-  }),
 } satisfies Readonly<Record<
   BattlefieldEnvironmentPrototype,
   BattlefieldEnvironmentPrototypeConfig

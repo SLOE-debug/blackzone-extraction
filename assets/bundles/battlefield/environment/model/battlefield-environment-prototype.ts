@@ -8,7 +8,6 @@ export enum BattlefieldEnvironmentPrototype {
   GlowPlant,
   CorruptedPool,
   RitualAltar,
-  MonsterNest,
 }
 
 /** 按稳定原型顺序遍历环境 Archetype。 */
@@ -21,5 +20,4 @@ export const BATTLEFIELD_ENVIRONMENT_PROTOTYPES = Object.freeze([
   BattlefieldEnvironmentPrototype.GlowPlant,
   BattlefieldEnvironmentPrototype.CorruptedPool,
   BattlefieldEnvironmentPrototype.RitualAltar,
-  BattlefieldEnvironmentPrototype.MonsterNest,
 ] as const);

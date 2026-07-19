@@ -11,6 +11,12 @@ export enum CurveCrawlerMeshSemantic {
   Eye,
   /** 死亡后展开和收拢的液体扇面。 */
   Liquid,
+  /** 出生时从地面向外延伸的裂缝。 */
+  EmergenceCrack,
+  /** 出生时生长并发生突起的分面蛋壳。 */
+  EmergenceEgg,
+  /** 蛋壳爆裂时飞散的低面碎片。 */
+  EmergenceShard,
 }
 
 /** 身体区域中各个固定体元的局部顶点与索引偏移。 */
@@ -65,10 +71,34 @@ export interface CurveCrawlerLiquidMeshPlan {
   readonly indexOffset: number;
 }
 
+/** 地裂、蛋壳与爆裂碎片在单实体计划中的连续布局。 */
+export interface CurveCrawlerEmergenceMeshPlan {
+  /** 出生区域在单实体计划中的首顶点偏移。 */
+  readonly vertexOffset: number;
+  /** 出生区域在单实体计划中的首索引偏移。 */
+  readonly indexOffset: number;
+  /** 出生区域占用的最终顶点数量。 */
+  readonly vertexCount: number;
+  /** 出生区域占用的固定索引数量。 */
+  readonly indexCount: number;
+  /** 地裂区域相对出生区域的首顶点偏移。 */
+  readonly crackVertexOffset: number;
+  /** 分面蛋壳相对出生区域的首顶点偏移。 */
+  readonly eggVertexOffset: number;
+  /** 分面蛋壳独立三角顶点数量。 */
+  readonly eggVertexCount: number;
+  /** 分面蛋壳每个独立顶点的单位方向。 */
+  readonly eggUnitDirections: Float32Array;
+  /** 分面蛋壳独立顶点对应的原始采样点，用于保持接缝扰动一致。 */
+  readonly eggSourceVertexIds: Uint16Array;
+  /** 每块爆裂碎片相对出生区域的首顶点偏移。 */
+  readonly shardVertexOffsets: Uint16Array;
+}
+
 /**
  * Curve Crawler 单实体局部固定拓扑与参数采样计划。
  *
- * 所有顶点按一个实体的 Body → Eye → Liquid 排列。批渲染器只需复制
+ * 所有顶点按一个实体的 Body → Eye → Liquid → Emergence 排列。批渲染器只需复制
  * `indices` 并为每个实体增加 `vertexCount` 偏移，无需重走任何体元拓扑。
  */
 export interface CurveCrawlerMeshPlan extends MeshPlan {
@@ -90,4 +120,6 @@ export interface CurveCrawlerMeshPlan extends MeshPlan {
   readonly eyes: CurveCrawlerEyeMeshPlan;
   /** 液体区域的连续布局信息。 */
   readonly liquid: CurveCrawlerLiquidMeshPlan;
+  /** 出生地裂、蛋壳和爆裂碎片的连续布局信息。 */
+  readonly emergence: CurveCrawlerEmergenceMeshPlan;
 }
