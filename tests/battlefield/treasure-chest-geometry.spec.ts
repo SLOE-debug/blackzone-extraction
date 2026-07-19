@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { evaluateTreasureChestLidAngle } from '../../assets/bundles/battlefield/treasure-chest/animation/treasure-chest-animation';
 import { TREASURE_CHEST_BODY_GEOMETRY } from '../../assets/bundles/battlefield/treasure-chest/geometry/treasure-chest-body-geometry';
 import { TREASURE_CHEST_LID_GEOMETRY } from '../../assets/bundles/battlefield/treasure-chest/geometry/treasure-chest-lid-geometry';
+import {
+  createTreasureChestBatchGeometry,
+  writeTreasureChestLidPose,
+} from '../../assets/bundles/battlefield/treasure-chest/geometry/treasure-chest-batch-geometry';
 import { BATTLEFIELD_TREASURE_CHEST_SPAWNS } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-spawn';
 import { worldCoordinateToEnvironmentChunk } from '../../assets/bundles/battlefield/environment/model/battlefield-environment-chunk';
 import { TREASURE_CHEST_PALETTE } from '../../assets/bundles/battlefield/treasure-chest/geometry/treasure-chest-palette';
@@ -32,6 +36,29 @@ describe('程序化 Low Poly 宝箱', () => {
     const final = evaluateTreasureChestLidAngle(1.08);
     expect(overshoot).toBeLessThan(final);
     expect(final).toBeCloseTo(-108);
+  });
+
+  it('箱体和动态箱盖共享一个固定索引批次且开盖只改写箱盖区段', () => {
+    const batch = createTreasureChestBatchGeometry();
+    const geometry = batch.geometry;
+    expect(geometry.vertexCount).toBe(
+      TREASURE_CHEST_BODY_GEOMETRY.vertexCount + TREASURE_CHEST_LID_GEOMETRY.vertexCount,
+    );
+    expect(geometry.indexCount).toBe(
+      TREASURE_CHEST_BODY_GEOMETRY.indexCount + TREASURE_CHEST_LID_GEOMETRY.indexCount,
+    );
+    const bodyPositions = geometry.positions.slice(
+      0,
+      TREASURE_CHEST_BODY_GEOMETRY.vertexCount * 3,
+    );
+    const closedLidPositions = geometry.positions.slice(batch.lidVertexOffset * 3);
+    writeTreasureChestLidPose(batch, -108);
+    expect(Array.from(geometry.positions.slice(
+      0,
+      TREASURE_CHEST_BODY_GEOMETRY.vertexCount * 3,
+    ))).toEqual(Array.from(bodyPositions));
+    expect(Array.from(geometry.positions.slice(batch.lidVertexOffset * 3)))
+      .not.toEqual(Array.from(closedLidPositions));
   });
 
   it('横向轮廓保持紧凑并通过克制的同材质色阶维持辨识度', () => {

@@ -1,4 +1,8 @@
 export { CurveCrawlerPopulation } from './population/curve-crawler-population';
+export { CurveCrawlerPopulationBatch } from './population/curve-crawler-population-batch';
+export type {
+  CurveCrawlerBatchPopulationOptions,
+} from './population/curve-crawler-population-batch';
 export {
   CurveCrawlerCommandType,
   type CurveCrawlerCommand,

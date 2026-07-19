@@ -1,4 +1,3 @@
-import { type Material, Node } from 'cc';
 import { EquipmentId } from '../../../../core/equipment/equipment';
 import {
   evaluateLootScatterTrajectory,
@@ -6,11 +5,9 @@ import {
   type LootScatterTrajectory,
   type MutableLootScatterPose,
 } from '../../loot/model/loot-scatter-trajectory';
-import { DroppedEquipmentRenderer } from '../rendering/dropped-equipment-renderer';
 
 /** 一件装备从延迟起飞到静止落地的独立运行时。 */
 export class DroppedEquipmentRuntime {
-  private readonly renderer: DroppedEquipmentRenderer;
   private readonly pose: MutableLootScatterPose = {
     x: 0,
     y: 0,
@@ -24,13 +21,10 @@ export class DroppedEquipmentRuntime {
   private disposed = false;
 
   constructor(
-    parent: Node,
-    material: Material,
     public readonly instanceId: number,
     public readonly equipmentId: EquipmentId,
     private readonly trajectory: Readonly<LootScatterTrajectory>,
   ) {
-    this.renderer = new DroppedEquipmentRenderer(parent, equipmentId, material);
     this.writePose();
   }
 
@@ -50,6 +44,22 @@ export class DroppedEquipmentRuntime {
     return this.phase === LootScatterPhase.Landed;
   }
 
+  public get visible(): boolean {
+    return this.phase !== LootScatterPhase.Waiting;
+  }
+
+  public get rotationX(): number {
+    return this.pose.rotationX;
+  }
+
+  public get rotationY(): number {
+    return this.pose.rotationY;
+  }
+
+  public get rotationZ(): number {
+    return this.pose.rotationZ;
+  }
+
   /** 推进抛物线、触地缓冲和最终静止状态。 */
   public update(deltaTime: number): void {
     if (this.disposed || this.phase === LootScatterPhase.Landed) {
@@ -64,19 +74,9 @@ export class DroppedEquipmentRuntime {
       return;
     }
     this.disposed = true;
-    this.renderer.dispose();
   }
 
   private writePose(): void {
     this.phase = evaluateLootScatterTrajectory(this.trajectory, this.elapsed, this.pose);
-    this.renderer.setVisible(this.phase !== LootScatterPhase.Waiting);
-    this.renderer.setPose(
-      this.pose.x,
-      this.pose.y,
-      this.pose.z,
-      this.pose.rotationX,
-      this.pose.rotationY,
-      this.pose.rotationZ,
-    );
   }
 }

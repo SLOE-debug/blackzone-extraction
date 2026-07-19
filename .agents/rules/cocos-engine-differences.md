@@ -60,6 +60,14 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/3d/misc/create-mesh.ts` 验证：`createDynamicMesh()` 仅在 `geometry.normals` 非空时创建 `ATTR_NORMAL` 独立流。
 - 验证动态受光材质时，应旋转或移动真实灯光并检查高光与明暗随法线变化；只有顶点色变化而灯光不产生响应，优先检查 Normal 流是否创建和逐帧上传。
 
+### GFX Buffer 的局部更新边界
+
+- 不得把原生 WebGL `bufferSubData(target, dstByteOffset, ...)` 的目标偏移能力直接套用到 Cocos Creator 3.8.8 的公开 `gfx.Buffer.update()`：该 API 只接收数据源和可选字节数，不提供目标缓冲偏移参数。
+- WebGL 后端会把公开 `update()` 转换为目标偏移固定为零的 `WebGLCmdFuncUpdateBuffer` 调用；传入 TypedArray 子视图只会把该子视图写到 GPU 缓冲开头，不能用于更新大缓冲中间区段。
+- 单 MeshRenderer 大网格需要降低低频更新尖峰时，应在 CPU 侧按预算分帧求值，完成后整体提交；若必须分段提交 GPU，只能显式拆成多个独立缓冲/渲染批次并接受对应 Draw Call 代价，禁止依赖不存在的公开偏移参数。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/gfx/base/buffer.ts` 与 `cocos/gfx/webgl/webgl-buffer.ts` 验证：抽象接口为 `update(buffer, size?)`，WebGL 实现向底层更新函数传入固定目标偏移 `0`。
+- 隔离验证时，可创建已填充不同哨兵值的动态缓冲，再用子视图调用 `update()`；读取或渲染结果应显示缓冲开头被覆盖，而不是子视图原 ArrayBuffer 偏移对应的目标区段。
+
 ## Profiler 帧率与帧耗时
 
 - Cocos Creator 3.8.8 的 Profiler 中，`Framerate (FPS)` 与 `Frame time (ms)` 不是简单倒数关系。
@@ -81,6 +89,13 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 修改 `pipeline.shadingScale` 可能触发渲染附件尺寸变化；连续上下调整会额外制造资源重建和 GPU 波动。
 - 只依据 VSync 封顶后的 60 FPS 无法证明更高分辨率仍有 GPU 余量。恢复探测升档后若不能继续达到恢复阈值，必须立即回到此前稳定档位，并记住本场景会话的稳定上限，禁止周期性重复探测同一失败档位。
 - 高 DPR 或高分辨率画布必须先按物理像素预算限制启动比例，再由低频采样逐级恢复；不得总以完整物理分辨率启动后等待多轮掉帧才降档。
+
+## Graphics 路径与 UI Draw Call
+
+- 不得把浏览器 Canvas 的即时绘制调用或通用 UI 控件经验直接等同于 Cocos 的 Draw Call：Cocos Creator 3.8.8 会把同一 `Graphics` 组件的多次 `fill()`、`stroke()` 结果继续写入共享 `MeshRenderData`，不同填充色和描边色作为顶点数据保存；只有缓冲容量不足等边界才会申请新的 RenderData。
+- 独立 `Label` 使用字体纹理和文字材质，即使与 `Graphics` 相邻，也不属于同一个 Graphics 网格批次。对 Draw Call 极敏感且字形固定的程序化按钮，应优先把底板与矢量字形绘制在同一个 `Graphics` 中；需要完整字体、动态文案或可访问性语义时仍应使用 `Label`，不得把本规则泛化为全面移除文字组件。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/2d/assembler/graphics/webgl/impl.ts` 和 `graphics-assembler.ts` 验证：组件持有 `MeshRenderData[]`，Assembler 在现有缓冲容量允许时持续追加顶点与索引，并把路径颜色写入顶点流。
+- 隔离验证时，应分别创建“单个 Graphics 内多色底板加矢量字形”和“Graphics 底板加独立 Label”两种 UI，关闭其他 UI 后比较 Profiler；前者在未触发缓冲分裂时应只产生一个 Graphics 提交，后者会增加文字材质提交。
 
 ## Cocos 资源与元数据
 

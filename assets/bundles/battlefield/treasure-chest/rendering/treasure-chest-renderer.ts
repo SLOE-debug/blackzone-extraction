@@ -1,28 +1,41 @@
 import { Color, type Material, Node } from 'cc';
+import {
+  type MutableGeometryBounds,
+  writePositionBounds,
+} from '../../../../core/geometry/buffer-geometry';
+import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
+import { DynamicMeshBatch } from '../../../../core/rendering/dynamic-mesh-batch';
 import { StandardVertexColorMaterialFactory } from '../../../../core/rendering/standard-vertex-color-material-factory';
-import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
-import { TREASURE_CHEST_BODY_GEOMETRY } from '../geometry/treasure-chest-body-geometry';
-import { TREASURE_CHEST_LID_GEOMETRY } from '../geometry/treasure-chest-lid-geometry';
+import {
+  createTreasureChestBatchGeometry,
+  type TreasureChestBatchGeometry,
+  writeTreasureChestLidPose,
+} from '../geometry/treasure-chest-batch-geometry';
 import {
   evaluateTreasureChestAttention,
   TREASURE_CHEST_ATTENTION,
   type MutableTreasureChestAttentionColor,
 } from '../animation/treasure-chest-attention';
-import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 
 const DEGREES_PER_RADIAN = 180 / Math.PI;
 const CHEST_SURFACE_OPTIONS = Object.freeze({
   castShadows: true,
   receiveShadows: true,
-  uploadLightingAttributes: true,
 });
 
 /** 创建宝箱节点、受光材质并只接受动画系统给出的箱盖角度。 */
 export class TreasureChestRenderer {
   private readonly root: Node;
-  private readonly lidPivot: Node;
-  private readonly bodyMesh = new StaticSurfaceMesh();
-  private readonly lidMesh = new StaticSurfaceMesh();
+  private readonly mesh = new DynamicMeshBatch();
+  private readonly geometry: TreasureChestBatchGeometry;
+  private readonly bounds: MutableGeometryBounds = {
+    minX: 0,
+    minY: 0,
+    minZ: 0,
+    maxX: 0,
+    maxY: 0,
+    maxZ: 0,
+  };
   private readonly material: Material;
   private readonly attentionColor = new Color(3, 1, 0, 255);
   private readonly attentionChannels: MutableTreasureChestAttentionColor = {
@@ -51,11 +64,6 @@ export class TreasureChestRenderer {
     root.setRotationFromEuler(0, heading * DEGREES_PER_RADIAN, 0);
     this.root = root;
 
-    const lidPivot = new Node('TreasureChestLidPivot');
-    root.addChild(lidPivot);
-    lidPivot.setPosition(0, TREASURE_CHEST_LAYOUT.hingeY, TREASURE_CHEST_LAYOUT.hingeZ);
-    this.lidPivot = lidPivot;
-
     let material: Material | null = null;
     try {
       material = StandardVertexColorMaterialFactory.create(surfaceMaterialTemplate, {
@@ -67,24 +75,19 @@ export class TreasureChestRenderer {
         emissive: new Color(3, 1, 0, 255),
       });
       this.material = material;
-      this.bodyMesh.initialize(
+      this.geometry = createTreasureChestBatchGeometry();
+      writePositionBounds(this.geometry.geometry.getPositionView(), this.bounds);
+      this.mesh.initialize(
         root,
-        'TreasureChestBody',
-        TREASURE_CHEST_BODY_GEOMETRY,
+        'TreasureChestBatch',
+        this.geometry.geometry,
         material,
-        CHEST_SURFACE_OPTIONS,
-      );
-      this.lidMesh.initialize(
-        lidPivot,
-        'TreasureChestLid',
-        TREASURE_CHEST_LID_GEOMETRY,
-        material,
+        this.bounds,
         CHEST_SURFACE_OPTIONS,
       );
     } catch (error: unknown) {
       this.disposed = true;
-      this.lidMesh.dispose();
-      this.bodyMesh.dispose();
+      this.mesh.dispose();
       material?.destroy();
       if (root.isValid) {
         root.destroy();
@@ -98,7 +101,10 @@ export class TreasureChestRenderer {
     if (this.disposed || !Number.isFinite(angle)) {
       return;
     }
-    this.lidPivot.setRotationFromEuler(angle, 0, 0);
+    writeTreasureChestLidPose(this.geometry, angle);
+    writePositionBounds(this.geometry.geometry.getPositionView(), this.bounds);
+    this.mesh.uploadVertexAttributes(MeshDirty.Pose);
+    this.mesh.updateBounds(this.bounds);
   }
 
   /** 以固定 30Hz 采样更新已有材质 uniform，不创建额外灯光或渲染 Pass。 */
@@ -151,8 +157,7 @@ export class TreasureChestRenderer {
       return;
     }
     this.disposed = true;
-    this.lidMesh.dispose();
-    this.bodyMesh.dispose();
+    this.mesh.dispose();
     this.material.destroy();
     if (this.root.isValid) {
       this.root.destroy();

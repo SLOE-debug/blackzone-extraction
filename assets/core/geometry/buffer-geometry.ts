@@ -124,6 +124,16 @@ export class BufferGeometry<
   }
 }
 
+/** 可由高频几何求值原地刷新的包围盒。 */
+export interface MutableGeometryBounds {
+  minX: number;
+  minY: number;
+  minZ: number;
+  maxX: number;
+  maxY: number;
+  maxZ: number;
+}
+
 /**
  * 保存由 VertexLayout 唯一声明的 SoA 顶点流。
  *
@@ -390,6 +400,26 @@ function getVertexAttributeName(
 
 /** 计算一个非空位置流的轴对齐包围盒。 */
 function computePositionBounds(positions: Float32Array): GeometryBounds {
+  const bounds: MutableGeometryBounds = {
+    minX: 0,
+    minY: 0,
+    minZ: 0,
+    maxX: 0,
+    maxY: 0,
+    maxZ: 0,
+  };
+  writePositionBounds(positions, bounds);
+  return Object.freeze(bounds);
+}
+
+/** 扫描非空位置流并原地写入包围盒，供动态批次避免逐帧对象分配。 */
+export function writePositionBounds(
+  positions: Float32Array,
+  bounds: MutableGeometryBounds,
+): void {
+  if (positions.length === 0 || positions.length % 3 !== 0) {
+    throw new Error('位置流必须包含完整且非空的三维顶点。');
+  }
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let minZ = Number.POSITIVE_INFINITY;
@@ -409,5 +439,10 @@ function computePositionBounds(positions: Float32Array): GeometryBounds {
     maxZ = Math.max(maxZ, z);
   }
 
-  return Object.freeze({ minX, minY, minZ, maxX, maxY, maxZ });
+  bounds.minX = minX;
+  bounds.minY = minY;
+  bounds.minZ = minZ;
+  bounds.maxX = maxX;
+  bounds.maxY = maxY;
+  bounds.maxZ = maxZ;
 }

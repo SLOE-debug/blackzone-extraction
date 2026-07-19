@@ -13,10 +13,27 @@ import {
   getBattlefieldEnvironmentDefinition,
 } from '../catalog/battlefield-environment-catalog';
 import { BATTLEFIELD_ENVIRONMENT_LANDMARKS } from '../model/battlefield-environment-landmarks';
-import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
+import {
+  type BattlefieldEnvironmentSpawn,
+  BattlefieldEnvironmentWorldState,
+} from '../model/battlefield-environment-state';
 
 const TAU = Math.PI * 2;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+
+interface MutableBattlefieldEnvironmentSpawn extends BattlefieldEnvironmentSpawn {
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  scale: number;
+  seed: number;
+  tintRed: number;
+  tintGreen: number;
+  tintBlue: number;
+  chunkX: number;
+  chunkZ: number;
+}
 
 /**
  * 将无限整数 Chunk 坐标确定性展开为当前窗口的环境 Archetype 数据。
@@ -25,6 +42,19 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
  */
 export class BattlefieldEnvironmentGenerator {
   private readonly randomState = new Uint32Array(1);
+  private readonly spawnData: MutableBattlefieldEnvironmentSpawn = {
+    x: 0,
+    y: 0,
+    z: 0,
+    heading: 0,
+    scale: 1,
+    seed: 1,
+    tintRed: 1,
+    tintGreen: 1,
+    tintBlue: 1,
+    chunkX: 0,
+    chunkZ: 0,
+  };
   private entitySeed = 1;
 
   /** 按中心 Chunk 重新填充固定半径窗口。 */
@@ -333,19 +363,19 @@ export class BattlefieldEnvironmentGenerator {
   ): void {
     const tint = randomRange(this.randomState, 0, 0.88, 1.12);
     const tintBias = randomRange(this.randomState, 0, -0.035, 0.035);
-    world.get(prototype).spawn(Object.freeze({
-      x,
-      y: 0,
-      z,
-      heading,
-      scale,
-      seed: this.nextEntitySeed(),
-      tintRed: tint + tintBias,
-      tintGreen: tint,
-      tintBlue: tint - tintBias,
-      chunkX,
-      chunkZ,
-    }));
+    const spawn = this.spawnData;
+    spawn.x = x;
+    spawn.y = 0;
+    spawn.z = z;
+    spawn.heading = heading;
+    spawn.scale = scale;
+    spawn.seed = this.nextEntitySeed();
+    spawn.tintRed = tint + tintBias;
+    spawn.tintGreen = tint;
+    spawn.tintBlue = tint - tintBias;
+    spawn.chunkX = chunkX;
+    spawn.chunkZ = chunkZ;
+    world.get(prototype).spawn(spawn);
   }
 
   private beginChunk(chunkX: number, chunkZ: number): void {

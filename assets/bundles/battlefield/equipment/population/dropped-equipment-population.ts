@@ -2,6 +2,7 @@ import { type Material, Node } from 'cc';
 import { EquipmentId } from '../../../../core/equipment/equipment';
 import { type LootScatterTrajectory } from '../../loot/model/loot-scatter-trajectory';
 import { createDroppedEquipmentMaterial } from '../rendering/dropped-equipment-material';
+import { DroppedEquipmentRenderer } from '../rendering/dropped-equipment-renderer';
 import { DroppedEquipmentRuntime } from './dropped-equipment-runtime';
 
 const EQUIPMENT_INSPECTION_RADIUS = 3.5;
@@ -31,6 +32,7 @@ export class DroppedEquipmentInstanceIdSequence {
 export class DroppedEquipmentPopulation {
   private readonly material: Material;
   private readonly items: DroppedEquipmentRuntime[] = [];
+  private renderer: DroppedEquipmentRenderer | null = null;
   private disposed = false;
 
   constructor(
@@ -59,8 +61,6 @@ export class DroppedEquipmentPopulation {
           throw new Error('掉落装备或爆散轨迹索引不存在。');
         }
         const item = new DroppedEquipmentRuntime(
-          this.parent,
-          this.material,
           this.instanceIds.allocate(),
           equipmentId,
           trajectory,
@@ -68,6 +68,7 @@ export class DroppedEquipmentPopulation {
         created.push(item);
         this.items.push(item);
       }
+      this.rebuildRenderer();
     } catch (error: unknown) {
       for (const item of created) {
         const itemIndex = this.items.indexOf(item);
@@ -87,6 +88,7 @@ export class DroppedEquipmentPopulation {
     for (const item of this.items) {
       item.update(deltaTime);
     }
+    this.renderer?.update();
   }
 
   /** 查找玩家半径内最近且已经稳定落地的装备。 */
@@ -153,6 +155,12 @@ export class DroppedEquipmentPopulation {
       throw new Error('掉落装备索引存在但实例缺失。');
     }
     this.items.splice(index, 1);
+    try {
+      this.rebuildRenderer();
+    } catch (error: unknown) {
+      this.items.splice(index, 0, item);
+      throw error;
+    }
     item.dispose();
     return true;
   }
@@ -166,6 +174,8 @@ export class DroppedEquipmentPopulation {
       item.dispose();
     }
     this.items.length = 0;
+    this.renderer?.dispose();
+    this.renderer = null;
     this.material.destroy();
   }
 
@@ -173,5 +183,15 @@ export class DroppedEquipmentPopulation {
     if (this.disposed) {
       throw new Error('掉落装备群体已经释放。');
     }
+  }
+
+  /** 拾取或新增只在低频事件发生时重建固定索引，不把每件装备拆成 Renderer。 */
+  private rebuildRenderer(): void {
+    let nextRenderer: DroppedEquipmentRenderer | null = null;
+    if (this.items.length > 0) {
+      nextRenderer = new DroppedEquipmentRenderer(this.parent, this.items, this.material);
+    }
+    this.renderer?.dispose();
+    this.renderer = nextRenderer;
   }
 }

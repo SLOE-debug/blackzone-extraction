@@ -36,6 +36,10 @@ export type {
  */
 export class BattlefieldMonsterPopulation
 implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable {
+  private readonly renderRoot: Node;
+  private readonly renderBatch: ReturnType<
+    RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
+  >;
   private readonly groups: BattlefieldMonsterGroup[] = [];
   private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
   private readonly projectileHitCandidate: MutableBattlefieldProjectileHit = {
@@ -49,10 +53,28 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
   private disposed = false;
 
   constructor(
-    private readonly parent: Node,
-    private readonly surfaceMaterialTemplate: Material,
-    private readonly commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
-  ) {}
+    parent: Node,
+    surfaceMaterialTemplate: Material,
+    commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
+  ) {
+    const config = BATTLEFIELD_MONSTER_SPAWN;
+    const renderRoot = new Node('BattlefieldCommonMonstersBatchRoot');
+    parent.addChild(renderRoot);
+    renderRoot.setPosition(0, config.groundOffsetY, 0);
+    // Curve Crawler 原生位于 XY 平面并以 Z 为高度；统一根一次性对齐战场 XZ 地面。
+    renderRoot.setRotationFromEuler(-90, 0, 0);
+    renderRoot.setScale(config.modelScale, config.modelScale, config.modelScale);
+    this.renderRoot = renderRoot;
+    try {
+      this.renderBatch = commonMonsters.createCurveCrawlerBatch(
+        renderRoot,
+        surfaceMaterialTemplate,
+      );
+    } catch (error: unknown) {
+      renderRoot.destroy();
+      throw error;
+    }
+  }
 
   /** 当前所有活动 Chunk 中的怪物总数。 */
   public get count(): number {
@@ -74,9 +96,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
       return;
     }
     const group = new BattlefieldMonsterGroup(
-      this.parent,
-      this.surfaceMaterialTemplate,
-      this.commonMonsters,
+      this.renderBatch,
       spawn.x,
       spawn.z,
       spawn.count,
@@ -102,9 +122,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
       this.debugGroup.dispose();
     }
     const group = new BattlefieldMonsterGroup(
-      this.parent,
-      this.surfaceMaterialTemplate,
-      this.commonMonsters,
+      this.renderBatch,
       x,
       z,
       1,
@@ -127,6 +145,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     for (const group of this.groups) {
       damage += group.update(deltaTime, target);
     }
+    this.renderBatch.synchronize();
     return damage;
   }
 
@@ -259,6 +278,10 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     this.disposed = true;
     while (this.groups.length > 0) {
       this.groups.pop()?.dispose();
+    }
+    this.renderBatch.dispose();
+    if (this.renderRoot.isValid) {
+      this.renderRoot.destroy();
     }
     this.debugGroup = null;
   }

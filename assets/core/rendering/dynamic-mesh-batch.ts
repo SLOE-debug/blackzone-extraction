@@ -203,6 +203,16 @@ export class DynamicMeshBatch {
     this.renderer.onGeometryChanged();
   }
 
+  /** 在没有活动实体时停用批次节点，从提交列表中完全移除该 Draw Call。 */
+  public setVisible(visible: boolean): void {
+    if (this.state !== DynamicMeshBatchState.Initialized || this.node === null) {
+      throw new Error('动态网格批次尚未初始化或已经释放。');
+    }
+    if (this.node.active !== visible) {
+      this.node.active = visible;
+    }
+  }
+
   /** 释放 Mesh、Renderer 节点和 GPU 缓冲拥有者。 */
   public dispose(): void {
     if (this.state === DynamicMeshBatchState.Disposed) {

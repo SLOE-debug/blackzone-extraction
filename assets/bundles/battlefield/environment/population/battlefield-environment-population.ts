@@ -58,6 +58,7 @@ export class BattlefieldEnvironmentPopulation {
     const nextChunkX = worldCoordinateToEnvironmentChunk(playerX);
     const nextChunkZ = worldCoordinateToEnvironmentChunk(playerZ);
     if (nextChunkX === this.centerChunkX && nextChunkZ === this.centerChunkZ) {
+      this.renderer.updateSynchronization();
       return;
     }
     if (this.pendingChunkTransition !== null) {
@@ -65,10 +66,11 @@ export class BattlefieldEnvironmentPopulation {
     }
     this.generator.populate(nextChunkX, nextChunkZ, this.world);
     this.obstacles.rebuild(this.world, nextChunkX, nextChunkZ);
-    this.renderer.synchronize();
+    this.renderer.requestSynchronization();
     this.centerChunkX = nextChunkX;
     this.centerChunkZ = nextChunkZ;
     this.pendingChunkTransition = this.chunkWindow.synchronize(nextChunkX, nextChunkZ);
+    this.renderer.updateSynchronization();
   }
 
   /** 取走最近一次环境窗口切换产生的差集；没有变化时返回 null。 */

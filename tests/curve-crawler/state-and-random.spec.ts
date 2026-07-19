@@ -6,7 +6,7 @@ import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
 
 const options = createNormalizedCurveCrawlerTestOptions({
   count: 12,
-  spawnArea: { width: 320, height: 180 },
+  spawnArea: { centerX: 0, centerY: 0, width: 320, height: 180 },
   seed: 20260715,
 });
 
@@ -44,11 +44,18 @@ describe('Curve Crawler 状态初始化', () => {
   });
 
   it('初始化位置位于声明的生成区域内', () => {
-    const state = new CurveCrawlerState(options);
+    const centeredOptions = createNormalizedCurveCrawlerTestOptions({
+      count: 12,
+      spawnArea: { centerX: 125, centerY: -74, width: 320, height: 180 },
+      seed: 20260715,
+    });
+    const state = new CurveCrawlerState(centeredOptions);
 
     for (let index = 0; index < state.count; index++) {
-      expect(Math.abs(state.data.transform.x[index] ?? 0)).toBeLessThan(options.spawnArea.width * 0.5);
-      expect(Math.abs(state.data.transform.y[index] ?? 0)).toBeLessThan(options.spawnArea.height * 0.5);
+      expect(Math.abs((state.data.transform.x[index] ?? 0) - centeredOptions.spawnArea.centerX))
+        .toBeLessThan(centeredOptions.spawnArea.width * 0.5);
+      expect(Math.abs((state.data.transform.y[index] ?? 0) - centeredOptions.spawnArea.centerY))
+        .toBeLessThan(centeredOptions.spawnArea.height * 0.5);
     }
   });
 

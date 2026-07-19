@@ -11,7 +11,7 @@ describe('Curve Crawler 辅助瞄准查询', () => {
   it('优先选择瞄准锥内方向更准确的存活目标', () => {
     const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
       count: 3,
-      spawnArea: { width: 20, height: 20 },
+      spawnArea: { centerX: 0, centerY: 0, width: 20, height: 20 },
       seed: 73,
     }));
     completeCurveCrawlerTestEmergence(state);
@@ -39,7 +39,7 @@ describe('Curve Crawler 辅助瞄准查询', () => {
   it('目标超出距离或吸附角时不返回候选', () => {
     const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
       count: 1,
-      spawnArea: { width: 8, height: 8 },
+      spawnArea: { centerX: 0, centerY: 0, width: 8, height: 8 },
       seed: 91,
     }));
     completeCurveCrawlerTestEmergence(state);

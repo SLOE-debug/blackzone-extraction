@@ -25,7 +25,7 @@ import {
 function createState(): CurveCrawlerState {
   const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
     count: 2,
-    spawnArea: { width: 320, height: 180 },
+    spawnArea: { centerX: 0, centerY: 0, width: 320, height: 180 },
     seed: 7,
   }));
   completeCurveCrawlerTestEmergence(state);
@@ -36,7 +36,7 @@ describe('Curve Crawler 系统', () => {
   it('出生演出依次推进地裂、蛋壳爆裂和四肢生长后才允许存活', () => {
     const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
       count: 1,
-      spawnArea: { width: 20, height: 20 },
+      spawnArea: { centerX: 0, centerY: 0, width: 20, height: 20 },
       seed: 71,
     }));
     const emergence = new CurveCrawlerEmergenceSystem();

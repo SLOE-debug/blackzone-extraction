@@ -170,7 +170,7 @@ describe('Curve Crawler 子弹线段命中', () => {
 function createState(): CurveCrawlerState {
   const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
     count: 3,
-    spawnArea: { width: 20, height: 20 },
+    spawnArea: { centerX: 0, centerY: 0, width: 20, height: 20 },
     seed: 113,
   }));
   completeCurveCrawlerTestEmergence(state);

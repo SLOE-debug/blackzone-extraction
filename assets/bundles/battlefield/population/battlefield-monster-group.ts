@@ -1,4 +1,3 @@
-import { type Material, Node } from 'cc';
 import {
   type MonsterCombatPopulation,
   type PlanarMonsterCombatTarget,
@@ -59,9 +58,8 @@ interface MutablePlanarMonsterHitQuery extends PlanarMonsterHitQuery {
   impactRadius: number;
 }
 
-/** 把一个地图随机怪物群的本地二维坐标装配到战场 XZ 地面。 */
+/** 保持一个地图随机怪物群的独立模拟，并接入战场共享怪物渲染批次。 */
 export class BattlefieldMonsterGroup {
-  private readonly modelRoot: Node;
   private readonly population: BattlefieldMonsterRuntime;
   private readonly localTargetQuery: MutablePlanarTargetQuery = {
     originX: 0,
@@ -102,26 +100,23 @@ export class BattlefieldMonsterGroup {
   private disposed = false;
 
   constructor(
-    parent: Node,
-    surfaceMaterialTemplate: Material,
-    commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
-    public readonly centerX: number,
-    public readonly centerZ: number,
+    renderBatch: ReturnType<
+      RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
+    >,
+    centerX: number,
+    centerZ: number,
     count: number,
     spawnSeed: number,
     worldDiameter: number,
   ) {
     const assembly = createMonsterAssembly(
-      parent,
-      surfaceMaterialTemplate,
-      commonMonsters,
+      renderBatch,
       centerX,
       centerZ,
       count,
       spawnSeed,
       worldDiameter,
     );
-    this.modelRoot = assembly.root;
     this.population = assembly.population;
   }
 
@@ -205,21 +200,21 @@ export class BattlefieldMonsterGroup {
     const config = BATTLEFIELD_MONSTER_SPAWN;
     const inverseScale = 1 / config.modelScale;
     const query = this.localHitQuery;
-    query.startX = (startX - this.centerX) * inverseScale;
-    query.startY = -(startZ - this.centerZ) * inverseScale;
+    query.startX = startX * inverseScale;
+    query.startY = -startZ * inverseScale;
     query.startElevation = (startY - config.groundOffsetY) * inverseScale;
-    query.endX = (endX - this.centerX) * inverseScale;
-    query.endY = -(endZ - this.centerZ) * inverseScale;
+    query.endX = endX * inverseScale;
+    query.endY = -endZ * inverseScale;
     query.endElevation = (endY - config.groundOffsetY) * inverseScale;
     query.impactRadius = impactRadius * inverseScale;
     if (!this.population.findFirstPlanarHit(query, this.localHitResult)) {
       return false;
     }
     result.entityId = this.localHitResult.entityId;
-    result.x = this.centerX + this.localHitResult.x * config.modelScale;
+    result.x = this.localHitResult.x * config.modelScale;
     result.y = config.groundOffsetY
       + this.localHitResult.elevation * config.modelScale;
-    result.z = this.centerZ - this.localHitResult.y * config.modelScale;
+    result.z = -this.localHitResult.y * config.modelScale;
     result.segmentProgress = this.localHitResult.segmentProgress;
     return true;
   }
@@ -247,8 +242,8 @@ export class BattlefieldMonsterGroup {
     const config = BATTLEFIELD_MONSTER_SPAWN;
     const inverseScale = 1 / config.modelScale;
     const query = this.localTargetQuery;
-    query.originX = (originX - this.centerX) * inverseScale;
-    query.originY = -(originZ - this.centerZ) * inverseScale;
+    query.originX = originX * inverseScale;
+    query.originY = -originZ * inverseScale;
     query.directionX = directionX;
     query.directionY = -directionZ;
     query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE * inverseScale;
@@ -256,23 +251,20 @@ export class BattlefieldMonsterGroup {
     if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
       return false;
     }
-    result.x = this.centerX + this.localTargetResult.x * config.modelScale;
+    result.x = this.localTargetResult.x * config.modelScale;
     result.y = config.groundOffsetY
       + this.localTargetResult.elevation * config.modelScale;
-    result.z = this.centerZ - this.localTargetResult.y * config.modelScale;
+    result.z = -this.localTargetResult.y * config.modelScale;
     return true;
   }
 
-  /** 释放本群体的怪物动态网格和坐标根节点。 */
+  /** 释放本群体状态及其在共享渲染批次中的连续区段。 */
   public dispose(): void {
     if (this.disposed) {
       return;
     }
     this.disposed = true;
     this.population.dispose();
-    if (this.modelRoot.isValid) {
-      this.modelRoot.destroy();
-    }
   }
 
   private writeLocalCombatTarget(target: Readonly<BattlefieldMonsterCombatTarget>): void {
@@ -283,22 +275,21 @@ export class BattlefieldMonsterGroup {
       throw new Error('战场怪物目标必须使用有限坐标和非负碰撞半径。');
     }
     const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    this.localCombatTarget.x = (target.x - this.centerX) * inverseScale;
-    this.localCombatTarget.y = -(target.z - this.centerZ) * inverseScale;
+    this.localCombatTarget.x = target.x * inverseScale;
+    this.localCombatTarget.y = -target.z * inverseScale;
     this.localCombatTarget.collisionRadius = target.collisionRadius * inverseScale;
   }
 }
 
 interface BattlefieldMonsterAssembly {
-  readonly root: Node;
   readonly population: BattlefieldMonsterRuntime;
 }
 
-/** 在指定地图坐标创建一套独立坐标根和怪物批次。 */
+/** 在指定地图坐标创建独立模拟状态，并登记到场景共享怪物批次。 */
 function createMonsterAssembly(
-  parent: Node,
-  surfaceMaterialTemplate: Material,
-  commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
+  renderBatch: ReturnType<
+    RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
+  >,
   centerX: number,
   centerZ: number,
   count: number,
@@ -306,41 +297,30 @@ function createMonsterAssembly(
   worldDiameter: number,
 ): BattlefieldMonsterAssembly {
   const config = BATTLEFIELD_MONSTER_SPAWN;
-  const modelRoot = new Node('BattlefieldCommonMonsters');
-  parent.addChild(modelRoot);
-  modelRoot.setPosition(centerX, config.groundOffsetY, centerZ);
-  // Curve Crawler 原生位于 XY 平面并以 Z 为高度；旋转后对齐世界 XZ 地面与 Y-up。
-  modelRoot.setRotationFromEuler(-90, 0, 0);
-  modelRoot.setScale(config.modelScale, config.modelScale, config.modelScale);
-
-  try {
-    if (!Number.isFinite(worldDiameter) || worldDiameter <= 0) {
-      throw new Error('战场怪物群生成直径必须是有限正数。');
-    }
-    const localDiameter = worldDiameter / config.modelScale;
-    const combat = BATTLEFIELD_COMBAT_CONFIG.monster;
-    const inverseScale = 1 / config.modelScale;
-    const population = commonMonsters.createCurveCrawler(modelRoot, {
-      count,
-      spawnArea: Object.freeze({
-        width: localDiameter,
-        height: localDiameter,
-      }),
-      seed: config.seed ^ spawnSeed,
-      surfaceMaterialTemplate,
-      combat: Object.freeze({
-        detectionRadius: combat.detectionRadius * inverseScale,
-        disengageRadius: combat.disengageRadius * inverseScale,
-        attackReach: combat.attackReach * inverseScale,
-        impactTolerance: combat.impactTolerance * inverseScale,
-        pursuitSpeedMultiplier: combat.pursuitSpeedMultiplier,
-        damage: combat.damage,
-        biteTiming: combat.biteTiming,
-      }),
-    });
-    return Object.freeze({ root: modelRoot, population });
-  } catch (error: unknown) {
-    modelRoot.destroy();
-    throw error;
+  if (!Number.isFinite(worldDiameter) || worldDiameter <= 0) {
+    throw new Error('战场怪物群生成直径必须是有限正数。');
   }
+  const localDiameter = worldDiameter / config.modelScale;
+  const combat = BATTLEFIELD_COMBAT_CONFIG.monster;
+  const inverseScale = 1 / config.modelScale;
+  const population = renderBatch.createCurveCrawler({
+    count,
+    spawnArea: Object.freeze({
+      centerX: centerX * inverseScale,
+      centerY: -centerZ * inverseScale,
+      width: localDiameter,
+      height: localDiameter,
+    }),
+    seed: config.seed ^ spawnSeed,
+    combat: Object.freeze({
+      detectionRadius: combat.detectionRadius * inverseScale,
+      disengageRadius: combat.disengageRadius * inverseScale,
+      attackReach: combat.attackReach * inverseScale,
+      impactTolerance: combat.impactTolerance * inverseScale,
+      pursuitSpeedMultiplier: combat.pursuitSpeedMultiplier,
+      damage: combat.damage,
+      biteTiming: combat.biteTiming,
+    }),
+  });
+  return Object.freeze({ population });
 }

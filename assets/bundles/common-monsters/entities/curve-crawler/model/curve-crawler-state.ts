@@ -36,11 +36,18 @@ export class CurveCrawlerState {
   public readonly table: CurveCrawlerTable;
   public readonly data: CurveCrawlerData;
   public readonly motionProfile: CurveCrawlerMotionProfile;
-  public readonly movementBounds: Readonly<{ halfWidth: number; halfHeight: number }>;
+  public readonly movementBounds: Readonly<{
+    centerX: number;
+    centerY: number;
+    halfWidth: number;
+    halfHeight: number;
+  }>;
 
   constructor(options: NormalizedCurveCrawlerPopulationOptions) {
     this.motionProfile = options.motionProfile;
     this.movementBounds = Object.freeze({
+      centerX: options.spawnArea.centerX,
+      centerY: options.spawnArea.centerY,
       halfWidth: options.spawnArea.width * 0.5,
       halfHeight: options.spawnArea.height * 0.5,
     });
@@ -89,10 +96,10 @@ function initializeCurveCrawlerData(
 
     const column = index % columns;
     const row = Math.floor(index / columns);
-    transform.x[index] = -options.spawnArea.width * 0.5
+    transform.x[index] = options.spawnArea.centerX - options.spawnArea.width * 0.5
       + (column + 0.5) * cellWidth
       + randomRange(layoutState, 0, -cellWidth * 0.28, cellWidth * 0.28);
-    transform.y[index] = -options.spawnArea.height * 0.5
+    transform.y[index] = options.spawnArea.centerY - options.spawnArea.height * 0.5
       + (row + 0.5) * cellHeight
       + randomRange(layoutState, 0, -cellHeight * 0.28, cellHeight * 0.28);
 

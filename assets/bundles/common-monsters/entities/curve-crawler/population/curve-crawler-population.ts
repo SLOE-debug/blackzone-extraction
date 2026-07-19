@@ -1,4 +1,3 @@
-import { Node } from 'cc';
 import {
   type MonsterCombatPopulation,
   type PlanarMonsterCombatTarget,
@@ -34,7 +33,10 @@ import {
 import { CurveCrawlerState } from '../model/curve-crawler-state';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { CurveCrawlerMovementSystem } from '../movement/curve-crawler-movement-system';
-import { CurveCrawlerRenderer } from '../rendering/curve-crawler-renderer';
+import {
+  type CurveCrawlerPopulationRendering,
+  type CurveCrawlerPopulationRenderingFactory,
+} from '../rendering/curve-crawler-population-rendering';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
 import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
@@ -63,26 +65,26 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly emergence = new CurveCrawlerEmergenceSystem();
-  private readonly renderer: CurveCrawlerRenderer;
+  private readonly rendering: CurveCrawlerPopulationRendering;
   public readonly observationFootprint: Readonly<MonsterObservationFootprint>;
   private disposed = false;
 
   constructor(
-    parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
     motionProfile: CurveCrawlerMotionProfile.Autonomous,
+    createRendering: CurveCrawlerPopulationRenderingFactory,
   );
 
   constructor(
-    parent: Node,
     options: Readonly<CurveCrawlerDisplayOptions>,
     motionProfile: CurveCrawlerMotionProfile.ObservationDisplay,
+    createRendering: CurveCrawlerPopulationRenderingFactory,
   );
 
   constructor(
-    parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions | CurveCrawlerDisplayOptions>,
     motionProfile: CurveCrawlerMotionProfile,
+    createRendering: CurveCrawlerPopulationRenderingFactory,
   ) {
     const normalizedOptions = normalizeCurveCrawlerOptions(options, motionProfile);
     this.state = new CurveCrawlerState(normalizedOptions);
@@ -97,11 +99,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
       this.combat = null;
     }
     this.observationFootprint = createCurveCrawlerObservationFootprint(this.state);
-    this.renderer = new CurveCrawlerRenderer(
-      parent,
-      this.state,
-      normalizedOptions.surfaceMaterialTemplate,
-    );
+    this.rendering = createRendering(this.state);
   }
 
   /** 当前群体包含的 Curve Crawler 数量。 */
@@ -125,7 +123,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
     this.combat?.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
-    this.renderer.update();
+    this.rendering.update();
   }
 
   /** 向群体分发强类型领域命令。 */
@@ -213,7 +211,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
       return;
     }
 
-    this.renderer.dispose();
+    this.rendering.dispose();
     this.disposed = true;
   }
 

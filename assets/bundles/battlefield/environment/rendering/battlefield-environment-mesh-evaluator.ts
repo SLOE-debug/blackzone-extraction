@@ -24,15 +24,23 @@ export interface MutableBattlefieldEnvironmentBounds {
   maxZ: number;
 }
 
-/** 将一个原型的全部固定槽位写入统一环境大网格区段。 */
-export function evaluateBattlefieldEnvironmentSection(
+/** 将一个原型的连续槽位范围写入统一环境大网格区段。 */
+export function evaluateBattlefieldEnvironmentSectionRange(
   state: BattlefieldEnvironmentArchetypeState,
   plan: BattlefieldEnvironmentMeshPlan,
   streams: BattlefieldEnvironmentSectionStreams,
+  firstEntity: number,
+  entityCount: number,
 ): void {
   validateStreamCapacity(streams, plan.vertexCount * state.count);
+  if (!Number.isInteger(firstEntity) || firstEntity < 0
+    || !Number.isInteger(entityCount) || entityCount <= 0
+    || firstEntity + entityCount > state.count) {
+    throw new Error('环境批次实体求值范围越界。');
+  }
   const { identity, transform, appearance } = state.data;
-  for (let entityIndex = 0; entityIndex < state.count; entityIndex++) {
+  const endEntity = firstEntity + entityCount;
+  for (let entityIndex = firstEntity; entityIndex < endEntity; entityIndex++) {
     const active = entityIndex < state.enabledCount
       && (identity.active[entityIndex] ?? 0) !== 0;
     const x = active ? transform.x[entityIndex] ?? 0 : 0;

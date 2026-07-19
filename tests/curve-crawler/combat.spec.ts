@@ -27,7 +27,7 @@ const COMBAT_OPTIONS = Object.freeze({
 function createState(count = 4): CurveCrawlerState {
   const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
     count,
-    spawnArea: { width: 40, height: 40 },
+    spawnArea: { centerX: 0, centerY: 0, width: 40, height: 40 },
     seed: 17,
   }));
   completeCurveCrawlerTestEmergence(state);

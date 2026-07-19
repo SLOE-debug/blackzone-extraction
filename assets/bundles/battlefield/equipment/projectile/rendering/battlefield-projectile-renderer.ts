@@ -65,6 +65,7 @@ export class BattlefieldProjectileRenderer {
           receiveShadows: false,
         }),
       );
+      this.batch.setVisible(false);
     } catch (error: unknown) {
       this.batch.dispose();
       this.material.destroy();
@@ -78,9 +79,10 @@ export class BattlefieldProjectileRenderer {
       return;
     }
     writeBattlefieldProjectilePositions(this.state, this.geometry.positions);
-    this.updateBounds();
+    const visible = this.updateBounds();
     this.batch.uploadVertexAttributes(MeshDirty.Position);
     this.batch.updateBounds(this.bounds);
+    this.batch.setVisible(visible);
   }
 
   public dispose(): void {
@@ -92,7 +94,7 @@ export class BattlefieldProjectileRenderer {
     this.material.destroy();
   }
 
-  private updateBounds(): void {
+  private updateBounds(): boolean {
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let minZ = Number.POSITIVE_INFINITY;
@@ -113,7 +115,8 @@ export class BattlefieldProjectileRenderer {
       maxY = Math.max(maxY, y);
       maxZ = Math.max(maxZ, z);
     }
-    if (minX === Number.POSITIVE_INFINITY) {
+    const visible = minX !== Number.POSITIVE_INFINITY;
+    if (!visible) {
       minX = 0;
       minY = 0;
       minZ = 0;
@@ -127,5 +130,6 @@ export class BattlefieldProjectileRenderer {
     this.bounds.maxX = maxX + BOUNDS_PADDING;
     this.bounds.maxY = maxY + BOUNDS_PADDING;
     this.bounds.maxZ = maxZ + BOUNDS_PADDING;
+    return visible;
   }
 }
