@@ -2,21 +2,30 @@ import {
   Button,
   Camera,
   Graphics,
+  HorizontalTextAlignment,
+  Label,
   Layers,
   Node,
   UITransform,
   Vec3,
+  VerticalTextAlignment,
 } from 'cc';
 import {
   LOBBY_START_BUTTON_STYLE,
   LobbyStartButtonVisualState,
 } from '../model/lobby-start-button-style';
-import { drawLobbyStartButtonPlate } from './lobby-start-button-graphics';
+import {
+  createLobbyUiColor,
+  drawLobbyStartButtonPlate,
+} from './lobby-start-button-graphics';
+
+const LABEL_TEXT = '开始游戏';
 
 /** 管理大厅开始按钮的玩家脚下吸附、渲染和交互反馈。 */
 export class LobbyStartButton {
   private readonly buttonNode: Node;
   private readonly plateGraphics: Graphics;
+  private readonly label: Label;
   private readonly projectedPosition = new Vec3();
   private visualState: LobbyStartButtonVisualState | null = null;
   private hovered = false;
@@ -34,6 +43,7 @@ export class LobbyStartButton {
     const buttonElements = createButtonElements(this.canvasNode);
     this.buttonNode = buttonElements.buttonNode;
     this.plateGraphics = buttonElements.plateGraphics;
+    this.label = buttonElements.label;
     try {
       this.buttonNode.on(Node.EventType.MOUSE_ENTER, this.handleMouseEnter, this);
       this.buttonNode.on(Node.EventType.MOUSE_LEAVE, this.handleMouseLeave, this);
@@ -133,6 +143,8 @@ export class LobbyStartButton {
     this.visualState = state;
     const palette = LOBBY_START_BUTTON_STYLE.palettes[state];
     drawLobbyStartButtonPlate(this.plateGraphics, palette);
+    this.label.color = createLobbyUiColor(palette.text);
+    this.label.outlineColor = createLobbyUiColor(palette.textOutline);
   }
 }
 
@@ -140,6 +152,7 @@ export class LobbyStartButton {
 function createButtonElements(parent: Node): Readonly<{
   buttonNode: Node;
   plateGraphics: Graphics;
+  label: Label;
 }> {
   const style = LOBBY_START_BUTTON_STYLE;
   const buttonNode = createUiNode('StartGameButton', parent);
@@ -155,13 +168,27 @@ function createButtonElements(parent: Node): Readonly<{
   );
   const plateGraphics = plateNode.addComponent(Graphics);
 
+  const labelNode = createUiNode('StartGameButtonLabel', contentNode);
+  labelNode.addComponent(UITransform).setContentSize(style.width, style.height);
+  const label = labelNode.addComponent(Label);
+  label.string = LABEL_TEXT;
+  label.useSystemFont = true;
+  label.fontSize = style.labelFontSize;
+  label.lineHeight = style.height;
+  label.spacingX = style.labelSpacing;
+  label.isBold = true;
+  label.horizontalAlign = HorizontalTextAlignment.CENTER;
+  label.verticalAlign = VerticalTextAlignment.CENTER;
+  label.enableOutline = true;
+  label.outlineWidth = 2;
+
   const button = buttonNode.addComponent(Button);
   button.target = contentNode;
   button.transition = Button.Transition.SCALE;
   button.duration = 0.08;
   button.zoomScale = 1.035;
 
-  return Object.freeze({ buttonNode, plateGraphics });
+  return Object.freeze({ buttonNode, plateGraphics, label });
 }
 
 /** 创建并挂接一个只由 UI 相机渲染的节点。 */

@@ -10,60 +10,6 @@ const INNER_FACET_INSET = 12;
 const TOP_HIGHLIGHT_HEIGHT = 5;
 const SIDE_MARKER_WIDTH = 14;
 
-type GlyphSegment = readonly [
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-];
-
-/** “开始游戏”四字的低密度单线矢量骨架。 */
-const START_BUTTON_GLYPHS: readonly (readonly GlyphSegment[])[] = Object.freeze([
-  Object.freeze([
-    [-0.48, 0.42, 0.48, 0.42],
-    [-0.52, 0.03, 0.52, 0.03],
-    [-0.27, 0.42, -0.27, -0.48],
-    [0.27, 0.42, 0.27, -0.48],
-  ]),
-  Object.freeze([
-    [-0.36, 0.45, -0.48, -0.12],
-    [-0.48, -0.12, -0.08, -0.03],
-    [-0.3, 0.25, -0.05, -0.48],
-    [-0.5, -0.43, -0.02, 0.1],
-    [0.08, 0.13, 0.45, 0.13],
-    [0.2, 0.45, 0.05, 0.13],
-    [0.05, 0.13, 0.32, 0.34],
-    [0.05, -0.08, 0.46, -0.08],
-    [0.05, -0.08, 0.05, -0.45],
-    [0.05, -0.45, 0.46, -0.45],
-    [0.46, -0.45, 0.46, -0.08],
-  ]),
-  Object.freeze([
-    [-0.5, 0.37, -0.35, 0.25],
-    [-0.5, 0.08, -0.35, -0.02],
-    [-0.49, -0.45, -0.31, -0.13],
-    [-0.18, 0.37, 0.45, 0.37],
-    [-0.08, 0.48, -0.18, 0.37],
-    [0.18, 0.48, 0.08, 0.37],
-    [-0.11, 0.16, 0.37, 0.16],
-    [-0.03, 0.16, -0.03, -0.45],
-    [0.28, 0.16, 0.28, -0.45],
-    [-0.03, -0.14, 0.28, -0.14],
-    [-0.03, -0.45, 0.28, -0.45],
-    [0.39, 0.05, 0.48, -0.18],
-  ]),
-  Object.freeze([
-    [-0.48, 0.36, -0.05, 0.36],
-    [-0.05, 0.36, -0.16, -0.08],
-    [-0.16, -0.08, -0.48, -0.45],
-    [-0.46, 0.08, -0.06, -0.43],
-    [0.08, 0.48, 0.34, -0.42],
-    [0.03, 0.19, 0.48, 0.19],
-    [0.35, 0.43, 0.48, 0.31],
-    [0.08, -0.46, 0.46, 0.02],
-  ]),
-]);
-
 /** 绘制带阴影、黄铜边和青铜分面的削角按钮。 */
 export function drawLobbyStartButtonPlate(
   graphics: Graphics,
@@ -109,7 +55,6 @@ export function drawLobbyStartButtonPlate(
   );
   drawTopHighlight(graphics, palette.accent);
   drawSideMarkers(graphics, palette.accent);
-  drawStartButtonText(graphics, palette);
 }
 
 /** 把无引擎依赖的配置颜色转换为 Cocos Color。 */
@@ -176,50 +121,4 @@ function drawMarker(graphics: Graphics, centerX: number, direction: -1 | 1): voi
   graphics.lineTo(outerX - 4 * direction, 0);
   graphics.close();
   graphics.fill();
-}
-
-/** 在底板同一 Graphics 中描绘矢量文字，避免 Label 产生独立 UI Draw Call。 */
-function drawStartButtonText(
-  graphics: Graphics,
-  palette: Readonly<LobbyStartButtonPalette>,
-): void {
-  const style = LOBBY_START_BUTTON_STYLE;
-  const glyphHeight = style.labelFontSize;
-  const glyphWidth = glyphHeight * 0.78;
-  const advance = glyphWidth + style.labelSpacing;
-  const firstCenterX = -advance * (START_BUTTON_GLYPHS.length - 1) * 0.5;
-  graphics.strokeColor = createLobbyUiColor(palette.textOutline);
-  graphics.lineWidth = 6;
-  appendGlyphPaths(graphics, firstCenterX, glyphWidth, glyphHeight, advance);
-  graphics.stroke();
-  graphics.strokeColor = createLobbyUiColor(palette.text);
-  graphics.lineWidth = 3;
-  appendGlyphPaths(graphics, firstCenterX, glyphWidth, glyphHeight, advance);
-  graphics.stroke();
-}
-
-function appendGlyphPaths(
-  graphics: Graphics,
-  firstCenterX: number,
-  glyphWidth: number,
-  glyphHeight: number,
-  advance: number,
-): void {
-  for (let glyphIndex = 0; glyphIndex < START_BUTTON_GLYPHS.length; glyphIndex++) {
-    const glyph = START_BUTTON_GLYPHS[glyphIndex];
-    if (glyph === undefined) {
-      throw new Error('大厅开始按钮矢量字形不存在。');
-    }
-    const centerX = firstCenterX + glyphIndex * advance;
-    for (const segment of glyph) {
-      graphics.moveTo(
-        centerX + segment[0] * glyphWidth,
-        segment[1] * glyphHeight,
-      );
-      graphics.lineTo(
-        centerX + segment[2] * glyphWidth,
-        segment[3] * glyphHeight,
-      );
-    }
-  }
 }
