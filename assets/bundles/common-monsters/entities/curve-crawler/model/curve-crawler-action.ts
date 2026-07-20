@@ -3,7 +3,8 @@ export enum CurveCrawlerAction {
   Crawl,
   Pause,
   Scuttle,
-  Wave,
   Crouch,
   Turn,
+  Pursue,
+  Bite,
 }

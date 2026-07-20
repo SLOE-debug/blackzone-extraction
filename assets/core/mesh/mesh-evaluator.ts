@@ -2,6 +2,10 @@ import { type EntityRange } from '../entities/entity-range';
 import { type MeshDirty } from './mesh-dirty';
 import { type MeshPlan } from './mesh-plan';
 import { type VertexStreams } from './vertex-streams';
+import {
+  type LitColorVertexSemantic,
+  type VertexSemantic,
+} from './vertex-layout';
 
 /**
  * 将领域状态求值为一个实体范围的动态顶点流。
@@ -12,7 +16,11 @@ import { type VertexStreams } from './vertex-streams';
  * @typeParam TState Evaluator 读取的领域状态或 SoA 数据表类型。
  * @typeParam TPlan 该 Evaluator 使用的单实体编译网格计划类型。
  */
-export interface MeshEvaluator<TState, TPlan extends MeshPlan> {
+export interface MeshEvaluator<
+  TState,
+  TPlan extends MeshPlan,
+  TSemantics extends VertexSemantic = LitColorVertexSemantic,
+> {
   /**
    * 原地求值指定实体范围的动态顶点流。
    *
@@ -26,7 +34,7 @@ export interface MeshEvaluator<TState, TPlan extends MeshPlan> {
   evaluate(
     state: TState,
     plan: TPlan,
-    streams: VertexStreams,
+    streams: VertexStreams<TSemantics>,
     range: EntityRange,
     requested: MeshDirty,
   ): MeshDirty;

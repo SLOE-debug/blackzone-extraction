@@ -47,6 +47,15 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(Array.from(freshPlan.semanticIds).filter(
       (semantic) => semantic === CurveCrawlerMeshSemantic.Liquid,
     )).toHaveLength(freshPlan.liquidFan.vertexCount);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceCrack,
+    ).length).toBeGreaterThan(0);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceEgg,
+    )).toHaveLength(freshPlan.emergence.eggVertexCount);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceShard,
+    ).length).toBeGreaterThan(0);
     expect(Array.from(freshPlan.indices)).toEqual(Array.from(curveCrawlerMeshPlan.indices));
   });
 
@@ -87,14 +96,12 @@ describe('Curve Crawler 编译式网格计划', () => {
     const state = createCurveCrawlerMeshTestState(1);
     const range = createEntityRange(0, 1, 1);
     const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, range.count);
-    state.data.behavior.selectedWaveLeg[0] = 3;
     state.data.animation.phase[0] = 1.14;
     state.data.animation.bodyPulse[0] = 0.04;
     state.data.animation.crouchAmount[0] = 0.34;
-    state.data.animation.waveAmount[0] = 0.83;
+    state.data.animation.biteAmount[0] = 0.83;
     state.data.animation.turnAmount[0] = 0.62;
     state.data.animation.turnDirection[0] = -1;
-    state.data.animation.wavePhase[0] = 0.92;
     state.data.animation.blinkScale[0] = 0.26;
     state.data.animation.surfaceCollapse[0] = 0.56;
     state.data.animation.liquidSpread[0] = 0.82;

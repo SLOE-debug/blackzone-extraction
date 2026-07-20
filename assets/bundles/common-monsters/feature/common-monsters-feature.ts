@@ -1,12 +1,15 @@
-import { Node } from 'cc';
+import { type Material, Node } from 'cc';
 import { type MonsterObservationPopulation } from '../../../core/contracts/monster-observation';
 import { BundleId, FeatureId } from '../../../core/contracts/runtime-id';
 import { type FeaturePlugin } from '../../../core/features/feature-plugin';
 import {
   CurveCrawlerMotionProfile,
   CurveCrawlerPopulation,
+  CurveCrawlerPopulationBatch,
+  type CurveCrawlerDisplayOptions,
   type CurveCrawlerPopulationOptions,
 } from '../entities/curve-crawler';
+import { CurveCrawlerRenderer } from '../entities/curve-crawler/rendering/curve-crawler-renderer';
 import { CommonMonsterId } from '../contracts/common-monster-id';
 
 /** Common Monsters 怪物标识到创建参数的精确映射。 */
@@ -34,8 +37,14 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
   /** 创建供场景陈列和观察窗使用的受控 Curve Crawler。 */
   createCurveCrawlerDisplay(
     parent: Node,
-    options: Readonly<CurveCrawlerPopulationOptions>,
+    options: Readonly<CurveCrawlerDisplayOptions>,
   ): MonsterObservationPopulation;
+
+  /** 创建供多个独立群体共用单一 MeshRenderer 的批渲染门面。 */
+  createCurveCrawlerBatch(
+    parent: Node,
+    surfaceMaterialTemplate: Material,
+  ): CurveCrawlerPopulationBatch;
 
   /**
    * 按怪物标识创建与参数类型对应的群体实例。
@@ -61,10 +70,9 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public readonly bundle = BundleId.CommonMonsters;
 
   private readonly factories: CommonMonsterFactoryMap = Object.freeze({
-    [CommonMonsterId.CurveCrawler]: (parent, options) => new CurveCrawlerPopulation(
+    [CommonMonsterId.CurveCrawler]: (parent, options) => this.createCurveCrawler(
       parent,
       options,
-      CurveCrawlerMotionProfile.Autonomous,
     ),
   });
 
@@ -72,18 +80,29 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
     parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
   ): CurveCrawlerPopulation {
-    return new CurveCrawlerPopulation(parent, options, CurveCrawlerMotionProfile.Autonomous);
+    return new CurveCrawlerPopulation(
+      options,
+      CurveCrawlerMotionProfile.Autonomous,
+      (state) => new CurveCrawlerRenderer(parent, state, options.surfaceMaterialTemplate),
+    );
   }
 
   public createCurveCrawlerDisplay(
     parent: Node,
-    options: Readonly<CurveCrawlerPopulationOptions>,
+    options: Readonly<CurveCrawlerDisplayOptions>,
   ): MonsterObservationPopulation {
     return new CurveCrawlerPopulation(
-      parent,
       options,
       CurveCrawlerMotionProfile.ObservationDisplay,
+      (state) => new CurveCrawlerRenderer(parent, state, options.surfaceMaterialTemplate),
     );
+  }
+
+  public createCurveCrawlerBatch(
+    parent: Node,
+    surfaceMaterialTemplate: Material,
+  ): CurveCrawlerPopulationBatch {
+    return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate);
   }
 
   public create<TId extends CommonMonsterId>(

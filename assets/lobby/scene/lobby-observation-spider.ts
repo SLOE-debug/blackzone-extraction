@@ -64,6 +64,8 @@ export class LobbyObservationSpider {
     const population = feature.createCurveCrawlerDisplay(this.modelRoot, {
       count: 1,
       spawnArea: Object.freeze({
+        centerX: 0,
+        centerY: 0,
         width: LOBBY_OBSERVATION_SPIDER_CONFIG.localSpawnWidth,
         height: LOBBY_OBSERVATION_SPIDER_CONFIG.localSpawnHeight,
       }),

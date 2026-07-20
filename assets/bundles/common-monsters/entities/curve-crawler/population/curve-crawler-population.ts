@@ -1,4 +1,17 @@
-import { Node } from 'cc';
+import {
+  type MonsterCombatPopulation,
+  type PlanarMonsterCombatTarget,
+} from '../../../../../core/contracts/monster-combat';
+import {
+  type MutablePlanarMonsterHitResult,
+  type PlanarMonsterHitPopulation,
+  type PlanarMonsterHitQuery,
+} from '../../../../../core/contracts/monster-hit';
+import {
+  type MutablePlanarTargetResult,
+  type PlanarTargetPopulation,
+  type PlanarTargetQuery,
+} from '../../../../../core/contracts/planar-target';
 import {
   type MonsterObservationEvent,
   type MonsterObservationFootprint,
@@ -6,20 +19,29 @@ import {
 } from '../../../../../core/contracts/monster-observation';
 import { type MonsterPopulation } from '../../../../../core/contracts/monster-population';
 import { CurveCrawlerAnimationSystem } from '../animation/curve-crawler-animation-system';
+import { CurveCrawlerEmergenceSystem } from '../animation/curve-crawler-emergence-system';
 import { CurveCrawlerBehaviorSystem } from '../behavior/curve-crawler-behavior-system';
+import { CurveCrawlerCombatSystem } from '../behavior/curve-crawler-combat-system';
 import { CurveCrawlerObservationSystem } from '../behavior/curve-crawler-observation-system';
+import { normalizeCurveCrawlerCombatOptions } from '../model/curve-crawler-combat-options';
 import { createCurveCrawlerObservationFootprint } from '../model/curve-crawler-observation-footprint';
 import {
   normalizeCurveCrawlerOptions,
+  type CurveCrawlerDisplayOptions,
   type CurveCrawlerPopulationOptions,
 } from '../model/curve-crawler-options';
 import { CurveCrawlerState } from '../model/curve-crawler-state';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { CurveCrawlerMovementSystem } from '../movement/curve-crawler-movement-system';
-import { CurveCrawlerRenderer } from '../rendering/curve-crawler-renderer';
+import {
+  type CurveCrawlerPopulationRendering,
+  type CurveCrawlerPopulationRenderingFactory,
+} from '../rendering/curve-crawler-population-rendering';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
 import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
+import { CurveCrawlerProjectileHitSystem } from './curve-crawler-projectile-hit-system';
+import { CurveCrawlerTargeting } from './curve-crawler-targeting';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
@@ -30,31 +52,54 @@ const MAXIMUM_DELTA_TIME = 0.05;
  * 门面只负责编排系统顺序和资源生命周期，不承载行为、动画或几何细节。
  */
 export class CurveCrawlerPopulation
-implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation {
+implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation,
+MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
   private readonly behavior = new CurveCrawlerBehaviorSystem();
+  private readonly combat: CurveCrawlerCombatSystem | null;
   private readonly observation = new CurveCrawlerObservationSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
+  private readonly targeting = new CurveCrawlerTargeting();
+  private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
   private readonly animation = new CurveCrawlerAnimationSystem();
-  private readonly renderer: CurveCrawlerRenderer;
+  private readonly emergence = new CurveCrawlerEmergenceSystem();
+  private readonly rendering: CurveCrawlerPopulationRendering;
   public readonly observationFootprint: Readonly<MonsterObservationFootprint>;
   private disposed = false;
 
   constructor(
-    parent: Node,
     options: Readonly<CurveCrawlerPopulationOptions>,
+    motionProfile: CurveCrawlerMotionProfile.Autonomous,
+    createRendering: CurveCrawlerPopulationRenderingFactory,
+  );
+
+  constructor(
+    options: Readonly<CurveCrawlerDisplayOptions>,
+    motionProfile: CurveCrawlerMotionProfile.ObservationDisplay,
+    createRendering: CurveCrawlerPopulationRenderingFactory,
+  );
+
+  constructor(
+    options: Readonly<CurveCrawlerPopulationOptions | CurveCrawlerDisplayOptions>,
     motionProfile: CurveCrawlerMotionProfile,
+    createRendering: CurveCrawlerPopulationRenderingFactory,
   ) {
     const normalizedOptions = normalizeCurveCrawlerOptions(options, motionProfile);
     this.state = new CurveCrawlerState(normalizedOptions);
+    if (motionProfile === CurveCrawlerMotionProfile.Autonomous) {
+      if (!('combat' in options)) {
+        throw new Error('自主 Curve Crawler 群体缺少战斗参数。');
+      }
+      this.combat = new CurveCrawlerCombatSystem(
+        normalizeCurveCrawlerCombatOptions(options.combat),
+      );
+    } else {
+      this.combat = null;
+    }
     this.observationFootprint = createCurveCrawlerObservationFootprint(this.state);
-    this.renderer = new CurveCrawlerRenderer(
-      parent,
-      this.state,
-      normalizedOptions.surfaceMaterialTemplate,
-    );
+    this.rendering = createRendering(this.state);
   }
 
   /** 当前群体包含的 Curve Crawler 数量。 */
@@ -62,7 +107,7 @@ implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation 
     return this.state.count;
   }
 
-  /** 按受击、死亡、行为、观察控制、移动、动画、渲染的固定顺序推进一帧。 */
+  /** 按出生、受击、死亡、行为、观察、战斗、移动、动画、渲染的固定顺序推进一帧。 */
   public update(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
@@ -70,13 +115,15 @@ implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation 
     }
 
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
+    this.emergence.update(this.state, safeDeltaTime);
     this.hit.update(this.state, safeDeltaTime);
     this.death.update(this.state, safeDeltaTime);
     this.behavior.update(this.state, safeDeltaTime);
     this.observation.update(this.state, safeDeltaTime);
+    this.combat?.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
-    this.renderer.update();
+    this.rendering.update();
   }
 
   /** 向群体分发强类型领域命令。 */
@@ -122,13 +169,49 @@ implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation 
     );
   }
 
+  /** 在群体局部平面中查找右摇杆方向附近的存活目标。 */
+  public findBestPlanarTarget(
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean {
+    this.ensureActive();
+    return this.targeting.findBest(this.state, query, result);
+  }
+
+  /** 在群体局部平面中查找一段子弹位移最先接触的存活实体。 */
+  public findFirstPlanarHit(
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean {
+    this.ensureActive();
+    return this.projectileHit.findFirst(this.state, query, result);
+  }
+
+  /** 把场景目标同步给自主战斗系统。 */
+  public synchronizeCombatTarget(target: Readonly<PlanarMonsterCombatTarget>): void {
+    this.ensureActive();
+    this.ensureCombat().synchronizeTarget(target);
+  }
+
+  /** 清除场景目标并立即取消全部尚未命中的啃咬。 */
+  public clearCombatTarget(): void {
+    this.ensureActive();
+    this.ensureCombat().clearTarget(this.state);
+  }
+
+  /** 读取并清空当前帧已经命中的聚合伤害。 */
+  public consumeAttackDamage(): number {
+    this.ensureActive();
+    return this.ensureCombat().consumeAttackDamage();
+  }
+
   /** 释放群体持有的动态网格和材质。 */
   public dispose(): void {
     if (this.disposed) {
       return;
     }
 
-    this.renderer.dispose();
+    this.rendering.dispose();
     this.disposed = true;
   }
 
@@ -136,6 +219,14 @@ implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation 
     if (this.disposed) {
       throw new Error('Curve Crawler 群体已经释放。');
     }
+  }
+
+  /** 阻止观察展示群体误用自主战斗接口。 */
+  private ensureCombat(): CurveCrawlerCombatSystem {
+    if (this.combat === null) {
+      throw new Error('观察展示用途的 Curve Crawler 不支持自主战斗。');
+    }
+    return this.combat;
   }
 
   /** 编排受击结算，并在致命结果出现时启动独立死亡系统。 */

@@ -20,6 +20,15 @@ const LIQUID_BLUE = 45 * COLOR_BYTE_SCALE;
 const DRAINED_LIQUID_RED = 8 * COLOR_BYTE_SCALE;
 const DRAINED_LIQUID_GREEN = 30 * COLOR_BYTE_SCALE;
 const DRAINED_LIQUID_BLUE = 17 * COLOR_BYTE_SCALE;
+const CRACK_RED = 19 * COLOR_BYTE_SCALE;
+const CRACK_GREEN = 16 * COLOR_BYTE_SCALE;
+const CRACK_BLUE = 22 * COLOR_BYTE_SCALE;
+const EGG_RED = 151 * COLOR_BYTE_SCALE;
+const EGG_GREEN = 137 * COLOR_BYTE_SCALE;
+const EGG_BLUE = 121 * COLOR_BYTE_SCALE;
+const EGG_SHARD_RED = 186 * COLOR_BYTE_SCALE;
+const EGG_SHARD_GREEN = 142 * COLOR_BYTE_SCALE;
+const EGG_SHARD_BLUE = 94 * COLOR_BYTE_SCALE;
 
 /**
  * 按编译后的语义 ID 写入一个实体的事件驱动颜色流。
@@ -62,6 +71,21 @@ export function evaluateCurveCrawlerColors(
         colors[colorOffset] = liquidRed;
         colors[colorOffset + 1] = liquidGreen;
         colors[colorOffset + 2] = liquidBlue;
+        break;
+      case CurveCrawlerMeshSemantic.EmergenceCrack:
+        colors[colorOffset] = CRACK_RED;
+        colors[colorOffset + 1] = CRACK_GREEN;
+        colors[colorOffset + 2] = CRACK_BLUE;
+        break;
+      case CurveCrawlerMeshSemantic.EmergenceEgg:
+        colors[colorOffset] = EGG_RED;
+        colors[colorOffset + 1] = EGG_GREEN;
+        colors[colorOffset + 2] = EGG_BLUE;
+        break;
+      case CurveCrawlerMeshSemantic.EmergenceShard:
+        colors[colorOffset] = EGG_SHARD_RED;
+        colors[colorOffset + 1] = EGG_SHARD_GREEN;
+        colors[colorOffset + 2] = EGG_SHARD_BLUE;
         break;
       default:
         throw new Error(`Curve Crawler 网格包含未知顶点语义：${plan.semanticIds[localVertex]}`);

@@ -2,7 +2,7 @@
 
 ## 1. 文档目的
 
-本文记录项目当前三套代码生成三维内容的真实调用链：正面人类英雄 `Vanguard`、大厅壳体，以及大厅观察窗后的 `Curve Crawler`。
+本文作为程序化 Low Poly 调用树入口。现有三份局部文档分别记录 `Vanguard`、大厅壳体与 `Curve Crawler`；大厅、战场地面、环境原型、树木、蘑菇和人物角色的统一当前态评审见下方总览文档。
 
 ## 2. 推荐术语
 
@@ -36,6 +36,17 @@ flowchart LR
 | `assets/core/mesh/mesh-evaluator.ts` | 领域状态到运行时顶点流的泛型契约 |
 | `assets/core/rendering/compiled-mesh-batch-renderer.ts` | 初始化固定批索引、按 Dirty 调用 Evaluator |
 | `assets/core/rendering/dynamic-mesh-batch.ts` | Cocos Dynamic Mesh 与 Position / Normal / Color 属性级上传 |
+| `assets/core/geometry/faceted/faceted-emitter.ts` | 独立硬分面 Triangle/Quad、朝外绕序与退化策略 |
+| `assets/core/geometry/faceted/sequential-flat-normal.ts` | 从顺序独立三角形位置流重算法线 |
+| `assets/core/geometry/grid/flat-grid-plan.ts` | 编译共享格点、对角线、绕序和稳定三角形顺序 |
+| `assets/core/geometry/grid/flat-grid-workspace.ts` | 提供可复用 Float32/Float64 共享采样位置流 |
+| `assets/core/geometry/grid/flat-grid-emitter.ts` | 调用 Feature Sampler 并把预编译样本索引发射为硬分面 |
+| `assets/core/geometry/grid/surface-frame.ts` | 校验并映射局部 U/V/N 正交坐标基 |
+| `assets/core/geometry/radial/radial-topology-plan.ts` | 编译 SideBands、Fan 与逐 Segment 交错拓扑 Pass |
+| `assets/core/geometry/radial/radial-ring-source.ts` | 约束 Feature 领域 Ring 与 Fan Center 采样 |
+| `assets/core/geometry/radial/radial-workspace.ts` | 复用双精度 Ring/Center 连续位置流 |
+| `assets/core/geometry/radial/radial-emitter.ts` | 按预编译顺序发射独立硬分面 Radial 三角形 |
+| `assets/core/geometry/sections/geometry-section-composer.ts` | 记录类型化连续顶点/索引语义区段 |
 
 ## 5. 三套技术路线对比
 
@@ -52,6 +63,7 @@ flowchart LR
 
 ## 6. 调用树入口
 
+- [统一当前态：大厅、战场、树木、蘑菇、人物角色与复用架构评审](call-trees/low-poly-model-creation-review.md)
 - [玩家 Vanguard：编译控制笼、CPU 骨骼变形与动态流](call-trees/vanguard.md)
 - [大厅墙壁：参数化 Grid Recipe、洞穴形变与静态 Mesh](call-trees/lobby-walls.md)
 - [Curve Crawler：Bundle 加载、预编译采样与事件颜色流](call-trees/curve-crawler.md)

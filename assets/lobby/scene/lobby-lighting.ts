@@ -45,12 +45,10 @@ function createLobbySpotlight(
   spotLight.range = config.range;
   spotLight.spotAngle = config.spotAngle;
   spotLight.angleAttenuationStrength = config.angleAttenuationStrength;
+  spotLight.shadowPcf = getShadowPcf(quality.shadowFiltering);
+  spotLight.shadowBias = config.shadowBias;
+  spotLight.shadowNormalBias = config.shadowNormalBias;
   spotLight.shadowEnabled = config.shadowEnabled;
-  if (config.shadowEnabled) {
-    spotLight.shadowPcf = getShadowPcf(quality.shadowFiltering);
-    spotLight.shadowBias = config.shadowBias;
-    spotLight.shadowNormalBias = config.shadowNormalBias;
-  }
   return spotLight;
 }
 

@@ -1,4 +1,5 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { CURVE_CRAWLER_BODY_SHAPE } from '../model/curve-crawler-body-shape';
 import {
   CURVE_CRAWLER_FRAGMENT_COUNT,
   CURVE_CRAWLER_LEG_COUNT,
@@ -70,7 +71,7 @@ export function evaluateCurveCrawlerBodyMesh(
   writeNormals: boolean,
   legScratch: MutableCurveCrawlerLegScratch,
 ): void {
-  const { transform, morphology, behavior, animation } = state.data;
+  const { transform, morphology, animation } = state.data;
   const originX = transform.x[entityIndex] ?? 0;
   const originY = transform.y[entityIndex] ?? 0;
   const heading = transform.heading[entityIndex] ?? 0;
@@ -78,19 +79,23 @@ export function evaluateCurveCrawlerBodyMesh(
   const headingSine = Math.sin(heading);
   const bodyPulse = animation.bodyPulse[entityIndex] ?? 0;
   const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
+  const emergenceBodyScale = Math.max(animation.emergenceBodyScale[entityIndex] ?? 1, 0.0001);
+  const emergenceLegScale = Math.max(animation.emergenceLegScale[entityIndex] ?? 1, 0.0001);
   const originalBodyLength = morphology.bodyLength[entityIndex] ?? 0;
   const originalBodyWidth = morphology.bodyWidth[entityIndex] ?? 0;
-  const bodyLength = originalBodyLength * (1 + bodyPulse);
-  const bodyWidth = originalBodyWidth * (1 - bodyPulse * 0.35 - crouchAmount * 0.08);
-  const legLength = (morphology.legLength[entityIndex] ?? 0) * (1 + crouchAmount * 0.08);
-  const legWidth = morphology.legWidth[entityIndex] ?? 0;
+  const bodyLength = originalBodyLength * (1 + bodyPulse) * emergenceBodyScale;
+  const bodyWidth = originalBodyWidth
+    * (1 - bodyPulse * 0.35 - crouchAmount * 0.08)
+    * emergenceBodyScale;
+  const legLength = (morphology.legLength[entityIndex] ?? 0)
+    * (1 + crouchAmount * 0.08)
+    * emergenceLegScale;
+  const legWidth = (morphology.legWidth[entityIndex] ?? 0) * emergenceLegScale;
   const fragmentOffset = entityIndex * CURVE_CRAWLER_FRAGMENT_COUNT;
   const phase = animation.phase[entityIndex] ?? 0;
   const turnAmount = animation.turnAmount[entityIndex] ?? 0;
   const turnDirection = animation.turnDirection[entityIndex] ?? 1;
-  const waveAmount = animation.waveAmount[entityIndex] ?? 0;
-  const selectedWaveLeg = behavior.selectedWaveLeg[entityIndex] ?? 0;
-  const wavePhase = animation.wavePhase[entityIndex] ?? 0;
+  const biteAmount = animation.biteAmount[entityIndex] ?? 0;
   const legPhaseOffset = entityIndex * CURVE_CRAWLER_LEG_COUNT;
 
   for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {
@@ -126,16 +131,11 @@ export function evaluateCurveCrawlerBodyMesh(
     p2z = footRadius + legLength * 0.08 + gaitLift * 0.55;
     p3z = footRadius + gaitLift;
 
-    if (leg === selectedWaveLeg && waveAmount > 0.001) {
-      const waveSwing = Math.sin(wavePhase) * legLength * 0.22;
-      p1x += waveSwing * 0.25 * waveAmount;
-      p2x += waveSwing * 0.7 * waveAmount;
-      p3x += waveSwing * waveAmount;
-      p2y += (side * (bodyWidth * 0.75 + legLength * 0.25) - p2y) * waveAmount;
-      p3y += (side * (bodyWidth * 0.65 + legLength * 0.18) - p3y) * waveAmount;
-      p1z += (p0z + legLength * 0.4 - p1z) * waveAmount;
-      p2z += (p0z + legLength * 0.64 - p2z) * waveAmount;
-      p3z += (p0z + legLength * 0.76 - p3z) * waveAmount;
+    if (pair <= 1 && biteAmount > 0.001) {
+      // 啃咬时前腿保持贴地并向前撑开，避免重新形成无意义的抬手姿态。
+      p2x += legLength * 0.055 * biteAmount;
+      p3x += legLength * 0.11 * biteAmount;
+      p3y += side * legLength * 0.035 * biteAmount;
     }
 
     const fragmentIndex = fragmentOffset + leg;
@@ -206,15 +206,22 @@ export function evaluateCurveCrawlerBodyMesh(
 
   const abdomenFragment = fragmentOffset + CurveCrawlerFragmentIndex.Abdomen;
   const thoraxFragment = fragmentOffset + CurveCrawlerFragmentIndex.Thorax;
-  const abdomenRadiusZ = bodyWidth * 0.42;
-  const thoraxRadiusZ = bodyWidth * 0.36;
+  const bodyShape = CURVE_CRAWLER_BODY_SHAPE;
+  const abdomenRadiusZ = bodyWidth * bodyShape.abdomenHeightRadiusScale;
+  const thoraxRadiusZ = bodyWidth * bodyShape.thoraxHeightRadiusScale;
+  const biteForwardOffset = bodyLength * 0.16 * biteAmount;
   evaluateEllipsoid(
     plan.bodyEllipsoid,
     streams,
     entityVertexOffset + plan.body.abdomenVertexOffset,
-    originX - headingCosine * bodyLength * 0.15 + (animation.fragmentOffsetX[abdomenFragment] ?? 0),
-    originY - headingSine * bodyLength * 0.15 + (animation.fragmentOffsetY[abdomenFragment] ?? 0),
-    abdomenRadiusZ * (0.92 - crouchAmount * 0.22) + (animation.fragmentOffsetZ[abdomenFragment] ?? 0),
+    originX - headingCosine * (bodyLength * 0.15 + biteForwardOffset * 0.14)
+      + (animation.fragmentOffsetX[abdomenFragment] ?? 0),
+    originY - headingSine * (bodyLength * 0.15 + biteForwardOffset * 0.14)
+      + (animation.fragmentOffsetY[abdomenFragment] ?? 0),
+    abdomenRadiusZ * (
+      bodyShape.abdomenCenterHeightScale
+      - crouchAmount * bodyShape.abdomenCrouchCenterScale
+    ) + (animation.fragmentOffsetZ[abdomenFragment] ?? 0),
     Math.max(bodyLength * 0.48 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.52 * fragmentScale, 0.0001),
     Math.max(abdomenRadiusZ * fragmentScale, 0.0001),
@@ -226,9 +233,16 @@ export function evaluateCurveCrawlerBodyMesh(
     plan.bodyEllipsoid,
     streams,
     entityVertexOffset + plan.body.thoraxVertexOffset,
-    originX + headingCosine * bodyLength * 0.28 + (animation.fragmentOffsetX[thoraxFragment] ?? 0),
-    originY + headingSine * bodyLength * 0.28 + (animation.fragmentOffsetY[thoraxFragment] ?? 0),
-    thoraxRadiusZ * (1.08 - crouchAmount * 0.2) + (animation.fragmentOffsetZ[thoraxFragment] ?? 0),
+    originX + headingCosine * (bodyLength * 0.28 + biteForwardOffset)
+      + (animation.fragmentOffsetX[thoraxFragment] ?? 0),
+    originY + headingSine * (bodyLength * 0.28 + biteForwardOffset)
+      + (animation.fragmentOffsetY[thoraxFragment] ?? 0),
+    thoraxRadiusZ * (
+      bodyShape.thoraxCenterHeightScale
+      - crouchAmount * bodyShape.thoraxCrouchCenterScale
+      - biteAmount * bodyShape.thoraxBiteCenterScale
+    )
+      + (animation.fragmentOffsetZ[thoraxFragment] ?? 0),
     Math.max(bodyLength * 0.3 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.42 * fragmentScale, 0.0001),
     Math.max(thoraxRadiusZ * fragmentScale, 0.0001),

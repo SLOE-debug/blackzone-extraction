@@ -3,7 +3,10 @@ import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
+import {
+  CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
+  CurveCrawlerMotionProfile,
+} from '../model/curve-crawler-motion-profile';
 
 /**
  * 负责动作选择、动作计时和系统间共享的运动/姿态意图。
@@ -11,19 +14,22 @@ import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile
 export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的行为状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { identity, transform, morphology, vitality, behavior, intent } = state.data;
+    const { identity, transform, morphology, vitality, behavior, combat, intent } = state.data;
 
     for (let index = 0; index < state.count; index++) {
       if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
         intent.targetSpeed[index] = 0;
         intent.targetCrouch[index] = 0;
-        intent.targetWave[index] = 0;
+        intent.targetBite[index] = 0;
         intent.targetTurn[index] = 0;
         intent.gaitMultiplier[index] = 0;
         continue;
       }
 
       if (state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay) {
+        continue;
+      }
+      if ((combat.engaged[index] ?? 0) !== 0) {
         continue;
       }
 
@@ -43,8 +49,9 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
       }
 
       intent.targetSpeed[index] = morphology.cruiseSpeed[index] ?? 0;
+      intent.speedSharpness[index] = CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS;
       intent.targetCrouch[index] = 0;
-      intent.targetWave[index] = 0;
+      intent.targetBite[index] = 0;
       intent.targetTurn[index] = 0;
       intent.gaitMultiplier[index] = 1;
       intent.gaitDirection[index] = 1;
@@ -61,11 +68,6 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
           intent.targetSpeed[index] = (morphology.cruiseSpeed[index] ?? 0) * 2.15;
           intent.gaitMultiplier[index] = 1.8;
           break;
-        case CurveCrawlerAction.Wave:
-          intent.targetSpeed[index] = (morphology.cruiseSpeed[index] ?? 0) * 0.12;
-          intent.targetWave[index] = 1;
-          intent.gaitMultiplier[index] = 0.35;
-          break;
         case CurveCrawlerAction.Crouch:
           intent.targetSpeed[index] = 0;
           intent.targetCrouch[index] = 1;
@@ -76,6 +78,9 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
           intent.targetTurn[index] = 1;
           intent.gaitMultiplier[index] = 0.75;
           break;
+        case CurveCrawlerAction.Pursue:
+        case CurveCrawlerAction.Bite:
+          throw new Error(`战斗行为未被战斗系统接管：${action}`);
         default:
           throw new Error(`未知的 Curve Crawler 行为状态：${action}`);
       }
@@ -99,16 +104,13 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
     const { identity, transform, behavior, intent } = state.data;
     const roll = nextRandom(identity.randomState, index);
 
-    if (roll < 0.46) {
+    if (roll < 0.5) {
       this.setAction(state, index, CurveCrawlerAction.Crawl, 1.6, 5.5);
-    } else if (roll < 0.61) {
+    } else if (roll < 0.66) {
       this.setAction(state, index, CurveCrawlerAction.Pause, 0.5, 2.1);
-    } else if (roll < 0.76) {
+    } else if (roll < 0.83) {
       this.setAction(state, index, CurveCrawlerAction.Scuttle, 0.65, 1.8);
-    } else if (roll < 0.88) {
-      behavior.selectedWaveLeg[index] = nextRandom(identity.randomState, index) < 0.5 ? 0 : 4;
-      this.setAction(state, index, CurveCrawlerAction.Wave, 0.8, 2.2);
-    } else if (roll < 0.96) {
+    } else if (roll < 0.94) {
       this.setAction(state, index, CurveCrawlerAction.Crouch, 0.55, 1.4);
     } else {
       const turnAngle = nextRandom(identity.randomState, index) < 0.5

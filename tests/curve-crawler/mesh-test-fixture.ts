@@ -22,6 +22,11 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
     return values;
   };
   const data = {
+    identity: {
+      appearanceSeed: new Uint32Array(
+        Array.from({ length: entityCount }, (_, index) => 0x731a5 + index * 97),
+      ),
+    },
     transform: {
       x: new Float32Array(Array.from({ length: entityCount }, (_, index) => 10 + index * 20)),
       y: new Float32Array(Array.from({ length: entityCount }, (_, index) => -6 - index * 8)),
@@ -35,19 +40,22 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       eyeRadius: filled(entityCount, 0.5),
       liquidRadiusScales: filled(liquidRayCount, 1),
     },
-    behavior: {
-      selectedWaveLeg: new Uint8Array(entityCount),
-    },
     animation: {
       phase: new Float32Array(Array.from({ length: entityCount }, (_, index) => index * 0.6)),
       bodyPulse: filled(entityCount, 0),
       crouchAmount: filled(entityCount, 0.12),
-      waveAmount: filled(entityCount, 0),
+      biteAmount: filled(entityCount, 0),
       turnAmount: filled(entityCount, 0),
       turnDirection: filled(entityCount, 1),
-      wavePhase: filled(entityCount, 0),
       blinkScale: filled(entityCount, 1),
       hitFlash: filled(entityCount, 0),
+      crackSpread: filled(entityCount, 0),
+      crackVisibility: filled(entityCount, 0),
+      eggScale: filled(entityCount, 0),
+      eggBulge: filled(entityCount, 0),
+      eggBurst: filled(entityCount, 1),
+      emergenceBodyScale: filled(entityCount, 1),
+      emergenceLegScale: filled(entityCount, 1),
       surfaceCollapse: filled(entityCount, 0),
       liquidSpread: filled(entityCount, 0),
       liquidDrain: filled(entityCount, 0),

@@ -4,6 +4,7 @@ import {
   type VanguardCagePatch,
   VanguardCagePatchKind,
 } from './vanguard-cage';
+import { type VanguardMantleControlBinding } from './vanguard-mantle-control-binding';
 import {
   VanguardRenderVertexKind,
   type VanguardMeshPlan,
@@ -20,6 +21,7 @@ const VANGUARD_COLOR_VARIANT_COUNT = 7;
 export function compileVanguardMeshPlan(
   definition: Readonly<VanguardCageDefinition>,
   surfaceCount: number,
+  mantleBinding: Readonly<VanguardMantleControlBinding>,
 ): VanguardMeshPlan {
   if (!Number.isInteger(surfaceCount) || surfaceCount <= 0) {
     throw new Error('主角网格计划的表面数量必须是正整数。');
@@ -39,6 +41,7 @@ export function compileVanguardMeshPlan(
   if (controlVertexCount > 65535) {
     throw new Error('主角控制笼超过 Uint16 映射索引上限。');
   }
+  validateMantleBinding(mantleBinding, controlVertexCount);
 
   const controlBoneA = new Uint8Array(controlVertexCount);
   const controlBoneB = new Uint8Array(controlVertexCount);
@@ -147,6 +150,9 @@ export function compileVanguardMeshPlan(
     controlLocalA,
     controlLocalB,
     controlWeightB,
+    mantleControlVertices: Uint16Array.from(mantleBinding.controlVertices),
+    mantleParticleIndices: Uint8Array.from(mantleBinding.particleIndices),
+    mantleNormalOffsets: Float32Array.from(mantleBinding.normalOffsets),
     renderVertexKinds: Uint8Array.from(renderVertexKinds),
     renderToControlVertex: Uint16Array.from(renderToControlVertex),
     renderToFacetedCenter: Uint16Array.from(renderToFacetedCenter),
@@ -159,6 +165,23 @@ export function compileVanguardMeshPlan(
     colorVariantIds,
     semanticSpans,
   });
+}
+
+/** 验证动态披风绑定不会覆盖控制笼之外的顶点。 */
+function validateMantleBinding(
+  binding: Readonly<VanguardMantleControlBinding>,
+  controlVertexCount: number,
+): void {
+  if (binding.controlVertices.length !== binding.particleIndices.length
+    || binding.controlVertices.length !== binding.normalOffsets.length) {
+    throw new Error('主角披风编译绑定数组长度不一致。');
+  }
+  for (let index = 0; index < binding.controlVertices.length; index++) {
+    const controlVertex = binding.controlVertices[index] ?? -1;
+    if (controlVertex < 0 || controlVertex >= controlVertexCount) {
+      throw new Error(`主角披风控制点索引越界：${controlVertex}`);
+    }
+  }
 }
 
 /** 将对象化控制笼顶点压缩为连续强类型数据。 */

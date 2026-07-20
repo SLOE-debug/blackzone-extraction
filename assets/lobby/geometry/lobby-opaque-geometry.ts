@@ -1,6 +1,6 @@
 import { type TriangleMeshWriter } from '../../core/geometry/triangle-mesh-writer';
+import { GeometrySectionComposer } from '../../core/geometry/sections/geometry-section-composer';
 import { writeLobbyAltar } from './lobby-altar-geometry';
-import { GeometrySectionComposer } from './infrastructure/geometry-section-composer';
 import {
   writeLobbyLampCable,
   writeLobbyLampGlow,

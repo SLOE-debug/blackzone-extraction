@@ -1,4 +1,5 @@
 import { type TriangleMeshWriter } from '../../core/geometry/triangle-mesh-writer';
+import { emitFixedTopologyFlatTriangle } from '../../core/geometry/faceted/faceted-emitter';
 
 /** 几何写入阶段使用的只读三维点。 */
 export interface LobbyPoint3 {
@@ -14,23 +15,7 @@ export function appendLobbyTriangle(
   b: Readonly<LobbyPoint3>,
   c: Readonly<LobbyPoint3>,
 ): void {
-  const edgeABX = b.x - a.x;
-  const edgeABY = b.y - a.y;
-  const edgeABZ = b.z - a.z;
-  const edgeACX = c.x - a.x;
-  const edgeACY = c.y - a.y;
-  const edgeACZ = c.z - a.z;
-  const crossX = edgeABY * edgeACZ - edgeABZ * edgeACY;
-  const crossY = edgeABZ * edgeACX - edgeABX * edgeACZ;
-  const crossZ = edgeABX * edgeACY - edgeABY * edgeACX;
-  const inverseLength = 1 / Math.max(Math.hypot(crossX, crossY, crossZ), 0.000001);
-  const normalX = crossX * inverseLength;
-  const normalY = crossY * inverseLength;
-  const normalZ = crossZ * inverseLength;
-  const indexA = writer.vertex(a.x, a.y, a.z, normalX, normalY, normalZ);
-  const indexB = writer.vertex(b.x, b.y, b.z, normalX, normalY, normalZ);
-  const indexC = writer.vertex(c.x, c.y, c.z, normalX, normalY, normalZ);
-  writer.triangle(indexA, indexB, indexC);
+  emitFixedTopologyFlatTriangle(writer, undefined, a, b, c);
 }
 
 /**

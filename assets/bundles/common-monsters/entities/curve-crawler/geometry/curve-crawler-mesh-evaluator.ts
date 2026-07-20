@@ -13,6 +13,11 @@ import { evaluateCurveCrawlerColors } from './curve-crawler-mesh-colors';
 import { evaluateCurveCrawlerEyeMesh } from './curve-crawler-eye-mesh-evaluator';
 import { evaluateCurveCrawlerLiquidMesh } from './curve-crawler-liquid-mesh-evaluator';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
+import {
+  createCurveCrawlerEmergenceScratch,
+  evaluateCurveCrawlerEmergenceMesh,
+  type CurveCrawlerEmergenceScratch,
+} from './curve-crawler-emergence-mesh-evaluator';
 
 /**
  * 将 Curve Crawler 当前 SoA 状态直接求值到编译式动态顶点流。
@@ -23,6 +28,9 @@ export class CurveCrawlerMeshEvaluator
 implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
   /** 八条腿顺序复用的一份控制点缓存，避免高频对象分配。 */
   private readonly legScratch: MutableCurveCrawlerLegScratch = createCurveCrawlerLegScratch();
+  /** 蛋壳三角面和爆裂碎片顺序复用的出生几何缓存。 */
+  private readonly emergenceScratch: CurveCrawlerEmergenceScratch
+    = createCurveCrawlerEmergenceScratch();
 
   /**
    * 按请求的流位标志原地求值指定连续实体范围。
@@ -101,6 +109,16 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
           streams,
           writePositions,
           writeNormals,
+        );
+        evaluateCurveCrawlerEmergenceMesh(
+          state,
+          plan,
+          entityIndex,
+          entityVertexOffset,
+          streams,
+          writePositions,
+          writeNormals,
+          this.emergenceScratch,
         );
       }
       if (writeColors) {

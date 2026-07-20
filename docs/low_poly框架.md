@@ -1,5 +1,7 @@
 ## 结论先拍死：**完全可以，而且现在正是该模块化的时候**
 
+> 实施注记（2026-07-19）：专家方案 P0–P3 已落地，当前实现使用 Core Faceted/Grid/Radial、强类型 Vertex Layout 与 repeated MeshPlan Composer；Environment 使用唯一 Catalog 和显式 Prepare。本文早期代码片段保留为方案演进记录，现行调用链以 [`call-trees/low-poly-model-creation-current.md`](call-trees/low-poly-model-creation-current.md) 为准。
+
 但我会区分两个词：
 
 * **现在应该立刻模块化**：消灭大厅里四面墙、地板、天花板重复的网格遍历和三角形写入。
@@ -479,14 +481,15 @@ assets/lobby/geometry/
 └─ lobby-opaque-geometry.ts
 ```
 
-等第二个场景也开始使用 `SurfaceFrame` 和 `GridPatch`，再提升：
+Battlefield Ground 已成为第二个真实 Grid 消费者；专家裁决后的 P1 已落地为：
 
 ```text
-assets/core/geometry/surfaces/
+assets/core/geometry/grid/
 ├─ surface-frame.ts
-├─ parametric-grid-template.ts
+├─ flat-grid-plan.ts
+├─ flat-grid-workspace.ts
 ├─ flat-grid-emitter.ts
-└─ smooth-grid-evaluator.ts
+└─ Feature sampler adapters
 ```
 
 一个很好用的晋升规则是：

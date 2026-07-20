@@ -1,9 +1,15 @@
 import { type EntityRange } from '../../../core/entities/entity-range';
+import { writeSequentialFlatNormals } from '../../../core/geometry/faceted/sequential-flat-normal';
 import { MeshDirty } from '../../../core/mesh/mesh-dirty';
 import { type MeshEvaluator } from '../../../core/mesh/mesh-evaluator';
 import { type VertexStreams } from '../../../core/mesh/vertex-streams';
+import { VANGUARD_MANTLE_PARTICLE_COUNT } from '../model/vanguard-mantle-particles';
 import { VanguardBone, VANGUARD_BONE_MATRIX_COMPONENTS } from '../model/vanguard-bone';
 import { type VanguardState } from '../model/vanguard-state';
+import {
+  VANGUARD_MANTLE_REST_NORMALS,
+  VANGUARD_MANTLE_TRIANGLES,
+} from './vanguard-mantle-topology';
 import { VanguardRenderVertexKind, type VanguardMeshPlan } from './vanguard-mesh-plan';
 
 const EPSILON = 0.000001;
@@ -33,6 +39,9 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
   private readonly deformedControlPositions: Float64Array;
   private readonly facetedCenterPositions: Float64Array;
   private readonly renderPositions: Float64Array;
+  private readonly mantleNormalX = new Float64Array(VANGUARD_MANTLE_PARTICLE_COUNT);
+  private readonly mantleNormalY = new Float64Array(VANGUARD_MANTLE_PARTICLE_COUNT);
+  private readonly mantleNormalZ = new Float64Array(VANGUARD_MANTLE_PARTICLE_COUNT);
 
   constructor(
     private readonly compiledPlan: Readonly<VanguardMeshPlan>,
@@ -71,8 +80,11 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
       changed |= MeshDirty.Pose;
     }
     if ((requested & MeshDirty.Color) !== MeshDirty.None) {
-      this.evaluateColors(streams.colors, range.count);
+      this.evaluateColors(state, streams.colors, range);
       changed |= MeshDirty.Color;
+    }
+    if ((requested & MeshDirty.Bounds) !== MeshDirty.None) {
+      changed |= MeshDirty.Bounds;
     }
     return changed;
   }
@@ -85,9 +97,97 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
     vertexOffset: number,
   ): void {
     this.skinControlVertices(state, entityIndex);
+    this.applyMantleControls(state, entityIndex);
     this.evaluateFacetedCenters();
     this.expandRenderPositions(streams.positions, vertexOffset);
-    this.computeFlatNormals(streams.normals, vertexOffset);
+    writeSequentialFlatNormals(this.renderPositions, streams.normals, vertexOffset);
+  }
+
+  /** 用角色本地披风中面和粒子法线覆盖骨骼蒙皮后的自由披片控制点。 */
+  private applyMantleControls(state: VanguardState, entityIndex: number): void {
+    const plan = this.compiledPlan;
+    const { transform, morphology, mantle } = state.data;
+    const particleOffset = entityIndex * VANGUARD_MANTLE_PARTICLE_COUNT;
+    this.evaluateMantleParticleNormals(state, particleOffset);
+    const rootX = transform.x[entityIndex] ?? 0;
+    const rootY = transform.y[entityIndex] ?? 0;
+    const rootZ = transform.z[entityIndex] ?? 0;
+    const heading = transform.heading[entityIndex] ?? 0;
+    const scale = morphology.scale[entityIndex] ?? 1;
+    const headingCosine = Math.cos(heading);
+    const headingSine = Math.sin(heading);
+    for (let binding = 0; binding < plan.mantleControlVertices.length; binding++) {
+      const controlOffset = (plan.mantleControlVertices[binding] ?? 0) * 3;
+      const particle = particleOffset + (plan.mantleParticleIndices[binding] ?? 0);
+      const localParticle = plan.mantleParticleIndices[binding] ?? 0;
+      const normalOffset = plan.mantleNormalOffsets[binding] ?? 0;
+      const localX = (mantle.positionX[particle] ?? 0)
+        + (this.mantleNormalX[localParticle] ?? 0) * normalOffset;
+      const localY = (mantle.positionY[particle] ?? 0)
+        + (this.mantleNormalY[localParticle] ?? 0) * normalOffset;
+      const localZ = (mantle.positionZ[particle] ?? 0)
+        + (this.mantleNormalZ[localParticle] ?? 1) * normalOffset;
+      this.deformedControlPositions[controlOffset] = rootX
+        + (localX * headingCosine + localZ * headingSine) * scale;
+      this.deformedControlPositions[controlOffset + 1] = rootY + localY * scale;
+      this.deformedControlPositions[controlOffset + 2] = rootZ
+        + (-localX * headingSine + localZ * headingCosine) * scale;
+    }
+  }
+
+  /** 从当前披风中面三角形计算生成正反厚度所需的粒子法线。 */
+  private evaluateMantleParticleNormals(state: VanguardState, particleOffset: number): void {
+    this.mantleNormalX.fill(0);
+    this.mantleNormalY.fill(0);
+    this.mantleNormalZ.fill(0);
+    const mantle = state.data.mantle;
+    for (let triangle = 0; triangle < VANGUARD_MANTLE_TRIANGLES.length; triangle += 3) {
+      const localA = VANGUARD_MANTLE_TRIANGLES[triangle] ?? 0;
+      const localB = VANGUARD_MANTLE_TRIANGLES[triangle + 1] ?? 0;
+      const localC = VANGUARD_MANTLE_TRIANGLES[triangle + 2] ?? 0;
+      const a = particleOffset + localA;
+      const b = particleOffset + localB;
+      const c = particleOffset + localC;
+      const abX = (mantle.positionX[b] ?? 0) - (mantle.positionX[a] ?? 0);
+      const abY = (mantle.positionY[b] ?? 0) - (mantle.positionY[a] ?? 0);
+      const abZ = (mantle.positionZ[b] ?? 0) - (mantle.positionZ[a] ?? 0);
+      const acX = (mantle.positionX[c] ?? 0) - (mantle.positionX[a] ?? 0);
+      const acY = (mantle.positionY[c] ?? 0) - (mantle.positionY[a] ?? 0);
+      const acZ = (mantle.positionZ[c] ?? 0) - (mantle.positionZ[a] ?? 0);
+      const normalX = abY * acZ - abZ * acY;
+      const normalY = abZ * acX - abX * acZ;
+      const normalZ = abX * acY - abY * acX;
+      this.accumulateMantleNormal(localA, normalX, normalY, normalZ);
+      this.accumulateMantleNormal(localB, normalX, normalY, normalZ);
+      this.accumulateMantleNormal(localC, normalX, normalY, normalZ);
+    }
+    for (let particle = 0; particle < VANGUARD_MANTLE_PARTICLE_COUNT; particle++) {
+      let normalX = this.mantleNormalX[particle] ?? 0;
+      let normalY = this.mantleNormalY[particle] ?? 0;
+      let normalZ = this.mantleNormalZ[particle] ?? 0;
+      const inverseLength = 1 / Math.max(Math.hypot(normalX, normalY, normalZ), EPSILON);
+      normalX *= inverseLength;
+      normalY *= inverseLength;
+      normalZ *= inverseLength;
+      const referenceDot = normalX * (VANGUARD_MANTLE_REST_NORMALS.x[particle] ?? 0)
+        + normalY * (VANGUARD_MANTLE_REST_NORMALS.y[particle] ?? 0)
+        + normalZ * (VANGUARD_MANTLE_REST_NORMALS.z[particle] ?? 1);
+      const direction = referenceDot < 0 ? -1 : 1;
+      this.mantleNormalX[particle] = normalX * direction;
+      this.mantleNormalY[particle] = normalY * direction;
+      this.mantleNormalZ[particle] = normalZ * direction;
+    }
+  }
+
+  private accumulateMantleNormal(
+    particle: number,
+    normalX: number,
+    normalY: number,
+    normalZ: number,
+  ): void {
+    this.mantleNormalX[particle] = (this.mantleNormalX[particle] ?? 0) + normalX;
+    this.mantleNormalY[particle] = (this.mantleNormalY[particle] ?? 0) + normalY;
+    this.mantleNormalZ[particle] = (this.mantleNormalZ[particle] ?? 0) + normalZ;
   }
 
   /** 将全部绑定控制点按最多两根骨骼混合到当前世界空间。 */
@@ -226,42 +326,22 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
     }
   }
 
-  /** 从双精度展开位置计算每组三个独立顶点的硬分面法线。 */
-  private computeFlatNormals(normals: Float32Array, vertexOffset: number): void {
-    for (let offset = 0; offset < this.renderPositions.length; offset += 9) {
-      const ax = this.renderPositions[offset] ?? 0;
-      const ay = this.renderPositions[offset + 1] ?? 0;
-      const az = this.renderPositions[offset + 2] ?? 0;
-      const edgeABX = (this.renderPositions[offset + 3] ?? 0) - ax;
-      const edgeABY = (this.renderPositions[offset + 4] ?? 0) - ay;
-      const edgeABZ = (this.renderPositions[offset + 5] ?? 0) - az;
-      const edgeACX = (this.renderPositions[offset + 6] ?? 0) - ax;
-      const edgeACY = (this.renderPositions[offset + 7] ?? 0) - ay;
-      const edgeACZ = (this.renderPositions[offset + 8] ?? 0) - az;
-      const crossX = edgeABY * edgeACZ - edgeABZ * edgeACY;
-      const crossY = edgeABZ * edgeACX - edgeABX * edgeACZ;
-      const crossZ = edgeABX * edgeACY - edgeABY * edgeACX;
-      const inverseLength = 1 / Math.max(Math.hypot(crossX, crossY, crossZ), EPSILON);
-      const normalX = crossX * inverseLength;
-      const normalY = crossY * inverseLength;
-      const normalZ = crossZ * inverseLength;
-      const firstVertex = vertexOffset + offset / 3;
-      for (let vertex = 0; vertex < 3; vertex++) {
-        const targetOffset = (firstVertex + vertex) * 3;
-        normals[targetOffset] = normalX;
-        normals[targetOffset + 1] = normalY;
-        normals[targetOffset + 2] = normalZ;
-      }
-    }
-  }
-
   /** 在初始化或显式颜色事件中写入稳定的语义配色。 */
-  private evaluateColors(colors: Float32Array, entityCount: number): void {
+  private evaluateColors(
+    state: VanguardState,
+    colors: Float32Array,
+    range: EntityRange,
+  ): void {
     const plan = this.compiledPlan;
     const trianglesPerEntity = plan.vertexCount / 3;
-    for (let entity = 0; entity < entityCount; entity++) {
-      const vertexOffset = entity * plan.vertexCount;
-      const entityVariantOffset = entity * trianglesPerEntity;
+    for (let localEntity = 0; localEntity < range.count; localEntity++) {
+      const entityIndex = range.start + localEntity;
+      const vertexOffset = localEntity * plan.vertexCount;
+      const entityVariantOffset = entityIndex * trianglesPerEntity;
+      const hitFlash = Math.max(
+        0,
+        Math.min(state.data.animation.hitFlash[entityIndex] ?? 0, 1),
+      );
       for (let vertex = 0; vertex < plan.vertexCount; vertex++) {
         const semantic = plan.semanticIds[vertex] ?? 0;
         const color = this.palette.entries[semantic];
@@ -273,9 +353,12 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
         const shade = 1 - color.facetVariation * 0.55
           + variant / (COLOR_VARIANT_COUNT - 1) * color.facetVariation;
         const offset = (vertexOffset + vertex) * 4;
-        colors[offset] = Math.min(1, color.red * shade);
-        colors[offset + 1] = Math.min(1, color.green * shade);
-        colors[offset + 2] = Math.min(1, color.blue * shade);
+        const baseRed = Math.min(1, color.red * shade);
+        const baseGreen = Math.min(1, color.green * shade);
+        const baseBlue = Math.min(1, color.blue * shade);
+        colors[offset] = baseRed + (1 - baseRed) * hitFlash * 0.72;
+        colors[offset + 1] = baseGreen * (1 - hitFlash * 0.62);
+        colors[offset + 2] = baseBlue * (1 - hitFlash * 0.68);
         colors[offset + 3] = color.alpha;
       }
     }

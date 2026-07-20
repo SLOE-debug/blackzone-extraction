@@ -8,9 +8,14 @@ import {
 import { MeshDirty } from '../../assets/core/mesh/mesh-dirty';
 import { createVertexStreams } from '../../assets/core/mesh/vertex-streams';
 import { VanguardAnimationSystem } from '../../assets/player/vanguard/animation/vanguard-animation-system';
-import { type VanguardCageDefinition } from '../../assets/player/vanguard/geometry/vanguard-cage';
+import {
+  type VanguardCageDefinition,
+} from '../../assets/player/vanguard/geometry/vanguard-cage';
 import { compileVanguardMeshPlan } from '../../assets/player/vanguard/geometry/vanguard-mesh-compiler';
-import { VANGUARD_MATTE_CAGE } from '../../assets/player/vanguard/geometry/vanguard-model-cage';
+import {
+  VANGUARD_MANTLE_CONTROL_BINDING,
+  VANGUARD_MATTE_CAGE,
+} from '../../assets/player/vanguard/geometry/vanguard-model-cage';
 import { VanguardMeshEvaluator } from '../../assets/player/vanguard/geometry/vanguard-mesh-evaluator';
 import { type VanguardMeshPlan } from '../../assets/player/vanguard/geometry/vanguard-mesh-plan';
 import {
@@ -54,7 +59,11 @@ describe('主角编译式网格计划', () => {
       surfaceTriangleCounts: Object.freeze(surfaceTriangleCounts),
     });
 
-    expect(() => compileVanguardMeshPlan(malformed, VanguardMatteSurface.Count))
+    expect(() => compileVanguardMeshPlan(
+      malformed,
+      VanguardMatteSurface.Count,
+      VANGUARD_MANTLE_CONTROL_BINDING,
+    ))
       .toThrow('表面三角形数量不一致');
   });
 
@@ -147,7 +156,7 @@ describe('主角编译式网格计划', () => {
     expectFlatNormalsMatchTriangles(geometry);
   });
 
-  it('按编译语义写入皮肤、衣物、围巾和确定性分面变化', () => {
+  it('按编译语义写入皮肤、衣物、披肩和确定性分面变化', () => {
     const fixture = createFixture();
     const matte = evaluatePlan(
       fixture.state,
@@ -159,15 +168,76 @@ describe('主角编译式网格计划', () => {
       .startVertex);
     const tunic = getColor(matte, getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Tunic)
       .startVertex);
-    const scarf = getColor(matte, getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Scarf)
+    const mantle = getColor(matte, getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Mantle)
       .startVertex);
     const skinSpan = getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Skin);
 
     expect(skin.red).toBeGreaterThan(skin.blue * 1.7);
     expect(tunic.blue).toBeGreaterThan(tunic.red * 2.5);
-    expect(scarf.red).toBeGreaterThan(scarf.blue * 2.5);
+    expect(mantle.red).toBeGreaterThan(mantle.blue * 2.5);
     expect(getColorChannelSpread(matte, skinSpan.startVertex, skinSpan.vertexCount, 0))
       .toBeGreaterThan(0.01);
+  });
+
+  it('受击颜色流提高红色并压低其余通道', () => {
+    const fixture = createFixture();
+    const evaluator = new VanguardMeshEvaluator(
+      VANGUARD_MATTE_MESH_PLAN,
+      VANGUARD_MATTE_MESH_PALETTE,
+    );
+    const skinVertex = getSpan(
+      VANGUARD_MATTE_MESH_PLAN,
+      VanguardMatteSurface.Skin,
+    ).startVertex;
+    const normal = evaluatePlan(
+      fixture.state,
+      VANGUARD_MATTE_MESH_PLAN,
+      evaluator,
+      MeshDirty.All,
+    );
+    const normalColor = getColor(normal, skinVertex);
+    fixture.state.data.animation.hitFlash[0] = 1;
+    const hit = evaluatePlan(
+      fixture.state,
+      VANGUARD_MATTE_MESH_PLAN,
+      evaluator,
+      MeshDirty.Color,
+    );
+    const hitColor = getColor(hit, skinVertex);
+
+    expect(hitColor.red).toBeGreaterThan(normalColor.red);
+    expect(hitColor.green).toBeLessThan(normalColor.green);
+    expect(hitColor.blue).toBeLessThan(normalColor.blue);
+  });
+
+  it('用宽檐帽和左长右短的披风建立成熟远景轮廓', () => {
+    const fixture = createFixture();
+    const matte = evaluatePlan(
+      fixture.state,
+      VANGUARD_MATTE_MESH_PLAN,
+      new VanguardMeshEvaluator(VANGUARD_MATTE_MESH_PLAN, VANGUARD_MATTE_MESH_PALETTE),
+      MeshDirty.All,
+    );
+    const headwear = getAxisExtent(
+      matte,
+      getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Headwear),
+      0,
+    );
+    const mantleX = getAxisExtent(
+      matte,
+      getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Mantle),
+      0,
+    );
+    const mantleY = getAxisExtent(
+      matte,
+      getSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Mantle),
+      1,
+    );
+
+    expect(headwear.maximum - headwear.minimum).toBeGreaterThan(1.3);
+    expect(headwear.maximum - headwear.minimum).toBeLessThan(1.5);
+    expect(-mantleX.minimum).toBeGreaterThan(mantleX.maximum + 0.15);
+    expect(mantleY.maximum - mantleY.minimum).toBeGreaterThan(1.05);
   });
 
   it('计划求值不会重写固定索引或语义数据', () => {
@@ -284,4 +354,21 @@ function getColorChannelSpread(
     maximum = Math.max(maximum, value);
   }
   return maximum - minimum;
+}
+
+/** 返回语义跨度在目标坐标轴上的最小值与最大值。 */
+function getAxisExtent(
+  geometry: SurfaceBufferGeometry,
+  span: Readonly<{ startVertex: number; vertexCount: number }>,
+  axis: 0 | 1 | 2,
+): Readonly<{ minimum: number; maximum: number }> {
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  const endVertex = span.startVertex + span.vertexCount;
+  for (let vertex = span.startVertex; vertex < endVertex; vertex++) {
+    const value = geometry.positions[vertex * 3 + axis] ?? 0;
+    minimum = Math.min(minimum, value);
+    maximum = Math.max(maximum, value);
+  }
+  return Object.freeze({ minimum, maximum });
 }

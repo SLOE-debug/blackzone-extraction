@@ -9,6 +9,10 @@ export interface FeatureManifestEntry<TId extends FeatureId = FeatureId> {
 
 /** Feature 加载关系的唯一清单。 */
 export const FEATURE_MANIFEST = Object.freeze({
+  [FeatureId.Battlefield]: Object.freeze({
+    id: FeatureId.Battlefield,
+    bundle: BUNDLE_MANIFEST[BundleId.Battlefield],
+  }),
   [FeatureId.CommonMonsters]: Object.freeze({
     id: FeatureId.CommonMonsters,
     bundle: BUNDLE_MANIFEST[BundleId.CommonMonsters],

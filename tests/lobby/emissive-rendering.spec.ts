@@ -9,6 +9,8 @@ import {
   LOBBY_EMISSIVE_TOPOLOGY,
 } from '../../assets/lobby/geometry/lobby-emissive-geometry';
 import { lobbyEmissiveVertexShading } from '../../assets/lobby/rendering/lobby-emissive-vertex-shading';
+import { lobbyEffectsGeometry } from '../../assets/lobby/geometry/lobby-effects-geometry';
+import { shadeLobbyEffects } from '../../assets/lobby/rendering/lobby-effects-vertex-shading';
 
 describe('大厅发光面合批', () => {
   it('合并顶灯和仪式灯并保留两类独立颜色', () => {
@@ -35,6 +37,34 @@ describe('大厅发光面合批', () => {
       geometry.colors,
       ranges.ritualGlow.startVertex,
       [1, 18 / 255, 42 / 255, 1],
+    );
+  });
+
+  it('发光面与观察玻璃进入同一 RGBA 顶点色批次', () => {
+    const metrics = lobbyEffectsGeometry.metrics;
+    const geometry = createStaticSurfaceGeometry(
+      metrics.verticesPerEntity,
+      metrics.indicesPerEntity,
+      GeometryIndexFormat.Uint16,
+    );
+    const writer = new TriangleMeshWriter(geometry);
+    writer.reset(true);
+    const ranges = lobbyEffectsGeometry.write(writer);
+    writer.commit();
+    shadeLobbyEffects(geometry, ranges);
+
+    expect(ranges.glass.startVertex).toBe(
+      ranges.emissive.ritualGlow.startVertex + ranges.emissive.ritualGlow.vertexCount,
+    );
+    expectVertexColor(
+      geometry.colors,
+      ranges.glass.startVertex,
+      [78 / 255, 116 / 255, 126 / 255, 54 / 255],
+    );
+    expectVertexColor(
+      geometry.colors,
+      ranges.emissive.lampGlow.startVertex,
+      [1, 244 / 255, 214 / 255, 1],
     );
   });
 });

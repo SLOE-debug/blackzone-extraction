@@ -1,8 +1,8 @@
 import { getLobbyGeometryJitter } from '../lobby-triangle-geometry';
 import {
-  type GridPatchSample,
-  type LocalSurfacePoint,
-} from '../infrastructure/flat-grid-patch';
+  type LobbyGridSample,
+  type LobbyLocalSurfacePoint,
+} from '../samplers/lobby-grid-sample';
 
 /** 大厅参数化曲面的法向形变模式。 */
 export enum LobbySurfaceNormalDeformation {
@@ -45,8 +45,8 @@ export interface LobbySurfaceDeformationContext {
  * @param context 当前曲面的固定种子与形变幅度。
  */
 export function sampleLobbySurface(
-  out: LocalSurfacePoint,
-  sample: Readonly<GridPatchSample>,
+  out: LobbyLocalSurfacePoint,
+  sample: Readonly<LobbyGridSample>,
   context: Readonly<LobbySurfaceDeformationContext>,
 ): void {
   if (!sample.edge) {
@@ -82,7 +82,7 @@ export function sampleLobbySurface(
 }
 
 /** 计算边界闭合、内部向法向轴隆起的确定性洞穴高度。 */
-function getCaveRelief(sample: Readonly<GridPatchSample>, seed: number): number {
+function getCaveRelief(sample: Readonly<LobbyGridSample>, seed: number): number {
   if (sample.edge) {
     return 0;
   }

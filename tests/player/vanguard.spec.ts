@@ -38,7 +38,7 @@ const TEST_OPTIONS = Object.freeze({
   action: VanguardAction.Idle,
 }) satisfies VanguardPopulationOptions;
 
-describe('可复用正面 Low Poly 人类英雄', () => {
+describe('可复用荒原 Low Poly 游侠', () => {
   it('主体拓扑保持单一连通且不依赖封闭管段拼接', () => {
     const adjacency = Array.from(
       { length: VANGUARD_BODY_CAGE.vertices.length },
@@ -65,7 +65,7 @@ describe('可复用正面 Low Poly 人类英雄', () => {
     }
   });
 
-  it('保持正面人类英雄的头身、肩腰和双腿比例', () => {
+  it('保持成熟荒原先锋的头身、肩腰和双腿比例', () => {
     const fixture = createVanguardFixture();
     const matte = evaluatePlan(
       fixture.state,
@@ -76,22 +76,41 @@ describe('可复用正面 Low Poly 人类英雄', () => {
     const maximumY = getMaximum(matte.positions, matte.vertexCount, 1);
     const height = maximumY - minimumY;
     const headRatio = (VANGUARD_ANATOMY.height - 3.2) / VANGUARD_ANATOMY.height;
-    const shoulderWidth = getWidthAtHeight(matte, TEST_BASE_Y + 2.82, 0.09);
-    const waistWidth = getWidthAtHeight(matte, TEST_BASE_Y + 2.03, 0.08, 0.6);
+    const tunicRange = getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Tunic);
+    const shoulderWidth = getRangeWidthAtHeight(
+      matte,
+      tunicRange,
+      TEST_BASE_Y + 2.82,
+      0.09,
+    );
+    const waistWidth = getRangeWidthAtHeight(
+      matte,
+      tunicRange,
+      TEST_BASE_Y + 2.03,
+      0.08,
+    );
+    const leatherRange = getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Leather);
+    const gloveSpan = getRangeWidthAtHeight(
+      matte,
+      leatherRange,
+      TEST_BASE_Y + 1.29,
+      0.06,
+    );
     const thighWidth = getWidthAtHeight(matte, TEST_BASE_Y + 1.3, 0.1);
     const faceFront = getMaximum(matte.positions, matte.vertexCount, 2) - TEST_FOCUS_Z;
     const headBack = getMinimum(matte.positions, matte.vertexCount, 2) - TEST_FOCUS_Z;
     const leftFoot = getMinimumXBelow(matte, TEST_BASE_Y + 0.17);
     const rightFoot = getMaximumXBelow(matte, TEST_BASE_Y + 0.17);
 
-    expect(height).toBeGreaterThan(3.75);
-    expect(height).toBeLessThan(4.15);
+    expect(height).toBeGreaterThan(4);
+    expect(height).toBeLessThan(4.2);
     expect(headRatio).toBeGreaterThan(0.13);
     expect(headRatio).toBeLessThan(0.17);
-    expect(shoulderWidth).toBeGreaterThan(1.15);
-    expect(shoulderWidth).toBeLessThan(1.4);
+    expect(shoulderWidth).toBeGreaterThan(1.3);
+    expect(shoulderWidth).toBeLessThan(1.55);
     expect(waistWidth).toBeLessThan(0.85);
     expect(shoulderWidth).toBeGreaterThan(waistWidth * 1.35);
+    expect(gloveSpan).toBeGreaterThan(1.65);
     expect(thighWidth).toBeGreaterThan(0.85);
     expect(shoulderWidth).toBeLessThan(thighWidth * 1.45);
     expect(faceFront).toBeGreaterThan(0.36);
@@ -101,7 +120,7 @@ describe('可复用正面 Low Poly 人类英雄', () => {
     expect(minimumY).toBeGreaterThanOrEqual(TEST_BASE_Y + 0.035);
   });
 
-  it('待机动作转头、耸肩并摆动围巾，同时保持脚底稳定', () => {
+  it('待机动作转头、耸肩并带动披肩，同时保持脚底稳定', () => {
     const fixture = createVanguardFixture();
     const matteBefore = evaluatePlan(
       fixture.state,
@@ -176,7 +195,7 @@ describe('可复用正面 Low Poly 人类英雄', () => {
       VANGUARD_MATTE_MESH_PLAN,
       VANGUARD_MATTE_MESH_PALETTE,
     );
-    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBe(516);
+    expect(VANGUARD_TOTAL_TRIANGLE_COUNT).toBe(695);
     expect(firstMatte.vertexCount).toBe(VANGUARD_MATTE_MESH_PLAN.vertexCount);
     expect(firstMatte.indexCount).toBe(VANGUARD_MATTE_MESH_PLAN.indexCount);
     expect(Array.from(firstMatte.getPositionView())).toEqual(
@@ -185,7 +204,7 @@ describe('可复用正面 Low Poly 人类英雄', () => {
     expectUnitNormals(firstMatte.normals, firstMatte.vertexCount);
   });
 
-  it('按皮肤、五官、衣物、围巾和皮革写入编译语义颜色', () => {
+  it('按皮肤、胡须、帽子、衣物、披肩和皮革写入编译语义颜色', () => {
     const fixture = createVanguardFixture();
     const matte = evaluatePlan(
       fixture.state,
@@ -197,21 +216,29 @@ describe('可复用正面 Low Poly 人类英雄', () => {
       .startVertex);
     const face = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.FaceDetail)
       .startVertex);
+    const facialHair = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.FacialHair)
+      .startVertex);
+    const headwear = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Headwear)
+      .startVertex);
     const tunic = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Tunic)
       .startVertex);
-    const scarf = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Scarf)
+    const mantle = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Mantle)
       .startVertex);
     const leather = getColor(matte, getSurfaceSpan(VANGUARD_MATTE_MESH_PLAN, VanguardMatteSurface.Leather)
       .startVertex);
 
     expect(skin.red).toBeGreaterThan(skin.blue * 1.7);
     expect(face.red).toBeLessThan(skin.red * 0.35);
+    expect(facialHair.red).toBeLessThan(skin.red * 0.35);
+    expect(headwear.red).toBeGreaterThan(headwear.green * 1.4);
+    expect(headwear.green).toBeGreaterThan(headwear.blue * 1.1);
+    expect(headwear.red).toBeLessThan(mantle.red * 0.7);
     expect(tunic.blue).toBeGreaterThan(tunic.red * 2.5);
-    expect(scarf.red).toBeGreaterThan(scarf.blue * 2.5);
+    expect(mantle.red).toBeGreaterThan(mantle.blue * 2.5);
     expect(leather.red).toBeGreaterThan(leather.blue * 2);
   });
 
-  it('颈部在围巾与下颌之间收腰，并避免高对比三角条纹', () => {
+  it('颈部在披肩与下颌之间收腰，并避免高对比三角条纹', () => {
     const fixture = createVanguardFixture();
     const matte = evaluatePlan(
       fixture.state,

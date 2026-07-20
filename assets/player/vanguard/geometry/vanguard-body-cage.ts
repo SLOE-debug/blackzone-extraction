@@ -36,20 +36,20 @@ function addTorso(builder: VanguardCageBuilder): Readonly<{
   shoulder: TorsoRow;
   neck: TorsoRow;
 }> {
-  const pelvis = addTorsoRow(builder, 1.53, 0.39, 0.19, -0.16, VanguardBone.Pelvis);
-  const hip = addTorsoRow(builder, 1.74, 0.41, 0.21, -0.18, VanguardBone.Pelvis);
+  const pelvis = addTorsoRow(builder, 1.53, 0.43, 0.205, -0.17, VanguardBone.Pelvis);
+  const hip = addTorsoRow(builder, 1.74, 0.46, 0.225, -0.19, VanguardBone.Pelvis);
   const waist = addTorsoRow(
-    builder, 2.04, 0.31, 0.19, -0.15,
+    builder, 2.04, 0.34, 0.2, -0.16,
     VanguardBone.Pelvis, VanguardBone.Chest, 0.48,
   );
-  const ribs = addTorsoRow(builder, 2.4, 0.42, 0.235, -0.18, VanguardBone.Chest);
-  const chest = addTorsoRow(builder, 2.68, 0.49, 0.255, -0.195, VanguardBone.Chest);
+  const ribs = addTorsoRow(builder, 2.4, 0.5, 0.25, -0.195, VanguardBone.Chest);
+  const chest = addTorsoRow(builder, 2.68, 0.58, 0.275, -0.215, VanguardBone.Chest);
   const shoulder = addTorsoRow(
-    builder, 2.86, 0.56, 0.215, -0.175,
+    builder, 2.86, 0.68, 0.235, -0.195,
     VanguardBone.Chest, VanguardBone.Neck, 0.12,
   );
   const neck = addTorsoRow(
-    builder, 3.05, 0.18, 0.15, -0.13,
+    builder, 3.05, 0.2, 0.16, -0.14,
     VanguardBone.Chest, VanguardBone.Neck, 0.72,
   );
 
@@ -90,13 +90,16 @@ function connectTorsoBand(
   upper: Readonly<TorsoRow>,
   surface: VanguardMatteSurface,
   ridge: number,
+  connectSides = true,
 ): void {
   builder.orientedQuad(surface, lower.frontLeft, lower.frontCenter, upper.frontCenter, upper.frontLeft, 0, 0, 1, ridge);
   builder.orientedQuad(surface, lower.frontCenter, lower.frontRight, upper.frontRight, upper.frontCenter, 0, 0, 1, ridge * 0.82);
   builder.orientedQuad(surface, lower.backRight, lower.backCenter, upper.backCenter, upper.backRight, 0, 0, -1, ridge * 0.45);
   builder.orientedQuad(surface, lower.backCenter, lower.backLeft, upper.backLeft, upper.backCenter, 0, 0, -1, ridge * 0.5);
-  builder.orientedQuad(surface, lower.backLeft, lower.frontLeft, upper.frontLeft, upper.backLeft, -1, 0, 0, ridge * 0.35);
-  builder.orientedQuad(surface, lower.frontRight, lower.backRight, upper.backRight, upper.frontRight, 1, 0, 0, ridge * 0.35);
+  if (connectSides) {
+    builder.orientedQuad(surface, lower.backLeft, lower.frontLeft, upper.frontLeft, upper.backLeft, -1, 0, 0, ridge * 0.35);
+    builder.orientedQuad(surface, lower.frontRight, lower.backRight, upper.backRight, upper.frontRight, 1, 0, 0, ridge * 0.35);
+  }
 }
 
 /** 写入颈部、下颌、面部、颅骨、鼻部和耳朵的一体化低面数头部。 */
@@ -104,24 +107,30 @@ function addHead(builder: VanguardCageBuilder, neckBase: Readonly<TorsoRow>): vo
   const neckTop = addNeck(builder, neckBase);
 
   const jaw = addJawRow(builder);
-  const cheek = addHeadRow(builder, 3.43, 0.285, 0.225, -0.19, 0.29, 0.04);
-  const brow = addHeadRow(builder, 3.59, 0.255, 0.23, -0.205, 0.285, -0.02);
-  const forehead = addHeadRow(builder, 3.72, 0.225, 0.19, -0.195, 0.225, -0.055);
-  const crown = addHeadRow(builder, 3.8, 0.17, 0.11, -0.15, 0.13, -0.07);
+  const cheek = addHeadRow(builder, 3.43, 0.27, 0.225, -0.19, 0.292, 0.025);
+  const brow = addHeadRow(builder, 3.59, 0.248, 0.23, -0.205, 0.29, -0.012);
+  const forehead = addHeadRow(builder, 3.71, 0.215, 0.185, -0.19, 0.218, -0.04);
+  const crown = addHeadRow(builder, 3.79, 0.16, 0.105, -0.145, 0.122, -0.05);
 
   connectNeckToHead(builder, neckTop, jaw);
   connectHeadBand(builder, jaw, cheek, 0.008);
-  connectHeadBand(builder, cheek, brow, 0.012);
-  connectHeadBand(builder, brow, forehead, 0.008);
-  connectHeadBand(builder, forehead, crown, 0.004);
+  connectScalpTransitionBand(builder, cheek, brow, 0.012, false);
+  connectScalpTransitionBand(builder, brow, forehead, 0.008, true);
+  connectTorsoBand(
+    builder,
+    forehead,
+    crown,
+    VanguardMatteSurface.Hair,
+    0.004,
+  );
 
-  const crownTop = builder.vertex(0.012, 3.84, -0.015, VanguardBone.Head);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.frontLeft, crown.frontCenter, crownTop, 0, 1, 0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.frontCenter, crown.frontRight, crownTop, 0, 1, 0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.frontRight, crown.backRight, crownTop, 0.6, 1, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.backRight, crown.backCenter, crownTop, 0, 1, -0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.backCenter, crown.backLeft, crownTop, 0, 1, -0.5);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, crown.backLeft, crown.frontLeft, crownTop, -0.6, 1, 0);
+  const crownTop = builder.vertex(0.008, 3.83, -0.018, VanguardBone.Head);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.frontLeft, crown.frontCenter, crownTop, 0, 1, 0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.frontCenter, crown.frontRight, crownTop, 0, 1, 0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.frontRight, crown.backRight, crownTop, 0.6, 1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.backRight, crown.backCenter, crownTop, 0, 1, -0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.backCenter, crown.backLeft, crownTop, 0, 1, -0.5);
+  builder.orientedTriangle(VanguardMatteSurface.Hair, crown.backLeft, crown.frontLeft, crownTop, -0.6, 1, 0);
 
   addNose(builder, cheek, brow);
   addEar(builder, -1, cheek, brow);
@@ -161,12 +170,12 @@ function connectNeckToHead(
 /** 添加下巴低于左右下颌角的人脸底边，消除水平盒状头颈接缝。 */
 function addJawRow(builder: VanguardCageBuilder): TorsoRow {
   return Object.freeze({
-    frontLeft: builder.vertex(-0.23, 3.305, 0.205, VanguardBone.Head),
-    frontCenter: builder.vertex(-0.004, 3.235, 0.255, VanguardBone.Head),
-    frontRight: builder.vertex(0.226, 3.3, 0.201, VanguardBone.Head),
-    backRight: builder.vertex(0.218, 3.285, -0.147, VanguardBone.Head),
-    backCenter: builder.vertex(0.008, 3.275, -0.16, VanguardBone.Head),
-    backLeft: builder.vertex(-0.225, 3.29, -0.152, VanguardBone.Head),
+    frontLeft: builder.vertex(-0.245, 3.31, 0.215, VanguardBone.Head),
+    frontCenter: builder.vertex(-0.004, 3.27, 0.268, VanguardBone.Head),
+    frontRight: builder.vertex(0.24, 3.305, 0.211, VanguardBone.Head),
+    backRight: builder.vertex(0.23, 3.3, -0.15, VanguardBone.Head),
+    backCenter: builder.vertex(0.008, 3.292, -0.165, VanguardBone.Head),
+    backLeft: builder.vertex(-0.235, 3.302, -0.155, VanguardBone.Head),
   });
 }
 
@@ -196,8 +205,34 @@ function connectHeadBand(
   lower: Readonly<TorsoRow>,
   upper: Readonly<TorsoRow>,
   ridge: number,
+  connectSides = true,
 ): void {
-  connectTorsoBand(builder, lower, upper, VanguardMatteSurface.Skin, ridge);
+  connectTorsoBand(
+    builder,
+    lower,
+    upper,
+    VanguardMatteSurface.Skin,
+    ridge,
+    connectSides,
+  );
+}
+
+/** 让前额保持皮肤，同时把双侧与后脑连续过渡到头发语义。 */
+function connectScalpTransitionBand(
+  builder: VanguardCageBuilder,
+  lower: Readonly<TorsoRow>,
+  upper: Readonly<TorsoRow>,
+  ridge: number,
+  connectSides: boolean,
+): void {
+  builder.orientedQuad(VanguardMatteSurface.Skin, lower.frontLeft, lower.frontCenter, upper.frontCenter, upper.frontLeft, 0, 0, 1, ridge);
+  builder.orientedQuad(VanguardMatteSurface.Skin, lower.frontCenter, lower.frontRight, upper.frontRight, upper.frontCenter, 0, 0, 1, ridge * 0.82);
+  builder.orientedQuad(VanguardMatteSurface.Hair, lower.backRight, lower.backCenter, upper.backCenter, upper.backRight, 0, 0, -1, ridge * 0.45);
+  builder.orientedQuad(VanguardMatteSurface.Hair, lower.backCenter, lower.backLeft, upper.backLeft, upper.backCenter, 0, 0, -1, ridge * 0.5);
+  if (connectSides) {
+    builder.orientedQuad(VanguardMatteSurface.Hair, lower.backLeft, lower.frontLeft, upper.frontLeft, upper.backLeft, -1, 0, 0, ridge * 0.35);
+    builder.orientedQuad(VanguardMatteSurface.Hair, lower.frontRight, lower.backRight, upper.backRight, upper.frontRight, 1, 0, 0, ridge * 0.35);
+  }
 }
 
 /** 用共享眉心与脸颊锚点形成鼻梁、鼻尖和鼻翼，而不是附加球体。 */
@@ -206,30 +241,35 @@ function addNose(
   cheek: Readonly<TorsoRow>,
   brow: Readonly<TorsoRow>,
 ): void {
-  const tip = builder.vertex(0, 3.5, 0.39, VanguardBone.Head);
-  const baseLeft = builder.vertex(-0.072, 3.43, 0.3, VanguardBone.Head);
-  const baseRight = builder.vertex(0.068, 3.43, 0.298, VanguardBone.Head);
+  const tip = builder.vertex(-0.004, 3.495, 0.397, VanguardBone.Head);
+  const baseLeft = builder.vertex(-0.074, 3.425, 0.307, VanguardBone.Head);
+  const baseRight = builder.vertex(0.07, 3.425, 0.304, VanguardBone.Head);
   builder.orientedTriangle(VanguardMatteSurface.Skin, brow.frontCenter, baseLeft, tip, 0, 0, 1);
   builder.orientedTriangle(VanguardMatteSurface.Skin, brow.frontCenter, tip, baseRight, 0, 0, 1);
   builder.orientedTriangle(VanguardMatteSurface.Skin, baseLeft, baseRight, tip, 0, -0.25, 1);
   builder.orientedTriangle(VanguardMatteSurface.Skin, cheek.frontCenter, baseRight, baseLeft, 0, -0.25, 1);
 }
 
-/** 把耳廓作为连接头侧面的不规则三角折片写入主体拓扑。 */
+/** 用共享颅骨四边界与双脊点构成无开放接缝的低面数耳廓。 */
 function addEar(
   builder: VanguardCageBuilder,
   side: -1 | 1,
   cheek: Readonly<TorsoRow>,
   brow: Readonly<TorsoRow>,
 ): void {
-  const cheekSide = side < 0 ? cheek.frontLeft : cheek.frontRight;
-  const browSide = side < 0 ? brow.frontLeft : brow.frontRight;
-  const earTop = builder.vertex(side * 0.305, 3.56, 0.035, VanguardBone.Head);
-  const earMiddle = builder.vertex(side * 0.325, 3.49, 0.02, VanguardBone.Head);
-  const earBottom = builder.vertex(side * 0.292, 3.4, 0.045, VanguardBone.Head);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, browSide, earTop, earMiddle, side, 0, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, browSide, earMiddle, cheekSide, side, 0, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, cheekSide, earMiddle, earBottom, side, 0, 0);
+  const upperFront = side < 0 ? brow.frontLeft : brow.frontRight;
+  const upperBack = side < 0 ? brow.backLeft : brow.backRight;
+  const lowerBack = side < 0 ? cheek.backLeft : cheek.backRight;
+  const lowerFront = side < 0 ? cheek.frontLeft : cheek.frontRight;
+  const upperRidge = builder.vertex(side * 0.32, 3.535, 0.025, VanguardBone.Head);
+  const lowerRidge = builder.vertex(side * 0.315, 3.455, 0.04, VanguardBone.Head);
+
+  builder.orientedTriangle(VanguardMatteSurface.Skin, upperFront, upperBack, upperRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, upperBack, lowerRidge, upperRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, upperBack, lowerBack, lowerRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, lowerBack, lowerFront, lowerRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, lowerFront, upperRidge, lowerRidge, side, 0, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Skin, lowerFront, upperFront, upperRidge, side, 0, 0);
 }
 
 /** 写入一侧从肩峰连续延伸到带拇指手掌的手臂拓扑。 */
@@ -248,17 +288,17 @@ function addArm(
   const chestBack = side < 0 ? chestRow.backLeft : chestRow.backRight;
   const shoulder = Object.freeze({
     front: shoulderFront,
-    outer: builder.vertex(side * 0.63, 2.8, 0.015, VanguardBone.Chest, upperBone, 0.62),
+    outer: builder.vertex(side * 0.77, 2.8, 0.018, VanguardBone.Chest, upperBone, 0.62),
     back: shoulderBack,
-    inner: builder.vertex(side * 0.44, 2.68, 0.018, VanguardBone.Chest, upperBone, 0.45),
+    inner: builder.vertex(side * 0.51, 2.68, 0.022, VanguardBone.Chest, upperBone, 0.45),
   });
   builder.orientedTriangle(VanguardMatteSurface.Tunic, chestFront, shoulder.front, shoulder.inner, side, 0.2, 0.8);
   builder.orientedTriangle(VanguardMatteSurface.Tunic, chestBack, shoulder.inner, shoulder.back, side, 0.2, -0.8);
 
-  const bicep = addLimbSection(builder, side, side * 0.61, 2.45, 0.13, 0.105, 0.115, 0.095, upperBone);
-  const elbow = addLimbSection(builder, side, side * 0.65, 2.16, 0.1, 0.08, 0.075, 0.065, upperBone, forearmBone, 0.52);
-  const forearm = addLimbSection(builder, side, side * (side < 0 ? 0.62 : 0.68), 1.86, 0.125, 0.085, 0.095, 0.075, forearmBone);
-  const wrist = addLimbSection(builder, side, side * (side < 0 ? 0.59 : 0.69), 1.62, 0.09, 0.06, 0.062, 0.052, forearmBone, handBone, 0.42);
+  const bicep = addLimbSection(builder, side, side * 0.72, 2.45, 0.155, 0.125, 0.145, 0.12, upperBone);
+  const elbow = addLimbSection(builder, side, side * 0.76, 2.15, 0.115, 0.09, 0.09, 0.075, upperBone, forearmBone, 0.52);
+  const forearm = addLimbSection(builder, side, side * (side < 0 ? 0.72 : 0.78), 1.84, 0.14, 0.095, 0.11, 0.085, forearmBone);
+  const wrist = addLimbSection(builder, side, side * (side < 0 ? 0.69 : 0.79), 1.6, 0.1, 0.067, 0.072, 0.058, forearmBone, handBone, 0.42);
   connectLimbBand(builder, side, shoulder, bicep, VanguardMatteSurface.Skin, 0.004);
   connectLimbBand(builder, side, bicep, elbow, VanguardMatteSurface.Skin, 0.008);
   connectLimbBand(builder, side, elbow, forearm, VanguardMatteSurface.Leather, 0.007);
@@ -303,42 +343,46 @@ function connectLimbBand(
   builder.orientedQuad(surface, upper.inner, upper.front, lower.front, lower.inner, -side, 0, 1, ridge * 0.8);
 }
 
-/** 写入掌背、掌心、指尖和拇指方向明确的低面数手掌。 */
+/** 写入窄腕口、厚掌体、宽指节和独立拇指组成的低面数皮手套。 */
 function addHand(
   builder: VanguardCageBuilder,
   side: -1 | 1,
   wrist: Readonly<LimbSection>,
   handBone: VanguardBone,
 ): void {
-  const centerX = side * (side < 0 ? 0.58 : 0.71);
-  const palmFront = builder.vertex(centerX, 1.47, 0.12, handBone);
-  const palmOuter = builder.vertex(centerX + side * 0.075, 1.46, 0.055, handBone);
-  const palmBack = builder.vertex(centerX, 1.46, -0.02, handBone);
-  const palmInner = builder.vertex(centerX - side * 0.058, 1.47, 0.05, handBone);
-  const fingerY = side < 0 ? 1.34 : 1.39;
-  const fingerFront = builder.vertex(centerX + side * 0.008, fingerY, 0.1, handBone);
-  const fingerOuter = builder.vertex(centerX + side * 0.055, fingerY + 0.004, 0.045, handBone);
-  const fingerBack = builder.vertex(centerX + side * 0.004, fingerY, 0, handBone);
-  const fingerInner = builder.vertex(centerX - side * 0.038, fingerY - 0.003, 0.045, handBone);
-  const thumb = builder.vertex(centerX - side * 0.09, 1.43, 0.105, handBone);
-  const palm = Object.freeze({
-    front: palmFront,
-    outer: palmOuter,
-    back: palmBack,
-    inner: palmInner,
-  });
-  const fingers = Object.freeze({
-    front: fingerFront,
-    outer: fingerOuter,
-    back: fingerBack,
-    inner: fingerInner,
-  });
-  connectLimbBand(builder, side, wrist, palm, VanguardMatteSurface.Skin, 0.003);
-  connectLimbBand(builder, side, palm, fingers, VanguardMatteSurface.Skin, 0.002);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, fingerFront, fingerOuter, fingerBack, 0, -1, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, fingerFront, fingerBack, fingerInner, 0, -1, 0);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, palmInner, thumb, palmFront, -side, 0, 1);
-  builder.orientedTriangle(VanguardMatteSurface.Skin, fingerInner, thumb, palmInner, -side, -0.2, 0.2);
+  const centerX = side * (side < 0 ? 0.68 : 0.81);
+  const palmY = side < 0 ? 1.44 : 1.46;
+  const fingerY = side < 0 ? 1.25 : 1.3;
+  const palm = addLimbSection(
+    builder, side, centerX, palmY,
+    side < 0 ? 0.16 : 0.155, 0.075, 0.13, 0.11,
+    handBone,
+  );
+  const fingers = addLimbSection(
+    builder, side, centerX + side * 0.006, fingerY,
+    0.135, 0.052, 0.108, 0.088,
+    handBone,
+  );
+  const thumbBase = builder.vertex(
+    centerX - side * 0.145,
+    palmY - 0.035,
+    0.14,
+    handBone,
+  );
+  const thumbTip = builder.vertex(
+    centerX - side * 0.155,
+    fingerY + 0.035,
+    0.105,
+    handBone,
+  );
+  connectLimbBand(builder, side, wrist, palm, VanguardMatteSurface.Leather, 0.003);
+  connectLimbBand(builder, side, palm, fingers, VanguardMatteSurface.Leather, 0.007);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, fingers.front, fingers.outer, fingers.back, 0, -1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, fingers.front, fingers.back, fingers.inner, 0, -1, 0);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.inner, thumbBase, palm.front, -side, 0, 1);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.inner, fingers.inner, thumbTip, -side, -0.2, 0.2);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.inner, thumbTip, thumbBase, -side, 0, 0.2);
+  builder.orientedTriangle(VanguardMatteSurface.Leather, palm.front, thumbBase, thumbTip, 0, 0, 1);
 }
 
 /** 写入共享骨盆边界的双腿、胯部桥接和具有足弓的皮靴。 */
@@ -362,9 +406,9 @@ function addHipSection(
   const pelvisBack = side < 0 ? pelvis.backLeft : pelvis.backRight;
   return Object.freeze({
     front: pelvisFront,
-    outer: builder.vertex(side * 0.43, 1.52, 0, VanguardBone.Pelvis, thighBone, 0.45),
+    outer: builder.vertex(side * 0.48, 1.52, 0, VanguardBone.Pelvis, thighBone, 0.45),
     back: pelvisBack,
-    inner: builder.vertex(side * 0.1, 1.5, 0.015, VanguardBone.Pelvis, thighBone, 0.5),
+    inner: builder.vertex(side * 0.11, 1.5, 0.015, VanguardBone.Pelvis, thighBone, 0.5),
   });
 }
 
@@ -377,10 +421,10 @@ function addLeg(
   const thighBone = side < 0 ? VanguardBone.LeftThigh : VanguardBone.RightThigh;
   const shinBone = side < 0 ? VanguardBone.LeftShin : VanguardBone.RightShin;
   const footBone = side < 0 ? VanguardBone.LeftFoot : VanguardBone.RightFoot;
-  const thigh = addLimbSection(builder, side, side * 0.31, 1.3, 0.18, 0.15, 0.18, 0.15, thighBone);
-  const knee = addLimbSection(builder, side, side * 0.32, 0.91, 0.13, 0.11, 0.105, 0.09, thighBone, shinBone, 0.52);
-  const calf = addLimbSection(builder, side, side * 0.325, 0.56, 0.16, 0.125, 0.14, 0.115, shinBone);
-  const ankle = addLimbSection(builder, side, side * 0.325, 0.19, 0.115, 0.095, 0.085, 0.07, shinBone, footBone, 0.48);
+  const thigh = addLimbSection(builder, side, side * 0.35, 1.3, 0.2, 0.17, 0.21, 0.17, thighBone);
+  const knee = addLimbSection(builder, side, side * 0.35, 0.91, 0.145, 0.12, 0.12, 0.1, thighBone, shinBone, 0.52);
+  const calf = addLimbSection(builder, side, side * 0.36, 0.56, 0.175, 0.135, 0.15, 0.12, shinBone);
+  const ankle = addLimbSection(builder, side, side * 0.36, 0.19, 0.125, 0.1, 0.095, 0.078, shinBone, footBone, 0.48);
   connectLimbBand(builder, side, hip, thigh, VanguardMatteSurface.Pants, 0.008);
   connectLimbBand(builder, side, thigh, knee, VanguardMatteSurface.Pants, 0.009);
   connectLimbBand(builder, side, knee, calf, VanguardMatteSurface.Leather, 0.008);
@@ -396,7 +440,7 @@ function addFoot(
   ankle: Readonly<LimbSection>,
   footBone: VanguardBone,
 ): void {
-  const centerX = side * 0.325;
+  const centerX = side * 0.36;
   const heelOuter = builder.vertex(centerX + side * 0.105, 0.055, -0.09, footBone);
   const heelInner = builder.vertex(centerX - side * 0.09, 0.055, -0.075, footBone);
   const archOuter = builder.vertex(centerX + side * 0.13, 0.04, 0.17, footBone);

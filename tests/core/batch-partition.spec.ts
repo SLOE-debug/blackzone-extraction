@@ -4,6 +4,7 @@ import { getMaximumIndexedEntityCount } from '../../assets/core/geometry/fixed-t
 import { partitionBatches } from '../../assets/core/rendering/batch-partition';
 import {
   CURVE_CRAWLER_BODY_TOPOLOGY,
+  CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY,
   CURVE_CRAWLER_SURFACE_TOPOLOGY,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-topology';
 
@@ -26,7 +27,11 @@ describe('固定拓扑批次切分', () => {
     );
     const partitions = partitionBatches(180, 180, maximumBatchSize);
 
-    expect(maximumBatchSize).toBe(7392370);
+    expect(CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY).toEqual({
+      verticesPerEntity: 426,
+      indicesPerEntity: 426,
+    });
+    expect(maximumBatchSize).toBe(4265111);
     expect(partitions).toHaveLength(1);
     expect(partitions[0]?.range).toEqual({ start: 0, count: 180, end: 180 });
   });
@@ -38,7 +43,7 @@ describe('固定拓扑批次切分', () => {
     );
     const partitions = partitionBatches(340, 500, maximumBatchSize);
 
-    expect(maximumBatchSize).toBe(112);
-    expect(partitions.map((partition) => partition.range.count)).toEqual([112, 112, 112, 4]);
+    expect(maximumBatchSize).toBe(65);
+    expect(partitions.map((partition) => partition.range.count)).toEqual([65, 65, 65, 65, 65, 15]);
   });
 });

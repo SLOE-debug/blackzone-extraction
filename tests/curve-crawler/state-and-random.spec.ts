@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { nextRandom } from '../../assets/core/math/xorshift32';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
+import { CurveCrawlerLifePhase } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
 import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
 
 const options = createNormalizedCurveCrawlerTestOptions({
   count: 12,
-  spawnArea: { width: 320, height: 180 },
+  spawnArea: { centerX: 0, centerY: 0, width: 320, height: 180 },
   seed: 20260715,
 });
 
@@ -43,11 +44,33 @@ describe('Curve Crawler 状态初始化', () => {
   });
 
   it('初始化位置位于声明的生成区域内', () => {
-    const state = new CurveCrawlerState(options);
+    const centeredOptions = createNormalizedCurveCrawlerTestOptions({
+      count: 12,
+      spawnArea: { centerX: 125, centerY: -74, width: 320, height: 180 },
+      seed: 20260715,
+    });
+    const state = new CurveCrawlerState(centeredOptions);
 
     for (let index = 0; index < state.count; index++) {
-      expect(Math.abs(state.data.transform.x[index] ?? 0)).toBeLessThan(options.spawnArea.width * 0.5);
-      expect(Math.abs(state.data.transform.y[index] ?? 0)).toBeLessThan(options.spawnArea.height * 0.5);
+      expect(Math.abs((state.data.transform.x[index] ?? 0) - centeredOptions.spawnArea.centerX))
+        .toBeLessThan(centeredOptions.spawnArea.width * 0.5);
+      expect(Math.abs((state.data.transform.y[index] ?? 0) - centeredOptions.spawnArea.centerY))
+        .toBeLessThan(centeredOptions.spawnArea.height * 0.5);
     }
+  });
+
+  it('自主实体以确定性错峰出生状态初始化', () => {
+    const state = new CurveCrawlerState(options);
+
+    expect(Array.from(state.data.vitality.phase).every(
+      (phase) => phase === CurveCrawlerLifePhase.Emerging,
+    )).toBe(true);
+    expect(state.data.vitality.phaseTime[0] ?? 0).toBeLessThanOrEqual(0);
+    expect(state.data.vitality.phaseTime[1] ?? 0).toBeLessThan(
+      state.data.vitality.phaseTime[0] ?? 0,
+    );
+    expect(Array.from(state.data.identity.appearanceSeed)).toEqual(
+      Array.from(new CurveCrawlerState(options).data.identity.appearanceSeed),
+    );
   });
 });

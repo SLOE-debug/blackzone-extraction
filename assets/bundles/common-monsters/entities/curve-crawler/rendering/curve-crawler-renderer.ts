@@ -12,6 +12,8 @@ import {
   updateCurveCrawlerBounds,
 } from './curve-crawler-bounds';
 import { CurveCrawlerMaterials } from './curve-crawler-materials';
+import { CurveCrawlerColorSnapshot } from './curve-crawler-color-snapshot';
+import { type CurveCrawlerPopulationRendering } from './curve-crawler-population-rendering';
 
 /** Curve Crawler 使用的固定渲染层标识。 */
 export enum CurveCrawlerRenderLayer {
@@ -19,7 +21,7 @@ export enum CurveCrawlerRenderLayer {
 }
 
 /** 组合 Curve Crawler 材质和编译式固定拓扑批渲染器。 */
-export class CurveCrawlerRenderer {
+export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
   private readonly materials: CurveCrawlerMaterials;
   private readonly batches: CompiledMeshBatchRenderer<
     CurveCrawlerState,
@@ -27,10 +29,7 @@ export class CurveCrawlerRenderer {
     CurveCrawlerRenderLayer
   >;
   private readonly bounds: CurveCrawlerBounds;
-  /** 上一帧参与颜色的受击强度，避免步态帧重传 Color。 */
-  private readonly previousHitFlashes: Float32Array;
-  /** 上一帧参与颜色的液体收拢进度，避免无关姿态帧重传 Color。 */
-  private readonly previousLiquidDrains: Float32Array;
+  private readonly colorSnapshot: CurveCrawlerColorSnapshot;
   /** 上一次已经提交给 Cocos 裁剪系统的六个模型空间边界分量。 */
   private previousMinX = 0;
   private previousMinY = 0;
@@ -47,8 +46,7 @@ export class CurveCrawlerRenderer {
   ) {
     this.bounds = createCurveCrawlerBounds(state);
     this.materials = new CurveCrawlerMaterials(surfaceMaterialTemplate);
-    this.previousHitFlashes = new Float32Array(state.count);
-    this.previousLiquidDrains = new Float32Array(state.count);
+    this.colorSnapshot = new CurveCrawlerColorSnapshot(state);
     try {
       this.batches = new CompiledMeshBatchRenderer({
         parent,
@@ -58,7 +56,6 @@ export class CurveCrawlerRenderer {
         indexFormat: GeometryIndexFormat.Uint32,
         bounds: this.bounds,
         surfaceOptions: Object.freeze({
-          uploadLightingAttributes: true,
           castShadows: true,
           receiveShadows: true,
         }),
@@ -110,19 +107,7 @@ export class CurveCrawlerRenderer {
 
   /** 比较并保存唯一影响顶点色的事件状态。 */
   private captureColorState(): boolean {
-    const { hitFlash, liquidDrain } = this.state.data.animation;
-    let changed = false;
-    for (let index = 0; index < this.state.count; index++) {
-      const nextHitFlash = hitFlash[index] ?? 0;
-      const nextLiquidDrain = liquidDrain[index] ?? 0;
-      if (this.previousHitFlashes[index] !== nextHitFlash
-        || this.previousLiquidDrains[index] !== nextLiquidDrain) {
-        changed = true;
-      }
-      this.previousHitFlashes[index] = nextHitFlash;
-      this.previousLiquidDrains[index] = nextLiquidDrain;
-    }
-    return changed;
+    return this.colorSnapshot.capture();
   }
 
   /** 比较并保存本地裁剪边界，避免静止展示实体每帧刷新 Renderer 几何状态。 */

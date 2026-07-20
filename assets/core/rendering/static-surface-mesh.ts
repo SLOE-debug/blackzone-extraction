@@ -46,40 +46,56 @@ export class StaticSurfaceMesh {
       throw new Error('静态表面 Mesh 要求非空几何。');
     }
 
-    const bounds = geometry.computeBounds();
-    const commonGeometry = {
-      positions: Array.from(geometry.getPositionView()),
-      colors: Array.from(geometry.getColorView()),
-      indices: Array.from(geometry.getIndexView()),
-      minPos: { x: bounds.minX, y: bounds.minY, z: bounds.minZ },
-      maxPos: { x: bounds.maxX, y: bounds.maxY, z: bounds.maxZ },
-    };
-    const mesh = options.uploadLightingAttributes
-      ? utils.MeshUtils.createMesh({
-        ...commonGeometry,
-        normals: Array.from(geometry.getNormalView()),
-        uvs: Array.from(geometry.getUvView()),
-      })
-      : utils.MeshUtils.createMesh(commonGeometry);
-    mesh.name = `${name}Mesh`;
+    let mesh: Mesh | null = null;
+    let node: Node | null = null;
+    let renderer: MeshRenderer | null = null;
+    try {
+      const bounds = geometry.computeBounds();
+      const commonGeometry = {
+        positions: Array.from(geometry.getPositionView()),
+        colors: Array.from(geometry.getColorView()),
+        indices: Array.from(geometry.getIndexView()),
+        minPos: { x: bounds.minX, y: bounds.minY, z: bounds.minZ },
+        maxPos: { x: bounds.maxX, y: bounds.maxY, z: bounds.maxZ },
+      };
+      mesh = options.uploadLightingAttributes
+        ? utils.MeshUtils.createMesh({
+          ...commonGeometry,
+          normals: Array.from(geometry.getNormalView()),
+          uvs: Array.from(geometry.getUvView()),
+        })
+        : utils.MeshUtils.createMesh(commonGeometry);
+      mesh.name = `${name}Mesh`;
 
-    const node = new Node(name);
-    parent.addChild(node);
-    const renderer = node.addComponent(MeshRenderer);
-    renderer.mesh = mesh;
-    renderer.setMaterial(material, 0);
-    renderer.shadowCastingMode = options.castShadows
-      ? MeshRenderer.ShadowCastingMode.ON
-      : MeshRenderer.ShadowCastingMode.OFF;
-    renderer.receiveShadow = options.receiveShadows
-      ? MeshRenderer.ShadowReceivingMode.ON
-      : MeshRenderer.ShadowReceivingMode.OFF;
-    renderer.onGeometryChanged();
+      node = new Node(name);
+      parent.addChild(node);
+      renderer = node.addComponent(MeshRenderer);
+      renderer.mesh = mesh;
+      renderer.setMaterial(material, 0);
+      renderer.shadowCastingMode = options.castShadows
+        ? MeshRenderer.ShadowCastingMode.ON
+        : MeshRenderer.ShadowCastingMode.OFF;
+      renderer.receiveShadow = options.receiveShadows
+        ? MeshRenderer.ShadowReceivingMode.ON
+        : MeshRenderer.ShadowReceivingMode.OFF;
+      renderer.onGeometryChanged();
 
-    this.node = node;
-    this.renderer = renderer;
-    this.mesh = mesh;
-    this.state = StaticSurfaceMeshState.Initialized;
+      this.node = node;
+      this.renderer = renderer;
+      this.mesh = mesh;
+      this.state = StaticSurfaceMeshState.Initialized;
+    } catch (error: unknown) {
+      this.state = StaticSurfaceMeshState.Disposed;
+      if (renderer?.isValid === true) {
+        renderer.mesh = null;
+        renderer.setMaterial(null, 0);
+      }
+      mesh?.destroy();
+      if (node?.isValid === true) {
+        node.destroy();
+      }
+      throw error;
+    }
   }
 
   /** 释放静态 Mesh、Renderer 节点和 GPU 资源。 */
@@ -87,7 +103,8 @@ export class StaticSurfaceMesh {
     if (this.state === StaticSurfaceMeshState.Disposed) {
       return;
     }
-    if (this.renderer !== null) {
+    this.state = StaticSurfaceMeshState.Disposed;
+    if (this.renderer?.isValid === true) {
       this.renderer.mesh = null;
       this.renderer.setMaterial(null, 0);
     }
@@ -98,6 +115,5 @@ export class StaticSurfaceMesh {
     this.node = null;
     this.renderer = null;
     this.mesh = null;
-    this.state = StaticSurfaceMeshState.Disposed;
   }
 }

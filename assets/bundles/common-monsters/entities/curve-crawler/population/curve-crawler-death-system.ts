@@ -18,6 +18,7 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
       const phase = vitality.phase[index] as CurveCrawlerLifePhase;
 
       switch (phase) {
+        case CurveCrawlerLifePhase.Emerging:
         case CurveCrawlerLifePhase.Alive:
           break;
         case CurveCrawlerLifePhase.Bursting:
@@ -46,9 +47,9 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
     vitality.phaseTime[entityId] = 0;
     intent.targetSpeed[entityId] = 0;
     intent.targetCrouch[entityId] = 0;
-    intent.targetWave[entityId] = 0;
+    intent.targetBite[entityId] = 0;
     motion.currentSpeed[entityId] = 0;
-    animation.waveAmount[entityId] = 0;
+    animation.biteAmount[entityId] = 0;
     animation.bodyPulse[entityId] = 0;
   }
 
@@ -56,7 +57,9 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
   private advancePhase(state: CurveCrawlerState, index: number, deltaTime: number): void {
     const { vitality } = state.data;
     const phase = vitality.phase[index] as CurveCrawlerLifePhase;
-    if (phase === CurveCrawlerLifePhase.Alive || phase === CurveCrawlerLifePhase.Gone) {
+    if (phase === CurveCrawlerLifePhase.Emerging
+      || phase === CurveCrawlerLifePhase.Alive
+      || phase === CurveCrawlerLifePhase.Gone) {
       return;
     }
 

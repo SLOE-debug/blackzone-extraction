@@ -8,11 +8,16 @@ import {
 } from '../../../../../core/math/xorshift32';
 import { TAU } from '../../../../../core/math/scalar';
 import { CurveCrawlerAction } from './curve-crawler-action';
+import { CURVE_CRAWLER_EMERGENCE_TIMING } from './curve-crawler-emergence';
 import { CURVE_CRAWLER_MAX_HEALTH, CurveCrawlerLifePhase } from './curve-crawler-life';
 import {
   type NormalizedCurveCrawlerPopulationOptions,
 } from './curve-crawler-options';
-import { CurveCrawlerMotionProfile } from './curve-crawler-motion-profile';
+import {
+  CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
+  CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS,
+  CurveCrawlerMotionProfile,
+} from './curve-crawler-motion-profile';
 import {
   CURVE_CRAWLER_LEG_COUNT,
   CURVE_CRAWLER_FRAGMENT_COUNT,
@@ -31,11 +36,18 @@ export class CurveCrawlerState {
   public readonly table: CurveCrawlerTable;
   public readonly data: CurveCrawlerData;
   public readonly motionProfile: CurveCrawlerMotionProfile;
-  public readonly movementBounds: Readonly<{ halfWidth: number; halfHeight: number }>;
+  public readonly movementBounds: Readonly<{
+    centerX: number;
+    centerY: number;
+    halfWidth: number;
+    halfHeight: number;
+  }>;
 
   constructor(options: NormalizedCurveCrawlerPopulationOptions) {
     this.motionProfile = options.motionProfile;
     this.movementBounds = Object.freeze({
+      centerX: options.spawnArea.centerX,
+      centerY: options.spawnArea.centerY,
       halfWidth: options.spawnArea.width * 0.5,
       halfHeight: options.spawnArea.height * 0.5,
     });
@@ -62,6 +74,7 @@ function initializeCurveCrawlerData(
     vitality,
     death,
     behavior,
+    combat,
     observation,
     intent,
     motion,
@@ -79,13 +92,14 @@ function initializeCurveCrawlerData(
   for (let index = 0; index < options.count; index++) {
     identity.id[index] = index;
     identity.randomState[index] = mixRandomSeed(options.seed, index);
+    identity.appearanceSeed[index] = mixRandomSeed(options.seed ^ 0x73a4d91, index);
 
     const column = index % columns;
     const row = Math.floor(index / columns);
-    transform.x[index] = -options.spawnArea.width * 0.5
+    transform.x[index] = options.spawnArea.centerX - options.spawnArea.width * 0.5
       + (column + 0.5) * cellWidth
       + randomRange(layoutState, 0, -cellWidth * 0.28, cellWidth * 0.28);
-    transform.y[index] = -options.spawnArea.height * 0.5
+    transform.y[index] = options.spawnArea.centerY - options.spawnArea.height * 0.5
       + (row + 0.5) * cellHeight
       + randomRange(layoutState, 0, -cellHeight * 0.28, cellHeight * 0.28);
 
@@ -128,8 +142,19 @@ function initializeCurveCrawlerData(
     }
 
     vitality.health[index] = CURVE_CRAWLER_MAX_HEALTH;
-    vitality.phase[index] = CurveCrawlerLifePhase.Alive;
-    vitality.phaseTime[index] = 0;
+    const emerging = options.motionProfile === CurveCrawlerMotionProfile.Autonomous;
+    vitality.phase[index] = emerging
+      ? CurveCrawlerLifePhase.Emerging
+      : CurveCrawlerLifePhase.Alive;
+    vitality.phaseTime[index] = emerging
+      ? -(index * CURVE_CRAWLER_EMERGENCE_TIMING.staggerPerEntity
+        + randomRange(
+          identity.randomState,
+          index,
+          0,
+          CURVE_CRAWLER_EMERGENCE_TIMING.maximumStaggerJitter,
+        ))
+      : 0;
     vitality.hitTime[index] = 0;
 
     const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
@@ -167,8 +192,12 @@ function initializeCurveCrawlerData(
     behavior.action[index] = CurveCrawlerAction.Crawl;
     behavior.actionTime[index] = randomRange(identity.randomState, index, 0.3, 3.5);
     behavior.actionDuration[index] = behavior.actionTime[index] ?? 1;
-    behavior.selectedWaveLeg[index] = 0;
     behavior.nextTurnTime[index] = randomRange(identity.randomState, index, 0.8, 4.5);
+
+    combat.engaged[index] = 0;
+    combat.attackTime[index] = 0;
+    combat.attackCooldown[index] = 0;
+    combat.impactApplied[index] = 0;
 
     observation.eventType[index] = MonsterObservationEventType.Wander;
     observation.eventTime[index] = 0;
@@ -179,8 +208,12 @@ function initializeCurveCrawlerData(
     observation.turnRate[index] = 0;
 
     intent.targetSpeed[index] = morphology.cruiseSpeed[index] ?? 0;
+    intent.speedSharpness[index] = options.motionProfile
+      === CurveCrawlerMotionProfile.ObservationDisplay
+      ? CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS
+      : CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS;
     intent.targetCrouch[index] = 0;
-    intent.targetWave[index] = 0;
+    intent.targetBite[index] = 0;
     intent.targetTurn[index] = 0;
     intent.turnDirection[index] = 1;
     intent.gaitMultiplier[index] = 1;
@@ -191,14 +224,20 @@ function initializeCurveCrawlerData(
     animation.phase[index] = randomRange(identity.randomState, index, 0, TAU);
     animation.bodyPulse[index] = 0;
     animation.crouchAmount[index] = 0;
-    animation.waveAmount[index] = 0;
+    animation.biteAmount[index] = 0;
     animation.turnAmount[index] = 0;
     animation.turnDirection[index] = 1;
-    animation.wavePhase[index] = randomRange(identity.randomState, index, 0, TAU);
     animation.blinkScale[index] = 1;
     animation.nextBlinkTime[index] = randomRange(identity.randomState, index, 1.5, 6);
     animation.blinkTime[index] = 0;
     animation.hitFlash[index] = 0;
+    animation.crackSpread[index] = 0;
+    animation.crackVisibility[index] = 0;
+    animation.eggScale[index] = 0;
+    animation.eggBulge[index] = 0;
+    animation.eggBurst[index] = emerging ? 0 : 1;
+    animation.emergenceBodyScale[index] = emerging ? 0 : 1;
+    animation.emergenceLegScale[index] = emerging ? 0 : 1;
     animation.surfaceCollapse[index] = 0;
     animation.liquidSpread[index] = 0;
     animation.liquidDrain[index] = 0;

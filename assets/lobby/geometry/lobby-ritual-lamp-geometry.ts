@@ -1,10 +1,26 @@
 import { type TriangleMeshWriter } from '../../core/geometry/triangle-mesh-writer';
 import {
+  emitSampledRadialTopology,
+  sampleRadialTopology,
+} from '../../core/geometry/radial/radial-emitter';
+import { type RadialRingSource } from '../../core/geometry/radial/radial-ring-source';
+import {
+  compileRadialTopologyPlan,
+  RadialDegeneratePolicy,
+  RadialSegmentOperationKind,
+  RadialTopologyPassKind,
+  RadialTriangleOrder,
+  RadialWinding,
+} from '../../core/geometry/radial/radial-topology-plan';
+import {
+  createRadialWorkspace,
+  type RadialPositionArray,
+} from '../../core/geometry/radial/radial-workspace';
+import {
   LOBBY_RITUAL_LAMP_POSITIONS,
   LOBBY_RITUAL_LAMP_SEGMENTS,
   type LobbyRitualLampPosition,
 } from './lobby-ritual-lamp-layout';
-import { appendLobbyTriangle, type LobbyPoint3 } from './lobby-triangle-geometry';
 
 const HOUSING_LEVELS = Object.freeze([
   Object.freeze({ y: 0.02, radius: 0.2 }),
@@ -12,75 +28,131 @@ const HOUSING_LEVELS = Object.freeze([
   Object.freeze({ y: 0.24, radius: 0.14 }),
 ]);
 
+const RITUAL_HOUSING_PLAN = compileRadialTopologyPlan({
+  ringCount: HOUSING_LEVELS.length,
+  segmentCount: LOBBY_RITUAL_LAMP_SEGMENTS,
+  centerCount: 1,
+  degeneratePolicy: RadialDegeneratePolicy.PreserveFixedTopology,
+  passes: Object.freeze([
+    Object.freeze({
+      kind: RadialTopologyPassKind.SideBands,
+      firstRing: 0,
+      lastRing: HOUSING_LEVELS.length - 1,
+      winding: RadialWinding.Forward,
+      triangleOrder: RadialTriangleOrder.SecondaryFirst,
+    }),
+    Object.freeze({
+      kind: RadialTopologyPassKind.Fan,
+      ring: HOUSING_LEVELS.length - 1,
+      center: 0,
+      winding: RadialWinding.Reverse,
+    }),
+  ]),
+});
+const RITUAL_HOUSING_WORKSPACE = createRadialWorkspace(RITUAL_HOUSING_PLAN);
+
+const RITUAL_GLOW_PLAN = compileRadialTopologyPlan({
+  ringCount: 1,
+  segmentCount: LOBBY_RITUAL_LAMP_SEGMENTS,
+  centerCount: 2,
+  degeneratePolicy: RadialDegeneratePolicy.PreserveFixedTopology,
+  passes: Object.freeze([Object.freeze({
+    kind: RadialTopologyPassKind.SegmentSequence,
+    operations: Object.freeze([
+      Object.freeze({
+        kind: RadialSegmentOperationKind.Fan,
+        ring: 0,
+        center: 0,
+        winding: RadialWinding.Reverse,
+      }),
+      Object.freeze({
+        kind: RadialSegmentOperationKind.Fan,
+        ring: 0,
+        center: 1,
+        winding: RadialWinding.Forward,
+      }),
+    ]),
+  })]),
+});
+const RITUAL_GLOW_WORKSPACE = createRadialWorkspace(RITUAL_GLOW_PLAN);
+
 /** 写入围绕祭台的小型六边形灯座。 */
 export function writeLobbyRitualLampHousings(writer: TriangleMeshWriter): void {
   for (const position of LOBBY_RITUAL_LAMP_POSITIONS) {
-    for (let levelIndex = 0; levelIndex < HOUSING_LEVELS.length - 1; levelIndex++) {
-      for (let segment = 0; segment < LOBBY_RITUAL_LAMP_SEGMENTS; segment++) {
-        const lower0 = createHousingPoint(position, levelIndex, segment);
-        const lower1 = createHousingPoint(position, levelIndex, segment + 1);
-        const upper0 = createHousingPoint(position, levelIndex + 1, segment);
-        const upper1 = createHousingPoint(position, levelIndex + 1, segment + 1);
-        appendLobbyTriangle(writer, lower0, upper1, lower1);
-        appendLobbyTriangle(writer, lower0, upper0, upper1);
-      }
-    }
-
-    const topLevelIndex = HOUSING_LEVELS.length - 1;
-    const topLevel = getHousingLevel(topLevelIndex);
-    const center = { x: position.x, y: topLevel.y, z: position.z };
-    for (let segment = 0; segment < LOBBY_RITUAL_LAMP_SEGMENTS; segment++) {
-      appendLobbyTriangle(
-        writer,
-        center,
-        createHousingPoint(position, topLevelIndex, segment + 1),
-        createHousingPoint(position, topLevelIndex, segment),
-      );
-    }
+    sampleRadialTopology(
+      RITUAL_HOUSING_PLAN,
+      RITUAL_HOUSING_SOURCE,
+      position,
+      RITUAL_HOUSING_WORKSPACE,
+    );
+    emitSampledRadialTopology(
+      RITUAL_HOUSING_PLAN,
+      RITUAL_HOUSING_WORKSPACE,
+      writer,
+      undefined,
+    );
   }
 }
 
 /** 写入不参与实时照明的暗红晶体发光面。 */
 export function writeLobbyRitualLampGlow(writer: TriangleMeshWriter): void {
   for (const position of LOBBY_RITUAL_LAMP_POSITIONS) {
-    const bottom = { x: position.x, y: 0.22, z: position.z };
-    const top = { x: position.x, y: 0.62, z: position.z };
-    for (let segment = 0; segment < LOBBY_RITUAL_LAMP_SEGMENTS; segment++) {
-      const ring0 = createGlowRingPoint(position, segment);
-      const ring1 = createGlowRingPoint(position, segment + 1);
-      appendLobbyTriangle(writer, bottom, ring1, ring0);
-      appendLobbyTriangle(writer, top, ring0, ring1);
-    }
+    sampleRadialTopology(
+      RITUAL_GLOW_PLAN,
+      RITUAL_GLOW_SOURCE,
+      position,
+      RITUAL_GLOW_WORKSPACE,
+    );
+    emitSampledRadialTopology(
+      RITUAL_GLOW_PLAN,
+      RITUAL_GLOW_WORKSPACE,
+      writer,
+      undefined,
+    );
   }
 }
 
-/** 生成灯座指定高度圈层的轮廓点。 */
-function createHousingPoint(
-  position: Readonly<LobbyRitualLampPosition>,
-  levelIndex: number,
-  segment: number,
-): LobbyPoint3 {
-  const level = getHousingLevel(levelIndex);
-  const angle = normalizeSegment(segment) / LOBBY_RITUAL_LAMP_SEGMENTS * Math.PI * 2;
-  return {
-    x: position.x + Math.cos(angle) * level.radius,
-    y: level.y,
-    z: position.z + Math.sin(angle) * level.radius,
-  };
-}
+/** 祭台灯座的三圈轮廓与顶面中心。 */
+const RITUAL_HOUSING_SOURCE: RadialRingSource<LobbyRitualLampPosition> = Object.freeze({
+  sampleRing(position, ringIndex, segment, output, outputOffset): void {
+    const level = getHousingLevel(ringIndex);
+    const angle = segment / LOBBY_RITUAL_LAMP_SEGMENTS * Math.PI * 2;
+    writePosition(
+      output,
+      outputOffset,
+      position.x + Math.cos(angle) * level.radius,
+      level.y,
+      position.z + Math.sin(angle) * level.radius,
+    );
+  },
+  sampleCenter(position, _centerIndex, output, outputOffset): void {
+    const topLevel = getHousingLevel(HOUSING_LEVELS.length - 1);
+    writePosition(output, outputOffset, position.x, topLevel.y, position.z);
+  },
+});
 
-/** 生成晶体中部六边形轮廓点。 */
-function createGlowRingPoint(
-  position: Readonly<LobbyRitualLampPosition>,
-  segment: number,
-): LobbyPoint3 {
-  const angle = normalizeSegment(segment) / LOBBY_RITUAL_LAMP_SEGMENTS * Math.PI * 2;
-  return {
-    x: position.x + Math.cos(angle) * 0.13,
-    y: 0.42,
-    z: position.z + Math.sin(angle) * 0.13,
-  };
-}
+/** 祭台晶体中圈及上下两个尖端。 */
+const RITUAL_GLOW_SOURCE: RadialRingSource<LobbyRitualLampPosition> = Object.freeze({
+  sampleRing(position, _ringIndex, segment, output, outputOffset): void {
+    const angle = segment / LOBBY_RITUAL_LAMP_SEGMENTS * Math.PI * 2;
+    writePosition(
+      output,
+      outputOffset,
+      position.x + Math.cos(angle) * 0.13,
+      0.42,
+      position.z + Math.sin(angle) * 0.13,
+    );
+  },
+  sampleCenter(position, centerIndex, output, outputOffset): void {
+    writePosition(
+      output,
+      outputOffset,
+      position.x,
+      centerIndex === 0 ? 0.22 : 0.62,
+      position.z,
+    );
+  },
+});
 
 /** 获取由固定清单保证存在的灯座圈层。 */
 function getHousingLevel(levelIndex: number): Readonly<{ y: number; radius: number }> {
@@ -91,7 +163,15 @@ function getHousingLevel(levelIndex: number): Readonly<{ y: number; radius: numb
   return level;
 }
 
-/** 把闭合轮廓索引映射到有效段号。 */
-function normalizeSegment(segment: number): number {
-  return segment % LOBBY_RITUAL_LAMP_SEGMENTS;
+/** 原地写入祭台灯的双精度 Radial 采样点。 */
+function writePosition(
+  output: RadialPositionArray,
+  outputOffset: number,
+  x: number,
+  y: number,
+  z: number,
+): void {
+  output[outputOffset] = x;
+  output[outputOffset + 1] = y;
+  output[outputOffset + 2] = z;
 }
