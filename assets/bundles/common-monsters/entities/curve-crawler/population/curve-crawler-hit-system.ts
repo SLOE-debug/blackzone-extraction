@@ -1,7 +1,7 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import {
   CURVE_CRAWLER_HIT_FLASH_DURATION,
-  CurveCrawlerLifePhase,
 } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
@@ -35,7 +35,8 @@ export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, nu
     if ((identity.id[entityId] ?? -1) !== entityId) {
       throw new Error(`Curve Crawler 实体标识与稳定存储索引不一致：${entityId}`);
     }
-    if ((vitality.phase[entityId] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+    if ((vitality.state[entityId] as MonsterLifecycleState)
+      !== MonsterLifecycleState.Alive) {
       return false;
     }
 

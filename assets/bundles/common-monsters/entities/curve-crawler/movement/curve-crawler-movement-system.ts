@@ -1,6 +1,6 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { damp, dampAngle } from '../../../../../core/math/scalar';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
   CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
@@ -14,7 +14,7 @@ export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerStat
     const { transform, vitality, intent, motion } = state.data;
 
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         motion.currentSpeed[index] = 0;
         continue;
       }

@@ -67,7 +67,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly separation: CurveCrawlerSeparationSystem;
   private readonly targeting = new CurveCrawlerTargeting();
   private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
-  private readonly repopulation = new CurveCrawlerRepopulationSystem();
+  private readonly repopulation: CurveCrawlerRepopulationSystem;
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly emergence = new CurveCrawlerEmergenceSystem();
   private readonly rendering: CurveCrawlerPopulationRendering;
@@ -93,6 +93,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   ) {
     const normalizedOptions = normalizeCurveCrawlerOptions(options, motionProfile);
     this.state = new CurveCrawlerState(normalizedOptions);
+    this.repopulation = new CurveCrawlerRepopulationSystem(this.state);
     this.separation = new CurveCrawlerSeparationSystem(this.state.count);
     if (motionProfile === CurveCrawlerMotionProfile.Autonomous) {
       if (!('combat' in options)) {
@@ -115,19 +116,13 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
 
   /** 当前真正存活且能够追击玩家的实体数量。 */
   public get aliveCount(): number {
-    return this.repopulation.countAlive(this.state);
+    return this.repopulation.countAlive();
   }
 
-  /** 首次创建尸潮时把全部固定槽位散布到玩家周边环带。 */
-  public initializeAround(options: Readonly<CurveCrawlerRepopulationOptions>): void {
-    this.ensureActive();
-    this.repopulation.initializeAround(this.state, options);
-  }
-
-  /** 维持玩家周边最低活体数并回收超出半径的实体槽位。 */
+  /** 同步玩家周边期望驻留数量，并回收超出半径的非死亡实体槽位。 */
   public maintainAround(options: Readonly<CurveCrawlerRepopulationOptions>): void {
     this.ensureActive();
-    this.repopulation.maintainAround(this.state, options);
+    this.repopulation.maintainAround(options);
   }
 
   /** 按出生、受击、死亡、行为、战斗、移动、分离、动画、渲染的固定顺序推进一帧。 */

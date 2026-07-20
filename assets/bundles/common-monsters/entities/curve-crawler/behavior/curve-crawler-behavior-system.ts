@@ -1,7 +1,7 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
   CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
@@ -17,7 +17,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
     const { identity, transform, morphology, vitality, behavior, combat, intent } = state.data;
 
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         intent.targetSpeed[index] = 0;
         intent.targetCrouch[index] = 0;
         intent.targetBite[index] = 0;
@@ -91,7 +91,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
   public triggerScuttle(state: CurveCrawlerState): void {
     const { identity, vitality, behavior } = state.data;
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         continue;
       }
       behavior.action[index] = CurveCrawlerAction.Scuttle;

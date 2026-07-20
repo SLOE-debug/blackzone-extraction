@@ -1,7 +1,7 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { damp, TAU, wrapAngle } from '../../../../../core/math/scalar';
 import { randomRange } from '../../../../../core/math/xorshift32';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
@@ -12,8 +12,8 @@ export class CurveCrawlerAnimationSystem implements EntitySystem<CurveCrawlerSta
     const { identity, morphology, vitality, intent, motion, animation } = state.data;
 
     for (let index = 0; index < state.count; index++) {
-      const lifePhase = vitality.phase[index] as CurveCrawlerLifePhase;
-      if (lifePhase !== CurveCrawlerLifePhase.Alive) {
+      const lifecycleState = vitality.state[index] as MonsterLifecycleState;
+      if (lifecycleState !== MonsterLifecycleState.Alive) {
         continue;
       }
       const crouchAmount = damp(

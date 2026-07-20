@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CurveCrawlerLifePhase } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerTargeting } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-targeting';
 import {
@@ -17,7 +17,7 @@ describe('Curve Crawler 辅助瞄准查询', () => {
     completeCurveCrawlerTestEmergence(state);
     state.data.transform.x.set([10, 5, 3]);
     state.data.transform.y.set([0, 2, 0]);
-    state.data.vitality.phase[2] = CurveCrawlerLifePhase.Gone;
+    state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const result = { entityId: -1, x: 0, y: 0, elevation: 0 };
 
     const found = new CurveCrawlerTargeting().findBest(state, {

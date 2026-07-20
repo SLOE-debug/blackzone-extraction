@@ -37,13 +37,15 @@ describe('战场无限环境生成', () => {
     const altar = world.get(BattlefieldEnvironmentPrototype.RitualAltar);
     expect(altar.data.transform.x[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.ritualAltar.x);
     expect(altar.data.transform.z[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.ritualAltar.z);
-    expect(BATTLEFIELD_MONSTER_SPAWN.minimumAliveCount).toBeGreaterThanOrEqual(180);
+    expect(BATTLEFIELD_MONSTER_SPAWN.populationCapacity).toBeGreaterThanOrEqual(180);
     expect(BATTLEFIELD_MONSTER_SPAWN.groundOffsetY).toBeGreaterThan(0);
   });
 
-  it('怪物使用玩家周边固定容量环带并保留死亡过程缓冲槽', () => {
+  it('怪物按渐进波次扩充到固定总容量并保留死亡过程缓冲槽', () => {
     const spawn = BATTLEFIELD_MONSTER_SPAWN;
-    expect(spawn.populationCount).toBeGreaterThan(spawn.minimumAliveCount);
+    expect(spawn.openingGraceSeconds).toBeGreaterThan(0);
+    expect(spawn.firstWaveCount).toBeLessThan(spawn.populationCapacity);
+    expect(spawn.reinforcementIntervalSeconds).toBeGreaterThan(0);
     expect(spawn.spawnInnerRadius).toBeGreaterThan(10);
     expect(spawn.spawnOuterRadius).toBeGreaterThan(spawn.spawnInnerRadius);
     expect(spawn.recycleRadius).toBeGreaterThan(spawn.spawnOuterRadius);

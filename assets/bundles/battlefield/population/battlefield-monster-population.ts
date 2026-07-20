@@ -3,6 +3,7 @@ import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
+import { calculateBattlefieldMonsterTargetCount } from '../model/battlefield-monster-wave-schedule';
 import {
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
@@ -12,6 +13,7 @@ import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 
 const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
 const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
+const MAXIMUM_WAVE_DELTA_TIME = 0.05;
 
 export type {
   BattlefieldAimTarget,
@@ -21,9 +23,9 @@ export type {
 } from './battlefield-monster-contracts';
 
 /**
- * 聚合固定容量的玩家周边尸潮与可选 Debug 观察实体。
+ * 聚合固定容量、渐进激活的玩家周边尸潮与可选 Debug 观察实体。
  *
- * 正式尸潮不再由 Chunk 持有；固定 SoA 槽位会在远离玩家后回收到外圈重新生成。
+ * 正式尸潮不再由 Chunk 持有；同一 SoA 内的空闲槽位按波次进入完整出生生命周期。
  */
 export class BattlefieldMonsterPopulation
 implements Disposable {
@@ -42,6 +44,7 @@ implements Disposable {
   };
   private swarm: BattlefieldMonsterGroup | null = null;
   private debugGroup: BattlefieldMonsterGroup | null = null;
+  private waveElapsedSeconds = 0;
   private disposed = false;
 
   constructor(
@@ -103,7 +106,7 @@ implements Disposable {
       1,
       DEBUG_CURVE_CRAWLER_SEED,
       DEBUG_CURVE_CRAWLER_WORLD_DIAMETER,
-      false,
+      1,
     );
     this.groups.push(group);
     this.debugGroup = group;
@@ -117,9 +120,24 @@ implements Disposable {
     if (this.disposed) {
       return 0;
     }
+    if (!Number.isFinite(deltaTime)) {
+      throw new Error('战场怪物聚合群体帧时间必须是有限数值。');
+    }
     if (target !== null) {
+      this.waveElapsedSeconds += Math.max(
+        0,
+        Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME),
+      );
       this.ensureSwarm(target.x, target.z);
-      this.swarm?.maintainAround(target.x, target.z);
+      const desiredPopulationCount = calculateBattlefieldMonsterTargetCount(
+        BATTLEFIELD_MONSTER_SPAWN,
+        this.waveElapsedSeconds,
+      );
+      this.swarm?.maintainAround(
+        target.x,
+        target.z,
+        desiredPopulationCount,
+      );
     }
     let damage = 0;
     for (const group of this.groups) {
@@ -129,23 +147,23 @@ implements Disposable {
     return damage;
   }
 
-  /** 首次获得玩家坐标时一次性创建完整固定容量尸潮。 */
+  /** 首次获得玩家位置时创建唯一固定容量群体，槽位保持休眠直到波次激活。 */
   private ensureSwarm(playerX: number, playerZ: number): void {
     if (this.swarm !== null) {
       return;
     }
     const config = BATTLEFIELD_MONSTER_SPAWN;
-    const swarm = new BattlefieldMonsterGroup(
+    const group = new BattlefieldMonsterGroup(
       this.renderBatch,
       playerX,
       playerZ,
-      config.populationCount,
+      config.populationCapacity,
       config.seed,
       config.spawnOuterRadius * 2,
-      true,
+      0,
     );
-    this.groups.push(swarm);
-    this.swarm = swarm;
+    this.groups.push(group);
+    this.swarm = group;
   }
 
   /** 在所有活动地图群体中选择距离玩家最近的有效瞄准吸附结果。 */

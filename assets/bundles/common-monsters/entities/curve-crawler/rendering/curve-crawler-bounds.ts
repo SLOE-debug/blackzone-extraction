@@ -1,5 +1,6 @@
 import { type GeometryBounds } from '../../../../../core/geometry/buffer-geometry';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import { CurveCrawlerDeathStage } from '../model/curve-crawler-life';
 import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
@@ -36,7 +37,7 @@ export function updateCurveCrawlerBounds(
   state: CurveCrawlerState,
   bounds: CurveCrawlerBounds,
 ): void {
-  const { transform, morphology, vitality, animation } = state.data;
+  const { transform, morphology, vitality, death, animation } = state.data;
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let minZ = Number.POSITIVE_INFINITY;
@@ -63,7 +64,9 @@ export function updateCurveCrawlerBounds(
     let maximumFragmentX = 0;
     let maximumFragmentY = 0;
     let maximumFragmentZ = 0;
-    if ((vitality.phase[index] as CurveCrawlerLifePhase) === CurveCrawlerLifePhase.Bursting) {
+    if ((vitality.state[index] as MonsterLifecycleState) === MonsterLifecycleState.Dying
+      && (death.stage[index] as CurveCrawlerDeathStage)
+        === CurveCrawlerDeathStage.Bursting) {
       const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
       for (let fragment = 0; fragment < CURVE_CRAWLER_FRAGMENT_COUNT; fragment++) {
         const offset = fragmentOffset + fragment;

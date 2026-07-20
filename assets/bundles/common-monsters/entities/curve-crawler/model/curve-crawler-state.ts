@@ -1,5 +1,6 @@
 import { EntityTable } from '../../../../../core/entities/entity-table';
 import { MonsterObservationEventType } from '../../../../../core/contracts/monster-observation';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import {
   mixRandomSeed,
   nextRandom,
@@ -9,7 +10,7 @@ import {
 import { TAU } from '../../../../../core/math/scalar';
 import { CurveCrawlerAction } from './curve-crawler-action';
 import { CURVE_CRAWLER_EMERGENCE_TIMING } from './curve-crawler-emergence';
-import { CURVE_CRAWLER_MAX_HEALTH, CurveCrawlerLifePhase } from './curve-crawler-life';
+import { CurveCrawlerDeathStage, CURVE_CRAWLER_MAX_HEALTH } from './curve-crawler-life';
 import {
   type NormalizedCurveCrawlerPopulationOptions,
 } from './curve-crawler-options';
@@ -142,11 +143,15 @@ function initializeCurveCrawlerData(
     }
 
     vitality.health[index] = CURVE_CRAWLER_MAX_HEALTH;
-    const emerging = options.motionProfile === CurveCrawlerMotionProfile.Autonomous;
-    vitality.phase[index] = emerging
-      ? CurveCrawlerLifePhase.Emerging
-      : CurveCrawlerLifePhase.Alive;
-    vitality.phaseTime[index] = emerging
+    const autonomous = options.motionProfile === CurveCrawlerMotionProfile.Autonomous;
+    const spawning = autonomous && index < options.initialPopulationCount;
+    const dormant = autonomous && !spawning;
+    vitality.state[index] = dormant
+      ? MonsterLifecycleState.Dormant
+      : spawning
+        ? MonsterLifecycleState.Spawning
+        : MonsterLifecycleState.Alive;
+    vitality.stateTime[index] = spawning
       ? -(index * CURVE_CRAWLER_EMERGENCE_TIMING.staggerPerEntity
         + randomRange(
           identity.randomState,
@@ -156,6 +161,8 @@ function initializeCurveCrawlerData(
         ))
       : 0;
     vitality.hitTime[index] = 0;
+    death.stage[index] = CurveCrawlerDeathStage.Bursting;
+    death.stageTime[index] = 0;
 
     const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
     const fragmentAngleOrigin = randomRange(identity.randomState, index, 0, TAU);
@@ -235,10 +242,10 @@ function initializeCurveCrawlerData(
     animation.crackVisibility[index] = 0;
     animation.eggScale[index] = 0;
     animation.eggBulge[index] = 0;
-    animation.eggBurst[index] = emerging ? 0 : 1;
-    animation.emergenceBodyScale[index] = emerging ? 0 : 1;
-    animation.emergenceLegScale[index] = emerging ? 0 : 1;
-    animation.surfaceCollapse[index] = 0;
+    animation.eggBurst[index] = autonomous ? 0 : 1;
+    animation.emergenceBodyScale[index] = autonomous ? 0 : 1;
+    animation.emergenceLegScale[index] = autonomous ? 0 : 1;
+    animation.surfaceCollapse[index] = dormant ? 1 : 0;
     animation.liquidSpread[index] = 0;
     animation.liquidDrain[index] = 0;
 

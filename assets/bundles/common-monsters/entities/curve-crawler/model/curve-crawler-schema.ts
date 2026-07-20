@@ -50,11 +50,13 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
   },
   vitality: {
     health: entityField(Float32Array, 1),
-    phase: entityField(Uint8Array, 1),
-    phaseTime: entityField(Float32Array, 1),
+    state: entityField(Uint8Array, 1),
+    stateTime: entityField(Float32Array, 1),
     hitTime: entityField(Float32Array, 1),
   },
   death: {
+    stage: entityField(Uint8Array, 1),
+    stageTime: entityField(Float32Array, 1),
     fragmentDirectionX: entityField(Float32Array, CURVE_CRAWLER_FRAGMENT_COUNT),
     fragmentDirectionY: entityField(Float32Array, CURVE_CRAWLER_FRAGMENT_COUNT),
     fragmentTravelDistance: entityField(Float32Array, CURVE_CRAWLER_FRAGMENT_COUNT),

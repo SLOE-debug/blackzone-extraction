@@ -23,6 +23,7 @@ import {
 import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
 import { createPlayerDiscardTrajectory } from '../../loot/model/player-discard-trajectory';
 import { createBattlefieldTreasureChestSpawns } from '../model/battlefield-treasure-chest-spawn';
+import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treasure-chest-session-state';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TreasureChestRuntime } from './treasure-chest-runtime';
 
@@ -39,6 +40,7 @@ BattlefieldInteractionProvider, Disposable {
     z: 0,
   };
   private readonly equipmentInstanceIds = new DroppedEquipmentInstanceIdSequence();
+  private readonly sessionState = new BattlefieldTreasureChestSessionState();
   private readonly discardedEquipment: DroppedEquipmentPopulation;
   private readonly discardRandomState = new Uint32Array(1);
   private nextTreasureChestId = 1;
@@ -70,6 +72,7 @@ BattlefieldInteractionProvider, Disposable {
         this.parent,
         this.surfaceMaterialTemplate,
         spawn,
+        this.sessionState,
         this.equipmentLibrary,
         this.lootTable,
         this.equipmentInstanceIds,

@@ -30,7 +30,6 @@ interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterComba
 PlanarMonsterHitPopulation {
   readonly count: number;
   readonly aliveCount: number;
-  initializeAround(options: Readonly<BattlefieldMonsterRepopulationOptions>): void;
   maintainAround(options: Readonly<BattlefieldMonsterRepopulationOptions>): void;
   update(deltaTime: number): void;
   dispose(): void;
@@ -42,7 +41,7 @@ interface BattlefieldMonsterRepopulationOptions {
   spawnInnerRadius: number;
   spawnOuterRadius: number;
   recycleRadius: number;
-  minimumAliveCount: number;
+  desiredPopulationCount: number;
 }
 
 interface MutablePlanarTargetQuery extends PlanarTargetQuery {
@@ -115,7 +114,7 @@ export class BattlefieldMonsterGroup {
     spawnInnerRadius: 1,
     spawnOuterRadius: 2,
     recycleRadius: 3,
-    minimumAliveCount: 1,
+    desiredPopulationCount: 0,
   };
   private disposed = false;
 
@@ -128,8 +127,13 @@ export class BattlefieldMonsterGroup {
     count: number,
     spawnSeed: number,
     worldDiameter: number,
-    initializeAsPlayerSwarm: boolean,
+    initialPopulationCount: number,
   ) {
+    if (!Number.isInteger(initialPopulationCount)
+      || initialPopulationCount < 0
+      || initialPopulationCount > count) {
+      throw new Error('战场怪物群初始人口必须位于零到群体容量之间。');
+    }
     const assembly = createMonsterAssembly(
       renderBatch,
       centerX,
@@ -137,12 +141,9 @@ export class BattlefieldMonsterGroup {
       count,
       spawnSeed,
       worldDiameter,
+      initialPopulationCount,
     );
     this.population = assembly.population;
-    if (initializeAsPlayerSwarm) {
-      this.writeRepopulationOptions(centerX, centerZ);
-      this.population.initializeAround(this.repopulationOptions);
-    }
   }
 
   /** 当前地图群体的怪物数量。 */
@@ -155,12 +156,16 @@ export class BattlefieldMonsterGroup {
     return this.population.aliveCount;
   }
 
-  /** 以玩家世界坐标为环带中心回收远处怪物并补足活体。 */
-  public maintainAround(playerX: number, playerZ: number): void {
+  /** 以玩家世界坐标为环带中心回收远处怪物并同步期望驻留数量。 */
+  public maintainAround(
+    playerX: number,
+    playerZ: number,
+    desiredPopulationCount: number,
+  ): void {
     if (this.disposed) {
       return;
     }
-    this.writeRepopulationOptions(playerX, playerZ);
+    this.writeRepopulationOptions(playerX, playerZ, desiredPopulationCount);
     this.population.maintainAround(this.repopulationOptions);
   }
 
@@ -320,7 +325,11 @@ export class BattlefieldMonsterGroup {
   }
 
   /** 把战场 XZ 环带配置转换为 Curve Crawler 本地 XY 平面。 */
-  private writeRepopulationOptions(playerX: number, playerZ: number): void {
+  private writeRepopulationOptions(
+    playerX: number,
+    playerZ: number,
+    desiredPopulationCount: number,
+  ): void {
     const config = BATTLEFIELD_MONSTER_SPAWN;
     const inverseScale = 1 / config.modelScale;
     this.repopulationOptions.centerX = playerX * inverseScale;
@@ -328,7 +337,7 @@ export class BattlefieldMonsterGroup {
     this.repopulationOptions.spawnInnerRadius = config.spawnInnerRadius * inverseScale;
     this.repopulationOptions.spawnOuterRadius = config.spawnOuterRadius * inverseScale;
     this.repopulationOptions.recycleRadius = config.recycleRadius * inverseScale;
-    this.repopulationOptions.minimumAliveCount = config.minimumAliveCount;
+    this.repopulationOptions.desiredPopulationCount = desiredPopulationCount;
   }
 }
 
@@ -346,6 +355,7 @@ function createMonsterAssembly(
   count: number,
   spawnSeed: number,
   worldDiameter: number,
+  initialPopulationCount: number,
 ): BattlefieldMonsterAssembly {
   const config = BATTLEFIELD_MONSTER_SPAWN;
   if (!Number.isFinite(worldDiameter) || worldDiameter <= 0) {
@@ -362,7 +372,8 @@ function createMonsterAssembly(
       width: localDiameter,
       height: localDiameter,
     }),
-    seed: config.seed ^ spawnSeed,
+    seed: spawnSeed,
+    initialPopulationCount,
     combat: Object.freeze({
       detectionRadius: combat.detectionRadius * inverseScale,
       disengageRadius: combat.disengageRadius * inverseScale,

@@ -1,10 +1,7 @@
-/** Curve Crawler 从存活到液体消失的生命周期阶段。 */
-export enum CurveCrawlerLifePhase {
-  Emerging,
-  Alive,
+/** Curve Crawler 在通用 `Dying` 状态内部使用的死亡表现阶段。 */
+export enum CurveCrawlerDeathStage {
   Bursting,
   Liquefying,
-  Gone,
 }
 
 /** Curve Crawler 默认最大生命值。 */

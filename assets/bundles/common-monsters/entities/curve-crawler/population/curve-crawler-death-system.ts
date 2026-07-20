@@ -1,8 +1,13 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import {
+  advanceMonsterLifecycleTime,
+  transitionMonsterLifecycle,
+} from '../../../../../core/monsters/monster-lifecycle-state-machine';
 import {
   CURVE_CRAWLER_BURST_DURATION,
+  CurveCrawlerDeathStage,
   CURVE_CRAWLER_LIQUID_DURATION,
-  CurveCrawlerLifePhase,
 } from '../model/curve-crawler-life';
 import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
@@ -11,40 +16,48 @@ import { type CurveCrawlerState } from '../model/curve-crawler-state';
 export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进爆裂、液化和消失阶段，并刷新全部碎块变换。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { vitality } = state.data;
+    const { vitality, death } = state.data;
 
     for (let index = 0; index < state.count; index++) {
-      this.advancePhase(state, index, deltaTime);
-      const phase = vitality.phase[index] as CurveCrawlerLifePhase;
+      const lifecycleState = vitality.state[index] as MonsterLifecycleState;
+      if (lifecycleState === MonsterLifecycleState.DeathComplete) {
+        this.updateDeathComplete(state, index);
+        continue;
+      }
+      if (lifecycleState !== MonsterLifecycleState.Dying) {
+        continue;
+      }
+      this.advanceStage(state, index, deltaTime);
+      if ((vitality.state[index] as MonsterLifecycleState)
+        === MonsterLifecycleState.DeathComplete) {
+        this.updateDeathComplete(state, index);
+        continue;
+      }
 
-      switch (phase) {
-        case CurveCrawlerLifePhase.Emerging:
-        case CurveCrawlerLifePhase.Alive:
-          break;
-        case CurveCrawlerLifePhase.Bursting:
+      switch (death.stage[index] as CurveCrawlerDeathStage) {
+        case CurveCrawlerDeathStage.Bursting:
           this.updateBursting(state, index);
           break;
-        case CurveCrawlerLifePhase.Liquefying:
+        case CurveCrawlerDeathStage.Liquefying:
           this.updateLiquefying(state, index);
           break;
-        case CurveCrawlerLifePhase.Gone:
-          this.updateGone(state, index);
-          break;
         default:
-          throw new Error(`未知的 Curve Crawler 生命周期阶段：${phase}`);
+          throw new Error(`未知的 Curve Crawler 死亡阶段：${death.stage[index]}`);
       }
     }
   }
 
   /** 让指定实体进入死亡爆裂阶段并停止移动意图。 */
   public start(state: CurveCrawlerState, entityId: number): void {
-    const { vitality, intent, motion, animation } = state.data;
-    if ((vitality.phase[entityId] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+    const { vitality, death, intent, motion, animation } = state.data;
+    if ((vitality.state[entityId] as MonsterLifecycleState)
+      !== MonsterLifecycleState.Alive) {
       return;
     }
 
-    vitality.phase[entityId] = CurveCrawlerLifePhase.Bursting;
-    vitality.phaseTime[entityId] = 0;
+    transitionMonsterLifecycle(vitality, entityId, MonsterLifecycleState.Dying);
+    death.stage[entityId] = CurveCrawlerDeathStage.Bursting;
+    death.stageTime[entityId] = 0;
     intent.targetSpeed[entityId] = 0;
     intent.targetCrouch[entityId] = 0;
     intent.targetBite[entityId] = 0;
@@ -53,35 +66,33 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
     animation.bodyPulse[entityId] = 0;
   }
 
-  /** 推进单个实体的死亡阶段并保留跨阶段的剩余时间。 */
-  private advancePhase(state: CurveCrawlerState, index: number, deltaTime: number): void {
-    const { vitality } = state.data;
-    const phase = vitality.phase[index] as CurveCrawlerLifePhase;
-    if (phase === CurveCrawlerLifePhase.Emerging
-      || phase === CurveCrawlerLifePhase.Alive
-      || phase === CurveCrawlerLifePhase.Gone) {
-      return;
-    }
-
-    const duration = phase === CurveCrawlerLifePhase.Bursting
+  /** 推进具体死亡表现阶段，并在液化完成后提交通用死亡完成状态。 */
+  private advanceStage(state: CurveCrawlerState, index: number, deltaTime: number): void {
+    const { vitality, death } = state.data;
+    advanceMonsterLifecycleTime(vitality, index, deltaTime);
+    const stage = death.stage[index] as CurveCrawlerDeathStage;
+    const duration = stage === CurveCrawlerDeathStage.Bursting
       ? CURVE_CRAWLER_BURST_DURATION
       : CURVE_CRAWLER_LIQUID_DURATION;
-    const nextTime = (vitality.phaseTime[index] ?? 0) + deltaTime;
+    const nextTime = (death.stageTime[index] ?? 0) + deltaTime;
     if (nextTime < duration) {
-      vitality.phaseTime[index] = nextTime;
+      death.stageTime[index] = nextTime;
       return;
     }
 
-    vitality.phase[index] = phase === CurveCrawlerLifePhase.Bursting
-      ? CurveCrawlerLifePhase.Liquefying
-      : CurveCrawlerLifePhase.Gone;
-    vitality.phaseTime[index] = nextTime - duration;
+    if (stage === CurveCrawlerDeathStage.Bursting) {
+      death.stage[index] = CurveCrawlerDeathStage.Liquefying;
+      death.stageTime[index] = nextTime - duration;
+      return;
+    }
+    death.stageTime[index] = 0;
+    transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.DeathComplete);
   }
 
   /** 按独立方向、距离、抛物线高度和自转刷新全部碎块。 */
   private updateBursting(state: CurveCrawlerState, index: number): void {
-    const { transform, vitality, death, animation } = state.data;
-    const elapsedTime = vitality.phaseTime[index] ?? 0;
+    const { transform, death, animation } = state.data;
+    const elapsedTime = death.stageTime[index] ?? 0;
     const progress = clamp01(elapsedTime / CURVE_CRAWLER_BURST_DURATION);
     const travelProgress = 1 - (1 - progress) * (1 - progress);
     const heading = transform.heading[index] ?? 0;
@@ -110,15 +121,15 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
 
   /** 隐藏碎块并推进液体向负 Y 方向收拢。 */
   private updateLiquefying(state: CurveCrawlerState, index: number): void {
-    const { vitality, animation } = state.data;
-    const progress = clamp01((vitality.phaseTime[index] ?? 0) / CURVE_CRAWLER_LIQUID_DURATION);
+    const { death, animation } = state.data;
+    const progress = clamp01((death.stageTime[index] ?? 0) / CURVE_CRAWLER_LIQUID_DURATION);
     animation.surfaceCollapse[index] = 1;
     animation.liquidSpread[index] = 1;
     animation.liquidDrain[index] = smoothStep(0.2, 1, progress);
   }
 
   /** 将已经消失的实体保持在零面积渲染状态。 */
-  private updateGone(state: CurveCrawlerState, index: number): void {
+  private updateDeathComplete(state: CurveCrawlerState, index: number): void {
     const { animation } = state.data;
     animation.surfaceCollapse[index] = 1;
     animation.liquidSpread[index] = 1;

@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { CurveCrawlerAnimationSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/animation/curve-crawler-animation-system';
 import { CurveCrawlerEmergenceSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/animation/curve-crawler-emergence-system';
 import { CurveCrawlerBehaviorSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/behavior/curve-crawler-behavior-system';
 import { CurveCrawlerAction } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-action';
 import {
   CURVE_CRAWLER_BURST_DURATION,
+  CurveCrawlerDeathStage,
   CURVE_CRAWLER_LIQUID_DURATION,
-  CurveCrawlerLifePhase,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerMovementSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/movement/curve-crawler-movement-system';
@@ -40,12 +41,12 @@ describe('Curve Crawler 系统', () => {
       seed: 71,
     }));
     const emergence = new CurveCrawlerEmergenceSystem();
-    state.data.vitality.phaseTime[0] = 0;
+    state.data.vitality.stateTime[0] = 0;
 
     emergence.update(state, CURVE_CRAWLER_EMERGENCE_TIMING.crackSeconds * 0.5);
     expect(state.data.animation.crackSpread[0] ?? 0).toBeGreaterThan(0);
     expect(state.data.animation.eggScale[0]).toBe(0);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Emerging);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Spawning);
 
     emergence.update(state,
       CURVE_CRAWLER_EMERGENCE_TIMING.crackSeconds * 0.5
@@ -59,7 +60,7 @@ describe('Curve Crawler 系统', () => {
     emergence.update(state,
       CURVE_CRAWLER_EMERGENCE_TIMING.eggBurstSeconds * 0.5
       + CURVE_CRAWLER_EMERGENCE_TIMING.limbGrowthSeconds);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Alive);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Alive);
     expect(state.data.animation.emergenceBodyScale[0]).toBe(1);
     expect(state.data.animation.emergenceLegScale[0]).toBe(1);
     expect(state.data.animation.crackVisibility[0]).toBe(0);
@@ -144,7 +145,7 @@ describe('Curve Crawler 系统', () => {
     hit.update(state, 1 / 60);
 
     expect(state.data.vitality.health[0]).toBe(75);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Alive);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Alive);
     expect(state.data.animation.hitFlash[0] ?? 0).toBeGreaterThan(0);
   });
 
@@ -156,18 +157,20 @@ describe('Curve Crawler 系统', () => {
     expect(hit.damage(state, 0, 100)).toBe(true);
     death.start(state, 0);
     death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.75);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Bursting);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Dying);
+    expect(state.data.death.stage[0]).toBe(CurveCrawlerDeathStage.Bursting);
     expect(state.data.animation.liquidSpread[0] ?? 0).toBeGreaterThan(0);
     const fragmentOffsets = Array.from(state.data.animation.fragmentOffsetX.slice(0, 12));
     expect(new Set(fragmentOffsets.map((value) => value.toFixed(3))).size).toBeGreaterThan(6);
     expect(Math.max(...state.data.animation.fragmentOffsetZ.slice(0, 12))).toBeGreaterThan(2);
 
     death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.25);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Liquefying);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Dying);
+    expect(state.data.death.stage[0]).toBe(CurveCrawlerDeathStage.Liquefying);
     expect(state.data.animation.surfaceCollapse[0]).toBe(1);
 
     death.update(state, CURVE_CRAWLER_LIQUID_DURATION);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Gone);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.DeathComplete);
     expect(state.data.animation.liquidDrain[0]).toBe(1);
   });
 });

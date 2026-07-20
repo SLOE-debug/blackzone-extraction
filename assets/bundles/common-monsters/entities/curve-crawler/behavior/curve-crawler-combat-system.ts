@@ -1,8 +1,8 @@
 import { type PlanarMonsterCombatTarget } from '../../../../../core/contracts/monster-combat';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { type CurveCrawlerCombatOptions } from '../model/curve-crawler-combat-options';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 const PURSUIT_TURN_RATE = 8.5;
@@ -64,7 +64,7 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
       );
       const wasBiting = (behavior.action[index] as CurveCrawlerAction)
         === CurveCrawlerAction.Bite;
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         this.disengage(state, index);
         continue;
       }

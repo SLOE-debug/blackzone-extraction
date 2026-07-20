@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CurveCrawlerEmergenceSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/animation/curve-crawler-emergence-system';
-import { CurveCrawlerLifePhase } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
-import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
+import { CurveCrawlerDeathSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-death-system';
+import { CurveCrawlerHitSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-hit-system';
 import { CurveCrawlerRepopulationSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-repopulation-system';
+import {
+  CURVE_CRAWLER_BURST_DURATION,
+  CURVE_CRAWLER_LIQUID_DURATION,
+} from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
+import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-schema';
+import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
 
 const SWARM_OPTIONS = Object.freeze({
@@ -11,17 +17,24 @@ const SWARM_OPTIONS = Object.freeze({
   spawnInnerRadius: 18,
   spawnOuterRadius: 32,
   recycleRadius: 49,
-  minimumAliveCount: 180,
+  desiredPopulationCount: 8,
 });
 
 describe('Curve Crawler 玩家周边尸潮回收', () => {
-  it('把固定容量槽位均匀放进玩家外圈并立即形成至少 180 个活体', () => {
+  it('只激活当前波次需要的槽位并逐只错峰进入出生状态', () => {
     const state = createState();
-    const repopulation = new CurveCrawlerRepopulationSystem();
-    repopulation.initializeAround(state, SWARM_OPTIONS);
+    const repopulation = new CurveCrawlerRepopulationSystem(state);
 
-    expect(repopulation.countAlive(state)).toBe(220);
+    repopulation.maintainAround(SWARM_OPTIONS);
+
+    expect(repopulation.countAlive()).toBe(0);
     for (let index = 0; index < state.count; index++) {
+      const lifecycleState = state.data.vitality.state[index] as MonsterLifecycleState;
+      if (index >= SWARM_OPTIONS.desiredPopulationCount) {
+        expect(lifecycleState).toBe(MonsterLifecycleState.Dormant);
+        continue;
+      }
+      expect(lifecycleState).toBe(MonsterLifecycleState.Spawning);
       const distance = Math.hypot(
         (state.data.transform.x[index] ?? 0) - SWARM_OPTIONS.centerX,
         (state.data.transform.y[index] ?? 0) - SWARM_OPTIONS.centerY,
@@ -29,50 +42,92 @@ describe('Curve Crawler 玩家周边尸潮回收', () => {
       expect(distance).toBeGreaterThanOrEqual(SWARM_OPTIONS.spawnInnerRadius);
       expect(distance).toBeLessThan(SWARM_OPTIONS.spawnOuterRadius);
     }
+    expect(state.data.vitality.stateTime[1] ?? 0).toBeLessThan(
+      state.data.vitality.stateTime[0] ?? 0,
+    );
   });
 
-  it('回收远距离实体并在大量死亡阶段中强制补足最低活体数', () => {
+  it('人口目标不会覆盖正在爆裂或液化的死亡槽位', () => {
     const state = createState();
-    const repopulation = new CurveCrawlerRepopulationSystem();
-    repopulation.initializeAround(state, SWARM_OPTIONS);
-    state.data.transform.x[0] = SWARM_OPTIONS.centerX + SWARM_OPTIONS.recycleRadius + 10;
-    for (let index = 1; index <= 55; index++) {
-      state.data.vitality.phase[index] = CurveCrawlerLifePhase.Liquefying;
+    const repopulation = new CurveCrawlerRepopulationSystem(state);
+    const hit = new CurveCrawlerHitSystem();
+    const death = new CurveCrawlerDeathSystem();
+    repopulation.maintainAround(SWARM_OPTIONS);
+    completeActivatedSlots(state, SWARM_OPTIONS.desiredPopulationCount);
+    for (let index = 0; index < 5; index++) {
+      expect(hit.damage(state, index, 100)).toBe(true);
+      death.start(state, index);
     }
 
-    repopulation.maintainAround(state, SWARM_OPTIONS);
+    repopulation.maintainAround(SWARM_OPTIONS);
+    death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.5);
+    repopulation.maintainAround(SWARM_OPTIONS);
 
-    expect(repopulation.countAlive(state)).toBeGreaterThanOrEqual(180);
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Emerging);
-    const recycledDistance = Math.hypot(
-      (state.data.transform.x[0] ?? 0) - SWARM_OPTIONS.centerX,
-      (state.data.transform.y[0] ?? 0) - SWARM_OPTIONS.centerY,
-    );
-    expect(recycledDistance).toBeLessThan(SWARM_OPTIONS.spawnOuterRadius);
+    for (let index = 0; index < 5; index++) {
+      expect(state.data.vitality.state[index]).toBe(MonsterLifecycleState.Dying);
+      expect(state.data.animation.fragmentOffsetZ[
+        index * CURVE_CRAWLER_FRAGMENT_COUNT
+      ] ?? 0).toBeGreaterThan(0);
+    }
   });
 
-  it('远距离活体回收后从地裂阶段完整重生而不是瞬间出现', () => {
+  it('只有死亡完整结束后才复用槽位并重新播放出生动画', () => {
     const state = createState();
-    const repopulation = new CurveCrawlerRepopulationSystem();
-    const emergence = new CurveCrawlerEmergenceSystem();
-    repopulation.initializeAround(state, SWARM_OPTIONS);
-    state.data.transform.x[0] = SWARM_OPTIONS.centerX + SWARM_OPTIONS.recycleRadius + 10;
+    const repopulation = new CurveCrawlerRepopulationSystem(state);
+    const hit = new CurveCrawlerHitSystem();
+    const death = new CurveCrawlerDeathSystem();
+    const options = Object.freeze({ ...SWARM_OPTIONS, desiredPopulationCount: 2 });
+    repopulation.maintainAround(options);
+    completeActivatedSlots(state, options.desiredPopulationCount);
+    expect(hit.damage(state, 0, 100)).toBe(true);
+    death.start(state, 0);
+    death.update(state, CURVE_CRAWLER_BURST_DURATION);
+    death.update(state, CURVE_CRAWLER_LIQUID_DURATION);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.DeathComplete);
 
-    repopulation.maintainAround(state, SWARM_OPTIONS);
+    repopulation.maintainAround(options);
 
-    expect(state.data.vitality.phase[0]).toBe(CurveCrawlerLifePhase.Emerging);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Spawning);
     expect(state.data.animation.emergenceBodyScale[0]).toBe(0);
-    emergence.update(state, 0.25);
-    expect(state.data.animation.crackVisibility[0]).toBe(1);
-    expect(state.data.animation.crackSpread[0]).toBeGreaterThan(0);
-    expect(repopulation.countAlive(state)).toBeGreaterThanOrEqual(180);
+    expect(state.data.animation.emergenceLegScale[0]).toBe(0);
+    expect(state.data.animation.surfaceCollapse[0]).toBe(0);
+  });
+
+  it('远距离回收不会截断死亡状态，只会重启出生或存活实体', () => {
+    const state = createState();
+    const repopulation = new CurveCrawlerRepopulationSystem(state);
+    const hit = new CurveCrawlerHitSystem();
+    const death = new CurveCrawlerDeathSystem();
+    const options = Object.freeze({ ...SWARM_OPTIONS, desiredPopulationCount: 2 });
+    repopulation.maintainAround(options);
+    completeActivatedSlots(state, options.desiredPopulationCount);
+    state.data.transform.x[0] = options.centerX + options.recycleRadius + 10;
+    state.data.transform.x[1] = options.centerX + options.recycleRadius + 10;
+    expect(hit.damage(state, 1, 100)).toBe(true);
+    death.start(state, 1);
+
+    repopulation.maintainAround(options);
+
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Spawning);
+    expect(state.data.vitality.state[1]).toBe(MonsterLifecycleState.Dying);
   });
 });
 
 function createState(): CurveCrawlerState {
   return new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
-    count: 220,
+    count: 12,
+    initialPopulationCount: 0,
     spawnArea: { centerX: 0, centerY: 0, width: 70, height: 70 },
     seed: 0x4b1ac7,
   }));
+}
+
+function completeActivatedSlots(state: CurveCrawlerState, count: number): void {
+  for (let index = 0; index < count; index++) {
+    state.data.vitality.state[index] = MonsterLifecycleState.Alive;
+    state.data.vitality.stateTime[index] = 0;
+    state.data.animation.eggBurst[index] = 1;
+    state.data.animation.emergenceBodyScale[index] = 1;
+    state.data.animation.emergenceLegScale[index] = 1;
+  }
 }

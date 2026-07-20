@@ -165,6 +165,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         BATTLEFIELD_EQUIPMENT_LIBRARY,
         this.handleReturnToLobbyRequested,
       );
+      controlHud.presentPlayerHealth(player.health, player.maximumHealth);
       const equipmentPickup = new BattlefieldEquipmentPickupSystem(
         treasures,
         playerWeapon,
@@ -268,6 +269,12 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       }
     } else {
       this.monsters?.update(deltaTime, null);
+    }
+    if (this.player !== null) {
+      this.controlHud?.presentPlayerHealth(
+        this.player.health,
+        this.player.maximumHealth,
+      );
     }
     this.presentDefeatIfNeeded();
     this.treasures?.update(deltaTime);

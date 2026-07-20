@@ -7,9 +7,14 @@ import {
 } from '../../../../core/math/xorshift32';
 import { createChunkCoordinate, type ChunkCoordinate } from '../../../../core/world/chunk-coordinate';
 import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../../environment/model/battlefield-environment-config';
+import {
+  createBattlefieldTreasureChestKey,
+  type BattlefieldTreasureChestKey,
+} from './battlefield-treasure-chest-key';
 
 /** 一个由固定 Chunk 持有的程序化宝箱生成描述。 */
 export interface BattlefieldTreasureChestSpawn {
+  readonly key: BattlefieldTreasureChestKey;
   readonly chunk: Readonly<ChunkCoordinate>;
   readonly x: number;
   readonly y: number;
@@ -68,6 +73,7 @@ export function createBattlefieldTreasureChestSpawns(
     const spawnSeed = advanceRandomState(randomState[0] ?? 1);
     randomState[0] = spawnSeed;
     spawns.push(Object.freeze({
+      key: createBattlefieldTreasureChestKey(stableChunk, index),
       chunk: stableChunk,
       x: position.x,
       y: BATTLEFIELD_TREASURE_CHEST_GENERATION.elevation,

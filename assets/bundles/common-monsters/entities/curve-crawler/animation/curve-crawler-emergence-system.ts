@@ -1,6 +1,10 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import {
+  advanceMonsterLifecycleTime,
+  transitionMonsterLifecycle,
+} from '../../../../../core/monsters/monster-lifecycle-state-machine';
 import { CURVE_CRAWLER_EMERGENCE_TIMING } from '../model/curve-crawler-emergence';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /** 推进地裂、蛋壳生长、突起爆裂和蜘蛛四肢生长的出生时间轴。 */
@@ -9,12 +13,11 @@ export class CurveCrawlerEmergenceSystem implements EntitySystem<CurveCrawlerSta
   public update(state: CurveCrawlerState, deltaTime: number): void {
     const { vitality } = state.data;
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase)
-        !== CurveCrawlerLifePhase.Emerging) {
+      if ((vitality.state[index] as MonsterLifecycleState)
+        !== MonsterLifecycleState.Spawning) {
         continue;
       }
-      const elapsed = (vitality.phaseTime[index] ?? 0) + deltaTime;
-      vitality.phaseTime[index] = elapsed;
+      const elapsed = advanceMonsterLifecycleTime(vitality, index, deltaTime);
       this.evaluateTimeline(state, index, elapsed);
     }
   }
@@ -73,8 +76,7 @@ export class CurveCrawlerEmergenceSystem implements EntitySystem<CurveCrawlerSta
       return;
     }
 
-    vitality.phase[index] = CurveCrawlerLifePhase.Alive;
-    vitality.phaseTime[index] = 0;
+    transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Alive);
     animation.crackSpread[index] = 0;
     animation.crackVisibility[index] = 0;
     animation.eggScale[index] = 0;

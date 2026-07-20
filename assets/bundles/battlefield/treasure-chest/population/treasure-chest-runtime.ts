@@ -20,6 +20,7 @@ import { TREASURE_CHEST_ATTENTION } from '../animation/treasure-chest-attention'
 import {
   type BattlefieldTreasureChestSpawn,
 } from '../model/battlefield-treasure-chest-spawn';
+import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treasure-chest-session-state';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TreasureChestRenderer } from '../rendering/treasure-chest-renderer';
 
@@ -51,6 +52,7 @@ export class TreasureChestRuntime {
     parent: Node,
     surfaceMaterialTemplate: Material,
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
+    private readonly sessionState: BattlefieldTreasureChestSessionState,
     private readonly equipmentLibrary: EquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
     instanceIds: DroppedEquipmentInstanceIdSequence,
@@ -81,6 +83,13 @@ export class TreasureChestRuntime {
       this.renderer.dispose();
       throw error;
     }
+    try {
+      this.restoreOpenedState();
+    } catch (error: unknown) {
+      this.drops.dispose();
+      this.renderer.dispose();
+      throw error;
+    }
   }
 
   /** 只有尚未打开的宝箱能进入操作按钮候选。 */
@@ -93,10 +102,16 @@ export class TreasureChestRuntime {
     if (!this.interactable) {
       return false;
     }
-    this.phase = TreasureChestPhase.Opening;
-    this.elapsed = 0;
     this.lootRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x9e3779b1);
     this.scatterRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x85ebca6b);
+    const equipmentIds = this.rollLoot();
+    this.sessionState.open(
+      this.spawn.key,
+      equipmentIds,
+      this.scatterRandomState[0] ?? 1,
+    );
+    this.phase = TreasureChestPhase.Opening;
+    this.elapsed = 0;
     return true;
   }
 
@@ -154,7 +169,12 @@ export class TreasureChestRuntime {
 
   /** 移除本宝箱掉落群中已经完成拾取的装备实例。 */
   public removeDroppedEquipment(instanceId: number): boolean {
-    return this.drops.remove(instanceId);
+    const equipmentId = this.drops.getEquipmentId(instanceId);
+    if (equipmentId === null || !this.drops.remove(instanceId)) {
+      return false;
+    }
+    this.sessionState.consumeLoot(this.spawn.key, equipmentId);
+    return true;
   }
 
   public dispose(): void {
@@ -166,12 +186,38 @@ export class TreasureChestRuntime {
     this.renderer.dispose();
   }
 
-  /** 抽取装备，并用独立运行时随机状态为每件装备生成爆散轨迹。 */
-  private releaseLoot(): void {
+  /** 恢复已打开宝箱的最终箱盖姿态和会话中仍未拾取的装备。 */
+  private restoreOpenedState(): void {
+    if (!this.sessionState.isOpened(this.spawn.key)) {
+      return;
+    }
+    this.phase = TreasureChestPhase.Open;
+    this.elapsed = TREASURE_CHEST_ANIMATION.duration;
+    this.renderer.setLidAngleDegrees(TREASURE_CHEST_ANIMATION.finalAngleDegrees);
+    this.releaseLoot();
+  }
+
+  /** 第一次开箱时确定并校验整组战利品，后续 Chunk 重载不再重新抽取。 */
+  private rollLoot(): readonly EquipmentId[] {
     const equipmentIds = this.lootTable.roll(this.lootRandomState, 0);
     for (const equipmentId of equipmentIds) {
       this.equipmentLibrary.get(equipmentId);
     }
+    return equipmentIds;
+  }
+
+  /** 使用会话中剩余的装备和首次开箱种子生成当前 Chunk 的掉落实例。 */
+  private releaseLoot(): void {
+    const equipmentIds = this.sessionState.getRemainingLoot(this.spawn.key);
+    const scatterSeed = this.sessionState.getScatterSeed(this.spawn.key);
+    if (equipmentIds === null || scatterSeed === null) {
+      throw new Error(`已打开宝箱缺少会话战利品状态：${this.spawn.key}`);
+    }
+    if (equipmentIds.length === 0) {
+      this.lootReleased = true;
+      return;
+    }
+    this.scatterRandomState[0] = scatterSeed;
     const trajectories = createLootScatterTrajectories(
       equipmentIds.length,
       this.scatterRandomState,

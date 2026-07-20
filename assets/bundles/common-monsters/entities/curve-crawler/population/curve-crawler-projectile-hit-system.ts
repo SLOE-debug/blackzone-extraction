@@ -2,13 +2,13 @@ import {
   type MutablePlanarMonsterHitResult,
   type PlanarMonsterHitQuery,
 } from '../../../../../core/contracts/monster-hit';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import {
   calculateCurveCrawlerAimElevation,
   calculateCurveCrawlerForwardHitHalfExtent,
   calculateCurveCrawlerLateralHitHalfExtent,
   calculateCurveCrawlerVerticalHitHalfExtent,
 } from '../model/curve-crawler-combat-volume';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 const SEGMENT_EPSILON = 0.000001;
@@ -30,7 +30,7 @@ export class CurveCrawlerProjectileHitSystem {
     let bestProgress = Number.POSITIVE_INFINITY;
 
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         continue;
       }
       const centerX = transform.x[index] ?? 0;

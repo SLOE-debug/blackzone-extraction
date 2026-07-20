@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import {
   calculateCurveCrawlerAimElevation,
   calculateCurveCrawlerLateralHitHalfExtent,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-combat-volume';
-import { CurveCrawlerLifePhase } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerProjectileHitSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-projectile-hit-system';
 import {
@@ -17,7 +17,7 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.x.set([30, 70, 50]);
     state.data.transform.y.set([0, 0, 0]);
     configureHitShape(state);
-    state.data.vitality.phase[2] = CurveCrawlerLifePhase.Gone;
+    state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const elevation = calculateCurveCrawlerAimElevation(4, 0, 0, 0);
     const result = {
       entityId: -1,
@@ -70,7 +70,7 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.x.set([30, 70, 180]);
     state.data.transform.y.fill(0);
     configureHitShape(state);
-    state.data.vitality.phase[2] = CurveCrawlerLifePhase.Gone;
+    state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const elevation = calculateCurveCrawlerAimElevation(4, 0, 0, 0);
     const result = {
       entityId: -1,
@@ -98,8 +98,8 @@ describe('Curve Crawler 子弹线段命中', () => {
     configureHitShape(state);
     state.data.transform.x.fill(0);
     state.data.transform.y.fill(0);
-    state.data.vitality.phase[1] = CurveCrawlerLifePhase.Gone;
-    state.data.vitality.phase[2] = CurveCrawlerLifePhase.Gone;
+    state.data.vitality.state[1] = MonsterLifecycleState.DeathComplete;
+    state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const lateralHalfExtent = calculateCurveCrawlerLateralHitHalfExtent(
       4,
       10,
@@ -135,8 +135,8 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.x.fill(0);
     state.data.transform.y.fill(0);
     state.data.transform.heading[0] = Math.PI * 0.5;
-    state.data.vitality.phase[1] = CurveCrawlerLifePhase.Gone;
-    state.data.vitality.phase[2] = CurveCrawlerLifePhase.Gone;
+    state.data.vitality.state[1] = MonsterLifecycleState.DeathComplete;
+    state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const hitSystem = new CurveCrawlerProjectileHitSystem();
     const result = {
       entityId: -1,

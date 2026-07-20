@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CurveCrawlerLifePhase } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { calculateCurveCrawlerSeparationRadius } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-separation-profile';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerSeparationSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/movement/curve-crawler-separation-system';
@@ -36,7 +36,7 @@ describe('Curve Crawler 空间哈希分离', () => {
     completeCurveCrawlerTestEmergence(state);
     state.data.transform.x.fill(4);
     state.data.transform.y.fill(-2);
-    state.data.vitality.phase[2] = CurveCrawlerLifePhase.Liquefying;
+    state.data.vitality.state[2] = MonsterLifecycleState.Dying;
     const separation = new CurveCrawlerSeparationSystem(state.count);
 
     for (let frame = 0; frame < 90; frame++) {
@@ -64,7 +64,7 @@ function countOverlappingPairs(state: CurveCrawlerState, tolerance = 0): number 
   const { transform, morphology, vitality } = state.data;
   let count = 0;
   for (let first = 0; first < state.count; first++) {
-    if ((vitality.phase[first] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+    if ((vitality.state[first] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
       continue;
     }
     const firstRadius = calculateCurveCrawlerSeparationRadius(
@@ -73,8 +73,8 @@ function countOverlappingPairs(state: CurveCrawlerState, tolerance = 0): number 
       morphology.legWidth[first] ?? 0,
     );
     for (let second = first + 1; second < state.count; second++) {
-      if ((vitality.phase[second] as CurveCrawlerLifePhase)
-        !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[second] as MonsterLifecycleState)
+        !== MonsterLifecycleState.Alive) {
         continue;
       }
       const secondRadius = calculateCurveCrawlerSeparationRadius(

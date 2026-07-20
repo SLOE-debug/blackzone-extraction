@@ -2,8 +2,8 @@ import {
   type MutablePlanarTargetResult,
   type PlanarTargetQuery,
 } from '../../../../../core/contracts/planar-target';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { calculateCurveCrawlerAimElevation } from '../model/curve-crawler-combat-volume';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 const DIRECTION_EPSILON = 0.0001;
@@ -22,7 +22,7 @@ export class CurveCrawlerTargeting {
     let bestScore = Number.POSITIVE_INFINITY;
 
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         continue;
       }
       const deltaX = (transform.x[index] ?? 0) - query.originX;

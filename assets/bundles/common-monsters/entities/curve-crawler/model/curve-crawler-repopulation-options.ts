@@ -5,7 +5,7 @@ export interface CurveCrawlerRepopulationOptions {
   readonly spawnInnerRadius: number;
   readonly spawnOuterRadius: number;
   readonly recycleRadius: number;
-  readonly minimumAliveCount: number;
+  readonly desiredPopulationCount: number;
 }
 
 /** 校验尸潮环带参数，避免高频回收循环重复处理边界。 */
@@ -21,9 +21,9 @@ export function validateCurveCrawlerRepopulationOptions(
     || options.spawnInnerRadius <= 0
     || options.spawnOuterRadius <= options.spawnInnerRadius
     || options.recycleRadius <= options.spawnOuterRadius
-    || !Number.isInteger(options.minimumAliveCount)
-    || options.minimumAliveCount <= 0
-    || options.minimumAliveCount > capacity) {
-    throw new Error('Curve Crawler 尸潮中心、环带半径或最低活体数无效。');
+    || !Number.isInteger(options.desiredPopulationCount)
+    || options.desiredPopulationCount < 0
+    || options.desiredPopulationCount > capacity) {
+    throw new Error('Curve Crawler 尸潮中心、环带半径或期望人口数无效。');
   }
 }

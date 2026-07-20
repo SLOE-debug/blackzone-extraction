@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { nextRandom } from '../../assets/core/math/xorshift32';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
-import { CurveCrawlerLifePhase } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-life';
 import { createNormalizedCurveCrawlerTestOptions } from './state-test-fixture';
 
 const options = createNormalizedCurveCrawlerTestOptions({
@@ -62,12 +62,12 @@ describe('Curve Crawler 状态初始化', () => {
   it('自主实体以确定性错峰出生状态初始化', () => {
     const state = new CurveCrawlerState(options);
 
-    expect(Array.from(state.data.vitality.phase).every(
-      (phase) => phase === CurveCrawlerLifePhase.Emerging,
+    expect(Array.from(state.data.vitality.state).every(
+      (lifecycleState) => lifecycleState === MonsterLifecycleState.Spawning,
     )).toBe(true);
-    expect(state.data.vitality.phaseTime[0] ?? 0).toBeLessThanOrEqual(0);
-    expect(state.data.vitality.phaseTime[1] ?? 0).toBeLessThan(
-      state.data.vitality.phaseTime[0] ?? 0,
+    expect(state.data.vitality.stateTime[0] ?? 0).toBeLessThanOrEqual(0);
+    expect(state.data.vitality.stateTime[1] ?? 0).toBeLessThan(
+      state.data.vitality.stateTime[0] ?? 0,
     );
     expect(Array.from(state.data.identity.appearanceSeed)).toEqual(
       Array.from(new CurveCrawlerState(options).data.identity.appearanceSeed),

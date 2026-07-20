@@ -2,9 +2,9 @@ import {
   MonsterObservationEventType,
   type MonsterObservationEvent,
 } from '../../../../../core/contracts/monster-observation';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
 import {
   CURVE_CRAWLER_OBSERVATION_SPEED_SHARPNESS,
   CurveCrawlerMotionProfile,
@@ -23,7 +23,7 @@ export class CurveCrawlerObservationSystem implements EntitySystem<CurveCrawlerS
 
     const { morphology, vitality, behavior, observation, intent } = state.data;
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase) !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         intent.targetSpeed[index] = 0;
         intent.targetCrouch[index] = 0;
         intent.targetBite[index] = 0;

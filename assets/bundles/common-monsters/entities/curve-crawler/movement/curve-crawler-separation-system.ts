@@ -1,5 +1,5 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
-import { CurveCrawlerLifePhase } from '../model/curve-crawler-life';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import {
   calculateCurveCrawlerSeparationRadius,
@@ -93,8 +93,8 @@ implements EntitySystem<CurveCrawlerState, number> {
     const { transform, morphology, vitality } = state.data;
     const inverseCellSize = 1 / this.profile.cellSize;
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase)
-        !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState)
+        !== MonsterLifecycleState.Alive) {
         continue;
       }
       const cellX = Math.floor((transform.x[index] ?? 0) * inverseCellSize);
@@ -126,8 +126,8 @@ implements EntitySystem<CurveCrawlerState, number> {
       Math.ceil(this.maximumRadius * 2 / this.profile.cellSize),
     );
     for (let first = 0; first < state.count; first++) {
-      if ((vitality.phase[first] as CurveCrawlerLifePhase)
-        !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[first] as MonsterLifecycleState)
+        !== MonsterLifecycleState.Alive) {
         continue;
       }
       const firstX = transform.x[first] ?? 0;
@@ -193,8 +193,8 @@ implements EntitySystem<CurveCrawlerState, number> {
   private applyCorrections(state: CurveCrawlerState, maximumCorrection: number): void {
     const { transform, vitality } = state.data;
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.phase[index] as CurveCrawlerLifePhase)
-        !== CurveCrawlerLifePhase.Alive) {
+      if ((vitality.state[index] as MonsterLifecycleState)
+        !== MonsterLifecycleState.Alive) {
         continue;
       }
       let correctionX = this.correctionX[index] ?? 0;
