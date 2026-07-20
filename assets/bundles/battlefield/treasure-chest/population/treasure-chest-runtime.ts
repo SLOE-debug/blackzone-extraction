@@ -10,6 +10,7 @@ import {
   DroppedEquipmentPopulation,
   DroppedEquipmentInstanceIdSequence,
 } from '../../equipment/population/dropped-equipment-population';
+import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
 import { createLootScatterTrajectories } from '../../loot/model/loot-scatter-trajectory';
 import {
   evaluateTreasureChestLidAngle,
@@ -18,7 +19,6 @@ import {
 import { TREASURE_CHEST_ATTENTION } from '../animation/treasure-chest-attention';
 import {
   type BattlefieldTreasureChestSpawn,
-  type TreasureChestId,
 } from '../model/battlefield-treasure-chest-spawn';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TreasureChestRenderer } from '../rendering/treasure-chest-renderer';
@@ -31,12 +31,13 @@ enum TreasureChestPhase {
 
 /** 单个宝箱的交互、开启动画、战利品抽取和掉落物生命周期。 */
 export class TreasureChestRuntime {
-  public readonly id: TreasureChestId;
+  public readonly id: number;
   public readonly x: number;
   public readonly z: number;
   private readonly renderer: TreasureChestRenderer;
   private readonly drops: DroppedEquipmentPopulation;
-  private readonly randomState = new Uint32Array(1);
+  private readonly lootRandomState = new Uint32Array(1);
+  private readonly scatterRandomState = new Uint32Array(1);
   private phase = TreasureChestPhase.Closed;
   private elapsed = 0;
   private attentionElapsed = 0;
@@ -46,6 +47,7 @@ export class TreasureChestRuntime {
   private disposed = false;
 
   constructor(
+    id: number,
     parent: Node,
     surfaceMaterialTemplate: Material,
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
@@ -53,10 +55,14 @@ export class TreasureChestRuntime {
     private readonly lootTable: LootTable<EquipmentId>,
     instanceIds: DroppedEquipmentInstanceIdSequence,
   ) {
-    this.id = spawn.id;
+    if (!Number.isSafeInteger(id) || id <= 0) {
+      throw new Error('宝箱运行时标识必须是正安全整数。');
+    }
+    this.id = id;
     this.x = spawn.x;
     this.z = spawn.z;
-    this.randomState[0] = normalizeRandomSeed(spawn.seed);
+    this.lootRandomState[0] = normalizeRandomSeed(spawn.seed);
+    this.scatterRandomState[0] = normalizeRandomSeed(spawn.seed);
     this.renderer = new TreasureChestRenderer(
       parent,
       surfaceMaterialTemplate,
@@ -89,10 +95,12 @@ export class TreasureChestRuntime {
     }
     this.phase = TreasureChestPhase.Opening;
     this.elapsed = 0;
+    this.lootRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x9e3779b1);
+    this.scatterRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x85ebca6b);
     return true;
   }
 
-  /** 缓存玩家到宝箱的距离，供下一次固定频率材质提示求值。 */
+  /** 缓存玩家到宝箱的距离，供下一次固定频率信标提示求值。 */
   public synchronizeAttentionTarget(playerX: number, playerZ: number): void {
     if (this.disposed) {
       return;
@@ -158,15 +166,15 @@ export class TreasureChestRuntime {
     this.renderer.dispose();
   }
 
-  /** 通过可替换战利品表抽取装备，并为每件装备生成独立爆散轨迹。 */
+  /** 抽取装备，并用独立运行时随机状态为每件装备生成爆散轨迹。 */
   private releaseLoot(): void {
-    const equipmentIds = this.lootTable.roll(this.randomState, 0);
+    const equipmentIds = this.lootTable.roll(this.lootRandomState, 0);
     for (const equipmentId of equipmentIds) {
       this.equipmentLibrary.get(equipmentId);
     }
     const trajectories = createLootScatterTrajectories(
       equipmentIds.length,
-      this.randomState,
+      this.scatterRandomState,
       0,
       this.spawn.x,
       this.spawn.y + TREASURE_CHEST_LAYOUT.lootReleaseHeight,

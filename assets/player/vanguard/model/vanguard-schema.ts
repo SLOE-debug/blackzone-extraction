@@ -25,7 +25,8 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     aimX: entityField(Float32Array, 1),
     aimZ: entityField(Float32Array, 1),
     aiming: entityField(Uint8Array, 1),
-    weaponReady: entityField(Uint8Array, 1),
+    weaponPose: entityField(Uint8Array, 1),
+    weaponAttackAmount: entityField(Float32Array, 1),
   },
   motion: {
     velocityX: entityField(Float32Array, 1),
@@ -41,6 +42,7 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     idlePhase: entityField(Float32Array, 1),
     locomotionPhase: entityField(Float32Array, 1),
     locomotionBlend: entityField(Float32Array, 1),
+    weaponPose: entityField(Uint8Array, 1),
     weaponStanceBlend: entityField(Float32Array, 1),
     hitFlash: entityField(Float32Array, 1),
   },

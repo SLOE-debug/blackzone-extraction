@@ -5,12 +5,12 @@ import {
   EquipmentId,
 } from '../../../../core/equipment/equipment';
 import { type LootTable } from '../../../../core/loot/weighted-loot-table';
-import { isSameChunkCoordinate } from '../../../../core/world/chunk-coordinate';
 import {
   type ChunkRuntimeParticipant,
   type ChunkRuntimeScope,
 } from '../../../../core/world/chunk-runtime-registry';
 import {
+  DroppedEquipmentPopulation,
   DroppedEquipmentInstanceIdSequence,
   type MutableDroppedEquipmentInspection,
 } from '../../equipment/population/dropped-equipment-population';
@@ -20,9 +20,9 @@ import {
   type BattlefieldInteractionProvider,
   type MutableBattlefieldInteractionCandidate,
 } from '../../interaction/model/battlefield-interaction';
-import {
-  BATTLEFIELD_TREASURE_CHEST_SPAWNS,
-} from '../model/battlefield-treasure-chest-spawn';
+import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
+import { createPlayerDiscardTrajectory } from '../../loot/model/player-discard-trajectory';
+import { createBattlefieldTreasureChestSpawns } from '../model/battlefield-treasure-chest-spawn';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TreasureChestRuntime } from './treasure-chest-runtime';
 
@@ -39,6 +39,9 @@ BattlefieldInteractionProvider, Disposable {
     z: 0,
   };
   private readonly equipmentInstanceIds = new DroppedEquipmentInstanceIdSequence();
+  private readonly discardedEquipment: DroppedEquipmentPopulation;
+  private readonly discardRandomState = new Uint32Array(1);
+  private nextTreasureChestId = 1;
   private disposed = false;
 
   constructor(
@@ -46,19 +49,24 @@ BattlefieldInteractionProvider, Disposable {
     private readonly surfaceMaterialTemplate: Material,
     private readonly equipmentLibrary: EquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
-  ) {}
+  ) {
+    this.discardedEquipment = new DroppedEquipmentPopulation(
+      parent,
+      surfaceMaterialTemplate,
+      this.equipmentInstanceIds,
+    );
+    this.discardRandomState[0] = createLootRuntimeRandomSeed(0x3c6ef35f);
+  }
 
-  /** 为当前 Chunk 清单中的宝箱创建独占运行时并登记到作用域。 */
+  /** 为当前 Chunk 程序化生成宝箱，并把各自运行时登记到作用域。 */
   public populate(
     scope: ChunkRuntimeScope,
     _environment: BattlefieldEnvironmentPopulation,
   ): void {
     this.ensureActive();
-    for (const spawn of BATTLEFIELD_TREASURE_CHEST_SPAWNS) {
-      if (!isSameChunkCoordinate(spawn.chunk, scope.chunk)) {
-        continue;
-      }
+    for (const spawn of createBattlefieldTreasureChestSpawns(scope.chunk)) {
       const chest = new TreasureChestRuntime(
+        this.nextTreasureChestId++,
         this.parent,
         this.surfaceMaterialTemplate,
         spawn,
@@ -78,9 +86,10 @@ BattlefieldInteractionProvider, Disposable {
     for (const chest of this.chests) {
       chest.update(deltaTime);
     }
+    this.discardedEquipment.update(deltaTime);
   }
 
-  /** 把玩家最新位置同步给全部活动宝箱的低频材质提示。 */
+  /** 把玩家最新位置同步给全部活动宝箱的低频信标提示。 */
   public synchronizeAttention(playerX: number, playerZ: number): void {
     if (this.disposed) {
       return;
@@ -142,7 +151,7 @@ BattlefieldInteractionProvider, Disposable {
     return false;
   }
 
-  /** 在全部活动宝箱掉落物中选择离玩家最近的装备。 */
+  /** 在宝箱掉落与玩家替换掉落中选择离玩家最近的装备。 */
   public writeNearestEquipmentInspection(
     playerX: number,
     playerZ: number,
@@ -153,6 +162,20 @@ BattlefieldInteractionProvider, Disposable {
     }
     let found = false;
     let bestDistanceSquared = Number.POSITIVE_INFINITY;
+    if (this.discardedEquipment.writeNearestInspection(
+      playerX,
+      playerZ,
+      this.inspectionCandidate,
+    )) {
+      bestDistanceSquared = copyInspectionIfCloser(
+        this.inspectionCandidate,
+        playerX,
+        playerZ,
+        bestDistanceSquared,
+        result,
+      );
+      found = true;
+    }
     for (const chest of this.chests) {
       if (!chest.writeNearestEquipmentInspection(
         playerX,
@@ -161,26 +184,29 @@ BattlefieldInteractionProvider, Disposable {
       )) {
         continue;
       }
-      const deltaX = this.inspectionCandidate.x - playerX;
-      const deltaZ = this.inspectionCandidate.z - playerZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      if (distanceSquared < bestDistanceSquared) {
-        result.equipmentId = this.inspectionCandidate.equipmentId;
-        result.instanceId = this.inspectionCandidate.instanceId;
-        result.x = this.inspectionCandidate.x;
-        result.y = this.inspectionCandidate.y;
-        result.z = this.inspectionCandidate.z;
-        bestDistanceSquared = distanceSquared;
+      const nextBestDistanceSquared = copyInspectionIfCloser(
+        this.inspectionCandidate,
+        playerX,
+        playerZ,
+        bestDistanceSquared,
+        result,
+      );
+      if (nextBestDistanceSquared < bestDistanceSquared) {
+        bestDistanceSquared = nextBestDistanceSquared;
         found = true;
       }
     }
     return found;
   }
 
-  /** 在全部活动宝箱中查找指定掉落实例携带的装备。 */
+  /** 在宝箱掉落与玩家替换掉落中查找指定装备实例。 */
   public getDroppedEquipmentId(instanceId: number): EquipmentId | null {
     if (this.disposed) {
       return null;
+    }
+    const discardedEquipmentId = this.discardedEquipment.getEquipmentId(instanceId);
+    if (discardedEquipmentId !== null) {
+      return discardedEquipmentId;
     }
     for (const chest of this.chests) {
       const equipmentId = chest.getDroppedEquipmentId(instanceId);
@@ -191,10 +217,13 @@ BattlefieldInteractionProvider, Disposable {
     return null;
   }
 
-  /** 从拥有指定实例的活动宝箱中移除已经完成拾取的装备。 */
+  /** 从拥有指定实例的掉落群体中移除已经完成拾取的装备。 */
   public removeDroppedEquipment(instanceId: number): boolean {
     if (this.disposed) {
       return false;
+    }
+    if (this.discardedEquipment.remove(instanceId)) {
+      return true;
     }
     for (const chest of this.chests) {
       if (chest.removeDroppedEquipment(instanceId)) {
@@ -204,11 +233,36 @@ BattlefieldInteractionProvider, Disposable {
     return false;
   }
 
+  /** 把玩家刚替换下来的武器以克制弧线轻抛到脚边。 */
+  public spawnPlayerDiscard(
+    equipmentId: EquipmentId,
+    x: number,
+    y: number,
+    z: number,
+    heading: number,
+  ): void {
+    this.ensureActive();
+    this.equipmentLibrary.get(equipmentId);
+    const trajectory = createPlayerDiscardTrajectory(
+      this.discardRandomState,
+      0,
+      x,
+      y,
+      z,
+      heading,
+    );
+    this.discardedEquipment.spawnBurst(
+      Object.freeze([equipmentId]),
+      Object.freeze([trajectory]),
+    );
+  }
+
   public dispose(): void {
     if (this.disposed) {
       return;
     }
     this.disposed = true;
+    this.discardedEquipment.dispose();
     while (this.chests.length > 0) {
       this.chests.pop()?.dispose();
     }
@@ -219,6 +273,28 @@ BattlefieldInteractionProvider, Disposable {
       throw new Error('战场宝箱群体已经释放。');
     }
   }
+}
+
+/** 仅在候选更近时复制 HUD 查询结果，并返回新的最短平方距离。 */
+function copyInspectionIfCloser(
+  candidate: Readonly<MutableDroppedEquipmentInspection>,
+  playerX: number,
+  playerZ: number,
+  bestDistanceSquared: number,
+  result: MutableDroppedEquipmentInspection,
+): number {
+  const deltaX = candidate.x - playerX;
+  const deltaZ = candidate.z - playerZ;
+  const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
+  if (distanceSquared >= bestDistanceSquared) {
+    return bestDistanceSquared;
+  }
+  result.equipmentId = candidate.equipmentId;
+  result.instanceId = candidate.instanceId;
+  result.x = candidate.x;
+  result.y = candidate.y;
+  result.z = candidate.z;
+  return distanceSquared;
 }
 
 /** 在 Chunk 卸载时释放宝箱及其尚在飞行或已经落地的全部装备。 */

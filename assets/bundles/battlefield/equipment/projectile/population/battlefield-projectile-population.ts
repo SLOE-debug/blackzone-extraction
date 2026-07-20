@@ -1,5 +1,8 @@
 import { type Node } from 'cc';
-import { type WeaponEquipmentDefinition } from '../../../../../core/equipment/equipment';
+import {
+  type WeaponEquipmentDefinition,
+  type WeaponProjectileDefinition,
+} from '../../../../../core/equipment/equipment';
 import {
   type BattlefieldMonsterPopulation,
   type MutableBattlefieldProjectileHit,
@@ -16,6 +19,7 @@ const MAXIMUM_DELTA_TIME = 0.05;
 export class BattlefieldProjectilePopulation {
   private readonly state: BattlefieldProjectileState;
   private readonly renderer: BattlefieldProjectileRenderer;
+  private readonly projectile: Readonly<WeaponProjectileDefinition>;
   private readonly hitResult: MutableBattlefieldProjectileHit = {
     entityId: -1,
     x: 0,
@@ -30,8 +34,13 @@ export class BattlefieldProjectilePopulation {
     parent: Node,
     private readonly weapon: Readonly<WeaponEquipmentDefinition>,
   ) {
+    this.projectile = weapon.projectile;
     this.state = new BattlefieldProjectileState(calculateProjectileCapacity(weapon));
-    this.renderer = new BattlefieldProjectileRenderer(parent, this.state);
+    this.renderer = new BattlefieldProjectileRenderer(
+      parent,
+      this.state,
+      this.projectile.visual,
+    );
   }
 
   /** 在枪口位置复用一个子弹槽位。 */
@@ -60,7 +69,7 @@ export class BattlefieldProjectilePopulation {
     }
     const safeDeltaTime = Math.max(0, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
     let changed = this.renderingDirty;
-    const projectile = this.weapon.projectile;
+    const projectile = this.projectile;
     for (let slot = 0; slot < this.state.capacity; slot++) {
       if ((this.state.active[slot] ?? 0) === 0) {
         continue;

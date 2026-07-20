@@ -9,7 +9,6 @@ import { BATTLEFIELD_ENVIRONMENT_LANDMARKS } from '../../../assets/bundles/battl
 import { BattlefieldEnvironmentWorldState } from '../../../assets/bundles/battlefield/environment/model/battlefield-environment-state';
 import {
   BATTLEFIELD_MONSTER_SPAWN,
-  createBattlefieldMonsterSpawn,
 } from '../../../assets/bundles/battlefield/model/battlefield-monster-spawn';
 
 const PREPARED_ENVIRONMENT = prepareBattlefieldEnvironment();
@@ -38,25 +37,16 @@ describe('战场无限环境生成', () => {
     const altar = world.get(BattlefieldEnvironmentPrototype.RitualAltar);
     expect(altar.data.transform.x[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.ritualAltar.x);
     expect(altar.data.transform.z[0]).toBeCloseTo(BATTLEFIELD_ENVIRONMENT_LANDMARKS.ritualAltar.z);
-    expect(BATTLEFIELD_MONSTER_SPAWN.minimumCount).toBeGreaterThan(0);
+    expect(BATTLEFIELD_MONSTER_SPAWN.minimumAliveCount).toBeGreaterThanOrEqual(180);
     expect(BATTLEFIELD_MONSTER_SPAWN.groundOffsetY).toBeGreaterThan(0);
   });
 
-  it('怪物不依赖环境设施并按 Chunk 坐标确定性随机生成', () => {
-    const origin = createBattlefieldMonsterSpawn({ x: 0, z: 0 });
-    expect(origin).not.toBeNull();
-    expect(createBattlefieldMonsterSpawn({ x: 0, z: 0 })).toEqual(origin);
-    expect(origin?.count ?? 0).toBeGreaterThanOrEqual(BATTLEFIELD_MONSTER_SPAWN.minimumCount);
-    expect(origin?.count ?? 0).toBeLessThan(BATTLEFIELD_MONSTER_SPAWN.maximumCountExclusive);
-    expect(Math.hypot(origin?.x ?? 0, origin?.z ?? 0)).toBeGreaterThanOrEqual(11);
-
-    const samples = Array.from({ length: 64 }, (_, index) => createBattlefieldMonsterSpawn({
-      x: index - 32,
-      z: index % 9 - 4,
-    })).filter((spawn) => spawn !== null);
-    expect(samples.length).toBeGreaterThan(4);
-    expect(new Set(samples.map((spawn) => `${spawn.x.toFixed(3)}/${spawn.z.toFixed(3)}`)).size)
-      .toBe(samples.length);
+  it('怪物使用玩家周边固定容量环带并保留死亡过程缓冲槽', () => {
+    const spawn = BATTLEFIELD_MONSTER_SPAWN;
+    expect(spawn.populationCount).toBeGreaterThan(spawn.minimumAliveCount);
+    expect(spawn.spawnInnerRadius).toBeGreaterThan(10);
+    expect(spawn.spawnOuterRadius).toBeGreaterThan(spawn.spawnInnerRadius);
+    expect(spawn.recycleRadius).toBeGreaterThan(spawn.spawnOuterRadius);
   });
 
   it('相同 Chunk 窗口重复生成完全一致并能安全生成远处窗口', () => {

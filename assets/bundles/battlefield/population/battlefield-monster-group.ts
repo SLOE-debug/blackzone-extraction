@@ -29,8 +29,20 @@ const AUTO_LOCK_MINIMUM_ALIGNMENT = Math.cos(68 / 180 * Math.PI);
 interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation,
 PlanarMonsterHitPopulation {
   readonly count: number;
+  readonly aliveCount: number;
+  initializeAround(options: Readonly<BattlefieldMonsterRepopulationOptions>): void;
+  maintainAround(options: Readonly<BattlefieldMonsterRepopulationOptions>): void;
   update(deltaTime: number): void;
   dispose(): void;
+}
+
+interface BattlefieldMonsterRepopulationOptions {
+  centerX: number;
+  centerY: number;
+  spawnInnerRadius: number;
+  spawnOuterRadius: number;
+  recycleRadius: number;
+  minimumAliveCount: number;
 }
 
 interface MutablePlanarTargetQuery extends PlanarTargetQuery {
@@ -97,6 +109,14 @@ export class BattlefieldMonsterGroup {
     segmentProgress: 0,
   };
   private combatTargetActive = false;
+  private readonly repopulationOptions: BattlefieldMonsterRepopulationOptions = {
+    centerX: 0,
+    centerY: 0,
+    spawnInnerRadius: 1,
+    spawnOuterRadius: 2,
+    recycleRadius: 3,
+    minimumAliveCount: 1,
+  };
   private disposed = false;
 
   constructor(
@@ -108,6 +128,7 @@ export class BattlefieldMonsterGroup {
     count: number,
     spawnSeed: number,
     worldDiameter: number,
+    initializeAsPlayerSwarm: boolean,
   ) {
     const assembly = createMonsterAssembly(
       renderBatch,
@@ -118,11 +139,29 @@ export class BattlefieldMonsterGroup {
       worldDiameter,
     );
     this.population = assembly.population;
+    if (initializeAsPlayerSwarm) {
+      this.writeRepopulationOptions(centerX, centerZ);
+      this.population.initializeAround(this.repopulationOptions);
+    }
   }
 
   /** 当前地图群体的怪物数量。 */
   public get count(): number {
     return this.population.count;
+  }
+
+  /** 当前真正活着并能追击玩家的怪物数。 */
+  public get aliveCount(): number {
+    return this.population.aliveCount;
+  }
+
+  /** 以玩家世界坐标为环带中心回收远处怪物并补足活体。 */
+  public maintainAround(playerX: number, playerZ: number): void {
+    if (this.disposed) {
+      return;
+    }
+    this.writeRepopulationOptions(playerX, playerZ);
+    this.population.maintainAround(this.repopulationOptions);
   }
 
   /** 同步玩家目标，推进群体并返回本帧命中的聚合伤害。 */
@@ -278,6 +317,18 @@ export class BattlefieldMonsterGroup {
     this.localCombatTarget.x = target.x * inverseScale;
     this.localCombatTarget.y = -target.z * inverseScale;
     this.localCombatTarget.collisionRadius = target.collisionRadius * inverseScale;
+  }
+
+  /** 把战场 XZ 环带配置转换为 Curve Crawler 本地 XY 平面。 */
+  private writeRepopulationOptions(playerX: number, playerZ: number): void {
+    const config = BATTLEFIELD_MONSTER_SPAWN;
+    const inverseScale = 1 / config.modelScale;
+    this.repopulationOptions.centerX = playerX * inverseScale;
+    this.repopulationOptions.centerY = -playerZ * inverseScale;
+    this.repopulationOptions.spawnInnerRadius = config.spawnInnerRadius * inverseScale;
+    this.repopulationOptions.spawnOuterRadius = config.spawnOuterRadius * inverseScale;
+    this.repopulationOptions.recycleRadius = config.recycleRadius * inverseScale;
+    this.repopulationOptions.minimumAliveCount = config.minimumAliveCount;
   }
 }
 

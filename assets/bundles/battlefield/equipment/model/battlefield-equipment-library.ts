@@ -6,6 +6,7 @@ import {
   EquipmentRarity,
   WeaponAmmunitionMode,
   WeaponClass,
+  WeaponProjectileVisual,
 } from '../../../../core/equipment/equipment';
 
 /** 战场当前可生成装备的完整强类型清单。 */
@@ -19,6 +20,7 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
     weaponClass: WeaponClass.Handgun,
     damage: 74,
     fireIntervalSeconds: 0.32,
+    attackAnimationSeconds: 0.22,
     ammunition: Object.freeze({
       mode: WeaponAmmunitionMode.Infinite,
     }),
@@ -26,6 +28,7 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
       speed: 31,
       maximumRange: 20,
       impactRadius: 0.12,
+      visual: WeaponProjectileVisual.Bullet,
     }),
   }),
 } satisfies Readonly<Record<EquipmentId, EquipmentDefinition>>);

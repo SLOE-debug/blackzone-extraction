@@ -12,4 +12,5 @@ export {
   type CurveCrawlerCommand,
   type CurveCrawlerDisplayOptions,
   type CurveCrawlerPopulationOptions,
+  type CurveCrawlerRepopulationOptions,
 } from './entities/curve-crawler';

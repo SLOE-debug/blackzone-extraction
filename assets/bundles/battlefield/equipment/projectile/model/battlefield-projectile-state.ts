@@ -73,15 +73,16 @@ export class BattlefieldProjectileState {
 export function calculateProjectileCapacity(
   definition: Readonly<WeaponEquipmentDefinition>,
 ): number {
+  const projectile = definition.projectile;
   if (!Number.isFinite(definition.fireIntervalSeconds)
     || definition.fireIntervalSeconds <= 0
-    || !Number.isFinite(definition.projectile.speed)
-    || definition.projectile.speed <= 0
-    || !Number.isFinite(definition.projectile.maximumRange)
-    || definition.projectile.maximumRange <= 0) {
+    || !Number.isFinite(projectile.speed)
+    || projectile.speed <= 0
+    || !Number.isFinite(projectile.maximumRange)
+    || projectile.maximumRange <= 0) {
     throw new Error('武器射速、子弹速度和射程必须是有限正数。');
   }
-  const flightSeconds = definition.projectile.maximumRange / definition.projectile.speed;
+  const flightSeconds = projectile.maximumRange / projectile.speed;
   const capacity = Math.ceil(flightSeconds / definition.fireIntervalSeconds) + 1;
   if (!Number.isSafeInteger(capacity) || capacity <= 0) {
     throw new Error('武器参数无法推导有效的战场子弹容量。');

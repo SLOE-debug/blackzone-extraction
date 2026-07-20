@@ -1,7 +1,10 @@
 import { type Material, Node } from 'cc';
 import { EquipmentId } from '../../../../core/equipment/equipment';
 import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
-import { HELD_WEAPON_LAYOUT } from '../model/held-weapon-layout';
+import {
+  getHeldWeaponProfile,
+  type HeldWeaponProfile,
+} from '../model/held-weapon-profile';
 import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
 
 const DEGREES_PER_RADIAN = 180 / Math.PI;
@@ -15,6 +18,7 @@ const HELD_WEAPON_SURFACE_OPTIONS = Object.freeze({
 export class HeldWeaponRenderer {
   private readonly root: Node;
   private readonly mesh = new StaticSurfaceMesh();
+  private readonly profile: Readonly<HeldWeaponProfile>;
   private disposed = false;
 
   constructor(
@@ -22,12 +26,13 @@ export class HeldWeaponRenderer {
     equipmentId: EquipmentId,
     material: Material,
   ) {
+    this.profile = getHeldWeaponProfile(equipmentId);
     const root = new Node('HeldWeapon');
     parent.addChild(root);
     root.setScale(
-      HELD_WEAPON_LAYOUT.modelScale,
-      HELD_WEAPON_LAYOUT.modelScale,
-      HELD_WEAPON_LAYOUT.modelScale,
+      this.profile.heldScale,
+      this.profile.heldScale,
+      this.profile.heldScale,
     );
     this.root = root;
     try {
@@ -51,16 +56,18 @@ export class HeldWeaponRenderer {
     }
     const forwardX = Math.sin(heading);
     const forwardZ = Math.cos(heading);
+    const rightX = Math.cos(heading);
+    const rightZ = -Math.sin(heading);
+    const profile = this.profile;
     this.root.setPosition(
-      x + forwardX * HELD_WEAPON_LAYOUT.modelOriginForwardOffset,
-      y + HELD_WEAPON_LAYOUT.modelOriginHeightOffset,
-      z + forwardZ * HELD_WEAPON_LAYOUT.modelOriginForwardOffset,
+      x + rightX * profile.originRightOffset + forwardX * profile.originForwardOffset,
+      y + profile.originHeightOffset,
+      z + rightZ * profile.originRightOffset + forwardZ * profile.originForwardOffset,
     );
-    // 沙漠之鹰枪管沿局部 +X，减去九十度后与角色局部 +Z 前向重合。
     this.root.setRotationFromEuler(
-      0,
-      (heading - Math.PI * 0.5) * DEGREES_PER_RADIAN,
-      0,
+      profile.rotationXDegrees,
+      heading * DEGREES_PER_RADIAN + profile.rotationYDegrees,
+      profile.rotationZDegrees,
     );
   }
 

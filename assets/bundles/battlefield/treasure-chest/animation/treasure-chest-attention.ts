@@ -2,38 +2,41 @@ import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 
 const TAU = Math.PI * 2;
 
-/** 宝箱呼吸提示使用的可复用自发光颜色结果。 */
-export interface MutableTreasureChestAttentionColor {
-  red: number;
-  green: number;
-  blue: number;
+/** 宝箱信标提示使用的可复用动画采样结果。 */
+export interface MutableTreasureChestAttentionSample {
+  signalStrength: number;
+  proximity: number;
+  pulse: number;
 }
 
-/** 不增加渲染 Pass 的宝箱材质呼吸参数。 */
+/** 宝箱信标根据距离变化的低频呼吸参数。 */
 export const TREASURE_CHEST_ATTENTION = Object.freeze({
   samplesPerSecond: 30,
-  cycleDuration: 2.35,
-  pulseSharpness: 2,
-  awarenessRadius: 7.5,
-  minimum: Object.freeze({ red: 3, green: 1, blue: 0 }),
-  distantPeak: Object.freeze({ red: 38, green: 15, blue: 4 }),
-  nearbyPeak: Object.freeze({ red: 58, green: 27, blue: 8 }),
+  cycleDuration: 2.65,
+  pulseSharpness: 1.45,
+  awarenessRadius: 11,
+  distantFloor: 0.44,
+  distantPeak: 0.72,
+  nearbyFloor: 0.64,
+  nearbyPeak: 1,
 });
 
 /**
- * 根据时间和玩家距离求值已有 Standard 材质的暖色自发光。
+ * 根据时间和玩家距离求值地面光环、漂浮光片与局部灯光的统一强度。
  *
- * 关闭状态使用低频呼吸吸引视线，进入交互距离时增强；开启后立即回到最低值。
+ * 关闭状态始终保留远距离可读的基础亮度，进入交互距离后增强；开启后立即熄灭。
  */
 export function evaluateTreasureChestAttention(
   elapsed: number,
   playerDistanceSquared: number,
   active: boolean,
-  result: MutableTreasureChestAttentionColor,
+  result: MutableTreasureChestAttentionSample,
 ): void {
   const config = TREASURE_CHEST_ATTENTION;
   if (!active) {
-    writeColor(config.minimum, result);
+    result.signalStrength = 0;
+    result.proximity = 0;
+    result.pulse = 0;
     return;
   }
   if (
@@ -52,21 +55,11 @@ export function evaluateTreasureChestAttention(
   const wave = 0.5 - Math.cos(elapsed / config.cycleDuration * TAU) * 0.5;
   const easedWave = wave * wave * (3 - 2 * wave);
   const pulse = Math.pow(easedWave, config.pulseSharpness);
-  const peakRed = lerp(config.distantPeak.red, config.nearbyPeak.red, proximity);
-  const peakGreen = lerp(config.distantPeak.green, config.nearbyPeak.green, proximity);
-  const peakBlue = lerp(config.distantPeak.blue, config.nearbyPeak.blue, proximity);
-  result.red = Math.round(lerp(config.minimum.red, peakRed, pulse));
-  result.green = Math.round(lerp(config.minimum.green, peakGreen, pulse));
-  result.blue = Math.round(lerp(config.minimum.blue, peakBlue, pulse));
-}
-
-function writeColor(
-  source: Readonly<{ red: number; green: number; blue: number }>,
-  result: MutableTreasureChestAttentionColor,
-): void {
-  result.red = source.red;
-  result.green = source.green;
-  result.blue = source.blue;
+  const floor = lerp(config.distantFloor, config.nearbyFloor, proximity);
+  const peak = lerp(config.distantPeak, config.nearbyPeak, proximity);
+  result.signalStrength = lerp(floor, peak, pulse);
+  result.proximity = proximity;
+  result.pulse = pulse;
 }
 
 function lerp(start: number, end: number, amount: number): number {

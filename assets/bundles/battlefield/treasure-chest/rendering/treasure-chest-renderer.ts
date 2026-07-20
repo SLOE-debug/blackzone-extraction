@@ -11,11 +11,7 @@ import {
   type TreasureChestBatchGeometry,
   writeTreasureChestLidPose,
 } from '../geometry/treasure-chest-batch-geometry';
-import {
-  evaluateTreasureChestAttention,
-  TREASURE_CHEST_ATTENTION,
-  type MutableTreasureChestAttentionColor,
-} from '../animation/treasure-chest-attention';
+import { TreasureChestBeaconRenderer } from './treasure-chest-beacon-renderer';
 
 const DEGREES_PER_RADIAN = 180 / Math.PI;
 const CHEST_SURFACE_OPTIONS = Object.freeze({
@@ -37,17 +33,7 @@ export class TreasureChestRenderer {
     maxZ: 0,
   };
   private readonly material: Material;
-  private readonly attentionColor = new Color(3, 1, 0, 255);
-  private readonly attentionChannels: MutableTreasureChestAttentionColor = {
-    red: 3,
-    green: 1,
-    blue: 0,
-  };
-  private lastAttentionSample = -1;
-  private attentionActive = false;
-  private appliedAttentionRed = 3;
-  private appliedAttentionGreen = 1;
-  private appliedAttentionBlue = 0;
+  private readonly beacon: TreasureChestBeaconRenderer;
   private disposed = false;
 
   constructor(
@@ -65,6 +51,7 @@ export class TreasureChestRenderer {
     this.root = root;
 
     let material: Material | null = null;
+    let beacon: TreasureChestBeaconRenderer | null = null;
     try {
       material = StandardVertexColorMaterialFactory.create(surfaceMaterialTemplate, {
         name: 'TreasureChestSurfaceMaterial',
@@ -72,7 +59,7 @@ export class TreasureChestRenderer {
         roughness: 0.72,
         metallic: 0.14,
         specularIntensity: 0.4,
-        emissive: new Color(3, 1, 0, 255),
+        emissive: new Color(11, 4, 1, 255),
       });
       this.material = material;
       this.geometry = createTreasureChestBatchGeometry();
@@ -85,8 +72,11 @@ export class TreasureChestRenderer {
         this.bounds,
         CHEST_SURFACE_OPTIONS,
       );
+      beacon = new TreasureChestBeaconRenderer(root);
+      this.beacon = beacon;
     } catch (error: unknown) {
       this.disposed = true;
+      beacon?.dispose();
       this.mesh.dispose();
       material?.destroy();
       if (root.isValid) {
@@ -107,7 +97,7 @@ export class TreasureChestRenderer {
     this.mesh.updateBounds(this.bounds);
   }
 
-  /** 以固定 30Hz 采样更新已有材质 uniform，不创建额外灯光或渲染 Pass。 */
+  /** 更新独立信标层，宝箱本体维持稳定色彩，不再整体呼吸变色。 */
   public updateAttention(
     elapsed: number,
     playerDistanceSquared: number,
@@ -116,39 +106,7 @@ export class TreasureChestRenderer {
     if (this.disposed) {
       return;
     }
-    if (!active && !this.attentionActive) {
-      return;
-    }
-    const sample = Math.floor(elapsed * TREASURE_CHEST_ATTENTION.samplesPerSecond);
-    if (sample === this.lastAttentionSample && active === this.attentionActive) {
-      return;
-    }
-    this.lastAttentionSample = sample;
-    this.attentionActive = active;
-    const sampledTime = sample / TREASURE_CHEST_ATTENTION.samplesPerSecond;
-    evaluateTreasureChestAttention(
-      sampledTime,
-      playerDistanceSquared,
-      active,
-      this.attentionChannels,
-    );
-    if (
-      this.attentionChannels.red === this.appliedAttentionRed
-      && this.attentionChannels.green === this.appliedAttentionGreen
-      && this.attentionChannels.blue === this.appliedAttentionBlue
-    ) {
-      return;
-    }
-    this.appliedAttentionRed = this.attentionChannels.red;
-    this.appliedAttentionGreen = this.attentionChannels.green;
-    this.appliedAttentionBlue = this.attentionChannels.blue;
-    this.attentionColor.set(
-      this.attentionChannels.red,
-      this.attentionChannels.green,
-      this.attentionChannels.blue,
-      255,
-    );
-    this.material.setProperty('emissive', this.attentionColor);
+    this.beacon.update(elapsed, playerDistanceSquared, active);
   }
 
   /** 按 Mesh、材质、根节点的所有权顺序释放宝箱渲染资源。 */
@@ -157,6 +115,7 @@ export class TreasureChestRenderer {
       return;
     }
     this.disposed = true;
+    this.beacon.dispose();
     this.mesh.dispose();
     this.material.destroy();
     if (this.root.isValid) {

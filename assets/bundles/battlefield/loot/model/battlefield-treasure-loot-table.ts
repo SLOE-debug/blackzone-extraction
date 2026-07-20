@@ -4,7 +4,7 @@ import {
   WeightedLootTable,
 } from '../../../../core/loot/weighted-loot-table';
 
-/** 起始宝箱使用的装备掉落表；数量和候选权重均可独立扩展。 */
+/** 战场宝箱使用的手枪掉落表；每次独立随机产出一至三把。 */
 export const BATTLEFIELD_TREASURE_LOOT_TABLE: LootTable<EquipmentId> =
   new WeightedLootTable<EquipmentId>({
     minimumDrops: 1,

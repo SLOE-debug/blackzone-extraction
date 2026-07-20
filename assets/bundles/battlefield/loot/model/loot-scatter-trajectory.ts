@@ -14,6 +14,7 @@ export interface LootScatterTrajectory {
   readonly targetY: number;
   readonly targetZ: number;
   readonly liftHeight: number;
+  readonly curveOffset: number;
   readonly startRotationX: number;
   readonly startRotationY: number;
   readonly startRotationZ: number;
@@ -62,11 +63,14 @@ export function createLootScatterTrajectories(
   const trajectories: Readonly<LootScatterTrajectory>[] = [];
   for (let index = 0; index < count; index++) {
     const angle = angleOrigin + index * GOLDEN_ANGLE
-      + randomRange(randomState, stateIndex, -0.24, 0.24);
+      + randomRange(randomState, stateIndex, -0.48, 0.48);
     const radius = randomRange(randomState, stateIndex, 1.45, 3.25);
-    const spinDirection = index % 2 === 0 ? 1 : -1;
+    const curveDirection = randomRange(randomState, stateIndex, 0, 1) < 0.5 ? -1 : 1;
+    const spinDirectionX = randomRange(randomState, stateIndex, 0, 1) < 0.5 ? -1 : 1;
+    const spinDirectionY = randomRange(randomState, stateIndex, 0, 1) < 0.5 ? -1 : 1;
+    const spinDirectionZ = randomRange(randomState, stateIndex, 0, 1) < 0.5 ? -1 : 1;
     trajectories.push(Object.freeze({
-      delay: index * 0.065,
+      delay: index * 0.045 + randomRange(randomState, stateIndex, 0, 0.075),
       flightDuration: randomRange(randomState, stateIndex, 0.76, 1.04),
       settleDuration: randomRange(randomState, stateIndex, 0.24, 0.38),
       startX: originX + randomRange(randomState, stateIndex, -0.12, 0.12),
@@ -76,12 +80,13 @@ export function createLootScatterTrajectories(
       targetY: 0.22,
       targetZ: originZ + Math.sin(angle) * radius,
       liftHeight: randomRange(randomState, stateIndex, 1.7, 2.75),
+      curveOffset: curveDirection * randomRange(randomState, stateIndex, 0.34, 0.92),
       startRotationX: randomRange(randomState, stateIndex, -25, 35),
       startRotationY: randomRange(randomState, stateIndex, -180, 180),
       startRotationZ: randomRange(randomState, stateIndex, -20, 20),
-      spinRotationX: spinDirection * randomRange(randomState, stateIndex, 420, 720),
-      spinRotationY: -spinDirection * randomRange(randomState, stateIndex, 240, 540),
-      spinRotationZ: spinDirection * randomRange(randomState, stateIndex, 160, 360),
+      spinRotationX: spinDirectionX * randomRange(randomState, stateIndex, 420, 760),
+      spinRotationY: spinDirectionY * randomRange(randomState, stateIndex, 260, 620),
+      spinRotationZ: spinDirectionZ * randomRange(randomState, stateIndex, 180, 440),
       restRotationX: 90 + randomRange(randomState, stateIndex, -7, 8),
       restRotationY: randomRange(randomState, stateIndex, -180, 180),
       restRotationZ: randomRange(randomState, stateIndex, -9, 9),
@@ -106,10 +111,20 @@ export function evaluateLootScatterTrajectory(
   }
   if (localTime < trajectory.flightDuration) {
     const amount = localTime / trajectory.flightDuration;
-    result.x = lerp(trajectory.startX, trajectory.targetX, amount);
+    const deltaX = trajectory.targetX - trajectory.startX;
+    const deltaZ = trajectory.targetZ - trajectory.startZ;
+    const planarLength = Math.hypot(deltaX, deltaZ);
+    const arcWeight = 4 * amount * (1 - amount);
+    const curveX = planarLength > 0
+      ? -deltaZ / planarLength * trajectory.curveOffset * arcWeight
+      : 0;
+    const curveZ = planarLength > 0
+      ? deltaX / planarLength * trajectory.curveOffset * arcWeight
+      : 0;
+    result.x = lerp(trajectory.startX, trajectory.targetX, amount) + curveX;
     result.y = lerp(trajectory.startY, trajectory.targetY, amount)
       + trajectory.liftHeight * 4 * amount * (1 - amount);
-    result.z = lerp(trajectory.startZ, trajectory.targetZ, amount);
+    result.z = lerp(trajectory.startZ, trajectory.targetZ, amount) + curveZ;
     result.rotationX = trajectory.startRotationX + trajectory.spinRotationX * amount;
     result.rotationY = trajectory.startRotationY + trajectory.spinRotationY * amount;
     result.rotationZ = trajectory.startRotationZ + trajectory.spinRotationZ * amount;

@@ -11,6 +11,7 @@ import {
   type VanguardTable,
 } from './vanguard-schema';
 import { writeVanguardMantleRestState } from './vanguard-mantle-state';
+import { VanguardWeaponPose } from './vanguard-weapon-pose';
 
 /** 聚合可复用主角的单实体 SoA 状态。 */
 export class VanguardState {
@@ -50,7 +51,8 @@ function initializeVanguardData(
   intent.aimX[0] = 0;
   intent.aimZ[0] = 0;
   intent.aiming[0] = 0;
-  intent.weaponReady[0] = 0;
+  intent.weaponPose[0] = VanguardWeaponPose.Unarmed;
+  intent.weaponAttackAmount[0] = 0;
   motion.velocityX[0] = 0;
   motion.velocityZ[0] = 0;
   motion.speed[0] = 0;
@@ -60,6 +62,7 @@ function initializeVanguardData(
   animation.idlePhase[0] = 0;
   animation.locomotionPhase[0] = 0;
   animation.locomotionBlend[0] = 0;
+  animation.weaponPose[0] = VanguardWeaponPose.Unarmed;
   animation.weaponStanceBlend[0] = 0;
   animation.hitFlash[0] = 0;
   writeVanguardMantleRestState(

@@ -3,6 +3,7 @@ import { damp, TAU, wrapAngle } from '../../../core/math/scalar';
 import { VanguardAction } from '../model/vanguard-action';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { type VanguardState } from '../model/vanguard-state';
+import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
 import { writeVanguardPoseMatrices } from './vanguard-pose';
 
 const IDLE_CYCLE_SECONDS = 6.4;
@@ -40,7 +41,15 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
         speed > 0.05 ? 13 : 18,
         deltaTime,
       );
-      const weaponReady = (intent.weaponReady[index] ?? 0) !== 0;
+      const requestedWeaponPose = intent.weaponPose[index] as VanguardWeaponPose;
+      const currentWeaponPose = animation.weaponPose[index] as VanguardWeaponPose;
+      if (requestedWeaponPose !== currentWeaponPose) {
+        animation.weaponPose[index] = requestedWeaponPose;
+        if (requestedWeaponPose !== VanguardWeaponPose.Unarmed) {
+          animation.weaponStanceBlend[index] = 0;
+        }
+      }
+      const weaponReady = requestedWeaponPose !== VanguardWeaponPose.Unarmed;
       animation.weaponStanceBlend[index] = damp(
         animation.weaponStanceBlend[index] ?? 0,
         weaponReady ? 1 : 0,
@@ -65,7 +74,9 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       animation.idlePhase[index] ?? 0,
       animation.locomotionPhase[index] ?? 0,
       animation.locomotionBlend[index] ?? 0,
+      animation.weaponPose[index] as VanguardWeaponPose,
       animation.weaponStanceBlend[index] ?? 0,
+      state.data.intent.weaponAttackAmount[index] ?? 0,
     );
   }
 }

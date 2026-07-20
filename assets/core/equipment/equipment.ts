@@ -21,6 +21,11 @@ export enum WeaponClass {
   Handgun = 'handgun',
 }
 
+/** 投射物渲染器能够选择的领域化外观。 */
+export enum WeaponProjectileVisual {
+  Bullet = 'bullet',
+}
+
 /** 武器弹药消耗规则的稳定标识。 */
 export enum WeaponAmmunitionMode {
   Infinite = 'infinite',
@@ -39,6 +44,7 @@ export interface WeaponProjectileDefinition {
   readonly speed: number;
   readonly maximumRange: number;
   readonly impactRadius: number;
+  readonly visual: WeaponProjectileVisual;
 }
 
 /** 所有装备定义共享的只读身份与展示契约。 */
@@ -56,6 +62,7 @@ extends EquipmentDefinitionBase<EquipmentCategory.Weapon> {
   readonly weaponClass: WeaponClass;
   readonly damage: number;
   readonly fireIntervalSeconds: number;
+  readonly attackAnimationSeconds: number;
   readonly ammunition: Readonly<WeaponAmmunitionDefinition>;
   readonly projectile: Readonly<WeaponProjectileDefinition>;
 }

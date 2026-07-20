@@ -2,15 +2,7 @@ import { type Material, Node } from 'cc';
 import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
-import {
-  type ChunkRuntimeParticipant,
-  type ChunkRuntimeScope,
-} from '../../../core/world/chunk-runtime-registry';
-import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
-import {
-  BATTLEFIELD_MONSTER_SPAWN,
-  createBattlefieldMonsterSpawn,
-} from '../model/battlefield-monster-spawn';
+import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
@@ -29,13 +21,12 @@ export type {
 } from './battlefield-monster-contracts';
 
 /**
- * 聚合活动 Chunk 中的全部地图随机怪物群体。
+ * 聚合固定容量的玩家周边尸潮与可选 Debug 观察实体。
  *
- * 每个群体的真实所有权位于创建它的 ChunkRuntimeScope；本类只负责跨群体更新、
- * 战斗汇总和瞄准查询，不再把旧群体迁移到其他 Chunk。
+ * 正式尸潮不再由 Chunk 持有；固定 SoA 槽位会在远离玩家后回收到外圈重新生成。
  */
 export class BattlefieldMonsterPopulation
-implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable {
+implements Disposable {
   private readonly renderRoot: Node;
   private readonly renderBatch: ReturnType<
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
@@ -49,6 +40,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     z: 0,
     segmentProgress: 0,
   };
+  private swarm: BattlefieldMonsterGroup | null = null;
   private debugGroup: BattlefieldMonsterGroup | null = null;
   private disposed = false;
 
@@ -76,7 +68,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     }
   }
 
-  /** 当前所有活动 Chunk 中的怪物总数。 */
+  /** 当前正式尸潮与 Debug 观察实体的总槽位数。 */
   public get count(): number {
     let count = 0;
     for (const group of this.groups) {
@@ -85,26 +77,9 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     return count;
   }
 
-  /** 为新加载 Chunk 创建确定性随机群体并交给该 Chunk 作用域持有。 */
-  public populate(
-    scope: ChunkRuntimeScope,
-    _environment: BattlefieldEnvironmentPopulation,
-  ): void {
-    this.ensureActive();
-    const spawn = createBattlefieldMonsterSpawn(scope.chunk);
-    if (spawn === null) {
-      return;
-    }
-    const group = new BattlefieldMonsterGroup(
-      this.renderBatch,
-      spawn.x,
-      spawn.z,
-      spawn.count,
-      spawn.seed,
-      BATTLEFIELD_MONSTER_SPAWN.worldDiameter,
-    );
-    this.groups.push(group);
-    scope.own(new BattlefieldMonsterGroupOwnership(this.groups, group));
+  /** 当前正式尸潮中真正处于存活阶段的怪物数量。 */
+  public get aliveCount(): number {
+    return this.swarm?.aliveCount ?? 0;
   }
 
   /**
@@ -128,6 +103,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
       1,
       DEBUG_CURVE_CRAWLER_SEED,
       DEBUG_CURVE_CRAWLER_WORLD_DIAMETER,
+      false,
     );
     this.groups.push(group);
     this.debugGroup = group;
@@ -141,12 +117,35 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     if (this.disposed) {
       return 0;
     }
+    if (target !== null) {
+      this.ensureSwarm(target.x, target.z);
+      this.swarm?.maintainAround(target.x, target.z);
+    }
     let damage = 0;
     for (const group of this.groups) {
       damage += group.update(deltaTime, target);
     }
     this.renderBatch.synchronize();
     return damage;
+  }
+
+  /** 首次获得玩家坐标时一次性创建完整固定容量尸潮。 */
+  private ensureSwarm(playerX: number, playerZ: number): void {
+    if (this.swarm !== null) {
+      return;
+    }
+    const config = BATTLEFIELD_MONSTER_SPAWN;
+    const swarm = new BattlefieldMonsterGroup(
+      this.renderBatch,
+      playerX,
+      playerZ,
+      config.populationCount,
+      config.seed,
+      config.spawnOuterRadius * 2,
+      true,
+    );
+    this.groups.push(swarm);
+    this.swarm = swarm;
   }
 
   /** 在所有活动地图群体中选择距离玩家最近的有效瞄准吸附结果。 */
@@ -270,7 +269,7 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
     return true;
   }
 
-  /** 兜底释放仍登记的群体；正常流程会先由 Chunk 注册表清空作用域。 */
+  /** 释放尸潮状态、共享渲染批次和调试实体。 */
   public dispose(): void {
     if (this.disposed) {
       return;
@@ -284,31 +283,13 @@ implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>, Disposable
       this.renderRoot.destroy();
     }
     this.debugGroup = null;
+    this.swarm = null;
   }
 
   private ensureActive(): void {
     if (this.disposed) {
       throw new Error('战场怪物聚合群体已经释放。');
     }
-  }
-}
-
-/** 在作用域卸载时同时释放群体并从聚合查询列表移除。 */
-class BattlefieldMonsterGroupOwnership implements Disposable {
-  private disposed = false;
-
-  constructor(
-    private readonly groups: BattlefieldMonsterGroup[],
-    private readonly group: BattlefieldMonsterGroup,
-  ) {}
-
-  public dispose(): void {
-    if (this.disposed) {
-      return;
-    }
-    this.disposed = true;
-    removeMonsterGroup(this.groups, this.group);
-    this.group.dispose();
   }
 }
 

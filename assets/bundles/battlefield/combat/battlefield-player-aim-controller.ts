@@ -2,6 +2,7 @@ import type {
   VanguardControlIntent,
   VanguardPopulation,
 } from '../../../player/vanguard';
+import { VanguardWeaponPose } from '../../../player/vanguard';
 import {
   type BattlefieldMonsterPopulation,
   type MutableBattlefieldAimTarget,
@@ -19,7 +20,8 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   aimX: number;
   aimZ: number;
   aiming: boolean;
-  weaponReady: boolean;
+  weaponPose: VanguardWeaponPose;
+  weaponAttackAmount: number;
 }
 
 /** 把屏幕双摇杆映射为玩家朝向，并协调手动瞄准与自动锁敌。 */
@@ -33,7 +35,8 @@ export class BattlefieldPlayerAimController {
     aimX: 0,
     aimZ: 1,
     aiming: false,
-    weaponReady: false,
+    weaponPose: VanguardWeaponPose.Unarmed,
+    weaponAttackAmount: 0,
   };
 
   /**
@@ -46,9 +49,11 @@ export class BattlefieldPlayerAimController {
     monsters: BattlefieldMonsterPopulation,
     cameraRig: BattlefieldCameraRig,
     controls: Readonly<BattlefieldScreenControlState>,
-    weaponEquipped: boolean,
+    weaponPose: VanguardWeaponPose,
+    weaponAttackAmount: number,
     fireTarget: MutableBattlefieldAimTarget,
   ): boolean {
+    const weaponEquipped = weaponPose !== VanguardWeaponPose.Unarmed;
     cameraRig.queueOrbitRotation(controls.cameraOrbitDeltaX);
     cameraRig.writeWorldPlanarDirection(
       controls.moveX,
@@ -90,7 +95,8 @@ export class BattlefieldPlayerAimController {
     intent.aimX = this.aimDirection.x;
     intent.aimZ = this.aimDirection.z;
     intent.aiming = controls.aiming || targetFound;
-    intent.weaponReady = weaponEquipped;
+    intent.weaponPose = weaponPose;
+    intent.weaponAttackAmount = weaponAttackAmount;
     player.setControlIntent(intent);
     const facingX = Math.sin(player.heading);
     const facingZ = Math.cos(player.heading);

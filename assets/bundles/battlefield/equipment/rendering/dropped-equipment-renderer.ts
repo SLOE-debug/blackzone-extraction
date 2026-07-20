@@ -10,9 +10,9 @@ import {
 } from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../core/rendering/dynamic-mesh-batch';
+import { getHeldWeaponProfile } from '../model/held-weapon-profile';
 import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
 
-const EQUIPMENT_MODEL_SCALE = 0.34;
 const EQUIPMENT_SURFACE_OPTIONS = Object.freeze({
   castShadows: true,
   receiveShadows: true,
@@ -39,11 +39,7 @@ export class DroppedEquipmentRenderer {
   private readonly rotation = new Quat();
   private readonly matrix = new Mat4();
   private readonly position = new Vec3();
-  private readonly scale = new Vec3(
-    EQUIPMENT_MODEL_SCALE,
-    EQUIPMENT_MODEL_SCALE,
-    EQUIPMENT_MODEL_SCALE,
-  );
+  private readonly scale = new Vec3();
   private readonly bounds: MutableGeometryBounds = {
     minX: 0,
     minY: 0,
@@ -123,7 +119,9 @@ export class DroppedEquipmentRenderer {
         throw new Error('掉落装备批次实例、几何与顶点区段未能一一对应。');
       }
       anyVisible ||= item.visible;
+      const modelScale = getHeldWeaponProfile(item.equipmentId).droppedScale;
       this.position.set(item.x, item.y, item.z);
+      this.scale.set(modelScale, modelScale, modelScale);
       Quat.fromEuler(this.rotation, item.rotationX, item.rotationY, item.rotationZ);
       Mat4.fromRTS(this.matrix, this.rotation, this.position, this.scale);
       writeTransformedGeometry(
@@ -132,6 +130,7 @@ export class DroppedEquipmentRenderer {
         vertexOffset,
         item.visible,
         this.matrix,
+        modelScale,
       );
     }
     return anyVisible;
@@ -177,8 +176,9 @@ function writeTransformedGeometry(
   targetVertexOffset: number,
   visible: boolean,
   matrix: Readonly<Mat4>,
+  modelScale: number,
 ): void {
-  const inverseScale = 1 / EQUIPMENT_MODEL_SCALE;
+  const inverseScale = 1 / modelScale;
   for (let vertex = 0; vertex < source.vertexCount; vertex++) {
     const sourceOffset = vertex * 3;
     const targetOffset = (targetVertexOffset + vertex) * 3;

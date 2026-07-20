@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/model/battlefield-equipment-library';
-import { HELD_WEAPON_LAYOUT } from '../../assets/bundles/battlefield/equipment/model/held-weapon-layout';
+import { getHeldWeaponProfile } from '../../assets/bundles/battlefield/equipment/model/held-weapon-profile';
 import { createWeaponAmmunition } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition';
 import {
   BATTLEFIELD_PROJECTILE_TOPOLOGY,
@@ -11,7 +11,10 @@ import {
   calculateProjectileCapacity,
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-projectile-state';
 import { writeBattlefieldProjectileDirection } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-projectile-trajectory';
-import { EquipmentId } from '../../assets/core/equipment/equipment';
+import {
+  EquipmentId,
+  WeaponProjectileVisual,
+} from '../../assets/core/equipment/equipment';
 
 describe('玩家武器运行时模型', () => {
   it('默认无限弹药能够持续批准射击', () => {
@@ -42,8 +45,9 @@ describe('玩家武器运行时模型', () => {
   });
 
   it('从手枪几何的真实枪口推导掌心前方弹道起点', () => {
-    expect(HELD_WEAPON_LAYOUT.muzzleForwardFromSocket).toBeCloseTo(0.3484, 6);
-    expect(HELD_WEAPON_LAYOUT.muzzleHeightFromSocket).toBeCloseTo(0.1028, 6);
+    const profile = getHeldWeaponProfile(EquipmentId.DesertEagle);
+    expect(profile.attackForwardFromSocket).toBeCloseTo(0.3484, 6);
+    expect(profile.attackHeightFromSocket).toBeCloseTo(0.1028, 6);
   });
 
   it('从枪口向蜘蛛的完整 XYZ 坐标计算弹道', () => {
@@ -66,7 +70,11 @@ describe('玩家武器运行时模型', () => {
       BATTLEFIELD_PROJECTILE_TOPOLOGY.verticesPerProjectile * 3,
     );
 
-    writeBattlefieldProjectilePositions(state, positions);
+    writeBattlefieldProjectilePositions(
+      state,
+      positions,
+      WeaponProjectileVisual.Bullet,
+    );
 
     expect(positions[1]).toBeLessThan(2.5);
     expect(state.directionY[0]).toBeLessThan(0);

@@ -1,4 +1,5 @@
 import { Color, type Material, Node } from 'cc';
+import { type WeaponProjectileVisual } from '../../../../../core/equipment/equipment';
 import {
   createUnlitColorGeometry,
   GeometryIndexFormat,
@@ -40,14 +41,18 @@ export class BattlefieldProjectileRenderer {
   };
   private disposed = false;
 
-  constructor(parent: Node, private readonly state: BattlefieldProjectileState) {
+  constructor(
+    parent: Node,
+    private readonly state: BattlefieldProjectileState,
+    private readonly visual: WeaponProjectileVisual,
+  ) {
     const topology = BATTLEFIELD_PROJECTILE_TOPOLOGY;
     this.geometry = createUnlitColorGeometry(
       topology.verticesPerProjectile * state.capacity,
       topology.indicesPerProjectile * state.capacity,
       GeometryIndexFormat.Uint16,
     );
-    initializeBattlefieldProjectileGeometry(this.geometry, state.capacity);
+    initializeBattlefieldProjectileGeometry(this.geometry, state.capacity, visual);
     this.material = TransparentUnlitMaterialFactory.create({
       name: 'BattlefieldProjectileGlow',
       mainColor: new Color(255, 255, 255, 255),
@@ -78,7 +83,7 @@ export class BattlefieldProjectileRenderer {
     if (this.disposed) {
       return;
     }
-    writeBattlefieldProjectilePositions(this.state, this.geometry.positions);
+    writeBattlefieldProjectilePositions(this.state, this.geometry.positions, this.visual);
     const visible = this.updateBounds();
     this.batch.uploadVertexAttributes(MeshDirty.Position);
     this.batch.updateBounds(this.bounds);
