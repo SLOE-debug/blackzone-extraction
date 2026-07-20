@@ -6,6 +6,8 @@ import {
 import { type EntityTable } from '../../../core/entities/entity-table';
 import { VANGUARD_MANTLE_PARTICLE_COUNT } from './vanguard-mantle-particles';
 import { VanguardBone, VANGUARD_BONE_MATRIX_COMPONENTS } from './vanguard-bone';
+import { VANGUARD_QUATERNION_COMPONENTS } from '../rigging/vanguard-pose-math';
+import { VANGUARD_LOCAL_POSITION_COMPONENTS } from '../rigging/vanguard-rig';
 
 /** 可复用主角的 SoA 组件 Schema。 */
 export const VANGUARD_SCHEMA = defineEntitySchema({
@@ -24,9 +26,11 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     moveZ: entityField(Float32Array, 1),
     aimX: entityField(Float32Array, 1),
     aimZ: entityField(Float32Array, 1),
+    aimPitch: entityField(Float32Array, 1),
     aiming: entityField(Uint8Array, 1),
     weaponPose: entityField(Uint8Array, 1),
-    weaponAttackAmount: entityField(Float32Array, 1),
+    weaponAction: entityField(Uint8Array, 1),
+    weaponActionProgress: entityField(Float32Array, 1),
   },
   motion: {
     velocityX: entityField(Float32Array, 1),
@@ -47,6 +51,14 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     hitFlash: entityField(Float32Array, 1),
   },
   pose: {
+    localPositions: entityField(
+      Float32Array,
+      VanguardBone.Count * VANGUARD_LOCAL_POSITION_COMPONENTS,
+    ),
+    localRotations: entityField(
+      Float32Array,
+      VanguardBone.Count * VANGUARD_QUATERNION_COMPONENTS,
+    ),
     boneMatrices: entityField(
       Float32Array,
       VanguardBone.Count * VANGUARD_BONE_MATRIX_COMPONENTS,

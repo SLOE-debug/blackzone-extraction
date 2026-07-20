@@ -3,6 +3,7 @@ import type {
   VanguardPopulation,
 } from '../../../player/vanguard';
 import { VanguardWeaponPose } from '../../../player/vanguard';
+import { VanguardWeaponAction } from '../../../player/vanguard';
 import {
   type BattlefieldMonsterPopulation,
   type MutableBattlefieldAimTarget,
@@ -13,15 +14,18 @@ import { type BattlefieldScreenControlState } from '../ui/battlefield-control-hu
 import { shouldFireAtLockedTarget } from './battlefield-fire-intent';
 
 const DIRECTION_EPSILON = 0.0001;
+const PLAYER_WEAPON_AIM_HEIGHT = 2.35;
 
 interface MutableVanguardControlIntent extends VanguardControlIntent {
   moveX: number;
   moveZ: number;
   aimX: number;
   aimZ: number;
+  aimPitch: number;
   aiming: boolean;
   weaponPose: VanguardWeaponPose;
-  weaponAttackAmount: number;
+  weaponAction: VanguardWeaponAction;
+  weaponActionProgress: number;
 }
 
 /** 把屏幕双摇杆映射为玩家朝向，并协调手动瞄准与自动锁敌。 */
@@ -34,9 +38,11 @@ export class BattlefieldPlayerAimController {
     moveZ: 0,
     aimX: 0,
     aimZ: 1,
+    aimPitch: 0,
     aiming: false,
     weaponPose: VanguardWeaponPose.Unarmed,
-    weaponAttackAmount: 0,
+    weaponAction: VanguardWeaponAction.Ready,
+    weaponActionProgress: 0,
   };
 
   /**
@@ -50,7 +56,8 @@ export class BattlefieldPlayerAimController {
     cameraRig: BattlefieldCameraRig,
     controls: Readonly<BattlefieldScreenControlState>,
     weaponPose: VanguardWeaponPose,
-    weaponAttackAmount: number,
+    weaponAction: VanguardWeaponAction,
+    weaponActionProgress: number,
     fireTarget: MutableBattlefieldAimTarget,
   ): boolean {
     const weaponEquipped = weaponPose !== VanguardWeaponPose.Unarmed;
@@ -94,9 +101,13 @@ export class BattlefieldPlayerAimController {
     }
     intent.aimX = this.aimDirection.x;
     intent.aimZ = this.aimDirection.z;
+    intent.aimPitch = targetFound
+      ? this.writePitchToTarget(player.positionX, player.positionY, player.positionZ)
+      : 0;
     intent.aiming = controls.aiming || targetFound;
     intent.weaponPose = weaponPose;
-    intent.weaponAttackAmount = weaponAttackAmount;
+    intent.weaponAction = weaponAction;
+    intent.weaponActionProgress = weaponActionProgress;
     player.setControlIntent(intent);
     const facingX = Math.sin(player.heading);
     const facingZ = Math.cos(player.heading);
@@ -137,5 +148,22 @@ export class BattlefieldPlayerAimController {
     const inverseDistance = 1 / Math.max(Math.hypot(deltaX, deltaZ), DIRECTION_EPSILON);
     this.aimDirection.x = deltaX * inverseDistance;
     this.aimDirection.z = deltaZ * inverseDistance;
+  }
+
+  private writePitchToTarget(originX: number, originY: number, originZ: number): number {
+    const planarDistance = Math.hypot(
+      this.aimTarget.x - originX,
+      this.aimTarget.z - originZ,
+    );
+    return Math.max(
+      -Math.PI * 0.4,
+      Math.min(
+        Math.PI * 0.4,
+        Math.atan2(
+          this.aimTarget.y - (originY + PLAYER_WEAPON_AIM_HEIGHT),
+          Math.max(planarDistance, DIRECTION_EPSILON),
+        ),
+      ),
+    );
   }
 }

@@ -7,11 +7,10 @@ import {
   type FacetedColor,
   StaticFacetedMeshSink,
 } from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
-
-interface SilhouettePoint {
-  readonly x: number;
-  readonly y: number;
-}
+import {
+  appendExtrudedFirearmSilhouette,
+  type FirearmSilhouettePoint,
+} from './faceted-firearm-builder';
 
 const PALETTE = Object.freeze({
   slideDark: Object.freeze({ red: 0.12, green: 0.13, blue: 0.145, alpha: 1 }),
@@ -33,7 +32,7 @@ const SLIDE = Object.freeze([
   Object.freeze({ x: 1.52, y: 0.04 }),
   Object.freeze({ x: 0.51, y: -0.035 }),
   Object.freeze({ x: -1.27, y: -0.02 }),
-] satisfies readonly SilhouettePoint[]);
+] satisfies readonly FirearmSilhouettePoint[]);
 
 const FRAME = Object.freeze([
   Object.freeze({ x: -1.27, y: -0.02 }),
@@ -42,7 +41,7 @@ const FRAME = Object.freeze([
   Object.freeze({ x: 0.15, y: -0.43 }),
   Object.freeze({ x: -0.73, y: -0.34 }),
   Object.freeze({ x: -1.34, y: -0.16 }),
-] satisfies readonly SilhouettePoint[]);
+] satisfies readonly FirearmSilhouettePoint[]);
 
 const GRIP = Object.freeze([
   Object.freeze({ x: -0.74, y: -0.26 }),
@@ -51,65 +50,25 @@ const GRIP = Object.freeze([
   Object.freeze({ x: -0.36, y: -1.5 }),
   Object.freeze({ x: -0.73, y: -1.4 }),
   Object.freeze({ x: -0.96, y: -0.55 }),
-] satisfies readonly SilhouettePoint[]);
+] satisfies readonly FirearmSilhouettePoint[]);
 
 /** 编译具有厚重滑套、倾斜握把、镂空扳机护圈和多边形枪口的沙漠之鹰。 */
 export function createDesertEagleGeometry() {
   const sink = new StaticFacetedMeshSink();
-  appendExtrudedSilhouette(sink, SLIDE, 0.18, PALETTE.slide, PALETTE.slideDark);
-  appendExtrudedSilhouette(sink, FRAME, 0.205, PALETTE.frame, PALETTE.slideDark);
-  appendExtrudedSilhouette(sink, GRIP, 0.17, PALETTE.grip, PALETTE.gripDark);
+  appendExtrudedFirearmSilhouette(
+    sink, SLIDE, 0.18, 0.1692, PALETTE.slide, PALETTE.slideDark, PALETTE.slideLight,
+  );
+  appendExtrudedFirearmSilhouette(
+    sink, FRAME, 0.205, 0.1927, PALETTE.frame, PALETTE.slideDark, PALETTE.slideLight,
+  );
+  appendExtrudedFirearmSilhouette(
+    sink, GRIP, 0.17, 0.1598, PALETTE.grip, PALETTE.gripDark, PALETTE.slideLight,
+  );
   appendTriggerGuard(sink);
   appendMuzzle(sink);
   appendSights(sink);
   appendEpicInlay(sink);
   return sink.build();
-}
-
-/** 把领域侧轮廓挤出为带独立硬边的非规则枪械部件。 */
-function appendExtrudedSilhouette(
-  sink: StaticFacetedMeshSink,
-  points: readonly Readonly<SilhouettePoint>[],
-  halfDepth: number,
-  faceColor: Readonly<FacetedColor>,
-  edgeColor: Readonly<FacetedColor>,
-): void {
-  const center = findSilhouetteCenter(points);
-  const frontCenter = point3(center.x, center.y, halfDepth);
-  const backCenter = point3(center.x, center.y, -halfDepth * 0.94);
-  for (let index = 0; index < points.length; index++) {
-    const next = (index + 1) % points.length;
-    const currentPoint = requireSilhouettePoint(points, index);
-    const nextPoint = requireSilhouettePoint(points, next);
-    const frontCurrent = point3(currentPoint.x, currentPoint.y, halfDepth);
-    const frontNext = point3(nextPoint.x, nextPoint.y, halfDepth);
-    const backCurrent = point3(currentPoint.x, currentPoint.y, -halfDepth * 0.94);
-    const backNext = point3(nextPoint.x, nextPoint.y, -halfDepth * 0.94);
-    emitOrientedFlatTriangle(sink, faceColor, frontCenter, frontCurrent, frontNext, 0, 0, 1);
-    emitOrientedFlatTriangle(
-      sink,
-      index % 2 === 0 ? faceColor : edgeColor,
-      backCenter,
-      backNext,
-      backCurrent,
-      0,
-      0,
-      -1,
-    );
-    const outwardX = (currentPoint.x + nextPoint.x) * 0.5 - center.x;
-    const outwardY = (currentPoint.y + nextPoint.y) * 0.5 - center.y;
-    emitOrientedFlatQuad(
-      sink,
-      index % 3 === 0 ? PALETTE.slideLight : edgeColor,
-      backCurrent,
-      frontCurrent,
-      frontNext,
-      backNext,
-      outwardX,
-      outwardY,
-      0,
-    );
-  }
 }
 
 /** 写入六段式扳机护圈，内环保持真实通孔。 */
@@ -121,7 +80,7 @@ function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
     Object.freeze({ x: 0.64, y: -0.73 }),
     Object.freeze({ x: 0.08, y: -0.7 }),
     Object.freeze({ x: -0.08, y: -0.51 }),
-  ] satisfies readonly SilhouettePoint[]);
+  ] satisfies readonly FirearmSilhouettePoint[]);
   const inner = Object.freeze([
     Object.freeze({ x: 0.14, y: -0.4 }),
     Object.freeze({ x: 0.58, y: -0.39 }),
@@ -129,7 +88,7 @@ function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
     Object.freeze({ x: 0.53, y: -0.61 }),
     Object.freeze({ x: 0.18, y: -0.6 }),
     Object.freeze({ x: 0.07, y: -0.5 }),
-  ] satisfies readonly SilhouettePoint[]);
+  ] satisfies readonly FirearmSilhouettePoint[]);
   const frontZ = 0.19;
   const backZ = -0.18;
   for (let index = 0; index < outer.length; index++) {
@@ -211,7 +170,7 @@ function appendMuzzle(sink: StaticFacetedMeshSink): void {
 }
 
 function appendSights(sink: StaticFacetedMeshSink): void {
-  appendExtrudedSilhouette(
+  appendExtrudedFirearmSilhouette(
     sink,
     Object.freeze([
       Object.freeze({ x: -1.23, y: 0.43 }),
@@ -220,10 +179,12 @@ function appendSights(sink: StaticFacetedMeshSink): void {
       Object.freeze({ x: -0.78, y: 0.47 }),
     ]),
     0.1,
+    0.1,
     PALETTE.slideDark,
     PALETTE.slideDark,
+    PALETTE.slideLight,
   );
-  appendExtrudedSilhouette(
+  appendExtrudedFirearmSilhouette(
     sink,
     Object.freeze([
       Object.freeze({ x: 1.08, y: 0.46 }),
@@ -232,8 +193,10 @@ function appendSights(sink: StaticFacetedMeshSink): void {
       Object.freeze({ x: 1.39, y: 0.46 }),
     ]),
     0.075,
+    0.075,
     PALETTE.slideLight,
     PALETTE.slideDark,
+    PALETTE.slideLight,
   );
 }
 
@@ -262,22 +225,10 @@ function muzzlePoint(
   return point3(x, 0.205 + Math.cos(angle) * variedRadius, Math.sin(angle) * variedRadius);
 }
 
-function findSilhouetteCenter(
-  points: readonly Readonly<SilhouettePoint>[],
-): Readonly<SilhouettePoint> {
-  let x = 0;
-  let y = 0;
-  for (const point of points) {
-    x += point.x;
-    y += point.y;
-  }
-  return Object.freeze({ x: x / points.length, y: y / points.length });
-}
-
 function requireSilhouettePoint(
-  points: readonly Readonly<SilhouettePoint>[],
+  points: readonly Readonly<FirearmSilhouettePoint>[],
   index: number,
-): Readonly<SilhouettePoint> {
+): Readonly<FirearmSilhouettePoint> {
   const point = points[index];
   if (point === undefined) {
     throw new Error('沙漠之鹰轮廓索引越界。');

@@ -5,6 +5,8 @@ import {
   type ChunkWindowTransition,
 } from '../../../../core/world/chunk-window-tracker';
 import { BattlefieldEnvironmentObstacleField } from '../collision/battlefield-environment-obstacle-field';
+import { BattlefieldEnvironmentPlacementQuery } from '../collision/battlefield-environment-placement-query';
+import { type BattlefieldEnvironmentPrototype } from '../catalog/battlefield-environment-catalog';
 import { prepareBattlefieldEnvironment } from '../compilation/battlefield-environment-preparation';
 import {
   BattlefieldEnvironmentGenerator,
@@ -24,6 +26,10 @@ export class BattlefieldEnvironmentPopulation {
   private readonly world = new BattlefieldEnvironmentWorldState();
   private readonly generator = new BattlefieldEnvironmentGenerator();
   private readonly obstacles = new BattlefieldEnvironmentObstacleField();
+  private readonly placement = new BattlefieldEnvironmentPlacementQuery(
+    this.world,
+    this.preparation.prototypes,
+  );
   private readonly chunkWindow = new ChunkWindowTracker(
     BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.activeChunkRadius,
   );
@@ -57,6 +63,17 @@ export class BattlefieldEnvironmentPopulation {
   /** 玩家移动系统使用的无分配平面障碍约束。 */
   public get movementConstraint(): PlanarMovementConstraint {
     return this.obstacles;
+  }
+
+  /** 供同一战场 Feature 的静态玩法物件避开选定环境原型。 */
+  public isAreaClearOf(
+    prototypes: readonly BattlefieldEnvironmentPrototype[],
+    x: number,
+    z: number,
+    clearanceRadius: number,
+  ): boolean {
+    this.ensureActive();
+    return this.placement.isAreaClearOf(prototypes, x, z, clearanceRadius);
   }
 
   /** 玩家跨越 Chunk 边界时同步重用实体槽位、空间索引和 GPU 顶点流。 */

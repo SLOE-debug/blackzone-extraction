@@ -4,7 +4,7 @@ import {
   WeightedLootTable,
 } from '../../../../core/loot/weighted-loot-table';
 
-/** 战场宝箱使用的手枪掉落表；每次独立随机产出一至三把。 */
+/** 战场宝箱使用的类型化武器掉落表；每次独立随机产出一至三件。 */
 export const BATTLEFIELD_TREASURE_LOOT_TABLE: LootTable<EquipmentId> =
   new WeightedLootTable<EquipmentId>({
     minimumDrops: 1,
@@ -13,6 +13,10 @@ export const BATTLEFIELD_TREASURE_LOOT_TABLE: LootTable<EquipmentId> =
       Object.freeze({
         id: EquipmentId.DesertEagle,
         weight: 1,
+      }),
+      Object.freeze({
+        id: EquipmentId.PumpShotgun,
+        weight: 0.72,
       }),
     ]),
   });

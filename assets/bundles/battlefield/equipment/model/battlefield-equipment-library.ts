@@ -7,6 +7,7 @@ import {
   WeaponAmmunitionMode,
   WeaponClass,
   WeaponProjectileVisual,
+  WeaponShotPatternType,
 } from '../../../../core/equipment/equipment';
 
 /** 战场当前可生成装备的完整强类型清单。 */
@@ -24,11 +25,42 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
     ammunition: Object.freeze({
       mode: WeaponAmmunitionMode.Infinite,
     }),
+    shotPattern: Object.freeze({
+      type: WeaponShotPatternType.Single,
+    }),
     projectile: Object.freeze({
       speed: 31,
       maximumRange: 20,
       impactRadius: 0.12,
       visual: WeaponProjectileVisual.Bullet,
+    }),
+  }),
+  [EquipmentId.PumpShotgun]: Object.freeze({
+    id: EquipmentId.PumpShotgun,
+    category: EquipmentCategory.Weapon,
+    displayName: '泵动霰弹枪',
+    description: '近距离爆发强劲的管式弹仓霰弹枪',
+    rarity: EquipmentRarity.Rare,
+    weaponClass: WeaponClass.Shotgun,
+    damage: 20,
+    fireIntervalSeconds: 0.88,
+    attackAnimationSeconds: 0.68,
+    ammunition: Object.freeze({
+      mode: WeaponAmmunitionMode.TubeMagazine,
+      capacity: 5,
+      shellReloadSeconds: 0.62,
+    }),
+    shotPattern: Object.freeze({
+      type: WeaponShotPatternType.PelletCone,
+      projectileCount: 9,
+      horizontalSpreadRadians: 0.115,
+      verticalSpreadRadians: 0.075,
+    }),
+    projectile: Object.freeze({
+      speed: 26,
+      maximumRange: 14,
+      impactRadius: 0.09,
+      visual: WeaponProjectileVisual.BuckshotPellet,
     }),
   }),
 } satisfies Readonly<Record<EquipmentId, EquipmentDefinition>>);

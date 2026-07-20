@@ -4,17 +4,17 @@ import { VanguardAction } from '../model/vanguard-action';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { type VanguardState } from '../model/vanguard-state';
 import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
-import { writeVanguardPoseMatrices } from './vanguard-pose';
+import { VanguardPosePipeline } from './vanguard-pose-pipeline';
 
 const IDLE_CYCLE_SECONDS = 6.4;
 
 /** 负责主角待机细节、移动步态与两者之间的连续混合。 */
 export class VanguardAnimationSystem implements EntitySystem<VanguardState, number> {
+  private readonly posePipeline = new VanguardPosePipeline();
+
   /** 在渲染器创建前写入完整绑定姿态。 */
   public initialize(state: VanguardState): void {
-    for (let index = 0; index < state.count; index++) {
-      this.writePose(state, index);
-    }
+    this.posePipeline.initialize(state);
   }
 
   /** 推进稳定待机循环、按真实速度推进步态并刷新全部骨骼矩阵。 */
@@ -43,11 +43,10 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       );
       const requestedWeaponPose = intent.weaponPose[index] as VanguardWeaponPose;
       const currentWeaponPose = animation.weaponPose[index] as VanguardWeaponPose;
-      if (requestedWeaponPose !== currentWeaponPose) {
+      if (requestedWeaponPose !== VanguardWeaponPose.Unarmed
+        && requestedWeaponPose !== currentWeaponPose) {
         animation.weaponPose[index] = requestedWeaponPose;
-        if (requestedWeaponPose !== VanguardWeaponPose.Unarmed) {
-          animation.weaponStanceBlend[index] = 0;
-        }
+        animation.weaponStanceBlend[index] = 0;
       }
       const weaponReady = requestedWeaponPose !== VanguardWeaponPose.Unarmed;
       animation.weaponStanceBlend[index] = damp(
@@ -56,27 +55,10 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
         weaponReady ? 18 : 14,
         deltaTime,
       );
-      this.writePose(state, index);
+      if (!weaponReady && (animation.weaponStanceBlend[index] ?? 0) <= 0.01) {
+        animation.weaponPose[index] = VanguardWeaponPose.Unarmed;
+      }
     }
-  }
-
-  /** 根据实体变换与待机相位写入世界空间骨骼矩阵。 */
-  private writePose(state: VanguardState, index: number): void {
-    const { transform, morphology, animation, pose } = state.data;
-    writeVanguardPoseMatrices(
-      pose.boneMatrices,
-      index,
-      transform.x[index] ?? 0,
-      transform.y[index] ?? 0,
-      transform.z[index] ?? 0,
-      transform.heading[index] ?? 0,
-      morphology.scale[index] ?? 1,
-      animation.idlePhase[index] ?? 0,
-      animation.locomotionPhase[index] ?? 0,
-      animation.locomotionBlend[index] ?? 0,
-      animation.weaponPose[index] as VanguardWeaponPose,
-      animation.weaponStanceBlend[index] ?? 0,
-      state.data.intent.weaponAttackAmount[index] ?? 0,
-    );
+    this.posePipeline.update(state, deltaTime);
   }
 }

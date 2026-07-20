@@ -2,10 +2,5 @@
 export enum VanguardWeaponPose {
   Unarmed,
   Handgun,
-}
-
-/** 武器可绑定的稳定手部挂点。 */
-export enum VanguardWeaponHand {
-  Left,
-  Right,
+  Shotgun,
 }

@@ -1,6 +1,7 @@
 /** 可由装备库稳定引用的装备标识。 */
 export enum EquipmentId {
   DesertEagle = 'desert-eagle',
+  PumpShotgun = 'pump-shotgun',
 }
 
 /** 装备进入背包、掉落和交互系统时使用的领域分类。 */
@@ -19,16 +20,19 @@ export enum EquipmentRarity {
 /** 武器定义内部的强类型武器门类。 */
 export enum WeaponClass {
   Handgun = 'handgun',
+  Shotgun = 'shotgun',
 }
 
 /** 投射物渲染器能够选择的领域化外观。 */
 export enum WeaponProjectileVisual {
   Bullet = 'bullet',
+  BuckshotPellet = 'buckshot-pellet',
 }
 
 /** 武器弹药消耗规则的稳定标识。 */
 export enum WeaponAmmunitionMode {
   Infinite = 'infinite',
+  TubeMagazine = 'tube-magazine',
 }
 
 /** 默认不消耗库存的无限弹药规则。 */
@@ -36,8 +40,39 @@ export interface InfiniteWeaponAmmunitionDefinition {
   readonly mode: WeaponAmmunitionMode.Infinite;
 }
 
+/** 管式弹仓逐发装填时使用的容量与单发装填节奏。 */
+export interface TubeMagazineWeaponAmmunitionDefinition {
+  readonly mode: WeaponAmmunitionMode.TubeMagazine;
+  readonly capacity: number;
+  readonly shellReloadSeconds: number;
+}
+
 /** 武器定义能够声明的完整弹药规则联合。 */
-export type WeaponAmmunitionDefinition = InfiniteWeaponAmmunitionDefinition;
+export type WeaponAmmunitionDefinition =
+  | InfiniteWeaponAmmunitionDefinition
+  | TubeMagazineWeaponAmmunitionDefinition;
+
+/** 决定一次扳机动作产生单弹体还是固定散布弹丸。 */
+export enum WeaponShotPatternType {
+  Single = 'single',
+  PelletCone = 'pellet-cone',
+}
+
+/** 单弹体武器不会对瞄准方向施加散布。 */
+export interface SingleWeaponShotPattern {
+  readonly type: WeaponShotPatternType.Single;
+}
+
+/** 霰弹武器使用确定性锥形分布，避免每次运行产生不同弹道。 */
+export interface PelletConeWeaponShotPattern {
+  readonly type: WeaponShotPatternType.PelletCone;
+  readonly projectileCount: number;
+  readonly horizontalSpreadRadians: number;
+  readonly verticalSpreadRadians: number;
+}
+
+/** 武器一次攻击使用的强类型弹体分布。 */
+export type WeaponShotPattern = SingleWeaponShotPattern | PelletConeWeaponShotPattern;
 
 /** 实体子弹的速度、射程与命中半径。 */
 export interface WeaponProjectileDefinition {
@@ -64,6 +99,7 @@ extends EquipmentDefinitionBase<EquipmentCategory.Weapon> {
   readonly fireIntervalSeconds: number;
   readonly attackAnimationSeconds: number;
   readonly ammunition: Readonly<WeaponAmmunitionDefinition>;
+  readonly shotPattern: Readonly<WeaponShotPattern>;
   readonly projectile: Readonly<WeaponProjectileDefinition>;
 }
 

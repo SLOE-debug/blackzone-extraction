@@ -13,11 +13,16 @@ export {
   EquipmentRarity,
   WeaponAmmunitionMode,
   WeaponClass,
+  WeaponShotPatternType,
   type EquipmentDefinition,
   type EquipmentLibrary,
+  type PelletConeWeaponShotPattern,
+  type SingleWeaponShotPattern,
+  type TubeMagazineWeaponAmmunitionDefinition,
   type WeaponAmmunitionDefinition,
   type WeaponEquipmentDefinition,
   type WeaponProjectileDefinition,
+  type WeaponShotPattern,
 } from './equipment/equipment';
 export {
   WeightedLootTable,

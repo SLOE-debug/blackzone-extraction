@@ -3,12 +3,25 @@ import { EquipmentId } from '../../assets/core/equipment/equipment';
 import { createChunkCoordinate } from '../../assets/core/world/chunk-coordinate';
 import { createBattlefieldTreasureChestKey } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-key';
 import { BattlefieldTreasureChestSessionState } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-session-state';
-import { createBattlefieldTreasureChestSpawns } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-spawn';
+import {
+  createBattlefieldTreasureChestSpawns,
+  type BattlefieldTreasureChestPlacementConstraint,
+} from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-spawn';
+
+const UNCONSTRAINED_PLACEMENT: BattlefieldTreasureChestPlacementConstraint = Object.freeze({
+  isAreaClear: (): boolean => true,
+});
 
 describe('战场宝箱会话状态', () => {
   it('相同 Chunk 重建时产生完全一致的稳定宝箱 key', () => {
-    const first = createBattlefieldTreasureChestSpawns(createChunkCoordinate(0, 0));
-    const second = createBattlefieldTreasureChestSpawns(createChunkCoordinate(0, 0));
+    const first = createBattlefieldTreasureChestSpawns(
+      createChunkCoordinate(0, 0),
+      UNCONSTRAINED_PLACEMENT,
+    );
+    const second = createBattlefieldTreasureChestSpawns(
+      createChunkCoordinate(0, 0),
+      UNCONSTRAINED_PLACEMENT,
+    );
     expect(first).toHaveLength(1);
     expect(second[0]?.key).toBe(first[0]?.key);
     expect(createBattlefieldTreasureChestKey(createChunkCoordinate(3, -2), 0))

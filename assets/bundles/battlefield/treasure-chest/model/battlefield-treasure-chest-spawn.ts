@@ -11,6 +11,9 @@ import {
   createBattlefieldTreasureChestKey,
   type BattlefieldTreasureChestKey,
 } from './battlefield-treasure-chest-key';
+import { TREASURE_CHEST_BEACON_LAYOUT } from './treasure-chest-beacon-layout';
+
+const MINIMUM_CHEST_SPACING = 18;
 
 /** 一个由固定 Chunk 持有的程序化宝箱生成描述。 */
 export interface BattlefieldTreasureChestSpawn {
@@ -23,16 +26,22 @@ export interface BattlefieldTreasureChestSpawn {
   readonly seed: number;
 }
 
+/** 宝箱确定性拒绝采样所需的只读环境占地约束。 */
+export interface BattlefieldTreasureChestPlacementConstraint {
+  isAreaClear(x: number, z: number, clearanceRadius: number): boolean;
+}
+
 /** 宝箱在无限地图中的稀疏密度、边界留白和起始区保底规则。 */
 export const BATTLEFIELD_TREASURE_CHEST_GENERATION = Object.freeze({
   seed: 0x9e45c158,
-  generationChance: 0.02,
+  generationChance: 0.2,
   minimumChestsPerGeneratedChunk: 1,
   maximumChestsPerGeneratedChunk: 1,
   minimumOriginChests: 1,
   maximumOriginChests: 1,
-  chunkEdgePadding: 5.5,
-  minimumChestSpacing: 6,
+  chunkEdgePadding: MINIMUM_CHEST_SPACING * 0.5,
+  minimumChestSpacing: MINIMUM_CHEST_SPACING,
+  environmentClearanceRadius: TREASURE_CHEST_BEACON_LAYOUT.boundsRadius,
   originSafePadding: 2.5,
   elevation: 0.04,
 });
@@ -47,6 +56,7 @@ const EMPTY_TREASURE_CHEST_SPAWNS = Object.freeze([]) as readonly BattlefieldTre
  */
 export function createBattlefieldTreasureChestSpawns(
   chunk: Readonly<ChunkCoordinate>,
+  placementConstraint: BattlefieldTreasureChestPlacementConstraint,
 ): readonly BattlefieldTreasureChestSpawn[] {
   const stableChunk = createChunkCoordinate(chunk.x, chunk.z);
   const randomState = Uint32Array.of(hashChunkCoordinates(
@@ -69,7 +79,16 @@ export function createBattlefieldTreasureChestSpawns(
   const count = randomInteger(randomState, 0, minimumCount, maximumCount + 1);
   const spawns: BattlefieldTreasureChestSpawn[] = [];
   for (let index = 0; index < count; index++) {
-    const position = createChestPosition(randomState, stableChunk, isOriginChunk, spawns);
+    const position = createChestPosition(
+      randomState,
+      stableChunk,
+      isOriginChunk,
+      spawns,
+      placementConstraint,
+    );
+    if (position === null) {
+      continue;
+    }
     const spawnSeed = advanceRandomState(randomState[0] ?? 1);
     randomState[0] = spawnSeed;
     spawns.push(Object.freeze({
@@ -85,21 +104,26 @@ export function createBattlefieldTreasureChestSpawns(
   return Object.freeze(spawns);
 }
 
-/** 在 Chunk 边缘内寻找与同区宝箱保持间距的位置。 */
+/**
+ * 在 Chunk 边缘内寻找宝箱位置。
+ *
+ * 边缘留白固定为最小间距的一半，因此相邻 Chunk 各自生成的宝箱也不会贴近。
+ */
 function createChestPosition(
   randomState: Uint32Array,
   chunk: Readonly<ChunkCoordinate>,
   isOriginChunk: boolean,
   existing: readonly BattlefieldTreasureChestSpawn[],
-): Readonly<{ x: number; z: number }> {
+  placementConstraint: BattlefieldTreasureChestPlacementConstraint,
+): Readonly<{ x: number; z: number }> | null {
   const config = BATTLEFIELD_TREASURE_CHEST_GENERATION;
   const size = BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize;
   const centerX = chunk.x * size;
   const centerZ = chunk.z * size;
   const extent = size * 0.5 - config.chunkEdgePadding;
-  let x = centerX;
-  let z = centerZ;
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < 32; attempt++) {
+    let x: number;
+    let z: number;
     if (isOriginChunk) {
       const angle = randomRange(randomState, 0, -Math.PI, Math.PI);
       const minimumRadius = BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.playerSafeRadius
@@ -116,11 +140,12 @@ function createChestPosition(
       x = centerX + randomRange(randomState, 0, -extent, extent);
       z = centerZ + randomRange(randomState, 0, -extent, extent);
     }
-    if (isSeparatedFromExisting(x, z, existing, config.minimumChestSpacing)) {
-      break;
+    if (isSeparatedFromExisting(x, z, existing, config.minimumChestSpacing)
+      && placementConstraint.isAreaClear(x, z, config.environmentClearanceRadius)) {
+      return Object.freeze({ x, z });
     }
   }
-  return Object.freeze({ x, z });
+  return null;
 }
 
 function isSeparatedFromExisting(
