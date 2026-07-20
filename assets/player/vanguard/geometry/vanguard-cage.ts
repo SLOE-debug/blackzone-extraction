@@ -1,11 +1,11 @@
-import { createVanguardBindPoseMatrices } from '../animation/vanguard-pose';
 import {
   VanguardBone,
   VANGUARD_BONE_MATRIX_COMPONENTS,
 } from '../model/vanguard-bone';
 import { resolveVanguardDepth } from '../model/vanguard-depth-profile';
+import { VANGUARD_INVERSE_BIND_MATRICES } from '../rigging/vanguard-rig';
 
-const BIND_POSE_MATRICES = createVanguardBindPoseMatrices();
+const INVERSE_BIND_MATRICES = VANGUARD_INVERSE_BIND_MATRICES;
 const FACETED_QUAD_MINIMUM_RIDGE = 0.01;
 
 /** 显式人形拓扑笼支持的面片类型。 */
@@ -368,18 +368,18 @@ function worldToBoneLocal(
   bone: VanguardBone,
 ): Readonly<{ x: number; y: number; z: number }> {
   const offset = bone * VANGUARD_BONE_MATRIX_COMPONENTS;
-  const relativeX = worldX - (BIND_POSE_MATRICES[offset + 9] ?? 0);
-  const relativeY = worldY - (BIND_POSE_MATRICES[offset + 10] ?? 0);
-  const relativeZ = worldZ - (BIND_POSE_MATRICES[offset + 11] ?? 0);
   return Object.freeze({
-    x: relativeX * (BIND_POSE_MATRICES[offset] ?? 0)
-      + relativeY * (BIND_POSE_MATRICES[offset + 1] ?? 0)
-      + relativeZ * (BIND_POSE_MATRICES[offset + 2] ?? 0),
-    y: relativeX * (BIND_POSE_MATRICES[offset + 3] ?? 0)
-      + relativeY * (BIND_POSE_MATRICES[offset + 4] ?? 0)
-      + relativeZ * (BIND_POSE_MATRICES[offset + 5] ?? 0),
-    z: relativeX * (BIND_POSE_MATRICES[offset + 6] ?? 0)
-      + relativeY * (BIND_POSE_MATRICES[offset + 7] ?? 0)
-      + relativeZ * (BIND_POSE_MATRICES[offset + 8] ?? 0),
+    x: (INVERSE_BIND_MATRICES[offset + 9] ?? 0)
+      + (INVERSE_BIND_MATRICES[offset] ?? 1) * worldX
+      + (INVERSE_BIND_MATRICES[offset + 3] ?? 0) * worldY
+      + (INVERSE_BIND_MATRICES[offset + 6] ?? 0) * worldZ,
+    y: (INVERSE_BIND_MATRICES[offset + 10] ?? 0)
+      + (INVERSE_BIND_MATRICES[offset + 1] ?? 0) * worldX
+      + (INVERSE_BIND_MATRICES[offset + 4] ?? 1) * worldY
+      + (INVERSE_BIND_MATRICES[offset + 7] ?? 0) * worldZ,
+    z: (INVERSE_BIND_MATRICES[offset + 11] ?? 0)
+      + (INVERSE_BIND_MATRICES[offset + 2] ?? 0) * worldX
+      + (INVERSE_BIND_MATRICES[offset + 5] ?? 0) * worldY
+      + (INVERSE_BIND_MATRICES[offset + 8] ?? 1) * worldZ,
   });
 }

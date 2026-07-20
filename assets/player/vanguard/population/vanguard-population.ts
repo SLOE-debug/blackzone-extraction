@@ -2,6 +2,7 @@ import { type Material, Node } from 'cc';
 import { type PlanarMovementConstraint } from '../../../core/contracts/planar-movement-constraint';
 import { VanguardAnimationSystem } from '../animation/vanguard-animation-system';
 import { writeVanguardWeaponSockets } from '../animation/vanguard-weapon-socket-pose';
+import { writeVanguardWeaponRigPose } from '../animation/vanguard-weapon-rig-output';
 import { VanguardDamageSystem } from '../combat/vanguard-damage-system';
 import {
   type VanguardControlIntent,
@@ -12,6 +13,7 @@ import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { VANGUARD_MAX_HEALTH, VanguardLifePhase } from '../model/vanguard-life';
 import { VanguardState } from '../model/vanguard-state';
 import { type MutableVanguardWeaponSocketPose } from '../model/vanguard-weapon-socket';
+import { type MutableVanguardWeaponRigPose } from '../model/vanguard-weapon-rig-pose';
 import { VanguardMovementSystem } from '../movement/vanguard-movement-system';
 import { VanguardRenderer } from '../rendering/vanguard-renderer';
 import { VanguardMantleSimulationSystem } from '../simulation/vanguard-mantle-system';
@@ -92,9 +94,11 @@ export class VanguardPopulation {
     data.moveZ[0] = intent.moveZ;
     data.aimX[0] = intent.aimX;
     data.aimZ[0] = intent.aimZ;
+    data.aimPitch[0] = intent.aimPitch;
     data.aiming[0] = intent.aiming ? 1 : 0;
     data.weaponPose[0] = intent.weaponPose;
-    data.weaponAttackAmount[0] = intent.weaponAttackAmount;
+    data.weaponAction[0] = intent.weaponAction;
+    data.weaponActionProgress[0] = intent.weaponActionProgress;
   }
 
   /** 把当前左右手骨骼上的掌心挂点写入调用方复用的世界坐标。 */
@@ -103,6 +107,12 @@ export class VanguardPopulation {
   ): void {
     this.ensureActive();
     writeVanguardWeaponSockets(this.state, 0, result);
+  }
+
+  /** 写出由瞄准、重量、后坐和动作层共同决定的武器权威世界姿态。 */
+  public writeWeaponRigPose(result: MutableVanguardWeaponRigPose): void {
+    this.ensureActive();
+    writeVanguardWeaponRigPose(this.state, 0, result);
   }
 
   /** 对主角施加聚合战斗伤害。 */

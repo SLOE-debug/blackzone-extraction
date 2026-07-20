@@ -19,8 +19,15 @@ const BULLET_TRIANGLES = new Float32Array([
   0.004, -0.008, -0.27, 0, 0.055, -0.06, -0.062, 0.004, -0.04,
 ]);
 
+const BUCKSHOT_PELLET_TRIANGLES = createScaledProjectileTriangles(
+  BULLET_TRIANGLES,
+  0.42,
+  0.28,
+);
+
 const PROJECTILE_LOCAL_TRIANGLES = Object.freeze({
   [WeaponProjectileVisual.Bullet]: BULLET_TRIANGLES,
+  [WeaponProjectileVisual.BuckshotPellet]: BUCKSHOT_PELLET_TRIANGLES,
 } satisfies Readonly<Record<WeaponProjectileVisual, Float32Array>>);
 
 const BULLET_PALETTE = Object.freeze([
@@ -29,9 +36,23 @@ const BULLET_PALETTE = Object.freeze([
   Object.freeze({ red: 1, green: 0.9, blue: 0.46, alpha: 0.98 }),
 ]);
 
+const BUCKSHOT_PELLET_PALETTE = Object.freeze([
+  Object.freeze({ red: 1, green: 0.88, blue: 0.48, alpha: 0.94 }),
+  Object.freeze({ red: 1, green: 0.6, blue: 0.14, alpha: 0.9 }),
+  Object.freeze({ red: 1, green: 0.96, blue: 0.7, alpha: 0.96 }),
+]);
+
 const PROJECTILE_PALETTES = Object.freeze({
   [WeaponProjectileVisual.Bullet]: BULLET_PALETTE,
-} satisfies Readonly<Record<WeaponProjectileVisual, typeof BULLET_PALETTE>>);
+  [WeaponProjectileVisual.BuckshotPellet]: BUCKSHOT_PELLET_PALETTE,
+} satisfies Readonly<Record<WeaponProjectileVisual, readonly Readonly<ProjectileColor>[]>>);
+
+interface ProjectileColor {
+  readonly red: number;
+  readonly green: number;
+  readonly blue: number;
+  readonly alpha: number;
+}
 
 const DIRECTION_EPSILON = 0.000001;
 
@@ -112,4 +133,19 @@ export function writeBattlefieldProjectilePositions(
         + forwardZ * localForward;
     }
   }
+}
+
+/** 从同一分面弹体拓扑派生短小霰弹曳光，保持固定顶点容量。 */
+function createScaledProjectileTriangles(
+  source: Float32Array,
+  radialScale: number,
+  forwardScale: number,
+): Float32Array {
+  const result = new Float32Array(source.length);
+  for (let component = 0; component < source.length; component += 3) {
+    result[component] = (source[component] ?? 0) * radialScale;
+    result[component + 1] = (source[component + 1] ?? 0) * radialScale;
+    result[component + 2] = (source[component + 2] ?? 0) * forwardScale;
+  }
+  return result;
 }

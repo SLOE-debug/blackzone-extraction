@@ -6,7 +6,7 @@ import {
   type WeaponEquipmentDefinition,
 } from '../../../../core/equipment/equipment';
 import {
-  VanguardWeaponHand,
+  VanguardWeaponAction,
   VanguardWeaponPose,
 } from '../../../../player/vanguard';
 import {
@@ -25,19 +25,29 @@ import {
   type MutableBattlefieldProjectileDirection,
   writeBattlefieldProjectileDirection,
 } from '../projectile/model/battlefield-projectile-trajectory';
+import {
+  getWeaponShotProjectileCount,
+  writeBattlefieldShotProjectileDirection,
+} from '../projectile/model/battlefield-weapon-shot-pattern';
 import { BattlefieldProjectilePopulation } from '../projectile/population/battlefield-projectile-population';
 import { createHeldWeaponMaterial } from '../rendering/held-weapon-material';
 import { HeldWeaponRenderer } from '../rendering/held-weapon-renderer';
 
-/** 武器运行时读取的双手挂点、世界朝向与存活状态。 */
+/** 武器运行时读取的 WeaponAimRoot 权威姿态与存活状态。 */
 export interface BattlefieldWeaponOwnerPose {
-  readonly leftX: number;
-  readonly leftY: number;
-  readonly leftZ: number;
-  readonly rightX: number;
-  readonly rightY: number;
-  readonly rightZ: number;
-  readonly heading: number;
+  readonly rootX: number;
+  readonly rootY: number;
+  readonly rootZ: number;
+  readonly rotationX: number;
+  readonly rotationY: number;
+  readonly rotationZ: number;
+  readonly rotationW: number;
+  readonly muzzleX: number;
+  readonly muzzleY: number;
+  readonly muzzleZ: number;
+  readonly forwardX: number;
+  readonly forwardY: number;
+  readonly forwardZ: number;
   readonly alive: boolean;
 }
 
@@ -54,8 +64,14 @@ export class BattlefieldPlayerWeaponRuntime {
     y: 0,
     z: 1,
   };
+  private readonly projectileDirection: MutableBattlefieldProjectileDirection = {
+    x: 0,
+    y: 0,
+    z: 1,
+  };
   private fireCooldown = 0;
-  private attackAnimationAmount = 0;
+  private attackAnimationElapsed = Number.POSITIVE_INFINITY;
+  private reloadPending = false;
   private disposed = false;
 
   constructor(
@@ -76,9 +92,29 @@ export class BattlefieldPlayerWeaponRuntime {
     return this.profile?.pose ?? VanguardWeaponPose.Unarmed;
   }
 
-  /** 最近一次真实攻击留下的平滑姿态脉冲。 */
-  public get vanguardAttackAnimationAmount(): number {
-    return this.attackAnimationAmount;
+  /** 当前装备交给主角动画层采样的武器动作。 */
+  public get vanguardWeaponAction(): VanguardWeaponAction {
+    if (this.ammunition?.reloading === true) {
+      return VanguardWeaponAction.Reload;
+    }
+    if (this.definition !== null
+      && this.attackAnimationElapsed < this.definition.attackAnimationSeconds) {
+      return VanguardWeaponAction.Fire;
+    }
+    return VanguardWeaponAction.Ready;
+  }
+
+  /** 当前武器动作的零到一归一化进度。 */
+  public get vanguardWeaponActionProgress(): number {
+    if (this.ammunition?.reloading === true) {
+      return this.ammunition.reloadProgress;
+    }
+    const definition = this.definition;
+    if (definition !== null
+      && this.attackAnimationElapsed < definition.attackAnimationSeconds) {
+      return Math.min(1, this.attackAnimationElapsed / definition.attackAnimationSeconds);
+    }
+    return 0;
   }
 
   /**
@@ -113,7 +149,8 @@ export class BattlefieldPlayerWeaponRuntime {
     this.heldRenderer = heldRenderer;
     this.projectiles = projectiles;
     this.fireCooldown = 0;
-    this.attackAnimationAmount = 0;
+    this.attackAnimationElapsed = Number.POSITIVE_INFINITY;
+    this.reloadPending = false;
     return replacedEquipmentId;
   }
 
@@ -133,37 +170,38 @@ export class BattlefieldPlayerWeaponRuntime {
     const definition = this.definition;
     const profile = this.profile;
     const ammunition = this.ammunition;
-    const socketX = profile?.hand === VanguardWeaponHand.Left
-      ? owner.leftX
-      : owner.rightX;
-    const socketY = profile?.hand === VanguardWeaponHand.Left
-      ? owner.leftY
-      : owner.rightY;
-    const socketZ = profile?.hand === VanguardWeaponHand.Left
-      ? owner.leftZ
-      : owner.rightZ;
-    this.heldRenderer?.setSocketPose(socketX, socketY, socketZ, owner.heading);
     if (definition === null || profile === null || ammunition === null) {
       return;
     }
 
-    this.attackAnimationAmount = Math.max(
-      0,
-      this.attackAnimationAmount - safeDeltaTime / definition.attackAnimationSeconds,
-    );
+    ammunition.update(safeDeltaTime);
+    this.attackAnimationElapsed += safeDeltaTime;
     this.fireCooldown = Math.max(0, this.fireCooldown - safeDeltaTime);
-    if (owner.alive && fireTarget !== null && this.fireCooldown <= 0) {
+    if (this.reloadPending
+      && this.attackAnimationElapsed >= definition.attackAnimationSeconds) {
+      ammunition.beginReload();
+      this.reloadPending = false;
+    }
+    if (owner.alive
+      && fireTarget !== null
+      && this.fireCooldown <= 0
+      && !ammunition.reloading) {
       this.attack(
         definition,
-        profile,
-        socketX,
-        socketY,
-        socketZ,
-        owner.heading,
+        owner,
         fireTarget,
         ammunition,
       );
     }
+    this.heldRenderer?.setRigPose(
+      owner.rootX,
+      owner.rootY,
+      owner.rootZ,
+      owner.rotationX,
+      owner.rotationY,
+      owner.rotationZ,
+      owner.rotationW,
+    );
     this.projectiles?.update(safeDeltaTime, monsters);
   }
 
@@ -180,30 +218,19 @@ export class BattlefieldPlayerWeaponRuntime {
     this.ammunition = null;
     this.projectiles = null;
     this.heldRenderer = null;
+    this.reloadPending = false;
   }
 
-  /** 根据手持配置计算真实枪口位置，并向目标发射一枚弹体。 */
+  /** 根据手持配置计算真实枪口位置，并按武器分布完成一次射击。 */
   private attack(
     definition: Readonly<WeaponEquipmentDefinition>,
-    profile: Readonly<HeldWeaponProfile>,
-    socketX: number,
-    socketY: number,
-    socketZ: number,
-    heading: number,
+    owner: Readonly<BattlefieldWeaponOwnerPose>,
     target: Readonly<BattlefieldAimTarget>,
     ammunition: WeaponAmmunition,
   ): void {
-    const forwardX = Math.sin(heading);
-    const forwardZ = Math.cos(heading);
-    const rightX = Math.cos(heading);
-    const rightZ = -Math.sin(heading);
-    const attackX = socketX
-      + rightX * profile.attackRightFromSocket
-      + forwardX * profile.attackForwardFromSocket;
-    const attackY = socketY + profile.attackHeightFromSocket;
-    const attackZ = socketZ
-      + rightZ * profile.attackRightFromSocket
-      + forwardZ * profile.attackForwardFromSocket;
+    const attackX = owner.muzzleX;
+    const attackY = owner.muzzleY;
+    const attackZ = owner.muzzleZ;
     const direction = this.shotDirection;
     writeBattlefieldProjectileDirection(
       attackX,
@@ -214,19 +241,32 @@ export class BattlefieldPlayerWeaponRuntime {
       target.z,
       direction,
     );
+    const projectileCount = getWeaponShotProjectileCount(definition.shotPattern);
     if (!ammunition.tryConsumeShot()) {
+      ammunition.beginReload();
       return;
     }
-    this.projectiles?.spawn(
-      attackX,
-      attackY,
-      attackZ,
-      direction.x,
-      direction.y,
-      direction.z,
-    );
+    for (let projectileIndex = 0; projectileIndex < projectileCount; projectileIndex++) {
+      writeBattlefieldShotProjectileDirection(
+        direction.x,
+        direction.y,
+        direction.z,
+        definition.shotPattern,
+        projectileIndex,
+        this.projectileDirection,
+      );
+      this.projectiles?.spawn(
+        attackX,
+        attackY,
+        attackZ,
+        this.projectileDirection.x,
+        this.projectileDirection.y,
+        this.projectileDirection.z,
+      );
+    }
     this.fireCooldown = definition.fireIntervalSeconds;
-    this.attackAnimationAmount = 1;
+    this.attackAnimationElapsed = 0;
+    this.reloadPending = ammunition.empty;
   }
 
   private ensureActive(): void {
@@ -237,13 +277,26 @@ export class BattlefieldPlayerWeaponRuntime {
 }
 
 function validateOwnerPose(owner: Readonly<BattlefieldWeaponOwnerPose>): void {
-  if (!Number.isFinite(owner.leftX)
-    || !Number.isFinite(owner.leftY)
-    || !Number.isFinite(owner.leftZ)
-    || !Number.isFinite(owner.rightX)
-    || !Number.isFinite(owner.rightY)
-    || !Number.isFinite(owner.rightZ)
-    || !Number.isFinite(owner.heading)) {
+  if (!Number.isFinite(owner.rootX)
+    || !Number.isFinite(owner.rootY)
+    || !Number.isFinite(owner.rootZ)
+    || !Number.isFinite(owner.rotationX)
+    || !Number.isFinite(owner.rotationY)
+    || !Number.isFinite(owner.rotationZ)
+    || !Number.isFinite(owner.rotationW)
+    || !Number.isFinite(owner.muzzleX)
+    || !Number.isFinite(owner.muzzleY)
+    || !Number.isFinite(owner.muzzleZ)
+    || !Number.isFinite(owner.forwardX)
+    || !Number.isFinite(owner.forwardY)
+    || !Number.isFinite(owner.forwardZ)
+    || Math.abs(Math.hypot(
+      owner.rotationX,
+      owner.rotationY,
+      owner.rotationZ,
+      owner.rotationW,
+    ) - 1) > 0.002
+    || Math.abs(Math.hypot(owner.forwardX, owner.forwardY, owner.forwardZ) - 1) > 0.002) {
     throw new Error('玩家武器持有者姿态必须使用有限数值。');
   }
 }

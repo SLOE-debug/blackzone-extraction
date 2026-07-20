@@ -9,7 +9,7 @@ describe('battlefield scene configuration', () => {
     expect(BATTLEFIELD_LAYOUT.camera.maximumPitchDegrees).toBe(75);
   });
 
-  it('uses only 2600 ambient illuminance with shadows disabled', () => {
+  it('使用最近稳定版本的 2600 环境光且保持全局阴影关闭', () => {
     expect(BATTLEFIELD_LIGHTING.ambientIlluminance).toBe(2600);
     expect(BATTLEFIELD_LIGHTING.shadowsEnabled).toBe(false);
   });

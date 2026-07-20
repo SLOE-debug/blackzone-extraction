@@ -1,14 +1,10 @@
 import { EquipmentId } from '../../../../core/equipment/equipment';
-import {
-  VanguardWeaponHand,
-  VanguardWeaponPose,
-} from '../../../../player/vanguard/model/vanguard-weapon-pose';
+import { VanguardWeaponPose } from '../../../../player/vanguard/model/vanguard-weapon-pose';
 
-/** 一种武器的手部挂点、程序模型变换和攻击起点。 */
+/** 一种武器相对 WeaponAimRoot 的程序模型变换和真实攻击起点。 */
 export interface HeldWeaponProfile {
   readonly equipmentId: EquipmentId;
   readonly pose: VanguardWeaponPose;
-  readonly hand: VanguardWeaponHand;
   readonly heldScale: number;
   readonly droppedScale: number;
   readonly originRightOffset: number;
@@ -17,9 +13,6 @@ export interface HeldWeaponProfile {
   readonly rotationXDegrees: number;
   readonly rotationYDegrees: number;
   readonly rotationZDegrees: number;
-  readonly attackRightFromSocket: number;
-  readonly attackHeightFromSocket: number;
-  readonly attackForwardFromSocket: number;
 }
 
 /** 装备标识到完整手持视觉契约的强类型映射。 */
@@ -27,7 +20,6 @@ const HELD_WEAPON_PROFILES = Object.freeze({
   [EquipmentId.DesertEagle]: profile({
     equipmentId: EquipmentId.DesertEagle,
     pose: VanguardWeaponPose.Handgun,
-    hand: VanguardWeaponHand.Right,
     heldScale: 0.16,
     droppedScale: 0.34,
     originRightOffset: 0,
@@ -36,9 +28,18 @@ const HELD_WEAPON_PROFILES = Object.freeze({
     rotationXDegrees: 0,
     rotationYDegrees: -90,
     rotationZDegrees: 0,
-    attackRightFromSocket: 0,
-    attackHeightFromSocket: 0.1028,
-    attackForwardFromSocket: 0.3484,
+  }),
+  [EquipmentId.PumpShotgun]: profile({
+    equipmentId: EquipmentId.PumpShotgun,
+    pose: VanguardWeaponPose.Shotgun,
+    heldScale: 0.34,
+    droppedScale: 0.28,
+    originRightOffset: 0,
+    originHeightOffset: 0.055,
+    originForwardOffset: 0.045,
+    rotationXDegrees: 0,
+    rotationYDegrees: -90,
+    rotationZDegrees: 0,
   }),
 } satisfies Readonly<Record<EquipmentId, Readonly<HeldWeaponProfile>>>);
 

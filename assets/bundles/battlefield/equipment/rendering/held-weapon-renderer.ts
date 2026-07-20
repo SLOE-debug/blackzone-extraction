@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { type Material, Node, Quat } from 'cc';
 import { EquipmentId } from '../../../../core/equipment/equipment';
 import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
 import {
@@ -7,18 +7,20 @@ import {
 } from '../model/held-weapon-profile';
 import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
 
-const DEGREES_PER_RADIAN = 180 / Math.PI;
 const HELD_WEAPON_SURFACE_OPTIONS = Object.freeze({
   castShadows: true,
   receiveShadows: true,
   uploadLightingAttributes: true,
 });
 
-/** 把一件程序化武器固定到玩家右手掌心，并始终与玩家朝向一致。 */
+/** 把一件程序化武器渲染到玩家 WeaponAimRoot 提供的权威姿态。 */
 export class HeldWeaponRenderer {
   private readonly root: Node;
   private readonly mesh = new StaticSurfaceMesh();
   private readonly profile: Readonly<HeldWeaponProfile>;
+  private readonly rigRotation = new Quat();
+  private readonly profileRotation = new Quat();
+  private readonly composedRotation = new Quat();
   private disposed = false;
 
   constructor(
@@ -27,6 +29,12 @@ export class HeldWeaponRenderer {
     material: Material,
   ) {
     this.profile = getHeldWeaponProfile(equipmentId);
+    Quat.fromEuler(
+      this.profileRotation,
+      this.profile.rotationXDegrees,
+      this.profile.rotationYDegrees,
+      this.profile.rotationZDegrees,
+    );
     const root = new Node('HeldWeapon');
     parent.addChild(root);
     root.setScale(
@@ -49,26 +57,47 @@ export class HeldWeaponRenderer {
     }
   }
 
-  /** 根据右手掌心挂点与世界 Y 轴朝向同步武器姿态。 */
-  public setSocketPose(x: number, y: number, z: number, heading: number): void {
+  /** 根据 WeaponAimRoot 世界四元数同步武器，不再从任一只手反推枪身。 */
+  public setRigPose(
+    x: number,
+    y: number,
+    z: number,
+    rotationX: number,
+    rotationY: number,
+    rotationZ: number,
+    rotationW: number,
+  ): void {
     if (this.disposed) {
       return;
     }
-    const forwardX = Math.sin(heading);
-    const forwardZ = Math.cos(heading);
-    const rightX = Math.cos(heading);
-    const rightZ = -Math.sin(heading);
     const profile = this.profile;
+    const rightOffset = profile.originRightOffset;
+    const heightOffset = profile.originHeightOffset;
+    const forwardOffset = profile.originForwardOffset;
+    const twiceCrossX = 2 * (rotationY * forwardOffset - rotationZ * heightOffset);
+    const twiceCrossY = 2 * (rotationZ * rightOffset - rotationX * forwardOffset);
+    const twiceCrossZ = 2 * (rotationX * heightOffset - rotationY * rightOffset);
     this.root.setPosition(
-      x + rightX * profile.originRightOffset + forwardX * profile.originForwardOffset,
-      y + profile.originHeightOffset,
-      z + rightZ * profile.originRightOffset + forwardZ * profile.originForwardOffset,
+      x + rightOffset
+        + rotationW * twiceCrossX
+        + rotationY * twiceCrossZ
+        - rotationZ * twiceCrossY,
+      y + heightOffset
+        + rotationW * twiceCrossY
+        + rotationZ * twiceCrossX
+        - rotationX * twiceCrossZ,
+      z + forwardOffset
+        + rotationW * twiceCrossZ
+        + rotationX * twiceCrossY
+        - rotationY * twiceCrossX,
     );
-    this.root.setRotationFromEuler(
-      profile.rotationXDegrees,
-      heading * DEGREES_PER_RADIAN + profile.rotationYDegrees,
-      profile.rotationZDegrees,
+    this.rigRotation.set(rotationX, rotationY, rotationZ, rotationW);
+    Quat.multiply(
+      this.composedRotation,
+      this.rigRotation,
+      this.profileRotation,
     );
+    this.root.setRotation(this.composedRotation);
   }
 
   public dispose(): void {

@@ -9,6 +9,7 @@ import {
 import { VANGUARD_CONFIG } from '../../assets/player/vanguard/model/vanguard-config';
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
+import { VanguardWeaponAction } from '../../assets/player/vanguard/model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../../assets/player/vanguard/model/vanguard-weapon-pose';
 
 const TEST_OPTIONS = Object.freeze({
@@ -41,12 +42,12 @@ describe('主角模块化武器与跑步姿势', () => {
     expect(sockets.rightZ).toBeGreaterThan(1);
   });
 
-  it('满速跑步时膝盖和手肘明显偏离直线，并能叠加手枪上身姿态', () => {
+  it('满速跑步的摆动腿会折叠小腿，并能叠加手枪上身姿态', () => {
     const state = new VanguardState(TEST_OPTIONS);
     const animation = new VanguardAnimationSystem();
     state.data.motion.speed[0] = VANGUARD_CONFIG.maximumMoveSpeed;
     state.data.animation.locomotionBlend[0] = 1;
-    state.data.animation.locomotionPhase[0] = Math.PI * 0.5;
+    state.data.animation.locomotionPhase[0] = Math.PI * 1.4;
     state.data.intent.weaponPose[0] = VanguardWeaponPose.Handgun;
     state.data.animation.weaponPose[0] = VanguardWeaponPose.Handgun;
     state.data.animation.weaponStanceBlend[0] = 1;
@@ -63,6 +64,53 @@ describe('主角模块化武器与跑步姿势', () => {
     const sockets = createSocketPose();
     writeVanguardWeaponSockets(state, 0, sockets);
     expect(sockets.rightZ).toBeGreaterThan(1);
+  });
+
+  it('霰弹枪同时约束双臂，并在逐发装填中让左手离开护木下探取弹', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const animation = new VanguardAnimationSystem();
+    state.data.intent.weaponPose[0] = VanguardWeaponPose.Shotgun;
+    state.data.animation.weaponPose[0] = VanguardWeaponPose.Shotgun;
+    state.data.animation.weaponStanceBlend[0] = 1;
+    animation.initialize(state);
+    const readySockets = createSocketPose();
+    writeVanguardWeaponSockets(state, 0, readySockets);
+
+    state.data.intent.weaponAction[0] = VanguardWeaponAction.Reload;
+    state.data.intent.weaponActionProgress[0] = 0.42;
+    animation.initialize(state);
+    const reloadSockets = createSocketPose();
+    writeVanguardWeaponSockets(state, 0, reloadSockets);
+
+    expect(readySockets.leftZ).toBeGreaterThan(1.35);
+    expect(readySockets.rightZ).toBeGreaterThan(0.85);
+    expect(reloadSockets.leftY).toBeLessThan(readySockets.leftY - 0.55);
+    expect(reloadSockets.leftZ).toBeLessThan(readySockets.leftZ - 0.8);
+    expect(Math.abs(reloadSockets.rightZ - readySockets.rightZ)).toBeLessThan(0.35);
+  });
+
+  it('边跑边开火时下肢继续沿真实侧向移动方向完成蹬地和回收', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const animation = new VanguardAnimationSystem();
+    state.data.motion.speed[0] = VANGUARD_CONFIG.maximumMoveSpeed;
+    state.data.motion.velocityX[0] = VANGUARD_CONFIG.maximumMoveSpeed;
+    state.data.animation.locomotionBlend[0] = 1;
+    state.data.animation.locomotionPhase[0] = Math.PI * 1.4;
+    state.data.intent.weaponPose[0] = VanguardWeaponPose.Shotgun;
+    state.data.intent.weaponAction[0] = VanguardWeaponAction.Fire;
+    state.data.intent.weaponActionProgress[0] = 0.14;
+    state.data.animation.weaponPose[0] = VanguardWeaponPose.Shotgun;
+    state.data.animation.weaponStanceBlend[0] = 1;
+    animation.initialize(state);
+
+    const leftAnkleX = readBonePosition(state, VanguardBone.LeftFoot, 0);
+    const rightAnkleX = readBonePosition(state, VanguardBone.RightFoot, 0);
+    const sockets = createSocketPose();
+    writeVanguardWeaponSockets(state, 0, sockets);
+    expect(leftAnkleX).toBeLessThan(-0.55);
+    expect(rightAnkleX - leftAnkleX).toBeGreaterThan(0.5);
+    expect(sockets.leftZ).toBeGreaterThan(1.1);
+    expect(sockets.rightZ).toBeGreaterThan(0.7);
   });
 });
 

@@ -1,4 +1,5 @@
 import { type WeaponEquipmentDefinition } from '../../../../../core/equipment/equipment';
+import { getWeaponShotProjectileCount } from './battlefield-weapon-shot-pattern';
 
 /** 预分配的战场子弹 SoA 状态，射击热路径只覆写已有槽位。 */
 export class BattlefieldProjectileState {
@@ -83,7 +84,8 @@ export function calculateProjectileCapacity(
     throw new Error('武器射速、子弹速度和射程必须是有限正数。');
   }
   const flightSeconds = projectile.maximumRange / projectile.speed;
-  const capacity = Math.ceil(flightSeconds / definition.fireIntervalSeconds) + 1;
+  const concurrentShots = Math.ceil(flightSeconds / definition.fireIntervalSeconds) + 1;
+  const capacity = concurrentShots * getWeaponShotProjectileCount(definition.shotPattern);
   if (!Number.isSafeInteger(capacity) || capacity <= 0) {
     throw new Error('武器参数无法推导有效的战场子弹容量。');
   }

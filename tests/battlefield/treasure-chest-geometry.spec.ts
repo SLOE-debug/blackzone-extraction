@@ -9,6 +9,8 @@ import {
 import {
   BATTLEFIELD_TREASURE_CHEST_GENERATION,
   createBattlefieldTreasureChestSpawns,
+  type BattlefieldTreasureChestSpawn,
+  type BattlefieldTreasureChestPlacementConstraint,
 } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-spawn';
 import { worldCoordinateToEnvironmentChunk } from '../../assets/bundles/battlefield/environment/model/battlefield-environment-chunk';
 import { createChunkCoordinate } from '../../assets/core/world/chunk-coordinate';
@@ -28,6 +30,10 @@ import {
   writeSharedTreasureChestBeacon,
   writeSharedTreasureChestBody,
 } from '../../assets/bundles/battlefield/treasure-chest/rendering/treasure-chest-shared-geometry';
+
+const UNCONSTRAINED_PLACEMENT: BattlefieldTreasureChestPlacementConstraint = Object.freeze({
+  isAreaClear: (): boolean => true,
+});
 
 describe('程序化 Low Poly 宝箱', () => {
   it('主体和箱盖均由有限、非退化、带单位法线的固定三角拓扑构成', () => {
@@ -89,8 +95,14 @@ describe('程序化 Low Poly 宝箱', () => {
   });
 
   it('起始 Chunk 只保留一个稳定保底宝箱且不会刷在玩家脚边', () => {
-    const first = createBattlefieldTreasureChestSpawns(createChunkCoordinate(0, 0));
-    const second = createBattlefieldTreasureChestSpawns(createChunkCoordinate(0, 0));
+    const first = createBattlefieldTreasureChestSpawns(
+      createChunkCoordinate(0, 0),
+      UNCONSTRAINED_PLACEMENT,
+    );
+    const second = createBattlefieldTreasureChestSpawns(
+      createChunkCoordinate(0, 0),
+      UNCONSTRAINED_PLACEMENT,
+    );
     expect(first).toHaveLength(1);
     expect(second).toEqual(first);
     for (const spawn of first) {
@@ -101,10 +113,12 @@ describe('程序化 Low Poly 宝箱', () => {
       for (let chunkZ = -2; chunkZ <= 2; chunkZ++) {
         initialWindowChestCount += createBattlefieldTreasureChestSpawns(
           createChunkCoordinate(chunkX, chunkZ),
+          UNCONSTRAINED_PLACEMENT,
         ).length;
       }
     }
-    expect(initialWindowChestCount).toBeLessThanOrEqual(2);
+    expect(initialWindowChestCount).toBeGreaterThanOrEqual(3);
+    expect(initialWindowChestCount).toBeLessThanOrEqual(9);
   });
 
   it('在不同 Chunk 中稀疏随机生成宝箱且坐标所有权始终一致', () => {
@@ -120,6 +134,7 @@ describe('程序化 Low Poly 宝箱', () => {
         sampledChunkCount++;
         const spawns = createBattlefieldTreasureChestSpawns(
           createChunkCoordinate(chunkX, chunkZ),
+          UNCONSTRAINED_PLACEMENT,
         );
         if (spawns.length === 0) {
           emptyChunkCount++;
@@ -139,7 +154,40 @@ describe('程序化 Low Poly 宝箱', () => {
     expect(emptyChunkCount).toBeGreaterThan(0);
     expect(populatedChunkCount).toBeGreaterThan(0);
     expect(totalChestCount).toBe(populatedChunkCount);
-    expect(populatedChunkCount / sampledChunkCount).toBeLessThan(0.03);
+    const observedGenerationChance = populatedChunkCount / sampledChunkCount;
+    expect(Math.abs(
+      observedGenerationChance - BATTLEFIELD_TREASURE_CHEST_GENERATION.generationChance,
+    )).toBeLessThan(0.025);
+  });
+
+  it('相邻及对角 Chunk 的宝箱始终保持全局最小间距', () => {
+    const spawns: BattlefieldTreasureChestSpawn[] = [];
+    for (let chunkX = -16; chunkX <= 16; chunkX++) {
+      for (let chunkZ = -16; chunkZ <= 16; chunkZ++) {
+        spawns.push(...createBattlefieldTreasureChestSpawns(
+          createChunkCoordinate(chunkX, chunkZ),
+          UNCONSTRAINED_PLACEMENT,
+        ));
+      }
+    }
+    for (let first = 0; first < spawns.length; first++) {
+      const firstSpawn = spawns[first];
+      if (firstSpawn === undefined) {
+        throw new Error('宝箱全局间距测试缺少首个生成结果。');
+      }
+      for (let second = first + 1; second < spawns.length; second++) {
+        const secondSpawn = spawns[second];
+        if (secondSpawn === undefined) {
+          throw new Error('宝箱全局间距测试缺少第二个生成结果。');
+        }
+        expect(Math.hypot(
+          secondSpawn.x - firstSpawn.x,
+          secondSpawn.z - firstSpawn.z,
+        )).toBeGreaterThanOrEqual(
+          BATTLEFIELD_TREASURE_CHEST_GENERATION.minimumChestSpacing,
+        );
+      }
+    }
   });
 
   it('关闭宝箱使用距离增强的信标呼吸且打开后完全熄灭', () => {

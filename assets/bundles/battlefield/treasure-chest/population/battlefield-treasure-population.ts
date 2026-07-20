@@ -23,6 +23,7 @@ import {
 import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
 import { createPlayerDiscardTrajectory } from '../../loot/model/player-discard-trajectory';
 import { createBattlefieldTreasureChestSpawns } from '../model/battlefield-treasure-chest-spawn';
+import { BATTLEFIELD_TREASURE_CHEST_ENVIRONMENT_BLOCKERS } from '../model/battlefield-treasure-chest-environment';
 import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treasure-chest-session-state';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TreasureChestSharedRenderer } from '../rendering/treasure-chest-shared-renderer';
@@ -71,10 +72,23 @@ BattlefieldInteractionProvider, Disposable {
   /** 为当前 Chunk 程序化生成宝箱，并把各自运行时登记到作用域。 */
   public populate(
     scope: ChunkRuntimeScope,
-    _environment: BattlefieldEnvironmentPopulation,
+    environment: BattlefieldEnvironmentPopulation,
   ): void {
     this.ensureActive();
-    for (const spawn of createBattlefieldTreasureChestSpawns(scope.chunk)) {
+    const placementConstraint = Object.freeze({
+      isAreaClear: (x: number, z: number, clearanceRadius: number): boolean => (
+        environment.isAreaClearOf(
+          BATTLEFIELD_TREASURE_CHEST_ENVIRONMENT_BLOCKERS,
+          x,
+          z,
+          clearanceRadius,
+        )
+      ),
+    });
+    for (const spawn of createBattlefieldTreasureChestSpawns(
+      scope.chunk,
+      placementConstraint,
+    )) {
       const chest = new TreasureChestRuntime(
         this.nextTreasureChestId++,
         this.parent,

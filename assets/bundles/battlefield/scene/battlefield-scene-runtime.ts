@@ -8,6 +8,7 @@ import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plu
 import {
   VanguardAction,
   VanguardPopulation,
+  VanguardWeaponAction,
   VanguardWeaponPose,
 } from '../../../player/vanguard';
 import { BattlefieldPlayerAimController } from '../combat/battlefield-player-aim-controller';
@@ -50,13 +51,19 @@ interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombat
 }
 
 interface MutableBattlefieldWeaponOwnerPose extends BattlefieldWeaponOwnerPose {
-  leftX: number;
-  leftY: number;
-  leftZ: number;
-  rightX: number;
-  rightY: number;
-  rightZ: number;
-  heading: number;
+  rootX: number;
+  rootY: number;
+  rootZ: number;
+  rotationX: number;
+  rotationY: number;
+  rotationZ: number;
+  rotationW: number;
+  muzzleX: number;
+  muzzleY: number;
+  muzzleZ: number;
+  forwardX: number;
+  forwardY: number;
+  forwardZ: number;
   alive: boolean;
 }
 
@@ -84,13 +91,19 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     collisionRadius: 0,
   };
   private readonly weaponOwnerPose: MutableBattlefieldWeaponOwnerPose = {
-    leftX: 0,
-    leftY: 0,
-    leftZ: 0,
-    rightX: 0,
-    rightY: 0,
-    rightZ: 0,
-    heading: 0,
+    rootX: 0,
+    rootY: 0,
+    rootZ: 0,
+    rotationX: 0,
+    rotationY: 0,
+    rotationZ: 0,
+    rotationW: 1,
+    muzzleX: 0,
+    muzzleY: 0,
+    muzzleZ: 0,
+    forwardX: 0,
+    forwardY: 0,
+    forwardZ: 1,
     alive: true,
   };
   private readonly weaponAimTarget: MutableBattlefieldAimTarget = {
@@ -248,8 +261,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     }
     if (this.player !== null && this.monsters !== null && this.playerWeapon !== null) {
       const pose = this.weaponOwnerPose;
-      this.player.writeWeaponSockets(pose);
-      pose.heading = this.player.heading;
+      this.player.writeWeaponRigPose(pose);
       pose.alive = this.player.isAlive;
       this.playerWeapon.update(
         deltaTime,
@@ -346,7 +358,8 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       cameraRig,
       controls,
       this.playerWeapon?.vanguardWeaponPose ?? VanguardWeaponPose.Unarmed,
-      this.playerWeapon?.vanguardAttackAnimationAmount ?? 0,
+      this.playerWeapon?.vanguardWeaponAction ?? VanguardWeaponAction.Ready,
+      this.playerWeapon?.vanguardWeaponActionProgress ?? 0,
       this.weaponAimTarget,
     );
   }
