@@ -22,6 +22,12 @@ import {
   TREASURE_CHEST_BEACON_TOPOLOGY,
   writeTreasureChestBeaconGeometry,
 } from '../../assets/bundles/battlefield/treasure-chest/geometry/treasure-chest-beacon-geometry';
+import {
+  createSharedTreasureChestBeaconGeometry,
+  createSharedTreasureChestBodyGeometry,
+  writeSharedTreasureChestBeacon,
+  writeSharedTreasureChestBody,
+} from '../../assets/bundles/battlefield/treasure-chest/rendering/treasure-chest-shared-geometry';
 
 describe('程序化 Low Poly 宝箱', () => {
   it('主体和箱盖均由有限、非退化、带单位法线的固定三角拓扑构成', () => {
@@ -159,5 +165,32 @@ describe('程序化 Low Poly 宝箱', () => {
     writeTreasureChestBeaconGeometry(geometry, 1.1, 0.9);
     expect(Array.from(geometry.positions)).not.toEqual(Array.from(idlePositions));
     expect(Array.from(geometry.colors)).not.toEqual(Array.from(idleColors));
+  });
+
+  it('多个宝箱复用连续世界空间箱体与信标拓扑', () => {
+    const bodySource = createTreasureChestBatchGeometry();
+    const body = createSharedTreasureChestBodyGeometry(bodySource, 2);
+    writeSharedTreasureChestBody(bodySource, body, 0, 0, 0, 0, 0, true);
+    writeSharedTreasureChestBody(bodySource, body, 1, 10, 2, -4, Math.PI * 0.5, true);
+    const bodyStride = bodySource.geometry.vertexCount * 3;
+    expect(body.positions.subarray(0, bodyStride)).toEqual(
+      bodySource.geometry.getPositionView(),
+    );
+    const localX = bodySource.geometry.positions[0] ?? 0;
+    const localY = bodySource.geometry.positions[1] ?? 0;
+    const localZ = bodySource.geometry.positions[2] ?? 0;
+    expect(body.positions[bodyStride]).toBeCloseTo(10 + localZ, 5);
+    expect(body.positions[bodyStride + 1]).toBeCloseTo(2 + localY, 5);
+    expect(body.positions[bodyStride + 2]).toBeCloseTo(-4 - localX, 5);
+
+    const beaconSource = createTreasureChestBeaconGeometry();
+    writeTreasureChestBeaconGeometry(beaconSource, 0.7, 0.8);
+    const beacon = createSharedTreasureChestBeaconGeometry(beaconSource, 2);
+    writeSharedTreasureChestBeacon(beaconSource, beacon, 0, 0, 0, 0, 0);
+    writeSharedTreasureChestBeacon(beaconSource, beacon, 1, 10, 2, -4, 0);
+    expect(beacon.colors.subarray(0, beaconSource.colors.length)).toEqual(
+      beaconSource.getColorView(),
+    );
+    expect(beacon.index[beaconSource.indexCount]).toBe(beaconSource.vertexCount);
   });
 });

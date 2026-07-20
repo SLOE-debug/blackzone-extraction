@@ -35,7 +35,6 @@ export class VirtualJoystick {
   public readonly value: VirtualJoystickValue = { x: 0, y: 0, magnitude: 0 };
   private readonly root: Node;
   private readonly transform: UITransform;
-  private readonly graphics: Graphics;
   private readonly touchLocation = new Vec2();
   private readonly touchWorldPosition = new Vec3();
   private readonly touchLocalPosition = new Vec3();
@@ -44,6 +43,9 @@ export class VirtualJoystick {
   private handleY = 0;
   private actionIcon: VirtualJoystickActionIcon | null = null;
   private actionPressPending = false;
+  private centerX = 0;
+  private centerY = 0;
+  private revision = 1;
   private disposed = false;
 
   constructor(
@@ -58,17 +60,36 @@ export class VirtualJoystick {
     this.root = root;
     this.transform = root.addComponent(UITransform);
     this.transform.setContentSize(options.interactionRadius * 2, options.interactionRadius * 2);
-    this.graphics = root.addComponent(Graphics);
     root.on(Node.EventType.TOUCH_START, this.handleTouchStart, this);
     root.on(Node.EventType.TOUCH_MOVE, this.handleTouchMove, this);
     root.on(Node.EventType.TOUCH_END, this.handleTouchEnd, this);
     root.on(Node.EventType.TOUCH_CANCEL, this.handleTouchCancel, this);
-    this.redraw();
   }
 
   /** 当前是否有一根手指正在控制此摇杆。 */
   public get active(): boolean {
     return this.activeTouchId !== null;
+  }
+
+  /** 共享 HUD Graphics 判断是否需要重绘使用的单调版本。 */
+  public get graphicsRevision(): number {
+    return this.revision;
+  }
+
+  /** 把当前摇杆外观写入调用方持有的共享 Graphics。 */
+  public draw(graphics: Graphics): void {
+    drawVirtualJoystick(
+      graphics,
+      this.centerX,
+      this.centerY,
+      this.options.radius,
+      this.options.handleRadius,
+      this.handleX,
+      this.handleY,
+      this.options.palette,
+      this.active,
+      this.actionIcon,
+    );
   }
 
   /** 更新摇杆在 Canvas 中的固定中心。 */
@@ -78,6 +99,9 @@ export class VirtualJoystick {
     }
     if (this.root.position.x !== x || this.root.position.y !== y) {
       this.root.setPosition(x, y, 0);
+      this.centerX = x;
+      this.centerY = y;
+      this.invalidateGraphics();
     }
   }
 
@@ -90,7 +114,7 @@ export class VirtualJoystick {
     this.activeTouchId = null;
     this.actionPressPending = false;
     this.resetValue();
-    this.redraw();
+    this.invalidateGraphics();
   }
 
   /** 读取并清除动作模式下最近一次 TOUCH_START。 */
@@ -136,7 +160,7 @@ export class VirtualJoystick {
     } else {
       this.actionPressPending = true;
       this.resetValue();
-      this.redraw();
+      this.invalidateGraphics();
     }
     event.propagationStopped = true;
   }
@@ -187,13 +211,13 @@ export class VirtualJoystick {
     this.value.x = directionX * remappedLength;
     this.value.y = directionY * remappedLength;
     this.value.magnitude = remappedLength;
-    this.redraw();
+    this.invalidateGraphics();
   }
 
   private releaseTouch(event: EventTouch): void {
     this.activeTouchId = null;
     this.resetValue();
-    this.redraw();
+    this.invalidateGraphics();
     event.propagationStopped = true;
   }
 
@@ -209,17 +233,9 @@ export class VirtualJoystick {
     this.handleY = 0;
   }
 
-  private redraw(): void {
-    drawVirtualJoystick(
-      this.graphics,
-      this.options.radius,
-      this.options.handleRadius,
-      this.handleX,
-      this.handleY,
-      this.options.palette,
-      this.active,
-      this.actionIcon,
-    );
+  /** 标记共享图形批次需要在下一同步点整体重绘。 */
+  private invalidateGraphics(): void {
+    this.revision = this.revision >= Number.MAX_SAFE_INTEGER ? 1 : this.revision + 1;
   }
 }
 

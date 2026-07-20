@@ -8,18 +8,19 @@ import {
   UITransform,
   VerticalTextAlignment,
 } from 'cc';
+import { useSharedCharacterAtlas } from '../../../core/ui/shared-character-atlas-label';
 import { drawBattlefieldPlayerStatus } from './battlefield-player-status-graphics';
 import { BATTLEFIELD_PLAYER_STATUS_STYLE } from './battlefield-player-status-style';
 
 /** 在屏幕右上角用单行紧凑血条持续呈现玩家当前生命值。 */
 export class BattlefieldPlayerStatusHud {
   private readonly root: Node;
-  private readonly graphics: Graphics;
   private readonly label: Label;
   private currentHealth = Number.NaN;
   private maximumHealth = Number.NaN;
   private layoutWidth = -1;
   private layoutHeight = -1;
+  private revision = 1;
   private disposed = false;
 
   constructor(canvasNode: Node) {
@@ -28,7 +29,6 @@ export class BattlefieldPlayerStatusHud {
     const transform = root.addComponent(UITransform);
     transform.setAnchorPoint(0.5, 0.5);
     transform.setContentSize(style.panelWidth, style.panelHeight);
-    this.graphics = root.addComponent(Graphics);
 
     const labelNode = createUiNode('BattlefieldPlayerHealthLabel', root);
     labelNode.setPosition(0, 0, 0);
@@ -36,12 +36,11 @@ export class BattlefieldPlayerStatusHud {
     labelTransform.setAnchorPoint(0.5, 0.5);
     labelTransform.setContentSize(style.labelWidth, style.labelHeight);
     const label = labelNode.addComponent(Label);
-    label.useSystemFont = true;
+    useSharedCharacterAtlas(label);
     label.fontSize = style.labelFontSize;
     label.lineHeight = style.labelLineHeight;
     label.isBold = true;
-    label.enableWrapText = false;
-    label.overflow = Label.Overflow.SHRINK;
+    label.overflow = Label.Overflow.CLAMP;
     label.horizontalAlign = HorizontalTextAlignment.CENTER;
     label.verticalAlign = VerticalTextAlignment.CENTER;
     label.color = new Color(
@@ -54,6 +53,22 @@ export class BattlefieldPlayerStatusHud {
     this.root = root;
     this.label = label;
     this.present(0, 1);
+  }
+
+  /** 共享 HUD Graphics 判断血条或布局是否变化使用的单调版本。 */
+  public get graphicsRevision(): number {
+    return this.revision;
+  }
+
+  /** 把当前血条写入 Canvas 坐标系中的共享 Graphics。 */
+  public draw(graphics: Graphics): void {
+    drawBattlefieldPlayerStatus(
+      graphics,
+      this.currentHealth / this.maximumHealth,
+      this.root.position.x,
+      this.root.position.y,
+      this.root.scale.x,
+    );
   }
 
   /** 只在生命值实际变化时更新动态文字和 Graphics 顶点。 */
@@ -73,7 +88,7 @@ export class BattlefieldPlayerStatusHud {
     this.currentHealth = clampedHealth;
     this.maximumHealth = maximumHealth;
     this.label.string = `${Math.ceil(clampedHealth)}`;
-    drawBattlefieldPlayerStatus(this.graphics, clampedHealth / maximumHealth);
+    this.invalidateGraphics();
   }
 
   /** 在可见尺寸变化后保持状态板贴紧右上安全边距。 */
@@ -95,6 +110,7 @@ export class BattlefieldPlayerStatusHud {
     );
     this.layoutWidth = width;
     this.layoutHeight = height;
+    this.invalidateGraphics();
   }
 
   public dispose(): void {
@@ -105,6 +121,10 @@ export class BattlefieldPlayerStatusHud {
     if (this.root.isValid) {
       this.root.destroy();
     }
+  }
+
+  private invalidateGraphics(): void {
+    this.revision = this.revision >= Number.MAX_SAFE_INTEGER ? 1 : this.revision + 1;
   }
 }
 

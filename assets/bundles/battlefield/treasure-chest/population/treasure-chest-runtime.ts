@@ -22,7 +22,10 @@ import {
 } from '../model/battlefield-treasure-chest-spawn';
 import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treasure-chest-session-state';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
-import { TreasureChestRenderer } from '../rendering/treasure-chest-renderer';
+import {
+  type TreasureChestRenderHandle,
+  TreasureChestSharedRenderer,
+} from '../rendering/treasure-chest-shared-renderer';
 
 enum TreasureChestPhase {
   Closed,
@@ -35,7 +38,7 @@ export class TreasureChestRuntime {
   public readonly id: number;
   public readonly x: number;
   public readonly z: number;
-  private readonly renderer: TreasureChestRenderer;
+  private readonly renderer: TreasureChestRenderHandle;
   private readonly drops: DroppedEquipmentPopulation;
   private readonly lootRandomState = new Uint32Array(1);
   private readonly scatterRandomState = new Uint32Array(1);
@@ -51,6 +54,7 @@ export class TreasureChestRuntime {
     id: number,
     parent: Node,
     surfaceMaterialTemplate: Material,
+    sharedRenderer: TreasureChestSharedRenderer,
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
     private readonly sessionState: BattlefieldTreasureChestSessionState,
     private readonly equipmentLibrary: EquipmentLibrary,
@@ -65,14 +69,7 @@ export class TreasureChestRuntime {
     this.z = spawn.z;
     this.lootRandomState[0] = normalizeRandomSeed(spawn.seed);
     this.scatterRandomState[0] = normalizeRandomSeed(spawn.seed);
-    this.renderer = new TreasureChestRenderer(
-      parent,
-      surfaceMaterialTemplate,
-      spawn.x,
-      spawn.y,
-      spawn.z,
-      spawn.heading,
-    );
+    this.renderer = sharedRenderer.register(spawn);
     try {
       this.drops = new DroppedEquipmentPopulation(
         parent,
@@ -194,6 +191,7 @@ export class TreasureChestRuntime {
     this.phase = TreasureChestPhase.Open;
     this.elapsed = TREASURE_CHEST_ANIMATION.duration;
     this.renderer.setLidAngleDegrees(TREASURE_CHEST_ANIMATION.finalAngleDegrees);
+    this.renderer.updateAttention(0, this.playerDistanceSquared, false);
     this.releaseLoot();
   }
 

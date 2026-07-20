@@ -5,9 +5,11 @@ import {
   type SurfaceBufferGeometry,
 } from '../../assets/core/geometry/buffer-geometry';
 import { TriangleMeshWriter } from '../../assets/core/geometry/triangle-mesh-writer';
+import { VertexSemantic } from '../../assets/core/mesh/vertex-layout';
 import {
   battlefieldGroundGeometry,
   BATTLEFIELD_GROUND_TOPOLOGY,
+  type MutableBattlefieldGroundWriteRange,
 } from '../../assets/bundles/battlefield/geometry/battlefield-ground-geometry';
 import {
   createBattlefieldGroundPatchFrame,
@@ -15,7 +17,11 @@ import {
   type BattlefieldGroundPoint,
 } from '../../assets/bundles/battlefield/geometry/battlefield-ground-sampling';
 import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../../assets/bundles/battlefield/environment/model/battlefield-environment-config';
-import { shadeBattlefieldGround } from '../../assets/bundles/battlefield/rendering/battlefield-vertex-shading';
+import {
+  shadeBattlefieldGround,
+  shadeBattlefieldGroundRange,
+} from '../../assets/bundles/battlefield/rendering/battlefield-vertex-shading';
+import { BattlefieldGroundRenderGeometry } from '../../assets/bundles/battlefield/rendering/battlefield-ground-render-geometry';
 
 describe('battlefield ground geometry', () => {
   it('writes the declared fixed topology with upward faceted normals', () => {
@@ -26,6 +32,23 @@ describe('battlefield ground geometry', () => {
     for (let offset = 0; offset < geometry.normals.length; offset += 3) {
       expect(geometry.normals[offset + 1]).toBeGreaterThan(0.7);
     }
+  });
+
+  it('GPU 地面布局只上传位置和颜色，法线仅保留给 CPU 分面着色', () => {
+    const metrics = battlefieldGroundGeometry.metrics;
+    const geometry = new BattlefieldGroundRenderGeometry(
+      metrics.verticesPerEntity,
+      metrics.indicesPerEntity,
+    );
+    battlefieldGroundGeometry.write(new TriangleMeshWriter(geometry), 0, 0);
+    shadeBattlefieldGround(geometry, 0, 0);
+
+    expect(geometry.renderGeometry.layout.semantics).toEqual([
+      VertexSemantic.Position,
+      VertexSemantic.Color,
+    ]);
+    expect(geometry.normals).toHaveLength(metrics.verticesPerEntity * 3);
+    expect(geometry.renderGeometry.vertexCount).toBe(metrics.verticesPerEntity);
   });
 
   it('keeps the player origin level while preserving deterministic terrain', () => {
@@ -79,15 +102,61 @@ describe('battlefield ground geometry', () => {
     writer.commit();
     const initializedIndices = geometry.getIndexView().slice();
 
-    writer.reset(false);
-    battlefieldGroundGeometry.write(writer, 1, -1);
-    writer.assertCounts(
-      BATTLEFIELD_GROUND_TOPOLOGY.verticesPerEntity,
-      BATTLEFIELD_GROUND_TOPOLOGY.indicesPerEntity,
-    );
-    writer.commit();
+    const range: MutableBattlefieldGroundWriteRange = {
+      firstVertex: 0,
+      vertexCount: 0,
+      centerWorldX: 0,
+      centerWorldZ: 0,
+    };
+    battlefieldGroundGeometry.beginWrite(writer, 1, -1, false);
+    while (!battlefieldGroundGeometry.writeNextRows(writer, 11, range)) {
+      // 分帧接口在完成前保持同一个 Writer 游标。
+    }
 
     expect(geometry.getIndexView()).toEqual(initializedIndices);
+  });
+
+  it('分帧写入与一次性写入产生完全相同的地面顶点流', () => {
+    const centerChunkX = 2;
+    const centerChunkZ = -1;
+    const expected = createGroundGeometry(centerChunkX, centerChunkZ);
+    const chunkSize = BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize;
+    shadeBattlefieldGround(
+      expected,
+      centerChunkX * chunkSize,
+      centerChunkZ * chunkSize,
+    );
+
+    const actual = createGroundGeometry(0, 0);
+    const writer = new TriangleMeshWriter(actual);
+    const range: MutableBattlefieldGroundWriteRange = {
+      firstVertex: 0,
+      vertexCount: 0,
+      centerWorldX: 0,
+      centerWorldZ: 0,
+    };
+    battlefieldGroundGeometry.beginWrite(
+      writer,
+      centerChunkX,
+      centerChunkZ,
+      false,
+    );
+    let complete = false;
+    while (!complete) {
+      complete = battlefieldGroundGeometry.writeNextRows(writer, 7, range);
+      shadeBattlefieldGroundRange(
+        actual,
+        range.firstVertex,
+        range.vertexCount,
+        range.centerWorldX,
+        range.centerWorldZ,
+      );
+    }
+
+    expect(actual.getPositionView()).toEqual(expected.getPositionView());
+    expect(actual.getNormalView()).toEqual(expected.getNormalView());
+    expect(actual.getColorView()).toEqual(expected.getColorView());
+    expect(actual.getIndexView()).toEqual(expected.getIndexView());
   });
 
   it('does not repeat the old ten-cell height pattern', () => {

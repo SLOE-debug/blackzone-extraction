@@ -25,6 +25,7 @@ import { createPlayerDiscardTrajectory } from '../../loot/model/player-discard-t
 import { createBattlefieldTreasureChestSpawns } from '../model/battlefield-treasure-chest-spawn';
 import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treasure-chest-session-state';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
+import { TreasureChestSharedRenderer } from '../rendering/treasure-chest-shared-renderer';
 import { TreasureChestRuntime } from './treasure-chest-runtime';
 
 /** 聚合活动 Chunk 的宝箱、开启动画、交互和落地装备查询。 */
@@ -41,6 +42,7 @@ BattlefieldInteractionProvider, Disposable {
   };
   private readonly equipmentInstanceIds = new DroppedEquipmentInstanceIdSequence();
   private readonly sessionState = new BattlefieldTreasureChestSessionState();
+  private readonly renderer: TreasureChestSharedRenderer;
   private readonly discardedEquipment: DroppedEquipmentPopulation;
   private readonly discardRandomState = new Uint32Array(1);
   private nextTreasureChestId = 1;
@@ -52,11 +54,17 @@ BattlefieldInteractionProvider, Disposable {
     private readonly equipmentLibrary: EquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
   ) {
-    this.discardedEquipment = new DroppedEquipmentPopulation(
-      parent,
-      surfaceMaterialTemplate,
-      this.equipmentInstanceIds,
-    );
+    this.renderer = new TreasureChestSharedRenderer(parent, surfaceMaterialTemplate);
+    try {
+      this.discardedEquipment = new DroppedEquipmentPopulation(
+        parent,
+        surfaceMaterialTemplate,
+        this.equipmentInstanceIds,
+      );
+    } catch (error: unknown) {
+      this.renderer.dispose();
+      throw error;
+    }
     this.discardRandomState[0] = createLootRuntimeRandomSeed(0x3c6ef35f);
   }
 
@@ -71,6 +79,7 @@ BattlefieldInteractionProvider, Disposable {
         this.nextTreasureChestId++,
         this.parent,
         this.surfaceMaterialTemplate,
+        this.renderer,
         spawn,
         this.sessionState,
         this.equipmentLibrary,
@@ -90,6 +99,13 @@ BattlefieldInteractionProvider, Disposable {
       chest.update(deltaTime);
     }
     this.discardedEquipment.update(deltaTime);
+    this.renderer.synchronize();
+  }
+
+  /** 场景激活前提交加载阶段已经登记的全部初始宝箱。 */
+  public completeInitialRendering(): void {
+    this.ensureActive();
+    this.renderer.synchronize();
   }
 
   /** 把玩家最新位置同步给全部活动宝箱的低频信标提示。 */
@@ -265,10 +281,11 @@ BattlefieldInteractionProvider, Disposable {
       return;
     }
     this.disposed = true;
-    this.discardedEquipment.dispose();
     while (this.chests.length > 0) {
       this.chests.pop()?.dispose();
     }
+    this.discardedEquipment.dispose();
+    this.renderer.dispose();
   }
 
   private ensureActive(): void {

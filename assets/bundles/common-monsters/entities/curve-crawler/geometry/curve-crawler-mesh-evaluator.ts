@@ -49,15 +49,12 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     range: EntityRange,
     requested: MeshDirty,
   ): MeshDirty {
-    const requestedPose = requested & MeshDirty.Pose;
-    if (requestedPose !== MeshDirty.None && requestedPose !== MeshDirty.Pose) {
-      throw new Error('Curve Crawler 的 Position 和 Normal 必须作为同一姿态成对请求。');
-    }
-    const writePositions = requestedPose === MeshDirty.Pose;
-    const writeNormals = requestedPose === MeshDirty.Pose;
-    const writeColors = (requested & MeshDirty.Color) !== 0;
-    const writeGeometry = requestedPose === MeshDirty.Pose;
-    if (!writeGeometry && !writeColors && (requested & MeshDirty.Bounds) === 0) {
+    const flags = resolveEvaluationFlags(requested);
+    const writeGeometry = (flags & CurveCrawlerEvaluationFlag.Geometry) !== 0;
+    const writeColors = (flags & CurveCrawlerEvaluationFlag.Color) !== 0;
+    if (!writeGeometry
+      && !writeColors
+      && (requested & MeshDirty.Bounds) === 0) {
       return MeshDirty.None;
     }
     assertCurveCrawlerStreamCapacity(plan, streams, range.count);
@@ -65,85 +62,191 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     for (let localEntity = 0; localEntity < range.count; localEntity++) {
       const entityIndex = range.start + localEntity;
       const entityVertexOffset = localEntity * plan.vertexCount;
-      if (writeGeometry) {
-        const surfaceCollapse = state.data.animation.surfaceCollapse[entityIndex] ?? 0;
-        if (surfaceCollapse >= 0.999) {
-          collapseCurveCrawlerBodyAndEyes(
-            plan,
-            streams,
-            entityVertexOffset,
-            state.data.transform.x[entityIndex] ?? 0,
-            state.data.transform.y[entityIndex] ?? 0,
-            writePositions,
-            writeNormals,
-          );
-        } else {
-          const fragmentScale = Math.max(0.0001, 1 - surfaceCollapse);
-          evaluateCurveCrawlerBodyMesh(
-            state,
-            plan,
-            entityIndex,
-            entityVertexOffset,
-            fragmentScale,
-            streams,
-            writePositions,
-            writeNormals,
-            this.legScratch,
-          );
-          evaluateCurveCrawlerEyeMesh(
-            state,
-            plan,
-            entityIndex,
-            entityVertexOffset,
-            fragmentScale,
-            streams,
-            writePositions,
-            writeNormals,
-          );
-        }
-        evaluateCurveCrawlerLiquidMesh(
-          state,
-          plan,
-          entityIndex,
-          entityVertexOffset,
-          streams,
-          writePositions,
-          writeNormals,
-        );
-        evaluateCurveCrawlerEmergenceMesh(
-          state,
-          plan,
-          entityIndex,
-          entityVertexOffset,
-          streams,
-          writePositions,
-          writeNormals,
-          this.emergenceScratch,
-        );
-      }
-      if (writeColors) {
-        evaluateCurveCrawlerColors(
-          state,
-          plan,
-          entityIndex,
-          entityVertexOffset,
-          streams.colors,
-        );
-      }
+      this.evaluateEntity(
+        state,
+        plan,
+        streams,
+        entityIndex,
+        entityVertexOffset,
+        writeGeometry,
+        writeColors,
+      );
     }
 
-    let changed = MeshDirty.None;
+    return createChangedFlags(requested, writeGeometry, writeColors);
+  }
+
+  /**
+   * 把任意 SoA 槽位清单紧凑写入目标网格的连续实体区段。
+   *
+   * @param entityIndices 按输出顺序排列的源实体槽位。
+   * @param entityCount 本次读取的清单有效数量。
+   * @param targetEntityOffset 目标网格中的首个紧凑实体槽位。
+   */
+  public evaluatePacked(
+    state: CurveCrawlerState,
+    plan: CurveCrawlerMeshPlan,
+    streams: VertexStreams,
+    entityIndices: Uint32Array,
+    entityCount: number,
+    targetEntityOffset: number,
+    requested: MeshDirty,
+  ): MeshDirty {
+    if (!Number.isInteger(entityCount)
+      || entityCount < 0
+      || entityCount > entityIndices.length
+      || !Number.isInteger(targetEntityOffset)
+      || targetEntityOffset < 0) {
+      throw new Error('Curve Crawler 紧凑求值范围无效。');
+    }
+    const flags = resolveEvaluationFlags(requested);
+    const writeGeometry = (flags & CurveCrawlerEvaluationFlag.Geometry) !== 0;
+    const writeColors = (flags & CurveCrawlerEvaluationFlag.Color) !== 0;
+    if (!writeGeometry
+      && !writeColors
+      && (requested & MeshDirty.Bounds) === 0) {
+      return MeshDirty.None;
+    }
+    assertCurveCrawlerStreamCapacity(
+      plan,
+      streams,
+      targetEntityOffset + entityCount,
+    );
+    for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
+      const entityIndex = entityIndices[packedIndex];
+      if (entityIndex === undefined || entityIndex >= state.count) {
+        throw new Error('Curve Crawler 紧凑求值清单包含越界实体槽位。');
+      }
+      this.evaluateEntity(
+        state,
+        plan,
+        streams,
+        entityIndex,
+        (targetEntityOffset + packedIndex) * plan.vertexCount,
+        writeGeometry,
+        writeColors,
+      );
+    }
+    return createChangedFlags(requested, writeGeometry, writeColors);
+  }
+
+  /** 将一个源实体求值到指定的目标顶点区段。 */
+  private evaluateEntity(
+    state: CurveCrawlerState,
+    plan: CurveCrawlerMeshPlan,
+    streams: VertexStreams,
+    entityIndex: number,
+    entityVertexOffset: number,
+    writeGeometry: boolean,
+    writeColors: boolean,
+  ): void {
     if (writeGeometry) {
-      changed |= MeshDirty.Pose;
+      const surfaceCollapse = state.data.animation.surfaceCollapse[entityIndex] ?? 0;
+      if (surfaceCollapse >= 0.999) {
+        collapseCurveCrawlerBodyAndEyes(
+          plan,
+          streams,
+          entityVertexOffset,
+          state.data.transform.x[entityIndex] ?? 0,
+          state.data.transform.y[entityIndex] ?? 0,
+          true,
+          true,
+        );
+      } else {
+        const fragmentScale = Math.max(0.0001, 1 - surfaceCollapse);
+        evaluateCurveCrawlerBodyMesh(
+          state,
+          plan,
+          entityIndex,
+          entityVertexOffset,
+          fragmentScale,
+          streams,
+          true,
+          true,
+          this.legScratch,
+        );
+        evaluateCurveCrawlerEyeMesh(
+          state,
+          plan,
+          entityIndex,
+          entityVertexOffset,
+          fragmentScale,
+          streams,
+          true,
+          true,
+        );
+      }
+      evaluateCurveCrawlerLiquidMesh(
+        state,
+        plan,
+        entityIndex,
+        entityVertexOffset,
+        streams,
+        true,
+        true,
+      );
+      evaluateCurveCrawlerEmergenceMesh(
+        state,
+        plan,
+        entityIndex,
+        entityVertexOffset,
+        streams,
+        true,
+        true,
+        this.emergenceScratch,
+      );
     }
     if (writeColors) {
-      changed |= MeshDirty.Color;
+      evaluateCurveCrawlerColors(
+        state,
+        plan,
+        entityIndex,
+        entityVertexOffset,
+        streams.colors,
+      );
     }
-    if ((requested & MeshDirty.Bounds) !== 0) {
-      changed |= MeshDirty.Bounds;
-    }
-    return changed;
   }
+}
+
+const enum CurveCrawlerEvaluationFlag {
+  None = 0,
+  Geometry = 1 << 0,
+  Color = 1 << 1,
+}
+
+/** 验证成对姿态流并解析本次实际需要改写的属性。 */
+function resolveEvaluationFlags(requested: MeshDirty): CurveCrawlerEvaluationFlag {
+  const requestedPose = requested & MeshDirty.Pose;
+  if (requestedPose !== MeshDirty.None && requestedPose !== MeshDirty.Pose) {
+    throw new Error('Curve Crawler 的 Position 和 Normal 必须作为同一姿态成对请求。');
+  }
+  let flags = CurveCrawlerEvaluationFlag.None;
+  if (requestedPose === MeshDirty.Pose) {
+    flags |= CurveCrawlerEvaluationFlag.Geometry;
+  }
+  if ((requested & MeshDirty.Color) !== 0) {
+    flags |= CurveCrawlerEvaluationFlag.Color;
+  }
+  return flags;
+}
+
+/** 把已经执行的求值职责转换回通用脏标志。 */
+function createChangedFlags(
+  requested: MeshDirty,
+  writeGeometry: boolean,
+  writeColors: boolean,
+): MeshDirty {
+  let changed = MeshDirty.None;
+  if (writeGeometry) {
+    changed |= MeshDirty.Pose;
+  }
+  if (writeColors) {
+    changed |= MeshDirty.Color;
+  }
+  if ((requested & MeshDirty.Bounds) !== 0) {
+    changed |= MeshDirty.Bounds;
+  }
+  return changed;
 }
 
 /** 验证当前批次顶点流至少完整覆盖其连续实体范围。 */
@@ -161,5 +264,4 @@ function assertCurveCrawlerStreamCapacity(
 }
 
 /** Curve Crawler 全部编译式批次共享的无状态求值器。 */
-export const curveCrawlerMeshEvaluator: MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan>
-  = new CurveCrawlerMeshEvaluator();
+export const curveCrawlerMeshEvaluator = new CurveCrawlerMeshEvaluator();

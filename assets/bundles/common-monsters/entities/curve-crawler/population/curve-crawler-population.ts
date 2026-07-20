@@ -133,6 +133,9 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
     }
 
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
+    if (!this.repopulation.hasResidents()) {
+      return;
+    }
     this.emergence.update(this.state, safeDeltaTime);
     this.hit.update(this.state, safeDeltaTime);
     this.death.update(this.state, safeDeltaTime);

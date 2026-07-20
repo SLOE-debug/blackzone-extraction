@@ -1,16 +1,12 @@
 import { type Material, Node } from 'cc';
 import {
-  createEntityRange,
-  type EntityRange,
-} from '../../../../../core/entities/entity-range';
-import {
   createSurfaceGeometry,
   GeometryIndexFormat,
   type SurfaceBufferGeometry,
 } from '../../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
 import { copyMeshPlanIndices } from '../../../../../core/mesh/mesh-plan-indices';
-import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { createVertexStreams, type VertexStreams } from '../../../../../core/mesh/vertex-streams';
 import { DynamicMeshBatch } from '../../../../../core/rendering/dynamic-mesh-batch';
 import { curveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-compiler';
 import { curveCrawlerMeshEvaluator } from '../geometry/curve-crawler-mesh-evaluator';
@@ -23,6 +19,7 @@ import {
 import { CurveCrawlerColorSnapshot } from './curve-crawler-color-snapshot';
 import { CurveCrawlerMaterials } from './curve-crawler-materials';
 import { type CurveCrawlerPopulationRendering } from './curve-crawler-population-rendering';
+import { CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
 
 const SHARED_SURFACE_OPTIONS = Object.freeze({
   castShadows: true,
@@ -31,15 +28,19 @@ const SHARED_SURFACE_OPTIONS = Object.freeze({
 
 interface CurveCrawlerSharedRenderEntry {
   readonly state: CurveCrawlerState;
-  readonly range: EntityRange;
   readonly bounds: CurveCrawlerBounds;
   readonly colors: CurveCrawlerColorSnapshot;
-  streams: VertexStreams | null;
+  readonly residents: CurveCrawlerResidentLayout;
   dirty: boolean;
   active: boolean;
 }
 
-/** 将多个独立 Curve Crawler 群体压入同一个动态 MeshRenderer。 */
+/**
+ * 将多个独立 Curve Crawler 群体的真实驻留实体紧凑压入一个动态 MeshRenderer。
+ *
+ * 休眠槽位不会占用顶点求值、GPU 上传或三角形提交；容量只在可见人口跨过二次幂
+ * 边界时增长，避免开局为完整尸潮上限预付持续渲染成本。
+ */
 export class CurveCrawlerSharedRenderer {
   private readonly materials: CurveCrawlerMaterials;
   private readonly entries: CurveCrawlerSharedRenderEntry[] = [];
@@ -53,7 +54,9 @@ export class CurveCrawlerSharedRenderer {
   };
   private batch: DynamicMeshBatch | null = null;
   private geometry: SurfaceBufferGeometry | null = null;
+  private streams: VertexStreams | null = null;
   private entityCapacity = 0;
+  private activeEntityCount = 0;
   private structureDirty = false;
   private disposed = false;
 
@@ -64,15 +67,14 @@ export class CurveCrawlerSharedRenderer {
     this.materials = new CurveCrawlerMaterials(surfaceMaterialTemplate);
   }
 
-  /** 登记一个独立模拟状态，并返回只控制该区段的轻量句柄。 */
+  /** 登记一个独立模拟状态，并返回只控制该状态的轻量句柄。 */
   public register(state: CurveCrawlerState): CurveCrawlerPopulationRendering {
     this.ensureActive();
     const entry: CurveCrawlerSharedRenderEntry = {
       state,
-      range: createEntityRange(0, state.count, state.count),
       bounds: createCurveCrawlerBounds(state),
       colors: new CurveCrawlerColorSnapshot(state),
-      streams: null,
+      residents: new CurveCrawlerResidentLayout(state.count),
       dirty: true,
       active: true,
     };
@@ -81,42 +83,60 @@ export class CurveCrawlerSharedRenderer {
     return new CurveCrawlerSharedRenderHandle(this, entry);
   }
 
-  /** 每帧只进行一次全批求值上传；Chunk 结构变化时才重建固定拓扑。 */
+  /** 每帧只求值真实驻留实体，并统一上传紧凑后的顶点流。 */
   public synchronize(): void {
     this.ensureActive();
-    if (this.structureDirty) {
-      this.rebuild();
-      return;
-    }
-    const batch = this.batch;
-    if (batch === null) {
+    const residentLayoutChanged = this.synchronizeResidentLayouts();
+    const residentCount = this.countResidentEntities();
+    const layoutChanged = this.structureDirty
+      || residentLayoutChanged
+      || residentCount !== this.activeEntityCount;
+
+    if (residentCount === 0) {
+      this.synchronizeEmptyLayout();
       return;
     }
 
-    let changed = MeshDirty.None;
-    for (const entry of this.entries) {
-      if (!entry.dirty || entry.streams === null) {
-        continue;
+    const requiresGrowth = this.batch === null
+      || this.geometry === null
+      || this.streams === null
+      || residentCount > this.entityCapacity;
+    const nextCapacity = requiresGrowth
+      ? getExpandedEntityCapacity(residentCount)
+      : this.entityCapacity;
+    let geometry: SurfaceBufferGeometry;
+    let streams: VertexStreams;
+    if (requiresGrowth) {
+      geometry = createSharedGeometry(nextCapacity);
+      streams = createVertexStreams(geometry);
+    } else {
+      if (this.geometry === null || this.streams === null) {
+        throw new Error('Curve Crawler 共享几何在容量复用时不存在。');
       }
-      let requested = MeshDirty.Pose;
-      if (entry.colors.capture()) {
-        requested |= MeshDirty.Color;
+      geometry = this.geometry;
+      streams = this.streams;
+    }
+
+    const forceRewrite = requiresGrowth || layoutChanged;
+    const changed = this.evaluateEntries(streams, forceRewrite);
+    if (forceRewrite) {
+      collapseUnusedEntities(geometry, residentCount, nextCapacity);
+    }
+    const boundsChanged = this.updateBounds(forceRewrite);
+
+    if (requiresGrowth) {
+      this.replaceBatch(geometry, streams, nextCapacity);
+    } else {
+      if ((changed & (MeshDirty.Position | MeshDirty.Normal | MeshDirty.Color)) !== 0) {
+        this.batch?.uploadVertexAttributes(changed);
       }
-      changed |= curveCrawlerMeshEvaluator.evaluate(
-        entry.state,
-        curveCrawlerMeshPlan,
-        entry.streams,
-        entry.range,
-        requested,
-      );
-      entry.dirty = false;
+      if (boundsChanged) {
+        this.batch?.updateBounds(this.bounds);
+      }
     }
-    if ((changed & (MeshDirty.Position | MeshDirty.Normal | MeshDirty.Color)) !== 0) {
-      batch.uploadVertexAttributes(changed);
-    }
-    if (this.updateBounds()) {
-      batch.updateBounds(this.bounds);
-    }
+    this.batch?.setVisible(true);
+    this.activeEntityCount = residentCount;
+    this.structureDirty = false;
   }
 
   /** 释放唯一批次与唯一材质。 */
@@ -127,30 +147,30 @@ export class CurveCrawlerSharedRenderer {
     this.disposed = true;
     for (const entry of this.entries) {
       entry.active = false;
-      entry.streams = null;
     }
     this.entries.length = 0;
     this.batch?.dispose();
     this.batch = null;
     this.geometry = null;
+    this.streams = null;
     this.entityCapacity = 0;
+    this.activeEntityCount = 0;
     this.materials.dispose();
   }
 
-  /** 标记一个群体区段需要在下一次统一同步时重写。 */
+  /** 标记一个群体需要在下一次统一同步时重写动态姿态。 */
   public markDirty(entry: CurveCrawlerSharedRenderEntry): void {
     if (!this.disposed && entry.active) {
       entry.dirty = true;
     }
   }
 
-  /** 从共享拓扑中移除群体；实际 GPU 重建推迟到统一同步点。 */
+  /** 从共享布局移除群体；实际紧凑重排推迟到统一同步点。 */
   public unregister(entry: CurveCrawlerSharedRenderEntry): void {
     if (this.disposed || !entry.active) {
       return;
     }
     entry.active = false;
-    entry.streams = null;
     const index = this.entries.indexOf(entry);
     if (index >= 0) {
       this.entries.splice(index, 1);
@@ -158,76 +178,98 @@ export class CurveCrawlerSharedRenderer {
     }
   }
 
-  private rebuild(): void {
-    const entityCount = this.entries.reduce((total, entry) => total + entry.state.count, 0);
-    if (entityCount === 0) {
-      this.batch?.setVisible(false);
-      this.structureDirty = false;
-      return;
-    }
-
-    const plan = curveCrawlerMeshPlan;
-    const requiresGrowth = this.batch === null
-      || this.geometry === null
-      || entityCount > this.entityCapacity;
-    const nextCapacity = requiresGrowth
-      ? getExpandedEntityCapacity(entityCount)
-      : this.entityCapacity;
-    const geometry = requiresGrowth
-      ? createSharedGeometry(nextCapacity)
-      : this.geometry;
-    if (geometry === null) {
-      throw new Error('Curve Crawler 共享几何在容量复用时不存在。');
-    }
-
-    let entityOffset = 0;
+  /** 原地同步全部群体的可见生命周期槽位。 */
+  private synchronizeResidentLayouts(): boolean {
+    let changed = false;
     for (const entry of this.entries) {
-      entry.streams = createEntryStreams(geometry, entityOffset, entry.state.count);
-      curveCrawlerMeshEvaluator.evaluate(
-        entry.state,
-        plan,
-        entry.streams,
-        entry.range,
-        MeshDirty.All,
-      );
-      entry.colors.capture();
-      entry.dirty = false;
-      entityOffset += entry.state.count;
-    }
-    collapseUnusedEntities(geometry, entityOffset, nextCapacity);
-    this.updateBounds(true);
-
-    if (requiresGrowth) {
-      const nextBatch = new DynamicMeshBatch();
-      try {
-        nextBatch.initialize(
-          this.parent,
-          'CurveCrawlerSharedBatch',
-          geometry,
-          this.materials.surface,
-          this.bounds,
-          SHARED_SURFACE_OPTIONS,
-        );
-      } catch (error: unknown) {
-        nextBatch.dispose();
-        for (const entry of this.entries) {
-          entry.streams = null;
-          entry.dirty = true;
-        }
-        throw error;
+      if (!this.structureDirty && !entry.dirty) {
+        continue;
       }
-      this.batch?.dispose();
-      this.batch = nextBatch;
-      this.geometry = geometry;
-      this.entityCapacity = nextCapacity;
-    } else {
-      this.batch?.uploadVertexAttributes(MeshDirty.All);
-      this.batch?.updateBounds(this.bounds);
+      changed = entry.residents.synchronize(entry.state) || changed;
     }
-    this.batch?.setVisible(true);
+    return changed;
+  }
+
+  /** 返回所有独立群体当前需要提交的总实体数。 */
+  private countResidentEntities(): number {
+    let count = 0;
+    for (const entry of this.entries) {
+      count += entry.residents.count;
+    }
+    return count;
+  }
+
+  /** 在没有任何驻留实体时完全移除怪物 Draw Call。 */
+  private synchronizeEmptyLayout(): void {
+    this.batch?.setVisible(false);
+    for (const entry of this.entries) {
+      entry.dirty = false;
+    }
+    this.activeEntityCount = 0;
     this.structureDirty = false;
   }
 
+  /** 按群体顺序把离散 SoA 槽位写成一个连续 GPU 实体区段。 */
+  private evaluateEntries(streams: VertexStreams, forceRewrite: boolean): MeshDirty {
+    let changed = MeshDirty.None;
+    let targetEntityOffset = 0;
+    for (const entry of this.entries) {
+      const colorChanged = entry.colors.captureResident(
+        entry.residents.entityIndices,
+        entry.residents.count,
+      );
+      if (forceRewrite || entry.dirty) {
+        let requested = MeshDirty.Pose;
+        if (forceRewrite || colorChanged) {
+          requested |= MeshDirty.Color;
+        }
+        changed |= curveCrawlerMeshEvaluator.evaluatePacked(
+          entry.state,
+          curveCrawlerMeshPlan,
+          streams,
+          entry.residents.entityIndices,
+          entry.residents.count,
+          targetEntityOffset,
+          requested,
+        );
+      }
+      targetEntityOffset += entry.residents.count;
+      entry.dirty = false;
+    }
+    return changed;
+  }
+
+  /** 成功创建更大批次后再替换旧 GPU 资源，避免失败时提前丢失画面。 */
+  private replaceBatch(
+    geometry: SurfaceBufferGeometry,
+    streams: VertexStreams,
+    entityCapacity: number,
+  ): void {
+    const nextBatch = new DynamicMeshBatch();
+    try {
+      nextBatch.initialize(
+        this.parent,
+        'CurveCrawlerSharedBatch',
+        geometry,
+        this.materials.surface,
+        this.bounds,
+        SHARED_SURFACE_OPTIONS,
+      );
+    } catch (error: unknown) {
+      nextBatch.dispose();
+      for (const entry of this.entries) {
+        entry.dirty = true;
+      }
+      throw error;
+    }
+    this.batch?.dispose();
+    this.batch = nextBatch;
+    this.geometry = geometry;
+    this.streams = streams;
+    this.entityCapacity = entityCapacity;
+  }
+
+  /** 聚合全部驻留群体的保守裁剪边界。 */
   private updateBounds(force = false): boolean {
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
@@ -236,6 +278,9 @@ export class CurveCrawlerSharedRenderer {
     let maxY = Number.NEGATIVE_INFINITY;
     let maxZ = Number.NEGATIVE_INFINITY;
     for (const entry of this.entries) {
+      if (entry.residents.count === 0) {
+        continue;
+      }
       updateCurveCrawlerBounds(entry.state, entry.bounds);
       minX = Math.min(minX, entry.bounds.minX);
       minY = Math.min(minY, entry.bounds.minY);
@@ -283,22 +328,7 @@ class CurveCrawlerSharedRenderHandle implements CurveCrawlerPopulationRendering 
   }
 }
 
-/** 为一个群体创建指向统一 SoA 缓冲连续区段的顶点流视图。 */
-function createEntryStreams(
-  geometry: SurfaceBufferGeometry,
-  entityOffset: number,
-  entityCount: number,
-): VertexStreams {
-  const firstVertex = entityOffset * curveCrawlerMeshPlan.vertexCount;
-  const endVertex = firstVertex + entityCount * curveCrawlerMeshPlan.vertexCount;
-  return Object.freeze({
-    positions: geometry.positions.subarray(firstVertex * 3, endVertex * 3),
-    normals: geometry.normals.subarray(firstVertex * 3, endVertex * 3),
-    colors: geometry.colors.subarray(firstVertex * 4, endVertex * 4),
-  });
-}
-
-/** 以二次幂预留有限余量，避免 Chunk 实体数轻微波动时反复重建 GPU Mesh。 */
+/** 为当前可见人口扩展到最近的二次幂，降低波次增长时的重建频率。 */
 function getExpandedEntityCapacity(entityCount: number): number {
   let capacity = 1;
   while (capacity < entityCount) {
@@ -307,6 +337,7 @@ function getExpandedEntityCapacity(entityCount: number): number {
   return capacity;
 }
 
+/** 创建只覆盖当前可见人口高水位的固定拓扑网格。 */
 function createSharedGeometry(entityCapacity: number): SurfaceBufferGeometry {
   const plan = curveCrawlerMeshPlan;
   const geometry = createSurfaceGeometry(
@@ -319,7 +350,7 @@ function createSharedGeometry(entityCapacity: number): SurfaceBufferGeometry {
   return geometry;
 }
 
-/** 把容量余量的三角形收拢为退化点，保留固定索引同时不产生可见表面。 */
+/** 把容量余量收拢为零面积顶点，保持固定索引不变。 */
 function collapseUnusedEntities(
   geometry: SurfaceBufferGeometry,
   activeEntityCount: number,

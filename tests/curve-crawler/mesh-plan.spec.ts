@@ -92,6 +92,45 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(Array.from(streams.colors)).toEqual(Array.from(originalColors));
   });
 
+  it('按驻留槽位清单把离散实体紧凑写入连续网格', () => {
+    const state = createCurveCrawlerMeshTestState(3);
+    const complete = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 3);
+    curveCrawlerMeshEvaluator.evaluate(
+      state,
+      curveCrawlerMeshPlan,
+      complete,
+      createEntityRange(0, 3, 3),
+      MeshDirty.All,
+    );
+
+    const packed = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 2);
+    const indices = Uint32Array.of(2, 0, 1);
+    expect(curveCrawlerMeshEvaluator.evaluatePacked(
+      state,
+      curveCrawlerMeshPlan,
+      packed,
+      indices,
+      2,
+      0,
+      MeshDirty.All,
+    )).toBe(MeshDirty.All);
+
+    const positionStride = curveCrawlerMeshPlan.vertexCount * 3;
+    const colorStride = curveCrawlerMeshPlan.vertexCount * 4;
+    expect(packed.positions.subarray(0, positionStride)).toEqual(
+      complete.positions.subarray(positionStride * 2, positionStride * 3),
+    );
+    expect(packed.positions.subarray(positionStride, positionStride * 2)).toEqual(
+      complete.positions.subarray(0, positionStride),
+    );
+    expect(packed.normals.subarray(0, positionStride)).toEqual(
+      complete.normals.subarray(positionStride * 2, positionStride * 3),
+    );
+    expect(packed.colors.subarray(0, colorStride)).toEqual(
+      complete.colors.subarray(colorStride * 2, colorStride * 3),
+    );
+  });
+
   it('步态、眨眼、爆裂碎块和液体展开均直接求值为有限顶点', () => {
     const state = createCurveCrawlerMeshTestState(1);
     const range = createEntityRange(0, 1, 1);

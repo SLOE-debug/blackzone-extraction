@@ -21,6 +21,7 @@ import {
 } from './battlefield-camera-orbit-input';
 import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
 import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
+import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
 import { BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
@@ -51,6 +52,7 @@ interface MutableBattlefieldScreenControlState {
 export class BattlefieldControlHud {
   public readonly state: BattlefieldScreenControlState;
   private readonly canvas: ScreenUiCanvas;
+  private readonly gameplayGraphics: BattlefieldGameplayGraphics;
   private readonly movementJoystick: VirtualJoystick;
   private readonly aimJoystick: VirtualJoystick;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
@@ -90,6 +92,7 @@ export class BattlefieldControlHud {
   ) {
     this.state = this.mutableState;
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
+    let gameplayGraphics: BattlefieldGameplayGraphics | null = null;
     let movementJoystick: VirtualJoystick | null = null;
     let aimJoystick: VirtualJoystick | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
@@ -97,6 +100,7 @@ export class BattlefieldControlHud {
     let playerStatus: BattlefieldPlayerStatusHud | null = null;
     let defeatDialog: BattlefieldDefeatDialog | null = null;
     try {
+      gameplayGraphics = new BattlefieldGameplayGraphics(this.canvas.node);
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
         'MovementJoystick',
@@ -120,11 +124,13 @@ export class BattlefieldControlHud {
       );
       this.movementJoystick = movementJoystick;
       this.aimJoystick = aimJoystick;
+      this.gameplayGraphics = gameplayGraphics;
       this.cameraOrbitInput = cameraOrbitInput;
       this.equipmentLabel = equipmentLabel;
       this.playerStatus = playerStatus;
       this.defeatDialog = defeatDialog;
       this.synchronizeLayout();
+      this.synchronizeGameplayGraphics();
       this.canvas.node.active = false;
     } catch (error: unknown) {
       defeatDialog?.dispose();
@@ -133,6 +139,7 @@ export class BattlefieldControlHud {
       cameraOrbitInput?.dispose();
       movementJoystick?.dispose();
       aimJoystick?.dispose();
+      gameplayGraphics?.dispose();
       this.canvas.dispose();
       throw error;
     }
@@ -155,6 +162,7 @@ export class BattlefieldControlHud {
     this.writeAimState();
     this.writeCameraOrbitState();
     this.defeatDialog.update();
+    this.synchronizeGameplayGraphics();
     if (this.aimJoystick.consumeActionPress()) {
       this.contextActionPressed = true;
     }
@@ -170,6 +178,7 @@ export class BattlefieldControlHud {
     this.aimJoystick.setActionIcon(action === null
       ? null
       : BATTLEFIELD_INTERACTION_ICONS[action]);
+    this.synchronizeGameplayGraphics();
   }
 
   /** 读取并清除触摸或 E 键产生的一次场景操作。 */
@@ -189,6 +198,7 @@ export class BattlefieldControlHud {
   /** 同步右上角玩家当前生命值和最大生命值。 */
   public presentPlayerHealth(health: number, maximumHealth: number): void {
     this.playerStatus.present(health, maximumHealth);
+    this.synchronizeGameplayGraphics();
   }
 
   /** 显示死亡弹窗，并清除仍残留的场景交互提示。 */
@@ -222,6 +232,7 @@ export class BattlefieldControlHud {
     this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
+    this.gameplayGraphics.dispose();
     this.canvas.dispose();
     this.inputRegistered = false;
   }
@@ -259,6 +270,17 @@ export class BattlefieldControlHud {
     this.playerStatus.synchronizeLayout(width, height);
     this.layoutWidth = width;
     this.layoutHeight = height;
+  }
+
+  /** 把三个常驻图形源同步到唯一 Graphics 组件。 */
+  private synchronizeGameplayGraphics(): void {
+    this.gameplayGraphics.synchronize(
+      this.canvas.transform.width,
+      this.canvas.transform.height,
+      this.movementJoystick,
+      this.aimJoystick,
+      this.playerStatus,
+    );
   }
 
   /** 左摇杆优先，未触摸时使用 WASD。 */

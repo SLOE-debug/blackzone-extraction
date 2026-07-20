@@ -25,6 +25,8 @@ export interface VirtualJoystickPalette {
 /** 绘制实色圆形底座、简洁方向刻度和扁平摇杆帽。 */
 export function drawVirtualJoystick(
   graphics: Graphics,
+  centerX: number,
+  centerY: number,
   radius: number,
   handleRadius: number,
   handleX: number,
@@ -33,12 +35,13 @@ export function drawVirtualJoystick(
   active: boolean,
   actionIcon: VirtualJoystickActionIcon | null,
 ): void {
-  graphics.clear();
-  fillCircle(graphics, radius, 0, 0, palette.base);
-  strokeCircle(graphics, radius - 2, 0, 0, palette.rim, 4);
+  fillCircle(graphics, radius, centerX, centerY, palette.base);
+  strokeCircle(graphics, radius - 2, centerX, centerY, palette.rim, 4);
   if (actionIcon === null) {
     drawDirectionMarkers(
       graphics,
+      centerX,
+      centerY,
       radius,
       handleX,
       handleY,
@@ -47,20 +50,29 @@ export function drawVirtualJoystick(
       active,
     );
   } else {
-    strokeCircle(graphics, radius - 13, 0, 0, palette.accent, active ? 4 : 2);
+    strokeCircle(
+      graphics,
+      radius - 13,
+      centerX,
+      centerY,
+      palette.accent,
+      active ? 4 : 2,
+    );
   }
 
-  fillCircle(graphics, handleRadius, handleX, handleY, palette.handle);
+  const handleCenterX = centerX + handleX;
+  const handleCenterY = centerY + handleY;
+  fillCircle(graphics, handleRadius, handleCenterX, handleCenterY, palette.handle);
   strokeCircle(
     graphics,
     handleRadius - 2,
-    handleX,
-    handleY,
+    handleCenterX,
+    handleCenterY,
     active ? palette.accent : palette.rim,
     4,
   );
   if (actionIcon !== null) {
-    drawActionIcon(graphics, actionIcon, handleX, handleY, palette.accent);
+    drawActionIcon(graphics, actionIcon, handleCenterX, handleCenterY, palette.accent);
   }
 }
 
@@ -142,6 +154,8 @@ function drawOpenContainerIcon(
 /** 绘制四个方向点，并按摇杆帽当前主方向点亮其中一个。 */
 function drawDirectionMarkers(
   graphics: Graphics,
+  centerX: number,
+  centerY: number,
   radius: number,
   handleX: number,
   handleY: number,
@@ -153,8 +167,8 @@ function drawDirectionMarkers(
   const highlighted = resolveDirectionMarker(handleX, handleY, active);
   drawDirectionMarker(
     graphics,
-    0,
-    markerDistance,
+    centerX,
+    centerY + markerDistance,
     JoystickDirectionMarker.Up,
     highlighted,
     rim,
@@ -162,8 +176,8 @@ function drawDirectionMarkers(
   );
   drawDirectionMarker(
     graphics,
-    0,
-    -markerDistance,
+    centerX,
+    centerY - markerDistance,
     JoystickDirectionMarker.Down,
     highlighted,
     rim,
@@ -171,8 +185,8 @@ function drawDirectionMarkers(
   );
   drawDirectionMarker(
     graphics,
-    -markerDistance,
-    0,
+    centerX - markerDistance,
+    centerY,
     JoystickDirectionMarker.Left,
     highlighted,
     rim,
@@ -180,8 +194,8 @@ function drawDirectionMarkers(
   );
   drawDirectionMarker(
     graphics,
-    markerDistance,
-    0,
+    centerX + markerDistance,
+    centerY,
     JoystickDirectionMarker.Right,
     highlighted,
     rim,

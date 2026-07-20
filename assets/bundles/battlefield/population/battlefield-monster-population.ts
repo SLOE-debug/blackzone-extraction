@@ -51,7 +51,12 @@ implements Disposable {
     parent: Node,
     surfaceMaterialTemplate: Material,
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
+    initialCenterX: number,
+    initialCenterZ: number,
   ) {
+    if (!Number.isFinite(initialCenterX) || !Number.isFinite(initialCenterZ)) {
+      throw new Error('战场怪物群初始中心必须使用有限坐标。');
+    }
     const config = BATTLEFIELD_MONSTER_SPAWN;
     const renderRoot = new Node('BattlefieldCommonMonstersBatchRoot');
     parent.addChild(renderRoot);
@@ -66,6 +71,14 @@ implements Disposable {
         surfaceMaterialTemplate,
       );
     } catch (error: unknown) {
+      renderRoot.destroy();
+      throw error;
+    }
+    try {
+      // 固定容量 SoA 在加载阶段准备；开场帧只同步零驻留布局，不再临时分配完整群体。
+      this.ensureSwarm(initialCenterX, initialCenterZ);
+    } catch (error: unknown) {
+      this.renderBatch.dispose();
       renderRoot.destroy();
       throw error;
     }
@@ -128,7 +141,6 @@ implements Disposable {
         0,
         Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME),
       );
-      this.ensureSwarm(target.x, target.z);
       const desiredPopulationCount = calculateBattlefieldMonsterTargetCount(
         BATTLEFIELD_MONSTER_SPAWN,
         this.waveElapsedSeconds,
@@ -147,7 +159,7 @@ implements Disposable {
     return damage;
   }
 
-  /** 首次获得玩家位置时创建唯一固定容量群体，槽位保持休眠直到波次激活。 */
+  /** 在加载阶段创建唯一固定容量群体，槽位保持休眠直到波次激活。 */
   private ensureSwarm(playerX: number, playerZ: number): void {
     if (this.swarm !== null) {
       return;

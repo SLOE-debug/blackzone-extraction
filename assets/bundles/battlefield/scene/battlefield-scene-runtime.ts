@@ -127,7 +127,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let interactionSystem: BattlefieldSceneInteractionSystem | null = null;
     let debugPanel: BattlefieldDebugPanel | null = null;
     try {
-      battlefieldRenderer = new BattlefieldRenderer(runtimeRoot, this.surfaceMaterialTemplate);
+      battlefieldRenderer = new BattlefieldRenderer(runtimeRoot);
       environment = new BattlefieldEnvironmentPopulation(runtimeRoot);
       player = new VanguardPopulation(runtimeRoot, this.surfaceMaterialTemplate, {
         position: BATTLEFIELD_LAYOUT.playerPosition,
@@ -143,6 +143,8 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         runtimeRoot,
         this.surfaceMaterialTemplate,
         commonMonsters,
+        player.positionX,
+        player.positionZ,
       );
       treasures = new BattlefieldTreasurePopulation(
         runtimeRoot,
@@ -157,6 +159,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         throw new Error('战场环境初始化后缺少首个 Chunk 窗口差集。');
       }
       chunkRuntimes.synchronize(initialChunkTransition, environment);
+      treasures.completeInitialRendering();
       cameraRig = createBattlefieldCamera(runtimeRoot);
       cameraRig.setFollowTarget(player.positionX, player.positionY, player.positionZ, true);
       controlHud = new BattlefieldControlHud(

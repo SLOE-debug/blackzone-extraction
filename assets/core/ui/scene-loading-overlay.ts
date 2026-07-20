@@ -15,6 +15,7 @@ import {
   drawSceneLoadingOverlay,
 } from './scene-loading-overlay-graphics';
 import { SCENE_LOADING_OVERLAY_STYLE } from './scene-loading-overlay-style';
+import { useSharedCharacterAtlas } from './shared-character-atlas-label';
 
 /** 可挂到任意屏幕空间 Canvas 的全屏 Loading 转场遮罩。 */
 export class SceneLoadingOverlay {
@@ -157,12 +158,13 @@ function createLabel(parent: Node, name: string, fontSize: number, y: number): L
   node.setPosition(0, y, 0);
   node.addComponent(UITransform).setContentSize(style.panelWidth - 72, 36);
   const label = node.addComponent(Label);
-  label.useSystemFont = true;
+  useSharedCharacterAtlas(label);
   label.fontSize = fontSize;
   label.lineHeight = 34;
   label.isBold = true;
   label.horizontalAlign = HorizontalTextAlignment.CENTER;
   label.verticalAlign = VerticalTextAlignment.CENTER;
+  label.overflow = Label.Overflow.CLAMP;
   label.enableOutline = false;
   label.color = createLoadingOverlayColor(style.text);
   return label;

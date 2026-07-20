@@ -97,6 +97,14 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/2d/assembler/graphics/webgl/impl.ts` 和 `graphics-assembler.ts` 验证：组件持有 `MeshRenderData[]`，Assembler 在现有缓冲容量允许时持续追加顶点与索引，并把路径颜色写入顶点流。
 - 隔离验证时，应分别创建“单个 Graphics 内多色底板加矢量字形”和“Graphics 底板加独立 Label”两种 UI，关闭其他 UI 后比较 Profiler；前者在未触发缓冲分裂时应只产生一个 Graphics 提交，后者会增加文字材质提交。
 
+### 系统字体 CHAR 字符图集
+
+- 不得把浏览器逐元素 Canvas 文本或“每个字号一张纹理”的经验套用到 Cocos `Label.CacheMode.CHAR`：Cocos Creator 3.8.8 的 Letter Font Assembler 在进程内共享一张 `1024 × 1024` `LetterAtlas`，不同字号和颜色通过不同字形哈希写入同一纹理。
+- 相邻、材质状态一致的 CHAR Label 可以引用同一图集进入同一 UI 批次；节点树中间插入 `Graphics`、其他纹理或不同材质仍会打断合批，因此固定 HUD 应先集中图形层，再连续排列文字层。
+- CHAR 模式不支持 `Label.Overflow.SHRINK`。使用共享字符图集的 Label 必须预留确定尺寸，并使用 `CLAMP`、`NONE` 或明确的排版约束，不得同时依赖自动缩字。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/2d/assembler/label/letter-font.ts` 与 `label.ts` 验证：前者持有模块级 `_shareAtlas` 并固定为 `1024 × 1024`，后者明确记录 CHAR 与 SHRINK 的限制。
+- 隔离验证时，应创建不同字号、不同颜色但相邻的 CHAR Label，确认 Profiler 中只增加一个文字批次；再在它们之间插入一个 Graphics，确认批次被打断，以此区分“共享图集”和“渲染顺序连续”两个必要条件。
+
 ## Cocos 资源与元数据
 
 - Cocos Creator 3.8.8 的 `AssetManager.loadBundle()` 与 `Bundle.loadScene()` 类型声明和文档把成功回调的错误参数描述为 `null`，但 HTML5 预览路径中已实际观察到成功时传入 `undefined`。业务 Promise 适配层不得用 `error !== null` 判断失败，否则会把成功加载转换成 `reject(undefined)`；必须同时排除 `null` 与 `undefined`，并独立校验成功资源是否存在。

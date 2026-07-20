@@ -9,6 +9,7 @@ import {
   UITransform,
   VerticalTextAlignment,
 } from 'cc';
+import { useSharedCharacterAtlas } from '../../../core/ui/shared-character-atlas-label';
 import {
   createDefeatDialogColor,
   drawBattlefieldDefeatButton,
@@ -62,12 +63,11 @@ export class BattlefieldDefeatDialog {
     titleTransform.setContentSize(titleStyle.titleWidth, titleStyle.titleHeight);
     const title = titleNode.addComponent(Label);
     title.string = DEFEAT_TITLE;
-    title.useSystemFont = true;
+    useSharedCharacterAtlas(title);
     title.fontSize = titleStyle.titleFontSize;
     title.lineHeight = titleStyle.titleLineHeight;
     title.isBold = true;
-    title.enableWrapText = false;
-    title.overflow = Label.Overflow.SHRINK;
+    title.overflow = Label.Overflow.CLAMP;
     title.horizontalAlign = HorizontalTextAlignment.CENTER;
     title.verticalAlign = VerticalTextAlignment.CENTER;
     title.color = createDefeatDialogColor(titleStyle.title);
@@ -174,12 +174,11 @@ function createReturnButton(parent: Node): Readonly<{
   labelTransform.setContentSize(style.buttonWidth, style.buttonHeight);
   const label = labelNode.addComponent(Label);
   label.string = RETURN_LABEL;
-  label.useSystemFont = true;
+  useSharedCharacterAtlas(label);
   label.fontSize = style.buttonFontSize;
   label.lineHeight = style.buttonLineHeight;
   label.isBold = true;
-  label.enableWrapText = false;
-  label.overflow = Label.Overflow.SHRINK;
+  label.overflow = Label.Overflow.CLAMP;
   label.horizontalAlign = HorizontalTextAlignment.CENTER;
   label.verticalAlign = VerticalTextAlignment.CENTER;
   label.color = createDefeatDialogColor(style.buttonText);

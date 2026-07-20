@@ -16,11 +16,6 @@ export const TREASURE_CHEST_BEACON_LAYOUT = Object.freeze({
   wispBaseHeight: 0.42,
   wispHeight: 0.76,
   wispHalfWidth: 0.095,
-  lightHeight: 0.82,
-  lightSize: 0.42,
-  lightRange: 5.2,
-  lightMinimumFlux: 760,
-  lightMaximumFlux: 2250,
   boundsRadius: 2.3,
   boundsHeight: 2.05,
   ringVariation: Object.freeze([

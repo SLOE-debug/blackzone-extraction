@@ -41,6 +41,13 @@ export class BattlefieldEnvironmentPopulation {
       this.world,
       this.preparation,
     );
+    try {
+      // 场景尚未激活，首次大网格在加载阶段一次完成，避免把初始化成本泄漏到开场帧。
+      this.renderer.completeInitialSynchronization();
+    } catch (error: unknown) {
+      this.renderer.dispose();
+      throw error;
+    }
     this.pendingChunkTransition = this.chunkWindow.synchronize(
       this.centerChunkX,
       this.centerChunkZ,
@@ -70,7 +77,6 @@ export class BattlefieldEnvironmentPopulation {
     this.centerChunkX = nextChunkX;
     this.centerChunkZ = nextChunkZ;
     this.pendingChunkTransition = this.chunkWindow.synchronize(nextChunkX, nextChunkZ);
-    this.renderer.updateSynchronization();
   }
 
   /** 取走最近一次环境窗口切换产生的差集；没有变化时返回 null。 */

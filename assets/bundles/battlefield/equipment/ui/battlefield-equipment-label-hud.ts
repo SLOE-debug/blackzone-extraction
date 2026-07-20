@@ -14,6 +14,7 @@ import {
   EquipmentId,
   type EquipmentLibrary,
 } from '../../../../core/equipment/equipment';
+import { useSharedCharacterAtlas } from '../../../../core/ui/shared-character-atlas-label';
 import { EQUIPMENT_RARITY_STYLE } from './equipment-rarity-style';
 
 const PANEL_WIDTH = 176;
@@ -55,13 +56,13 @@ export class BattlefieldEquipmentLabelHud {
     root.addChild(labelNode);
     labelNode.addComponent(UITransform).setContentSize(PANEL_WIDTH - 18, PANEL_HEIGHT - 8);
     const label = labelNode.addComponent(Label);
-    label.useSystemFont = true;
+    useSharedCharacterAtlas(label);
     label.fontSize = 14;
     label.lineHeight = 18;
     label.isBold = true;
     label.horizontalAlign = HorizontalTextAlignment.CENTER;
     label.verticalAlign = VerticalTextAlignment.CENTER;
-    label.overflow = Label.Overflow.SHRINK;
+    label.overflow = Label.Overflow.CLAMP;
     this.label = label;
     this.root = root;
     root.active = false;

@@ -31,8 +31,8 @@ const ENVIRONMENT_SURFACE_OPTIONS: DynamicMeshBatchOptions = Object.freeze({
   receiveShadows: false,
 });
 
-/** 单帧最多重算约 6.5 万环境顶点，把 Chunk 切换尖峰摊到数帧。 */
-const ENVIRONMENT_UPDATE_VERTEX_BUDGET = 65_536;
+/** 单帧最多重算约 1.2 万环境顶点，避免集显上形成周期性长帧。 */
+const ENVIRONMENT_UPDATE_VERTEX_BUDGET = 12_288;
 
 interface BattlefieldEnvironmentRenderSection {
   readonly layout: BattlefieldEnvironmentMegaMeshSection;
@@ -153,6 +153,20 @@ export class BattlefieldEnvironmentRenderer {
     this.batch.updateBounds(this.bounds);
     this.batch.setVisible(true);
     this.uploadPending = false;
+  }
+
+  /**
+   * 在场景仍由加载界面遮挡时完成首次求值和上传。
+   *
+   * 运行期 Chunk 切换不得调用此方法，避免把已经拆分的工作重新合并成长帧。
+   */
+  public completeInitialSynchronization(): void {
+    if (this.disposed) {
+      throw new Error('战场环境渲染器已经释放。');
+    }
+    do {
+      this.updateSynchronization();
+    } while (this.updateCursor.active || this.uploadPending);
   }
 
   /** 先释放统一大网格，再释放其独占材质。 */

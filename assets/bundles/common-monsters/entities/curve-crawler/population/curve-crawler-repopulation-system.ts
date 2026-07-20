@@ -1,4 +1,7 @@
-import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import {
+  isMonsterLifecycleResident,
+  MonsterLifecycleState,
+} from '../../../../../core/contracts/monster-lifecycle';
 import {
   transitionMonsterLifecycle,
 } from '../../../../../core/monsters/monster-lifecycle-state-machine';
@@ -75,6 +78,17 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
       }
     }
     return aliveCount;
+  }
+
+  /** 是否至少有一个槽位仍需要推进可见生命周期。 */
+  public hasResidents(): boolean {
+    const lifecycle = this.state.data.vitality.state;
+    for (let index = 0; index < this.state.count; index++) {
+      if (isMonsterLifecycleResident(lifecycle[index] as MonsterLifecycleState)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** 只回收远距离的出生或存活实体，绝不截断正在进行的死亡表现。 */

@@ -9,9 +9,9 @@ export interface MutableTreasureChestAttentionSample {
   pulse: number;
 }
 
-/** 宝箱信标根据距离变化的低频呼吸参数。 */
+/** 宝箱自发光信标根据距离变化的低频呼吸参数。 */
 export const TREASURE_CHEST_ATTENTION = Object.freeze({
-  samplesPerSecond: 30,
+  samplesPerSecond: 15,
   cycleDuration: 2.65,
   pulseSharpness: 1.45,
   awarenessRadius: 11,
@@ -22,7 +22,7 @@ export const TREASURE_CHEST_ATTENTION = Object.freeze({
 });
 
 /**
- * 根据时间和玩家距离求值地面光环、漂浮光片与局部灯光的统一强度。
+ * 根据时间和玩家距离求值地面光环与漂浮光片的统一强度。
  *
  * 关闭状态始终保留远距离可读的基础亮度，进入交互距离后增强；开启后立即熄灭。
  */

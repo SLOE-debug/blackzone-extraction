@@ -1,19 +1,15 @@
 import { Color, type Material } from 'cc';
-import { StandardVertexColorMaterialFactory } from '../../../core/rendering/standard-vertex-color-material-factory';
+import { UnlitMaterialFactory } from '../../../core/rendering/unlit-material-factory';
 
 /** 管理战场程序化岩地独占的运行时材质。 */
 export class BattlefieldMaterials {
   public readonly ground: Material;
   private disposed = false;
 
-  constructor(surfaceMaterialTemplate: Material) {
-    this.ground = StandardVertexColorMaterialFactory.create(surfaceMaterialTemplate, {
-      name: 'BattlefieldGround',
+  constructor() {
+    this.ground = UnlitMaterialFactory.create('BattlefieldGround', {
       mainColor: new Color(255, 255, 255, 255),
-      roughness: 0.98,
-      metallic: 0,
-      specularIntensity: 0.08,
-      emissive: new Color(0, 0, 0, 255),
+      useVertexColor: true,
     });
   }
 
