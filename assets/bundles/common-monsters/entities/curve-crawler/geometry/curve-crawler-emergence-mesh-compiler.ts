@@ -1,5 +1,5 @@
 import { CURVE_CRAWLER_EMERGENCE_TOPOLOGY } from '../model/curve-crawler-emergence';
-import { type EllipsoidSamplePlan } from './kernels/ellipsoid-sample-plan';
+import { type FacetedEllipsoidPlan } from '../../../../../core/geometry/faceted/faceted-ellipsoid-plan';
 
 /** 编译后尚未平移到单实体汇总区段的出生局部拓扑。 */
 export interface CompiledCurveCrawlerEmergenceMesh {
@@ -21,7 +21,7 @@ export interface CompiledCurveCrawlerEmergenceMesh {
  * 不会被平滑法线抹掉 Low Poly 转折。
  */
 export function compileCurveCrawlerEmergenceMesh(
-  eggSource: Readonly<EllipsoidSamplePlan>,
+  eggSource: Readonly<FacetedEllipsoidPlan>,
 ): CompiledCurveCrawlerEmergenceMesh {
   const topology = CURVE_CRAWLER_EMERGENCE_TOPOLOGY;
   const crackVertexCount = topology.crackRayCount * topology.crackSegmentCount * 6;
@@ -44,12 +44,12 @@ export function compileCurveCrawlerEmergenceMesh(
   const eggUnitDirections = new Float32Array(eggVertexCount * 3);
   const eggSourceVertexIds = new Uint16Array(eggVertexCount);
   for (let vertex = 0; vertex < eggVertexCount; vertex++) {
-    const sourceVertex = eggSource.indices[vertex];
+    const sourceVertex = eggSource.sampleIds[vertex];
     if (sourceVertex === undefined) {
       throw new Error(`Curve Crawler 蛋壳采样索引不存在：${vertex}。`);
     }
     eggSourceVertexIds[vertex] = sourceVertex;
-    const sourceOffset = sourceVertex * 3;
+    const sourceOffset = vertex * 3;
     const targetOffset = vertex * 3;
     eggUnitDirections[targetOffset] = eggSource.unitDirections[sourceOffset] ?? 0;
     eggUnitDirections[targetOffset + 1] = eggSource.unitDirections[sourceOffset + 1] ?? 0;

@@ -1,11 +1,10 @@
 import { type Material, Node, Quat } from 'cc';
-import { type WeaponEquipmentId } from '../../../../core/equipment/equipment';
 import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
 import {
-  getHeldWeaponProfile,
-  type HeldWeaponProfile,
-} from '../model/held-weapon-profile';
-import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
+  getBattlefieldWeaponPrototype,
+} from '../catalog/battlefield-equipment-catalog';
+import { type HeldWeaponProfile } from '../catalog/battlefield-equipment-prototype';
+import { type WeaponEquipmentId } from '../catalog/equipment-id';
 
 const HELD_WEAPON_SURFACE_OPTIONS = Object.freeze({
   castShadows: false,
@@ -28,7 +27,8 @@ export class HeldWeaponRenderer {
     equipmentId: WeaponEquipmentId,
     material: Material,
   ) {
-    this.profile = getHeldWeaponProfile(equipmentId);
+    const prototype = getBattlefieldWeaponPrototype(equipmentId);
+    this.profile = prototype.held;
     Quat.fromEuler(
       this.profileRotation,
       this.profile.rotationXDegrees,
@@ -47,7 +47,7 @@ export class HeldWeaponRenderer {
       this.mesh.initialize(
         root,
         'HeldWeaponSurface',
-        getBattlefieldEquipmentGeometry(equipmentId),
+        prototype.geometry,
         material,
         HELD_WEAPON_SURFACE_OPTIONS,
       );

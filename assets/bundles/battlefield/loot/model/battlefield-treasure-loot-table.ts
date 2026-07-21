@@ -2,7 +2,7 @@ import {
   type AmmunitionEquipmentId,
   EquipmentId,
   type WeaponEquipmentId,
-} from '../../../../core/equipment/equipment';
+} from '../../equipment/catalog/equipment-id';
 import {
   type LootTable,
   WeightedLootTable,

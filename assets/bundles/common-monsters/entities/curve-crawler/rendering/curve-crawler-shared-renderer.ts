@@ -44,7 +44,7 @@ interface CurveCrawlerSharedRenderEntry {
  */
 export class CurveCrawlerSharedRenderer {
   private readonly materials: CurveCrawlerMaterials;
-  private readonly evaluator = new CurveCrawlerMeshEvaluator();
+  private readonly evaluator: CurveCrawlerMeshEvaluator;
   private readonly entries: CurveCrawlerSharedRenderEntry[] = [];
   private readonly bounds: CurveCrawlerBounds = {
     minX: 0,
@@ -77,6 +77,7 @@ export class CurveCrawlerSharedRenderer {
     surfaceMaterialTemplate: Material,
     private readonly visibility: PlanarCircleVisibility,
   ) {
+    this.evaluator = new CurveCrawlerMeshEvaluator(curveCrawlerMeshPlan);
     this.materials = new CurveCrawlerMaterials(
       surfaceMaterialTemplate,
       CurveCrawlerRenderMode.Unlit,

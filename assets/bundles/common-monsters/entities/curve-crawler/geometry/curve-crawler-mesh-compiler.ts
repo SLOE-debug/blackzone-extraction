@@ -1,4 +1,6 @@
 import { assertMeshPlan } from '../../../../../core/mesh/mesh-plan';
+import { compileFacetedEllipsoidPlan } from '../../../../../core/geometry/faceted/faceted-ellipsoid-plan';
+import { compileFacetedCubicTubePlan } from '../../../../../core/geometry/faceted/faceted-cubic-tube-plan';
 import {
   CURVE_CRAWLER_LEG_COUNT,
   CURVE_CRAWLER_LIQUID_RAY_COUNT,
@@ -18,8 +20,6 @@ import {
   CurveCrawlerMeshSemantic,
   type CurveCrawlerMeshPlan,
 } from './curve-crawler-mesh-plan';
-import { compileCubicTubeSamplePlan } from './kernels/cubic-tube-sample-plan';
-import { compileEllipsoidSamplePlan } from './kernels/ellipsoid-sample-plan';
 import { compileFanSamplePlan } from './kernels/fan-sample-plan';
 import { compileCurveCrawlerEmergenceMesh } from './curve-crawler-emergence-mesh-compiler';
 
@@ -31,22 +31,34 @@ import { compileCurveCrawlerEmergenceMesh } from './curve-crawler-emergence-mesh
  * @returns 可被所有 Curve Crawler 批次共享的固定局部计划。
  */
 export function compileCurveCrawlerMeshPlan(): CurveCrawlerMeshPlan {
-  const legTube = compileCubicTubeSamplePlan(
-    CURVE_CRAWLER_LEG_SEGMENTS,
-    CURVE_CRAWLER_LEG_RADIAL_SEGMENTS,
-  );
-  const footEllipsoid = compileEllipsoidSamplePlan(
-    CURVE_CRAWLER_FOOT_LONGITUDE_SEGMENTS,
-    CURVE_CRAWLER_FOOT_LATITUDE_SEGMENTS,
-  );
-  const bodyEllipsoid = compileEllipsoidSamplePlan(
-    CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
-    CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
-  );
-  const eyeEllipsoid = compileEllipsoidSamplePlan(
-    CURVE_CRAWLER_EYE_LONGITUDE_SEGMENTS,
-    CURVE_CRAWLER_EYE_LATITUDE_SEGMENTS,
-  );
+  const legTube = compileFacetedCubicTubePlan({
+    segmentCount: CURVE_CRAWLER_LEG_SEGMENTS,
+    radialCount: CURVE_CRAWLER_LEG_RADIAL_SEGMENTS,
+    radialJitter: 0.11,
+    ringTwist: 0.14,
+    seed: 0x781d,
+  });
+  const footEllipsoid = compileFacetedEllipsoidPlan({
+    longitudeCount: CURVE_CRAWLER_FOOT_LONGITUDE_SEGMENTS,
+    latitudeCount: CURVE_CRAWLER_FOOT_LATITUDE_SEGMENTS,
+    radialJitter: 0.08,
+    ringTwist: 0.16,
+    seed: 0x2f1a,
+  });
+  const bodyEllipsoid = compileFacetedEllipsoidPlan({
+    longitudeCount: CURVE_CRAWLER_BODY_LONGITUDE_SEGMENTS,
+    latitudeCount: CURVE_CRAWLER_BODY_LATITUDE_SEGMENTS,
+    radialJitter: 0.1,
+    ringTwist: 0.13,
+    seed: 0x4c23,
+  });
+  const eyeEllipsoid = compileFacetedEllipsoidPlan({
+    longitudeCount: CURVE_CRAWLER_EYE_LONGITUDE_SEGMENTS,
+    latitudeCount: CURVE_CRAWLER_EYE_LATITUDE_SEGMENTS,
+    radialJitter: 0.055,
+    ringTwist: 0.1,
+    seed: 0x6a11,
+  });
   const liquidFan = compileFanSamplePlan(CURVE_CRAWLER_LIQUID_RAY_COUNT);
   const emergenceMesh = compileCurveCrawlerEmergenceMesh(bodyEllipsoid);
 

@@ -1,36 +1,32 @@
 import { type Material, type Node } from 'cc';
 import {
   EquipmentCategory,
-  type EquipmentId,
-  type EquipmentLibrary,
+  WeaponAction,
+  type WeaponGrip,
   type WeaponEquipmentDefinition,
-  type WeaponEquipmentId,
 } from '../../../../core/equipment/equipment';
 import {
-  VanguardWeaponAction,
-  VanguardWeaponPose,
-} from '../../../../player/vanguard';
+  type BattlefieldEquipmentLibrary,
+} from '../catalog/battlefield-equipment-contracts';
+import { getBattlefieldWeaponPrototype } from '../catalog/battlefield-equipment-catalog';
+import {
+  type EquipmentId,
+  type WeaponEquipmentId,
+} from '../catalog/equipment-id';
 import {
   type BattlefieldAimTarget,
   type BattlefieldMonsterPopulation,
 } from '../../population/battlefield-monster-population';
+import { BattlefieldWeaponActionState } from '../combat/battlefield-weapon-action-state';
 import {
-  getHeldWeaponProfile,
-  type HeldWeaponProfile,
-} from '../model/held-weapon-profile';
+  BattlefieldWeaponAttackExecutor,
+  BattlefieldWeaponAttackResult,
+} from '../combat/battlefield-weapon-attack-executor';
 import {
   createWeaponAmmunition,
   type WeaponAmmunition,
 } from '../model/weapon-ammunition';
 import { WeaponAmmunitionReserve } from '../model/weapon-ammunition-reserve';
-import {
-  type MutableBattlefieldProjectileDirection,
-  writeBattlefieldProjectileDirection,
-} from '../projectile/model/battlefield-projectile-trajectory';
-import {
-  getWeaponShotProjectileCount,
-  writeBattlefieldShotProjectileDirection,
-} from '../projectile/model/battlefield-weapon-shot-pattern';
 import { BattlefieldProjectilePopulation } from '../projectile/population/battlefield-projectile-population';
 import { createHeldWeaponMaterial } from '../rendering/held-weapon-material';
 import { HeldWeaponRenderer } from '../rendering/held-weapon-renderer';
@@ -53,34 +49,23 @@ export interface BattlefieldWeaponOwnerPose {
   readonly alive: boolean;
 }
 
-/** 管理玩家唯一武器槽、攻击策略、类型化手持渲染和攻击姿态脉冲。 */
+/** 编排玩家唯一武器槽及其弹药、手持渲染、弹体和动作子系统生命周期。 */
 export class BattlefieldPlayerWeaponRuntime {
   private readonly heldMaterial: Material;
   private readonly ammunitionReserve = new WeaponAmmunitionReserve();
   private readonly ammunitionStates = new Map<WeaponEquipmentId, WeaponAmmunition>();
-  private definition: Readonly<WeaponEquipmentDefinition> | null = null;
-  private profile: Readonly<HeldWeaponProfile> | null = null;
+  private readonly actionState = new BattlefieldWeaponActionState();
+  private readonly attackExecutor = new BattlefieldWeaponAttackExecutor();
+  private definition: Readonly<WeaponEquipmentDefinition<WeaponEquipmentId>> | null = null;
+  private grip: WeaponGrip | null = null;
   private ammunition: WeaponAmmunition | null = null;
   private heldRenderer: HeldWeaponRenderer | null = null;
   private projectiles: BattlefieldProjectilePopulation | null = null;
-  private readonly shotDirection: MutableBattlefieldProjectileDirection = {
-    x: 0,
-    y: 0,
-    z: 1,
-  };
-  private readonly projectileDirection: MutableBattlefieldProjectileDirection = {
-    x: 0,
-    y: 0,
-    z: 1,
-  };
-  private fireCooldown = 0;
-  private attackAnimationElapsed = Number.POSITIVE_INFINITY;
-  private reloadPending = false;
   private disposed = false;
 
   constructor(
     private readonly parent: Node,
-    private readonly equipmentLibrary: EquipmentLibrary,
+    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
   ) {
     this.heldMaterial = createHeldWeaponMaterial();
   }
@@ -90,34 +75,19 @@ export class BattlefieldPlayerWeaponRuntime {
     return this.definition?.id ?? null;
   }
 
-  /** 当前武器提供给主角动画的类型化姿态。 */
-  public get vanguardWeaponPose(): VanguardWeaponPose {
-    return this.profile?.pose ?? VanguardWeaponPose.Unarmed;
+  /** 当前武器提供给任意角色动画层的中立握持方式。 */
+  public get weaponGrip(): WeaponGrip | null {
+    return this.grip;
   }
 
-  /** 当前装备交给主角动画层采样的武器动作。 */
-  public get vanguardWeaponAction(): VanguardWeaponAction {
-    if (this.ammunition?.reloading === true) {
-      return VanguardWeaponAction.Reload;
-    }
-    if (this.definition !== null
-      && this.attackAnimationElapsed < this.definition.attackAnimationSeconds) {
-      return VanguardWeaponAction.Fire;
-    }
-    return VanguardWeaponAction.Ready;
+  /** 当前装备交给任意角色动画层采样的中立武器动作。 */
+  public get weaponAction(): WeaponAction {
+    return this.actionState.getAction(this.definition, this.ammunition);
   }
 
   /** 当前武器动作的零到一归一化进度。 */
-  public get vanguardWeaponActionProgress(): number {
-    if (this.ammunition?.reloading === true) {
-      return this.ammunition.reloadProgress;
-    }
-    const definition = this.definition;
-    if (definition !== null
-      && this.attackAnimationElapsed < definition.attackAnimationSeconds) {
-      return Math.min(1, this.attackAnimationElapsed / definition.attackAnimationSeconds);
-    }
-    return 0;
+  public get weaponActionProgress(): number {
+    return this.actionState.getProgress(this.definition, this.ammunition);
   }
 
   /**
@@ -128,7 +98,7 @@ export class BattlefieldPlayerWeaponRuntime {
   public equip(equipmentId: WeaponEquipmentId): WeaponEquipmentId | null {
     this.ensureActive();
     const definition = this.equipmentLibrary.get(equipmentId);
-    const profile = getHeldWeaponProfile(equipmentId);
+    const grip = getBattlefieldWeaponPrototype(equipmentId).held.grip;
     const existingAmmunition = this.ammunitionStates.get(equipmentId);
     const ammunition = existingAmmunition ?? createWeaponAmmunition(
       definition.ammunition,
@@ -151,13 +121,11 @@ export class BattlefieldPlayerWeaponRuntime {
       this.ammunitionStates.set(equipmentId, ammunition);
     }
     this.definition = definition;
-    this.profile = profile;
+    this.grip = grip;
     this.ammunition = ammunition;
     this.heldRenderer = heldRenderer;
     this.projectiles = projectiles;
-    this.fireCooldown = 0;
-    this.attackAnimationElapsed = Number.POSITIVE_INFINITY;
-    this.reloadPending = false;
+    this.actionState.reset();
     return replacedEquipmentId;
   }
 
@@ -172,7 +140,7 @@ export class BattlefieldPlayerWeaponRuntime {
         this.ammunitionReserve.add(definition.ammunitionType, definition.rounds);
         if (this.ammunition?.ammunitionType === definition.ammunitionType
           && this.ammunition.empty) {
-          this.reloadPending = true;
+          this.actionState.requestReload();
         }
         return null;
     }
@@ -192,30 +160,28 @@ export class BattlefieldPlayerWeaponRuntime {
     }
     const safeDeltaTime = Math.max(0, deltaTime);
     const definition = this.definition;
-    const profile = this.profile;
     const ammunition = this.ammunition;
-    if (definition === null || profile === null || ammunition === null) {
+    if (definition === null || ammunition === null) {
       return;
     }
 
-    ammunition.update(safeDeltaTime);
-    this.attackAnimationElapsed += safeDeltaTime;
-    this.fireCooldown = Math.max(0, this.fireCooldown - safeDeltaTime);
-    if (this.reloadPending
-      && this.attackAnimationElapsed >= definition.attackAnimationSeconds) {
-      ammunition.beginReload();
-      this.reloadPending = false;
-    }
+    this.actionState.update(safeDeltaTime, definition, ammunition);
     if (owner.alive
       && fireTarget !== null
-      && this.fireCooldown <= 0
-      && !ammunition.reloading) {
-      this.attack(
+      && this.actionState.canFire(ammunition)
+      && this.projectiles !== null) {
+      const attackResult = this.attackExecutor.execute(
         definition,
         owner,
         fireTarget,
         ammunition,
+        this.projectiles,
       );
+      if (attackResult === BattlefieldWeaponAttackResult.Fired) {
+        this.actionState.markFired(definition, ammunition);
+      } else {
+        this.actionState.markEmpty(ammunition);
+      }
     }
     this.heldRenderer?.setRigPose(
       owner.rootX,
@@ -238,60 +204,12 @@ export class BattlefieldPlayerWeaponRuntime {
     this.heldRenderer?.dispose();
     this.heldMaterial.destroy();
     this.definition = null;
-    this.profile = null;
+    this.grip = null;
     this.ammunition = null;
     this.ammunitionStates.clear();
     this.projectiles = null;
     this.heldRenderer = null;
-    this.reloadPending = false;
-  }
-
-  /** 根据手持配置计算真实枪口位置，并按武器分布完成一次射击。 */
-  private attack(
-    definition: Readonly<WeaponEquipmentDefinition>,
-    owner: Readonly<BattlefieldWeaponOwnerPose>,
-    target: Readonly<BattlefieldAimTarget>,
-    ammunition: WeaponAmmunition,
-  ): void {
-    const attackX = owner.muzzleX;
-    const attackY = owner.muzzleY;
-    const attackZ = owner.muzzleZ;
-    const direction = this.shotDirection;
-    writeBattlefieldProjectileDirection(
-      attackX,
-      attackY,
-      attackZ,
-      target.x,
-      target.y,
-      target.z,
-      direction,
-    );
-    const projectileCount = getWeaponShotProjectileCount(definition.shotPattern);
-    if (!ammunition.tryConsumeShot()) {
-      ammunition.beginReload();
-      return;
-    }
-    for (let projectileIndex = 0; projectileIndex < projectileCount; projectileIndex++) {
-      writeBattlefieldShotProjectileDirection(
-        direction.x,
-        direction.y,
-        direction.z,
-        definition.shotPattern,
-        projectileIndex,
-        this.projectileDirection,
-      );
-      this.projectiles?.spawn(
-        attackX,
-        attackY,
-        attackZ,
-        this.projectileDirection.x,
-        this.projectileDirection.y,
-        this.projectileDirection.z,
-      );
-    }
-    this.fireCooldown = definition.fireIntervalSeconds;
-    this.attackAnimationElapsed = 0;
-    this.reloadPending = ammunition.empty;
+    this.actionState.reset();
   }
 
   private ensureActive(): void {

@@ -1,11 +1,11 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { evaluateFacetedEllipsoid } from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
 import {
   CURVE_CRAWLER_FRAGMENT_COUNT,
   CurveCrawlerFragmentIndex,
 } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
-import { evaluateEllipsoid } from './kernels/ellipsoid-kernel';
 
 /**
  * 直接求值一只未完全坍缩的 Curve Crawler 双眼。
@@ -126,7 +126,7 @@ function evaluateEye(
   const fragmentIndex = fragmentOffset + fragmentKind;
   const { animation } = state.data;
   const localY = side * sideOffset;
-  evaluateEllipsoid(
+  evaluateFacetedEllipsoid(
     plan.eyeEllipsoid,
     streams,
     entityVertexOffset + localVertexOffset,

@@ -48,6 +48,39 @@ export function emitSampledRadialTopology<TMeta>(
   sink: FacetedTriangleSink<TMeta>,
   meta: TMeta,
 ): void {
+  emitRadialTriangles(plan, workspace, sink, meta, null);
+}
+
+/** 按三角形采样槽动态选择元数据的解析器。 */
+export type RadialTriangleMetaResolver<TMeta> = (
+  triangleIndex: number,
+  firstSample: number,
+  secondSample: number,
+  thirdSample: number,
+) => TMeta;
+
+/**
+ * 按预编译拓扑发射三角形，并允许领域层为每个面选择颜色或其他元数据。
+ *
+ * 轮廓采样、绕序和退化策略仍完全来自 Radial Plan，解析器只负责面语义。
+ */
+export function emitSampledRadialTopologyWithMeta<TMeta>(
+  plan: Readonly<RadialTopologyPlan>,
+  workspace: Readonly<RadialWorkspace>,
+  sink: FacetedTriangleSink<TMeta>,
+  resolveMeta: RadialTriangleMetaResolver<TMeta>,
+): void {
+  emitRadialTriangles(plan, workspace, sink, undefined, resolveMeta);
+}
+
+/** 所有 Radial 发射入口共享的唯一三角形展开循环。 */
+function emitRadialTriangles<TMeta>(
+  plan: Readonly<RadialTopologyPlan>,
+  workspace: Readonly<RadialWorkspace>,
+  sink: FacetedTriangleSink<TMeta>,
+  meta: TMeta | undefined,
+  resolveMeta: RadialTriangleMetaResolver<TMeta> | null,
+): void {
   assertRadialWorkspace(plan, workspace);
   const positions = workspace.positions;
   const samples = plan.triangleSampleIndices;
@@ -55,12 +88,17 @@ export function emitSampledRadialTopology<TMeta>(
     ? emitFlatTriangleCoordinates
     : emitFixedTopologyFlatTriangleCoordinates;
   for (let offset = 0; offset < samples.length; offset += 3) {
-    const aOffset = (samples[offset] ?? 0) * 3;
-    const bOffset = (samples[offset + 1] ?? 0) * 3;
-    const cOffset = (samples[offset + 2] ?? 0) * 3;
+    const firstSample = samples[offset] ?? 0;
+    const secondSample = samples[offset + 1] ?? 0;
+    const thirdSample = samples[offset + 2] ?? 0;
+    const aOffset = firstSample * 3;
+    const bOffset = secondSample * 3;
+    const cOffset = thirdSample * 3;
     emitTriangle(
       sink,
-      meta,
+      resolveMeta === null
+        ? meta as TMeta
+        : resolveMeta(offset / 3, firstSample, secondSample, thirdSample),
       positions[aOffset] ?? 0,
       positions[aOffset + 1] ?? 0,
       positions[aOffset + 2] ?? 0,

@@ -5,7 +5,7 @@ import {
   type BattlefieldEquipmentWeaponSlot,
 } from '../../assets/bundles/battlefield/equipment/population/battlefield-equipment-pickup-system';
 import { BattlefieldInteractionAction } from '../../assets/bundles/battlefield/interaction/model/battlefield-interaction';
-import { EquipmentId } from '../../assets/core/equipment/equipment';
+import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 
 describe('玩家唯一武器槽拾取替换', () => {
   it('成功拾取新武器后移除世界实例，并把旧武器从玩家位置轻抛出去', () => {

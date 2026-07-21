@@ -7,10 +7,9 @@ import {
 import { EQUIPMENT_RARITY_PALETTE } from '../../assets/bundles/battlefield/equipment/model/equipment-rarity-palette';
 import { DROPPED_EQUIPMENT_ACCENT_LAYOUT } from '../../assets/bundles/battlefield/equipment/model/dropped-equipment-accent-layout';
 import { EquipmentRarity } from '../../assets/core/equipment/equipment';
-import { VANGUARD_ANATOMY } from '../../assets/player/vanguard/model/vanguard-anatomy';
 
 describe('掉落装备毛笔形渐隐光管', () => {
-  it('使用固定低段数拓扑保持角色高度，并从不透明笔腹收束到透明笔锋', () => {
+  it('使用固定低段数拓扑保持独立世界尺度，并从不透明笔腹收束到透明笔锋', () => {
     const geometry = createDroppedEquipmentBeamGeometry(1);
     writeDroppedEquipmentBeam(
       geometry,
@@ -29,8 +28,10 @@ describe('掉落装备毛笔形渐隐光管', () => {
       ys.push(geometry.positions[vertex * 3 + 1] ?? 0);
       alphas.push(geometry.colors[vertex * 4 + 3] ?? 0);
     }
-    expect(DROPPED_EQUIPMENT_ACCENT_LAYOUT.beamHeight).toBe(VANGUARD_ANATOMY.height);
-    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(VANGUARD_ANATOMY.height, 5);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(
+      DROPPED_EQUIPMENT_ACCENT_LAYOUT.beamHeight,
+      5,
+    );
     expect(Math.max(...alphas)).toBe(1);
     expect(Math.min(...alphas)).toBe(0);
     expect(alphas.some((alpha) => alpha > 0 && alpha < 1)).toBe(true);

@@ -38,7 +38,7 @@ const GROUND_BOUNDS = Object.freeze({
 });
 
 /** 创建战场程序化岩地并管理分帧 Chunk 同步与对应 GPU 资源。 */
-export class BattlefieldRenderer {
+export class BattlefieldGroundRenderer {
   private readonly materials: BattlefieldMaterials;
   private readonly groundGeometry: BattlefieldGroundRenderGeometry;
   private readonly groundWriter: TriangleMeshWriter;

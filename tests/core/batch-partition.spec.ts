@@ -11,13 +11,13 @@ import {
 describe('固定拓扑批次切分', () => {
   it('从拓扑计算 Uint16 安全容量', () => {
     expect(CURVE_CRAWLER_BODY_TOPOLOGY).toEqual({
-      verticesPerEntity: 506,
-      indicesPerEntity: 2256,
+      verticesPerEntity: 1920,
+      indicesPerEntity: 1920,
     });
     expect(getMaximumIndexedEntityCount(
       CURVE_CRAWLER_BODY_TOPOLOGY,
       GeometryIndexFormat.Uint16,
-    )).toBe(129);
+    )).toBe(34);
   });
 
   it('Uint32 合并表面把完整群体保留在一个批次', () => {
@@ -28,10 +28,10 @@ describe('固定拓扑批次切分', () => {
     const partitions = partitionBatches(180, 180, maximumBatchSize);
 
     expect(CURVE_CRAWLER_EMERGENCE_MESH_TOPOLOGY).toEqual({
-      verticesPerEntity: 426,
-      indicesPerEntity: 426,
+      verticesPerEntity: 378,
+      indicesPerEntity: 378,
     });
-    expect(maximumBatchSize).toBe(4265111);
+    expect(maximumBatchSize).toBe(1745212);
     expect(partitions).toHaveLength(1);
     expect(partitions[0]?.range).toEqual({ start: 0, count: 180, end: 180 });
   });
@@ -43,7 +43,9 @@ describe('固定拓扑批次切分', () => {
     );
     const partitions = partitionBatches(340, 500, maximumBatchSize);
 
-    expect(maximumBatchSize).toBe(65);
-    expect(partitions.map((partition) => partition.range.count)).toEqual([65, 65, 65, 65, 65, 15]);
+    expect(maximumBatchSize).toBe(26);
+    expect(partitions.map((partition) => partition.range.count)).toEqual([
+      26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 2,
+    ]);
   });
 });

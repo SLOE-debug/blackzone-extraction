@@ -7,6 +7,7 @@ import {
 } from '../../assets/core/geometry/faceted/faceted-emitter';
 import { writeSequentialFlatNormals } from '../../assets/core/geometry/faceted/sequential-flat-normal';
 import { StaticFacetedMeshSink } from '../../assets/core/geometry/faceted/static-faceted-mesh-sink';
+import { appendExtrudedFacetedSilhouette } from '../../assets/core/geometry/faceted/faceted-extruded-silhouette';
 
 const COLOR = Object.freeze({ red: 1, green: 0.5, blue: 0.2, alpha: 1 });
 
@@ -108,5 +109,35 @@ describe('程序化分面发射器', () => {
       0, 0, 1,
       0, 0, 1,
     ]);
+  });
+
+  it('把领域二维轮廓复用为完整的硬边挤出体', () => {
+    const sink = new StaticFacetedMeshSink();
+    appendExtrudedFacetedSilhouette(
+      sink,
+      Object.freeze([
+        Object.freeze({ x: -1, y: -0.4 }),
+        Object.freeze({ x: 0.8, y: -0.55 }),
+        Object.freeze({ x: 1.1, y: 0.35 }),
+        Object.freeze({ x: -0.7, y: 0.62 }),
+      ]),
+      0.3,
+      0.24,
+      COLOR,
+      COLOR,
+      COLOR,
+    );
+    const geometry = sink.build();
+
+    expect(geometry.vertexCount).toBe(48);
+    expect(Math.max(...geometry.positions)).toBeGreaterThanOrEqual(1.1);
+    expect(Math.min(...geometry.positions)).toBeLessThanOrEqual(-1);
+    for (let offset = 0; offset < geometry.normals.length; offset += 3) {
+      expect(Math.hypot(
+        geometry.normals[offset] ?? 0,
+        geometry.normals[offset + 1] ?? 0,
+        geometry.normals[offset + 2] ?? 0,
+      )).toBeCloseTo(1, 6);
+    }
   });
 });

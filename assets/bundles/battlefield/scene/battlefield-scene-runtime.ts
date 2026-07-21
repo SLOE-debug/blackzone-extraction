@@ -2,6 +2,7 @@ import { error as logError, type Material, Node, type Scene } from 'cc';
 import { BundleService } from '../../../core/bundles/bundle-service';
 import { type SceneRuntime } from '../../../core/contracts/scene-runtime';
 import { FeatureId, SceneId } from '../../../core/contracts/runtime-id';
+import { WeaponAction } from '../../../core/equipment/equipment';
 import { SceneService } from '../../../core/scenes/scene-service';
 import { ChunkRuntimeRegistry } from '../../../core/world/chunk-runtime-registry';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -9,8 +10,6 @@ import {
   VanguardAction,
   VanguardPopulation,
   VanguardRenderMode,
-  VanguardWeaponAction,
-  VanguardWeaponPose,
 } from '../../../player/vanguard';
 import { BattlefieldPlayerAimController } from '../combat/battlefield-player-aim-controller';
 import { BattlefieldDebugControls } from '../debug/battlefield-debug-controls';
@@ -21,7 +20,7 @@ import {
   BattlefieldPerformanceStage,
 } from '../debug/battlefield-performance-logger';
 import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
-import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../equipment/model/battlefield-equipment-library';
+import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../equipment/catalog/battlefield-equipment-catalog';
 import { BattlefieldEquipmentPickupSystem } from '../equipment/population/battlefield-equipment-pickup-system';
 import {
   type BattlefieldWeaponOwnerPose,
@@ -36,13 +35,17 @@ import {
   type BattlefieldMonsterCombatTarget,
   BattlefieldMonsterPopulation,
 } from '../population/battlefield-monster-population';
-import { BattlefieldRenderer } from '../rendering/battlefield-renderer';
+import { BattlefieldGroundRenderer } from '../rendering/battlefield-ground-renderer';
 import { BattlefieldTreasurePopulation } from '../treasure-chest/population/battlefield-treasure-population';
 import { BattlefieldControlHud } from '../ui/battlefield-control-hud';
 import {
   createBattlefieldCamera,
   type BattlefieldCameraRig,
 } from './battlefield-camera';
+import {
+  toVanguardWeaponAction,
+  toVanguardWeaponPose,
+} from './battlefield-vanguard-weapon-adapter';
 
 enum BattlefieldSceneState {
   Created,
@@ -81,7 +84,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private readonly performanceLogger = new BattlefieldPerformanceLogger();
   private state = BattlefieldSceneState.Created;
   private runtimeRoot: Node | null = null;
-  private renderer: BattlefieldRenderer | null = null;
+  private groundRenderer: BattlefieldGroundRenderer | null = null;
   private environment: BattlefieldEnvironmentPopulation | null = null;
   private player: VanguardPopulation | null = null;
   private playerWeapon: BattlefieldPlayerWeaponRuntime | null = null;
@@ -135,7 +138,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     }
     const runtimeRoot = new Node('Battlefield');
     this.sceneEntry.addChild(runtimeRoot);
-    let battlefieldRenderer: BattlefieldRenderer | null = null;
+    let groundRenderer: BattlefieldGroundRenderer | null = null;
     let environment: BattlefieldEnvironmentPopulation | null = null;
     let player: VanguardPopulation | null = null;
     let playerWeapon: BattlefieldPlayerWeaponRuntime | null = null;
@@ -147,7 +150,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let interactionSystem: BattlefieldSceneInteractionSystem | null = null;
     let debugPanel: BattlefieldDebugPanel | null = null;
     try {
-      battlefieldRenderer = new BattlefieldRenderer(runtimeRoot);
+      groundRenderer = new BattlefieldGroundRenderer(runtimeRoot);
       environment = new BattlefieldEnvironmentPopulation(runtimeRoot);
       player = new VanguardPopulation(
         runtimeRoot,
@@ -219,7 +222,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         player,
         chunks: chunkRuntimes,
         environment,
-        ground: battlefieldRenderer,
+        ground: groundRenderer,
         monsters,
         treasures,
       }));
@@ -234,14 +237,14 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       playerWeapon?.dispose();
       player?.dispose();
       environment?.dispose();
-      battlefieldRenderer?.dispose();
+      groundRenderer?.dispose();
       runtimeRoot.destroy();
       this.state = BattlefieldSceneState.Disposed;
       throw error;
     }
 
     this.runtimeRoot = runtimeRoot;
-    this.renderer = battlefieldRenderer;
+    this.groundRenderer = groundRenderer;
     this.environment = environment;
     this.player = player;
     this.playerWeapon = playerWeapon;
@@ -323,7 +326,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
 
     stageStarted = performanceLogger.beginStage();
     if (this.player !== null) {
-      this.renderer?.updateCenter(this.player.positionX, this.player.positionZ);
+      this.groundRenderer?.updateCenter(this.player.positionX, this.player.positionZ);
     }
     performanceLogger.endStage(
       BattlefieldPerformanceStage.WorldSynchronization,
@@ -402,12 +405,12 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.playerWeapon?.dispose();
     this.player?.dispose();
     this.environment?.dispose();
-    this.renderer?.dispose();
+    this.groundRenderer?.dispose();
     if (this.runtimeRoot?.isValid === true) {
       this.runtimeRoot.destroy();
     }
     this.runtimeRoot = null;
-    this.renderer = null;
+    this.groundRenderer = null;
     this.environment = null;
     this.player = null;
     this.playerWeapon = null;
@@ -437,9 +440,9 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       monsters,
       cameraRig,
       controls,
-      this.playerWeapon?.vanguardWeaponPose ?? VanguardWeaponPose.Unarmed,
-      this.playerWeapon?.vanguardWeaponAction ?? VanguardWeaponAction.Ready,
-      this.playerWeapon?.vanguardWeaponActionProgress ?? 0,
+      toVanguardWeaponPose(this.playerWeapon?.weaponGrip ?? null),
+      toVanguardWeaponAction(this.playerWeapon?.weaponAction ?? WeaponAction.Ready),
+      this.playerWeapon?.weaponActionProgress ?? 0,
       this.weaponAimTarget,
     );
   }

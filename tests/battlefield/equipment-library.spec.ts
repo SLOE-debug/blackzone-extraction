@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   EquipmentCategory,
-  EquipmentId,
   EquipmentRarity,
   WeaponAmmunitionMode,
   WeaponClass,
@@ -9,11 +8,12 @@ import {
 } from '../../assets/core/equipment/equipment';
 import {
   BATTLEFIELD_EQUIPMENT_LIBRARY,
-} from '../../assets/bundles/battlefield/equipment/model/battlefield-equipment-library';
+  getBattlefieldEquipmentPrototype,
+} from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
+import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import {
   BATTLEFIELD_TREASURE_LOOT_TABLE,
 } from '../../assets/bundles/battlefield/loot/model/battlefield-treasure-loot-table';
-import { getBattlefieldEquipmentGeometry } from '../../assets/bundles/battlefield/equipment/rendering/battlefield-equipment-geometry';
 import { mixRandomSeed } from '../../assets/core/math/xorshift32';
 
 describe('战场装备库', () => {
@@ -87,7 +87,7 @@ describe('战场装备库', () => {
 
   it('全部武器和弹药拾取物均由非空程序化分面拓扑和单位法线构成', () => {
     for (const equipmentId of Object.values(EquipmentId)) {
-      const geometry = getBattlefieldEquipmentGeometry(equipmentId);
+      const geometry = getBattlefieldEquipmentPrototype(equipmentId).geometry;
       expect(geometry.vertexCount).toBeGreaterThan(30);
       expect(geometry.indexCount).toBeGreaterThan(30);
       for (let offset = 0; offset < geometry.normals.length; offset += 3) {

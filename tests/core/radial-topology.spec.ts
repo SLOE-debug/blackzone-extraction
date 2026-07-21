@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   emitSampledRadialTopology,
+  emitSampledRadialTopologyWithMeta,
   sampleRadialTopology,
 } from '../../assets/core/geometry/radial/radial-emitter';
 import { type RadialRingSource } from '../../assets/core/geometry/radial/radial-ring-source';
@@ -19,6 +20,7 @@ import {
 import { StaticFacetedMeshSink } from '../../assets/core/geometry/faceted/static-faceted-mesh-sink';
 
 const COLOR = Object.freeze({ red: 0.2, green: 0.4, blue: 0.6, alpha: 1 });
+const ACCENT_COLOR = Object.freeze({ red: 0.9, green: 0.3, blue: 0.1, alpha: 1 });
 
 describe('Core Radial Topology', () => {
   it('按 Side Bands、起点 Fan、终点 Fan 的顺序编译闭合壳体', () => {
@@ -131,6 +133,44 @@ describe('Core Radial Topology', () => {
         geometry.normals[offset + 2] ?? 0,
       )).toBeCloseTo(1, 6);
     }
+  });
+
+  it('复用同一拓扑循环为相邻三角形解析不同面元数据', () => {
+    const plan = compileRadialTopologyPlan({
+      ringCount: 2,
+      segmentCount: 3,
+      centerCount: 0,
+      degeneratePolicy: RadialDegeneratePolicy.Reject,
+      passes: [{
+        kind: RadialTopologyPassKind.SideBands,
+        firstRing: 0,
+        lastRing: 1,
+        winding: RadialWinding.Forward,
+        triangleOrder: RadialTriangleOrder.PrimaryFirst,
+      }],
+    });
+    const workspace = createRadialWorkspace(plan);
+    sampleRadialTopology(
+      plan,
+      TEST_RING_SOURCE,
+      { sampleCounter: { value: 0 } },
+      workspace,
+    );
+    const sink = new StaticFacetedMeshSink();
+    emitSampledRadialTopologyWithMeta(
+      plan,
+      workspace,
+      sink,
+      (triangleIndex) => triangleIndex % 2 === 0 ? COLOR : ACCENT_COLOR,
+    );
+    const colors = sink.build().getColorView();
+
+    expect(Array.from(colors.slice(0, 4))).toEqual(Array.from(Float32Array.of(
+      0.2, 0.4, 0.6, 1,
+    )));
+    expect(Array.from(colors.slice(12, 16))).toEqual(Array.from(Float32Array.of(
+      0.9, 0.3, 0.1, 1,
+    )));
   });
 });
 

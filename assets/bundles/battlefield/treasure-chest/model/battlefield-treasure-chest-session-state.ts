@@ -1,4 +1,4 @@
-import { EquipmentId } from '../../../../core/equipment/equipment';
+import { EquipmentId } from '../../equipment/catalog/equipment-id';
 import { type BattlefieldTreasureChestKey } from './battlefield-treasure-chest-key';
 
 interface MutableBattlefieldTreasureChestSessionEntry {

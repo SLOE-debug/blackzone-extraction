@@ -1,12 +1,12 @@
 import {
   type FacetedColor,
   StaticFacetedMeshSink,
-} from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
+} from '../../../../../core/geometry/faceted/static-faceted-mesh-sink';
 import {
   appendFacetedAmmunitionCase,
   appendFacetedCartridge,
   type AmmunitionPackOutlinePoint,
-} from './faceted-ammunition-pack-builder';
+} from '../../geometry/faceted-ammunition-pack-builder';
 
 const PALETTE = Object.freeze({
   caseTop: color(0.32, 0.055, 0.035),

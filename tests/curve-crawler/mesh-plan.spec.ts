@@ -35,7 +35,9 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(freshPlan.legTube.tangentCoefficients).toHaveLength(
       (freshPlan.legTube.segmentCount + 1) * 4,
     );
-    expect(freshPlan.legTube.radialCosines).toHaveLength(freshPlan.legTube.radialCount);
+    expect(freshPlan.legTube.radialCosines).toHaveLength(
+      freshPlan.legTube.logicalVertexCount,
+    );
     expect(freshPlan.bodyEllipsoid.unitDirections).toHaveLength(
       freshPlan.bodyEllipsoid.vertexCount * 3,
     );

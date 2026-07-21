@@ -1,4 +1,5 @@
-import { VANGUARD_ANATOMY } from '../../../../player/vanguard/model/vanguard-anatomy';
+/** 信标自身的世界高度，不依赖任何可装备角色的体型。 */
+const DROPPED_EQUIPMENT_BEAM_HEIGHT = 3.8;
 
 /** 毛笔形光管每一高度圈相对掉落物中心的非均匀偏移。 */
 export interface DroppedEquipmentBeamRingOffset {
@@ -8,10 +9,10 @@ export interface DroppedEquipmentBeamRingOffset {
 
 /** 掉落装备毛笔形 Unlit 信标的稳定布局。 */
 export const DROPPED_EQUIPMENT_ACCENT_LAYOUT = Object.freeze({
-  beamHeight: VANGUARD_ANATOMY.height,
+  beamHeight: DROPPED_EQUIPMENT_BEAM_HEIGHT,
   beamSegments: 7,
   beamRingHeights: Object.freeze([
-    0, 0.28, 0.78, 1.42, 2.18, 3.1, VANGUARD_ANATOMY.height,
+    0, 0.28, 0.78, 1.42, 2.18, 3.1, DROPPED_EQUIPMENT_BEAM_HEIGHT,
   ]),
   beamRingRadii: Object.freeze([0.22, 0.31, 0.27, 0.23, 0.17, 0.095, 0.018]),
   beamRingAlphas: Object.freeze([1, 0.9, 0.72, 0.52, 0.32, 0.14, 0]),

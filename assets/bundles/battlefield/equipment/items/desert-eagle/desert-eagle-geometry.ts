@@ -1,16 +1,16 @@
 import {
   emitOrientedFlatQuad,
   emitOrientedFlatTriangle,
-} from '../../../../core/geometry/faceted/faceted-emitter';
-import { type FacetedPoint } from '../../../../core/geometry/faceted/facet-orientation';
+} from '../../../../../core/geometry/faceted/faceted-emitter';
+import { type FacetedPoint } from '../../../../../core/geometry/faceted/facet-orientation';
 import {
   type FacetedColor,
   StaticFacetedMeshSink,
-} from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
+} from '../../../../../core/geometry/faceted/static-faceted-mesh-sink';
 import {
-  appendExtrudedFirearmSilhouette,
-  type FirearmSilhouettePoint,
-} from './faceted-firearm-builder';
+  appendExtrudedFacetedSilhouette,
+  type FacetedSilhouettePoint,
+} from '../../../../../core/geometry/faceted/faceted-extruded-silhouette';
 
 const PALETTE = Object.freeze({
   slideDark: Object.freeze({ red: 0.025, green: 0.11, blue: 0.25, alpha: 1 }),
@@ -32,7 +32,7 @@ const SLIDE = Object.freeze([
   Object.freeze({ x: 1.52, y: 0.04 }),
   Object.freeze({ x: 0.51, y: -0.035 }),
   Object.freeze({ x: -1.27, y: -0.02 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 const FRAME = Object.freeze([
   Object.freeze({ x: -1.27, y: -0.02 }),
@@ -41,7 +41,7 @@ const FRAME = Object.freeze([
   Object.freeze({ x: 0.15, y: -0.43 }),
   Object.freeze({ x: -0.73, y: -0.34 }),
   Object.freeze({ x: -1.34, y: -0.16 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 const GRIP = Object.freeze([
   Object.freeze({ x: -0.74, y: -0.26 }),
@@ -50,18 +50,18 @@ const GRIP = Object.freeze([
   Object.freeze({ x: -0.36, y: -1.5 }),
   Object.freeze({ x: -0.73, y: -1.4 }),
   Object.freeze({ x: -0.96, y: -0.55 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 /** 编译具有厚重滑套、倾斜握把、镂空扳机护圈和多边形枪口的沙漠之鹰。 */
 export function createDesertEagleGeometry() {
   const sink = new StaticFacetedMeshSink();
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, SLIDE, 0.18, 0.1692, PALETTE.slide, PALETTE.slideDark, PALETTE.slideLight,
   );
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, FRAME, 0.205, 0.1927, PALETTE.frame, PALETTE.slideDark, PALETTE.slideLight,
   );
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, GRIP, 0.17, 0.1598, PALETTE.grip, PALETTE.gripDark, PALETTE.slideLight,
   );
   appendTriggerGuard(sink);
@@ -80,7 +80,7 @@ function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
     Object.freeze({ x: 0.64, y: -0.73 }),
     Object.freeze({ x: 0.08, y: -0.7 }),
     Object.freeze({ x: -0.08, y: -0.51 }),
-  ] satisfies readonly FirearmSilhouettePoint[]);
+  ] satisfies readonly FacetedSilhouettePoint[]);
   const inner = Object.freeze([
     Object.freeze({ x: 0.14, y: -0.4 }),
     Object.freeze({ x: 0.58, y: -0.39 }),
@@ -88,7 +88,7 @@ function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
     Object.freeze({ x: 0.53, y: -0.61 }),
     Object.freeze({ x: 0.18, y: -0.6 }),
     Object.freeze({ x: 0.07, y: -0.5 }),
-  ] satisfies readonly FirearmSilhouettePoint[]);
+  ] satisfies readonly FacetedSilhouettePoint[]);
   const frontZ = 0.19;
   const backZ = -0.18;
   for (let index = 0; index < outer.length; index++) {
@@ -170,7 +170,7 @@ function appendMuzzle(sink: StaticFacetedMeshSink): void {
 }
 
 function appendSights(sink: StaticFacetedMeshSink): void {
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink,
     Object.freeze([
       Object.freeze({ x: -1.23, y: 0.43 }),
@@ -184,7 +184,7 @@ function appendSights(sink: StaticFacetedMeshSink): void {
     PALETTE.slideDark,
     PALETTE.slideLight,
   );
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink,
     Object.freeze([
       Object.freeze({ x: 1.08, y: 0.46 }),
@@ -226,9 +226,9 @@ function muzzlePoint(
 }
 
 function requireSilhouettePoint(
-  points: readonly Readonly<FirearmSilhouettePoint>[],
+  points: readonly Readonly<FacetedSilhouettePoint>[],
   index: number,
-): Readonly<FirearmSilhouettePoint> {
+): Readonly<FacetedSilhouettePoint> {
   const point = points[index];
   if (point === undefined) {
     throw new Error('沙漠之鹰轮廓索引越界。');

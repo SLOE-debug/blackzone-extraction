@@ -31,7 +31,7 @@ import {
   createSharedTreasureChestBodyGeometry,
   writeSharedTreasureChestBeacon,
   writeSharedTreasureChestBody,
-} from './treasure-chest-shared-geometry';
+} from '../geometry/treasure-chest-shared-geometry';
 
 const CHEST_SURFACE_OPTIONS = Object.freeze({
   castShadows: false,
@@ -138,6 +138,8 @@ export class TreasureChestSharedRenderer implements Disposable {
     this.ensureActive();
     const count = this.entries.length;
     if (count === 0) {
+      this.bodyBatch?.setActiveIndexCount(0);
+      this.beaconBatch?.setActiveIndexCount(0);
       this.bodyBatch?.setVisible(false);
       this.beaconBatch?.setVisible(false);
       this.activeCount = 0;
@@ -256,6 +258,12 @@ export class TreasureChestSharedRenderer implements Disposable {
         this.beaconBatch?.updateBounds(this.beaconBounds);
       }
     }
+    this.bodyBatch?.setActiveIndexCount(
+      count * this.bodySource.geometry.indexCount,
+    );
+    this.beaconBatch?.setActiveIndexCount(
+      count * this.beaconSource.indexCount,
+    );
     this.bodyBatch?.setVisible(true);
     this.beaconBatch?.setVisible(anyBeaconVisible);
     this.activeCount = count;

@@ -1,22 +1,42 @@
 import {
   emitOrientedFlatQuad,
   emitOrientedFlatTriangle,
-} from '../../../../core/geometry/faceted/faceted-emitter';
-import { type FacetedPoint } from '../../../../core/geometry/faceted/facet-orientation';
+} from '../../../../../core/geometry/faceted/faceted-emitter';
+import { type FacetedPoint } from '../../../../../core/geometry/faceted/facet-orientation';
 import {
   type FacetedColor,
   StaticFacetedMeshSink,
-} from '../../../../core/geometry/faceted/static-faceted-mesh-sink';
+} from '../../../../../core/geometry/faceted/static-faceted-mesh-sink';
 import {
-  appendExtrudedFirearmSilhouette,
-  type FirearmSilhouettePoint,
-} from './faceted-firearm-builder';
+  appendExtrudedFacetedSilhouette,
+  type FacetedSilhouettePoint,
+} from '../../../../../core/geometry/faceted/faceted-extruded-silhouette';
+import {
+  emitSampledRadialTopologyWithMeta,
+  sampleRadialTopology,
+} from '../../../../../core/geometry/radial/radial-emitter';
+import { type RadialRingSource } from '../../../../../core/geometry/radial/radial-ring-source';
+import {
+  compileRadialTopologyPlan,
+  RadialDegeneratePolicy,
+  RadialTopologyPassKind,
+  RadialTriangleOrder,
+  RadialWinding,
+} from '../../../../../core/geometry/radial/radial-topology-plan';
+import {
+  createRadialWorkspace,
+  type RadialPositionArray,
+} from '../../../../../core/geometry/radial/radial-workspace';
 
 interface ShotgunTubeRing {
   readonly x: number;
   readonly centerY: number;
   readonly radius: number;
   readonly rotation: number;
+}
+
+interface ShotgunTubeSampleContext {
+  readonly rings: readonly Readonly<ShotgunTubeRing>[];
 }
 
 const TUBE_SEGMENT_COUNT = 7;
@@ -40,7 +60,7 @@ const RECEIVER = Object.freeze([
   Object.freeze({ x: 0.62, y: -0.27 }),
   Object.freeze({ x: -0.55, y: -0.32 }),
   Object.freeze({ x: -0.84, y: -0.11 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 const STOCK = Object.freeze([
   Object.freeze({ x: -2.52, y: 0.21 }),
@@ -51,7 +71,7 @@ const STOCK = Object.freeze([
   Object.freeze({ x: -1.18, y: -0.32 }),
   Object.freeze({ x: -2.31, y: -0.35 }),
   Object.freeze({ x: -2.58, y: -0.14 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 const GRIP = Object.freeze([
   Object.freeze({ x: -0.72, y: -0.09 }),
@@ -59,7 +79,7 @@ const GRIP = Object.freeze([
   Object.freeze({ x: -0.4, y: -0.78 }),
   Object.freeze({ x: -0.67, y: -0.91 }),
   Object.freeze({ x: -0.92, y: -0.71 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 const FORE_END = Object.freeze([
   Object.freeze({ x: 0.72, y: -0.08 }),
@@ -68,7 +88,7 @@ const FORE_END = Object.freeze([
   Object.freeze({ x: 1.67, y: -0.49 }),
   Object.freeze({ x: 0.79, y: -0.47 }),
   Object.freeze({ x: 0.61, y: -0.28 }),
-] satisfies readonly FirearmSilhouettePoint[]);
+] satisfies readonly FacetedSilhouettePoint[]);
 
 const BARREL_RINGS = Object.freeze([
   ring(0.5, 0.28, 0.13, 0.02),
@@ -88,19 +108,19 @@ const MAGAZINE_RINGS = Object.freeze([
 /** 编译带不规则木托、分面机匣、变截面枪管和真实膛孔的泵动霰弹枪。 */
 export function createPumpShotgunGeometry() {
   const sink = new StaticFacetedMeshSink();
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, STOCK, 0.205, 0.19, PALETTE.wood, PALETTE.woodDark, PALETTE.woodLight,
   );
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, GRIP, 0.195, 0.178, PALETTE.wood, PALETTE.woodDark, PALETTE.woodLight,
   );
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, RECEIVER, 0.235, 0.218, PALETTE.steel, PALETTE.steelDark, PALETTE.steelLight,
   );
   appendIrregularTube(sink, BARREL_RINGS, PALETTE.steel, PALETTE.steelLight);
   appendIrregularTube(sink, MAGAZINE_RINGS, PALETTE.steelDark, PALETTE.steel);
   appendMagazineCap(sink);
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink, FORE_END, 0.285, 0.268, PALETTE.wood, PALETTE.woodDark, PALETTE.woodLight,
   );
   appendTriggerGuard(sink);
@@ -118,32 +138,46 @@ function appendIrregularTube(
   baseColor: Readonly<FacetedColor>,
   accentColor: Readonly<FacetedColor>,
 ): void {
-  for (let ringIndex = 0; ringIndex < rings.length - 1; ringIndex++) {
-    const current = requireRing(rings, ringIndex);
-    const next = requireRing(rings, ringIndex + 1);
-    for (let segment = 0; segment < TUBE_SEGMENT_COUNT; segment++) {
-      const nextSegment = (segment + 1) % TUBE_SEGMENT_COUNT;
-      const currentA = tubePoint(current, ringIndex, segment, 1);
-      const currentB = tubePoint(current, ringIndex, nextSegment, 1);
-      const nextA = tubePoint(next, ringIndex + 1, segment, 1);
-      const nextB = tubePoint(next, ringIndex + 1, nextSegment, 1);
-      const middleAngle = (
-        segment + 0.5
-      ) / TUBE_SEGMENT_COUNT * Math.PI * 2 + current.rotation;
-      emitOrientedFlatQuad(
-        sink,
-        (segment + ringIndex) % 3 === 0 ? accentColor : baseColor,
-        currentA,
-        nextA,
-        nextB,
-        currentB,
-        0,
-        Math.cos(middleAngle),
-        Math.sin(middleAngle),
-      );
-    }
-  }
+  const plan = compileRadialTopologyPlan({
+    ringCount: rings.length,
+    segmentCount: TUBE_SEGMENT_COUNT,
+    centerCount: 0,
+    degeneratePolicy: RadialDegeneratePolicy.Reject,
+    passes: Object.freeze([
+      Object.freeze({
+        kind: RadialTopologyPassKind.SideBands,
+        firstRing: 0,
+        lastRing: rings.length - 1,
+        winding: RadialWinding.Reverse,
+        triangleOrder: RadialTriangleOrder.PrimaryFirst,
+      }),
+    ]),
+  });
+  const workspace = createRadialWorkspace(plan);
+  sampleRadialTopology(plan, SHOTGUN_TUBE_SOURCE, { rings }, workspace);
+  const trianglesPerBand = TUBE_SEGMENT_COUNT * 2;
+  emitSampledRadialTopologyWithMeta(
+    plan,
+    workspace,
+    sink,
+    (triangleIndex) => {
+      const ringIndex = Math.floor(triangleIndex / trianglesPerBand);
+      const segment = Math.floor((triangleIndex % trianglesPerBand) / 2);
+      return (segment + ringIndex) % 3 === 0 ? accentColor : baseColor;
+    },
+  );
 }
+
+/** 枪械领域只提供各环中心、错角和非均匀半径采样。 */
+const SHOTGUN_TUBE_SOURCE: RadialRingSource<ShotgunTubeSampleContext> = Object.freeze({
+  sampleRing(context, ringIndex, segment, output, outputOffset): void {
+    const point = tubePoint(requireRing(context.rings, ringIndex), ringIndex, segment, 1);
+    writeRadialPoint(output, outputOffset, point);
+  },
+  sampleCenter(): void {
+    throw new Error('泵动霰弹枪开放管体不应请求端盖中心。');
+  },
+});
 
 /** 枪口以前环和内膛形成真实通孔，不使用平面贴色模拟。 */
 function appendMuzzleBore(sink: StaticFacetedMeshSink): void {
@@ -208,7 +242,7 @@ function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
     Object.freeze({ x: 0.23, y: -0.65 }),
     Object.freeze({ x: -0.28, y: -0.62 }),
     Object.freeze({ x: -0.48, y: -0.45 }),
-  ] satisfies readonly FirearmSilhouettePoint[]);
+  ] satisfies readonly FacetedSilhouettePoint[]);
   const inner = Object.freeze([
     Object.freeze({ x: -0.25, y: -0.34 }),
     Object.freeze({ x: 0.2, y: -0.34 }),
@@ -216,7 +250,7 @@ function appendTriggerGuard(sink: StaticFacetedMeshSink): void {
     Object.freeze({ x: 0.16, y: -0.54 }),
     Object.freeze({ x: -0.2, y: -0.52 }),
     Object.freeze({ x: -0.36, y: -0.43 }),
-  ] satisfies readonly FirearmSilhouettePoint[]);
+  ] satisfies readonly FacetedSilhouettePoint[]);
   for (let index = 0; index < outer.length; index++) {
     const next = (index + 1) % outer.length;
     const outerCurrent = requireSilhouettePoint(outer, index);
@@ -273,7 +307,7 @@ function appendReceiverDetails(sink: StaticFacetedMeshSink): void {
 }
 
 function appendTopSight(sink: StaticFacetedMeshSink): void {
-  appendExtrudedFirearmSilhouette(
+  appendExtrudedFacetedSilhouette(
     sink,
     Object.freeze([
       Object.freeze({ x: 2.45, y: 0.38 }),
@@ -318,6 +352,17 @@ function tubePoint(
   );
 }
 
+/** 把领域采样点写入 Radial 双精度工作区。 */
+function writeRadialPoint(
+  output: RadialPositionArray,
+  outputOffset: number,
+  point: Readonly<FacetedPoint>,
+): void {
+  output[outputOffset] = point.x;
+  output[outputOffset + 1] = point.y;
+  output[outputOffset + 2] = point.z;
+}
+
 function ring(
   x: number,
   centerY: number,
@@ -339,9 +384,9 @@ function requireRing(
 }
 
 function requireSilhouettePoint(
-  points: readonly Readonly<FirearmSilhouettePoint>[],
+  points: readonly Readonly<FacetedSilhouettePoint>[],
   index: number,
-): Readonly<FirearmSilhouettePoint> {
+): Readonly<FacetedSilhouettePoint> {
   const value = points[index];
   if (value === undefined) {
     throw new Error('泵动霰弹枪护圈索引越界。');

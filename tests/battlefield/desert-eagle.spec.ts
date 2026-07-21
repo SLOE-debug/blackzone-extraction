@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DESERT_EAGLE_GEOMETRY } from '../../assets/bundles/battlefield/equipment/geometry/desert-eagle-geometry';
+import { DESERT_EAGLE_GEOMETRY } from '../../assets/bundles/battlefield/equipment/items/desert-eagle/desert-eagle-geometry';
 
 describe('沙漠之鹰程序化模型', () => {
   it('包含可辨识的低密度硬分面和完整顶点流', () => {

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/model/battlefield-equipment-library';
+import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
+import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import { createWeaponAmmunition } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition';
 import { WeaponAmmunitionReserve } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition-reserve';
+import { BattlefieldWeaponActionState } from '../../assets/bundles/battlefield/equipment/combat/battlefield-weapon-action-state';
+import {
+  BattlefieldWeaponAttackExecutor,
+  BattlefieldWeaponAttackResult,
+} from '../../assets/bundles/battlefield/equipment/combat/battlefield-weapon-attack-executor';
 import {
   BATTLEFIELD_PROJECTILE_TOPOLOGY,
   writeBattlefieldProjectilePositions,
@@ -16,18 +22,86 @@ import {
   writeBattlefieldShotProjectileDirection,
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-weapon-shot-pattern';
 import {
-  EquipmentId,
   AmmunitionType,
+  WeaponAction,
+  WeaponGrip,
   WeaponProjectileVisual,
   WeaponShotPatternType,
 } from '../../assets/core/equipment/equipment';
 import { VanguardWeaponPose } from '../../assets/player/vanguard/model/vanguard-weapon-pose';
+import { VanguardWeaponAction } from '../../assets/player/vanguard/model/vanguard-weapon-action';
 import {
   getVanguardWeaponRigProfile,
   VanguardWeaponRigSocket,
 } from '../../assets/player/vanguard/model/vanguard-weapon-rig';
+import {
+  toVanguardWeaponAction,
+  toVanguardWeaponPose,
+} from '../../assets/bundles/battlefield/scene/battlefield-vanguard-weapon-adapter';
 
 describe('玩家武器运行时模型', () => {
+  it('只在场景边界把中立武器语义适配为 Vanguard 动画枚举', () => {
+    expect(toVanguardWeaponPose(null)).toBe(VanguardWeaponPose.Unarmed);
+    expect(toVanguardWeaponPose(WeaponGrip.Handgun)).toBe(VanguardWeaponPose.Handgun);
+    expect(toVanguardWeaponPose(WeaponGrip.LongGun)).toBe(VanguardWeaponPose.Shotgun);
+    expect(toVanguardWeaponAction(WeaponAction.Ready)).toBe(VanguardWeaponAction.Ready);
+    expect(toVanguardWeaponAction(WeaponAction.Fire)).toBe(VanguardWeaponAction.Fire);
+    expect(toVanguardWeaponAction(WeaponAction.Reload)).toBe(VanguardWeaponAction.Reload);
+  });
+
+  it('动作状态独立管理攻击进度与射速冷却', () => {
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
+    const ammunition = createWeaponAmmunition(
+      definition.ammunition,
+      new WeaponAmmunitionReserve(),
+    );
+    const action = new BattlefieldWeaponActionState();
+
+    expect(action.canFire(ammunition)).toBe(true);
+    expect(ammunition.tryConsumeShot()).toBe(true);
+    action.markFired(definition, ammunition);
+    expect(action.getAction(definition, ammunition)).toBe(WeaponAction.Fire);
+    expect(action.getProgress(definition, ammunition)).toBe(0);
+
+    action.update(definition.attackAnimationSeconds * 0.5, definition, ammunition);
+    expect(action.getProgress(definition, ammunition)).toBeCloseTo(0.5, 6);
+    expect(action.canFire(ammunition)).toBe(false);
+    action.update(definition.fireIntervalSeconds, definition, ammunition);
+    expect(action.getAction(definition, ammunition)).toBe(WeaponAction.Ready);
+    expect(action.canFire(ammunition)).toBe(true);
+  });
+
+  it('射击求解器按武器分布生成弹体且不拥有渲染资源', () => {
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.PumpShotgun);
+    const ammunition = createWeaponAmmunition(
+      definition.ammunition,
+      new WeaponAmmunitionReserve(),
+    );
+    const directions: number[] = [];
+    const result = new BattlefieldWeaponAttackExecutor().execute(
+      definition,
+      { muzzleX: 1, muzzleY: 2, muzzleZ: 3 },
+      { x: 4, y: 2.5, z: 11 },
+      ammunition,
+      {
+        spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
+          directions.push(directionX, directionY, directionZ);
+        },
+      },
+    );
+
+    expect(result).toBe(BattlefieldWeaponAttackResult.Fired);
+    expect(directions).toHaveLength(27);
+    for (let offset = 0; offset < directions.length; offset += 3) {
+      expect(Math.hypot(
+        directions[offset] ?? 0,
+        directions[offset + 1] ?? 0,
+        directions[offset + 2] ?? 0,
+      )).toBeCloseTo(1, 6);
+    }
+    expect(ammunition.roundsRemaining).toBe(4);
+  });
+
   it('手枪耗尽八发后必须消耗拾取的备用弹药才能重新装填', () => {
     const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
     const reserve = new WeaponAmmunitionReserve();

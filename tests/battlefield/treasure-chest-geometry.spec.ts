@@ -29,7 +29,7 @@ import {
   createSharedTreasureChestBodyGeometry,
   writeSharedTreasureChestBeacon,
   writeSharedTreasureChestBody,
-} from '../../assets/bundles/battlefield/treasure-chest/rendering/treasure-chest-shared-geometry';
+} from '../../assets/bundles/battlefield/treasure-chest/geometry/treasure-chest-shared-geometry';
 
 const UNCONSTRAINED_PLACEMENT: BattlefieldTreasureChestPlacementConstraint = Object.freeze({
   isAreaClear: (): boolean => true,
