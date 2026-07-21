@@ -1,10 +1,10 @@
 import { Node } from 'cc';
 import { type Disposable } from '../../../../core/contracts/disposable';
 import {
-  type EquipmentLibrary,
   EquipmentId,
   type WeaponEquipmentId,
-} from '../../../../core/equipment/equipment';
+} from '../../equipment/catalog/equipment-id';
+import { type BattlefieldEquipmentLibrary } from '../../equipment/catalog/battlefield-equipment-contracts';
 import { type LootTable } from '../../../../core/loot/weighted-loot-table';
 import {
   type ChunkRuntimeParticipant,
@@ -71,7 +71,7 @@ BattlefieldInteractionProvider, Disposable {
 
   constructor(
     parent: Node,
-    private readonly equipmentLibrary: EquipmentLibrary,
+    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
   ) {
     this.renderer = new TreasureChestSharedRenderer(parent);

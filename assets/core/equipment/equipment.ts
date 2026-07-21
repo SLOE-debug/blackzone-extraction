@@ -1,21 +1,3 @@
-/** 可由装备库稳定引用的装备标识。 */
-export enum EquipmentId {
-  DesertEagle = 'desert-eagle',
-  PumpShotgun = 'pump-shotgun',
-  HandgunAmmunition = 'handgun-ammunition',
-  ShotgunAmmunition = 'shotgun-ammunition',
-}
-
-/** 能够进入玩家唯一武器槽的装备标识。 */
-export type WeaponEquipmentId =
-  | EquipmentId.DesertEagle
-  | EquipmentId.PumpShotgun;
-
-/** 拾取后直接写入备用弹药库存的装备标识。 */
-export type AmmunitionEquipmentId =
-  | EquipmentId.HandgunAmmunition
-  | EquipmentId.ShotgunAmmunition;
-
 /** 装备进入背包、掉落和交互系统时使用的领域分类。 */
 export enum EquipmentCategory {
   Weapon = 'weapon',
@@ -34,6 +16,19 @@ export enum EquipmentRarity {
 export enum WeaponClass {
   Handgun = 'handgun',
   Shotgun = 'shotgun',
+}
+
+/** 武器向任意角色动画层声明的中立握持方式。 */
+export enum WeaponGrip {
+  Handgun = 'handgun',
+  LongGun = 'long-gun',
+}
+
+/** 武器运行时向任意角色动画层声明的中立动作。 */
+export enum WeaponAction {
+  Ready = 'ready',
+  Fire = 'fire',
+  Reload = 'reload',
 }
 
 /** 武器弹仓与世界弹药拾取物之间共享的弹药口径标识。 */
@@ -107,7 +102,7 @@ export interface WeaponProjectileDefinition {
 
 /** 所有装备定义共享的只读身份与展示契约。 */
 export interface EquipmentDefinitionBase<
-  TId extends EquipmentId,
+  TId extends string,
   TCategory extends EquipmentCategory,
 > {
   readonly id: TId;
@@ -118,8 +113,8 @@ export interface EquipmentDefinitionBase<
 }
 
 /** 武器库对战斗和 UI 提供的稳定武器参数。 */
-export interface WeaponEquipmentDefinition
-extends EquipmentDefinitionBase<WeaponEquipmentId, EquipmentCategory.Weapon> {
+export interface WeaponEquipmentDefinition<TId extends string = string>
+extends EquipmentDefinitionBase<TId, EquipmentCategory.Weapon> {
   readonly weaponClass: WeaponClass;
   readonly damage: number;
   readonly fireIntervalSeconds: number;
@@ -130,23 +125,16 @@ extends EquipmentDefinitionBase<WeaponEquipmentId, EquipmentCategory.Weapon> {
 }
 
 /** 世界弹药拾取物向对应备用库存增加的弹药类型与数量。 */
-export interface AmmunitionEquipmentDefinition
-extends EquipmentDefinitionBase<AmmunitionEquipmentId, EquipmentCategory.Ammunition> {
+export interface AmmunitionEquipmentDefinition<TId extends string = string>
+extends EquipmentDefinitionBase<TId, EquipmentCategory.Ammunition> {
   readonly ammunitionType: AmmunitionType;
   readonly rounds: number;
 }
 
 /** 当前装备库允许返回的完整判别联合。 */
-export type EquipmentDefinition =
-  | WeaponEquipmentDefinition
-  | AmmunitionEquipmentDefinition;
-
-/** 装备标识到定义类别的编译期映射。 */
-export type EquipmentDefinitionById = {
-  readonly [TId in WeaponEquipmentId]: WeaponEquipmentDefinition;
-} & {
-  readonly [TId in AmmunitionEquipmentId]: AmmunitionEquipmentDefinition;
-};
+export type EquipmentDefinition<TId extends string = string> =
+  | WeaponEquipmentDefinition<TId>
+  | AmmunitionEquipmentDefinition<TId>;
 
 /**
  * 装备标识到只读定义的查询门面。
@@ -154,6 +142,9 @@ export type EquipmentDefinitionById = {
  * 宝箱和掉落系统只依赖此接口，不依赖具体目录或渲染工厂；以后扩展装备库时可独立
  * 替换实现而不改动开箱和抛射流程。
  */
-export interface EquipmentLibrary {
-  get<TId extends EquipmentId>(id: TId): Readonly<EquipmentDefinitionById[TId]>;
+export interface EquipmentLibrary<
+  TId extends string,
+  TDefinitions extends { readonly [TKey in TId]: EquipmentDefinition<TKey> },
+> {
+  get<TKey extends TId>(id: TKey): Readonly<TDefinitions[TKey]>;
 }

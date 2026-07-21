@@ -3,7 +3,7 @@ import {
   GeometryIndexFormat,
   type UnlitColorBufferGeometry,
 } from '../../../../core/geometry/buffer-geometry';
-import { type TreasureChestBatchGeometry } from '../geometry/treasure-chest-batch-geometry';
+import { type TreasureChestBatchGeometry } from './treasure-chest-batch-geometry';
 
 /** 为共享宝箱箱体批次创建固定容量拓扑。 */
 export function createSharedTreasureChestBodyGeometry(

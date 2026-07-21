@@ -6,7 +6,6 @@ import {
   KeyCode,
   Node,
 } from 'cc';
-import { type EquipmentLibrary } from '../../../core/equipment/equipment';
 import { ScreenUiCanvas } from '../../../core/ui/screen-ui-canvas';
 import { VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { VirtualJoystickActionIcon } from '../../../core/ui/virtual-joystick-graphics';
@@ -14,6 +13,7 @@ import {
   BattlefieldEquipmentLabelHud,
   type BattlefieldEquipmentLabelPresentation,
 } from '../equipment/ui/battlefield-equipment-label-hud';
+import { type BattlefieldEquipmentLibrary } from '../equipment/catalog/battlefield-equipment-contracts';
 import { BattlefieldInteractionAction } from '../interaction/model/battlefield-interaction';
 import {
   BattlefieldCameraOrbitInput,
@@ -87,7 +87,7 @@ export class BattlefieldControlHud {
   constructor(
     parent: Node,
     worldCamera: Camera,
-    equipmentLibrary: EquipmentLibrary,
+    equipmentLibrary: BattlefieldEquipmentLibrary,
     onReturnToLobbyRequested: () => void,
   ) {
     this.state = this.mutableState;

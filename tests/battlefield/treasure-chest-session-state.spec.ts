@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EquipmentId } from '../../assets/core/equipment/equipment';
+import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import { createChunkCoordinate } from '../../assets/core/world/chunk-coordinate';
 import { createBattlefieldTreasureChestKey } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-key';
 import { BattlefieldTreasureChestSessionState } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-session-state';

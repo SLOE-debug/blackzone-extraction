@@ -10,7 +10,7 @@ import {
 } from '../../assets/lobby/geometry/lobby-emissive-geometry';
 import { lobbyEmissiveVertexShading } from '../../assets/lobby/rendering/lobby-emissive-vertex-shading';
 import { lobbyEffectsGeometry } from '../../assets/lobby/geometry/lobby-effects-geometry';
-import { shadeLobbyEffects } from '../../assets/lobby/rendering/lobby-effects-vertex-shading';
+import { shadeLobbyGlass } from '../../assets/lobby/rendering/lobby-effects-vertex-shading';
 
 describe('大厅发光面合批', () => {
   it('合并顶灯和仪式灯并保留两类独立颜色', () => {
@@ -40,30 +40,41 @@ describe('大厅发光面合批', () => {
     );
   });
 
-  it('发光面与观察玻璃进入同一 RGBA 顶点色批次', () => {
-    const metrics = lobbyEffectsGeometry.metrics;
-    const geometry = createStaticSurfaceGeometry(
-      metrics.verticesPerEntity,
-      metrics.indicesPerEntity,
+  it('发光面与观察玻璃分别进入不透明和透明几何来源', () => {
+    expect(lobbyEffectsGeometry.emissive).toBe(lobbyEmissiveGeometry);
+
+    const emissiveMetrics = lobbyEffectsGeometry.emissive.metrics;
+    const emissiveGeometry = createStaticSurfaceGeometry(
+      emissiveMetrics.verticesPerEntity,
+      emissiveMetrics.indicesPerEntity,
       GeometryIndexFormat.Uint16,
     );
-    const writer = new TriangleMeshWriter(geometry);
-    writer.reset(true);
-    const ranges = lobbyEffectsGeometry.write(writer);
-    writer.commit();
-    shadeLobbyEffects(geometry, ranges);
+    const emissiveWriter = new TriangleMeshWriter(emissiveGeometry);
+    emissiveWriter.reset(true);
+    const emissiveRanges = lobbyEffectsGeometry.emissive.write(emissiveWriter);
+    emissiveWriter.commit();
+    lobbyEmissiveVertexShading.update(emissiveGeometry, emissiveRanges);
 
-    expect(ranges.glass.startVertex).toBe(
-      ranges.emissive.ritualGlow.startVertex + ranges.emissive.ritualGlow.vertexCount,
+    const glassMetrics = lobbyEffectsGeometry.glass.metrics;
+    const glassGeometry = createStaticSurfaceGeometry(
+      glassMetrics.verticesPerEntity,
+      glassMetrics.indicesPerEntity,
+      GeometryIndexFormat.Uint16,
     );
+    const glassWriter = new TriangleMeshWriter(glassGeometry);
+    glassWriter.reset(true);
+    lobbyEffectsGeometry.glass.write(glassWriter);
+    glassWriter.commit();
+    shadeLobbyGlass(glassGeometry);
+
     expectVertexColor(
-      geometry.colors,
-      ranges.glass.startVertex,
+      glassGeometry.colors,
+      0,
       [78 / 255, 116 / 255, 126 / 255, 54 / 255],
     );
     expectVertexColor(
-      geometry.colors,
-      ranges.emissive.lampGlow.startVertex,
+      emissiveGeometry.colors,
+      emissiveRanges.lampGlow.startVertex,
       [1, 244 / 255, 214 / 255, 1],
     );
   });

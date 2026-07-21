@@ -1,6 +1,6 @@
 import { type MeshPlan } from '../../../../../core/mesh/mesh-plan';
-import { type CubicTubeSamplePlan } from './kernels/cubic-tube-sample-plan';
-import { type EllipsoidSamplePlan } from './kernels/ellipsoid-sample-plan';
+import { type FacetedEllipsoidPlan } from '../../../../../core/geometry/faceted/faceted-ellipsoid-plan';
+import { type FacetedCubicTubePlan } from '../../../../../core/geometry/faceted/faceted-cubic-tube-plan';
 import { type FanSamplePlan } from './kernels/fan-sample-plan';
 
 /** Curve Crawler 编译网格中每个最终顶点所属的稳定语义。 */
@@ -111,13 +111,13 @@ export interface CurveCrawlerMeshPlan extends MeshPlan {
   /** 每个最终顶点的领域语义，用于事件驱动的颜色写入。 */
   readonly semanticIds: Uint8Array;
   /** 所有腿共享的三次贝塞尔管体采样计划。 */
-  readonly legTube: CubicTubeSamplePlan;
+  readonly legTube: FacetedCubicTubePlan;
   /** 所有脚端共享的椭球采样计划。 */
-  readonly footEllipsoid: EllipsoidSamplePlan;
+  readonly footEllipsoid: FacetedEllipsoidPlan;
   /** 腹部和胸部共享的椭球采样计划。 */
-  readonly bodyEllipsoid: EllipsoidSamplePlan;
+  readonly bodyEllipsoid: FacetedEllipsoidPlan;
   /** 左右眼共享的椭球采样计划。 */
-  readonly eyeEllipsoid: EllipsoidSamplePlan;
+  readonly eyeEllipsoid: FacetedEllipsoidPlan;
   /** 死亡液体共享的中心扇面采样计划。 */
   readonly liquidFan: FanSamplePlan;
   /** 身体区域的连续布局信息。 */

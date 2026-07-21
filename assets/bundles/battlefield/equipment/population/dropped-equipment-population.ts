@@ -1,9 +1,7 @@
 import { type Material, Node } from 'cc';
-import {
-  EquipmentId,
-  type EquipmentLibrary,
-} from '../../../../core/equipment/equipment';
 import { type LootScatterTrajectory } from '../../loot/model/loot-scatter-trajectory';
+import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
+import { EquipmentId } from '../catalog/equipment-id';
 import { createDroppedEquipmentMaterial } from '../rendering/dropped-equipment-material';
 import { DroppedEquipmentAccentRenderer } from '../rendering/dropped-equipment-accent-renderer';
 import { DroppedEquipmentRenderer } from '../rendering/dropped-equipment-renderer';
@@ -53,7 +51,7 @@ export class DroppedEquipmentPopulation {
   constructor(
     private readonly parent: Node,
     private readonly instanceIds: DroppedEquipmentInstanceIdSequence,
-    private readonly equipmentLibrary: EquipmentLibrary,
+    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
   ) {
     this.material = createDroppedEquipmentMaterial();
   }

@@ -1,5 +1,4 @@
 import { Node } from 'cc';
-import { type EquipmentLibrary } from '../../../../core/equipment/equipment';
 import {
   type MutableGeometryBounds,
   type UnlitColorBufferGeometry,
@@ -17,6 +16,7 @@ import {
 } from '../model/equipment-rarity-palette';
 import { createDroppedEquipmentBeamMaterial } from './dropped-equipment-beam-material';
 import { type DroppedEquipmentRenderItem } from './dropped-equipment-renderer';
+import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
 
 const BEAM_OPTIONS = Object.freeze({
   castShadows: false,
@@ -42,7 +42,7 @@ export class DroppedEquipmentAccentRenderer {
   constructor(
     parent: Node,
     private readonly items: readonly DroppedEquipmentRenderItem[],
-    equipmentLibrary: EquipmentLibrary,
+    equipmentLibrary: BattlefieldEquipmentLibrary,
   ) {
     if (items.length === 0) {
       this.material.destroy();

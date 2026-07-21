@@ -1,4 +1,4 @@
-import { EquipmentId } from '../../../../core/equipment/equipment';
+import { EquipmentId } from '../../equipment/catalog/equipment-id';
 import { BattlefieldInteractionAction } from '../model/battlefield-interaction';
 import { type BattlefieldEquipmentPickupSystem } from '../../equipment/population/battlefield-equipment-pickup-system';
 import { type MutableDroppedEquipmentInspection } from '../../equipment/population/dropped-equipment-population';

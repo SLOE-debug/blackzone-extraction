@@ -13,6 +13,7 @@ import { evaluateCurveCrawlerColors } from './curve-crawler-mesh-colors';
 import { evaluateCurveCrawlerEyeMesh } from './curve-crawler-eye-mesh-evaluator';
 import { evaluateCurveCrawlerLiquidMesh } from './curve-crawler-liquid-mesh-evaluator';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
+import { curveCrawlerMeshPlan } from './curve-crawler-mesh-compiler';
 import {
   createCurveCrawlerEmergenceScratch,
   evaluateCurveCrawlerEmergenceMesh,
@@ -27,12 +28,17 @@ import {
 export class CurveCrawlerMeshEvaluator
 implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
   /** 八条腿顺序复用的一份控制点缓存，避免高频对象分配。 */
-  private readonly legScratch: MutableCurveCrawlerLegScratch = createCurveCrawlerLegScratch();
+  private readonly legScratch: MutableCurveCrawlerLegScratch;
   /** 蛋壳三角面和爆裂碎片顺序复用的出生几何缓存。 */
   private readonly emergenceScratch: CurveCrawlerEmergenceScratch
     = createCurveCrawlerEmergenceScratch();
 
-  constructor(private readonly writeNormals = true) {}
+  constructor(
+    plan: CurveCrawlerMeshPlan,
+    private readonly writeNormals = true,
+  ) {
+    this.legScratch = createCurveCrawlerLegScratch(plan.legTube);
+  }
 
   /**
    * 按请求的流位标志原地求值指定连续实体范围。
@@ -278,4 +284,4 @@ function assertCurveCrawlerStreamCapacity(
 }
 
 /** Curve Crawler 全部编译式批次共享的无状态求值器。 */
-export const curveCrawlerMeshEvaluator = new CurveCrawlerMeshEvaluator();
+export const curveCrawlerMeshEvaluator = new CurveCrawlerMeshEvaluator(curveCrawlerMeshPlan);

@@ -1,4 +1,12 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { evaluateFacetedEllipsoid } from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
+import {
+  createFacetedCubicTubeWorkspace,
+  evaluateFacetedCubicTube,
+  type FacetedCubicTubeWorkspace,
+  type MutableFacetedCubicTubeControlPoints,
+} from '../../../../../core/geometry/faceted/faceted-cubic-tube-evaluator';
+import { type FacetedCubicTubePlan } from '../../../../../core/geometry/faceted/faceted-cubic-tube-plan';
 import { CURVE_CRAWLER_BODY_SHAPE } from '../model/curve-crawler-body-shape';
 import {
   CURVE_CRAWLER_FRAGMENT_COUNT,
@@ -7,11 +15,6 @@ import {
 } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
-import {
-  evaluateCubicTube,
-  type MutableCubicTubeControlPoints,
-} from './kernels/cubic-tube-kernel';
-import { evaluateEllipsoid } from './kernels/ellipsoid-kernel';
 
 const LEG_FORWARD_FANS = new Float32Array([0.72, 0.25, -0.25, -0.72]);
 
@@ -20,13 +23,17 @@ const LEG_FORWARD_FANS = new Float32Array([0.72, 0.25, -0.25, -0.72]);
  *
  * 除管体控制数据外，它还保存脚端椭球所需的半径和旋转，避免每条腿分配对象。
  */
-export interface MutableCurveCrawlerLegScratch extends MutableCubicTubeControlPoints {
+export interface MutableCurveCrawlerLegScratch extends MutableFacetedCubicTubeControlPoints {
   footRadius: number;
   footRotation: number;
+  /** 八条腿顺序复用的逻辑截面顶点缓存。 */
+  readonly tubeWorkspace: FacetedCubicTubeWorkspace;
 }
 
 /** 创建一个仅由 MeshEvaluator 在初始化时分配一次的腿部缓存。 */
-export function createCurveCrawlerLegScratch(): MutableCurveCrawlerLegScratch {
+export function createCurveCrawlerLegScratch(
+  tubePlan: FacetedCubicTubePlan,
+): MutableCurveCrawlerLegScratch {
   return {
     p0x: 0,
     p0y: 0,
@@ -44,6 +51,7 @@ export function createCurveCrawlerLegScratch(): MutableCurveCrawlerLegScratch {
     endRadius: 0,
     footRadius: 0,
     footRotation: 0,
+    tubeWorkspace: createFacetedCubicTubeWorkspace(tubePlan),
   };
 }
 
@@ -180,15 +188,16 @@ export function evaluateCurveCrawlerBodyMesh(
     legScratch.footRadius = footRadius;
     legScratch.footRotation = heading + fragmentRotation;
 
-    evaluateCubicTube(
+    evaluateFacetedCubicTube(
       plan.legTube,
       streams,
       entityVertexOffset + (plan.body.legVertexOffsets[leg] ?? 0),
       legScratch,
+      legScratch.tubeWorkspace,
       writePositions,
       writeNormals,
     );
-    evaluateEllipsoid(
+    evaluateFacetedEllipsoid(
       plan.footEllipsoid,
       streams,
       entityVertexOffset + (plan.body.footVertexOffsets[leg] ?? 0),
@@ -210,7 +219,7 @@ export function evaluateCurveCrawlerBodyMesh(
   const abdomenRadiusZ = bodyWidth * bodyShape.abdomenHeightRadiusScale;
   const thoraxRadiusZ = bodyWidth * bodyShape.thoraxHeightRadiusScale;
   const biteForwardOffset = bodyLength * 0.16 * biteAmount;
-  evaluateEllipsoid(
+  evaluateFacetedEllipsoid(
     plan.bodyEllipsoid,
     streams,
     entityVertexOffset + plan.body.abdomenVertexOffset,
@@ -229,7 +238,7 @@ export function evaluateCurveCrawlerBodyMesh(
     writePositions,
     writeNormals,
   );
-  evaluateEllipsoid(
+  evaluateFacetedEllipsoid(
     plan.bodyEllipsoid,
     streams,
     entityVertexOffset + plan.body.thoraxVertexOffset,

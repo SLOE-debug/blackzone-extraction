@@ -10,7 +10,8 @@ import {
 } from '../../core/rendering/static-surface-mesh';
 import { lobbyEffectsGeometry } from '../geometry/lobby-effects-geometry';
 import { lobbyOpaqueGeometry } from '../geometry/lobby-opaque-geometry';
-import { shadeLobbyEffects } from './lobby-effects-vertex-shading';
+import { shadeLobbyGlass } from './lobby-effects-vertex-shading';
+import { lobbyEmissiveVertexShading } from './lobby-emissive-vertex-shading';
 import { LobbyMaterials } from './lobby-materials';
 import { lobbyVertexShading } from './lobby-vertex-shading';
 
@@ -20,17 +21,24 @@ const SHADOWED_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
   uploadLightingAttributes: true,
 });
 
-const EFFECTS_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
+const EMISSIVE_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
   castShadows: false,
   receiveShadows: false,
   uploadLightingAttributes: false,
 });
 
-/** 使用真实受光表面和单一透明效果批次渲染大厅。 */
+const GLASS_SURFACE_OPTIONS: StaticSurfaceMeshOptions = Object.freeze({
+  castShadows: false,
+  receiveShadows: false,
+  uploadLightingAttributes: false,
+});
+
+/** 使用真实受光表面、独立不透明发光面和透明玻璃批次渲染大厅。 */
 export class LobbyRenderer {
   private readonly materials: LobbyMaterials;
   private readonly surfaceMesh = new StaticSurfaceMesh();
-  private readonly effectsMesh = new StaticSurfaceMesh();
+  private readonly emissiveMesh = new StaticSurfaceMesh();
+  private readonly glassMesh = new StaticSurfaceMesh();
   private disposed = false;
 
   constructor(parent: Node, surfaceMaterialTemplate: Material) {
@@ -54,22 +62,40 @@ export class LobbyRenderer {
         SHADOWED_SURFACE_OPTIONS,
       );
 
-      const effectsGeometry = createStaticSurfaceGeometry(
-        lobbyEffectsGeometry.metrics.verticesPerEntity,
-        lobbyEffectsGeometry.metrics.indicesPerEntity,
+      const emissiveGeometry = createStaticSurfaceGeometry(
+        lobbyEffectsGeometry.emissive.metrics.verticesPerEntity,
+        lobbyEffectsGeometry.emissive.metrics.indicesPerEntity,
         GeometryIndexFormat.Uint16,
       );
-      const effectsWriter = new TriangleMeshWriter(effectsGeometry);
-      effectsWriter.reset(true);
-      const effectsRanges = lobbyEffectsGeometry.write(effectsWriter);
-      effectsWriter.commit();
-      shadeLobbyEffects(effectsGeometry, effectsRanges);
-      this.effectsMesh.initialize(
+      const emissiveWriter = new TriangleMeshWriter(emissiveGeometry);
+      emissiveWriter.reset(true);
+      const emissiveRanges = lobbyEffectsGeometry.emissive.write(emissiveWriter);
+      emissiveWriter.commit();
+      lobbyEmissiveVertexShading.update(emissiveGeometry, emissiveRanges);
+      this.emissiveMesh.initialize(
         parent,
-        'LobbyEffectsSurface',
-        effectsGeometry,
-        this.materials.effects,
-        EFFECTS_SURFACE_OPTIONS,
+        'LobbyEmissiveSurface',
+        emissiveGeometry,
+        this.materials.emissive,
+        EMISSIVE_SURFACE_OPTIONS,
+      );
+
+      const glassGeometry = createStaticSurfaceGeometry(
+        lobbyEffectsGeometry.glass.metrics.verticesPerEntity,
+        lobbyEffectsGeometry.glass.metrics.indicesPerEntity,
+        GeometryIndexFormat.Uint16,
+      );
+      const glassWriter = new TriangleMeshWriter(glassGeometry);
+      glassWriter.reset(true);
+      lobbyEffectsGeometry.glass.write(glassWriter);
+      glassWriter.commit();
+      shadeLobbyGlass(glassGeometry);
+      this.glassMesh.initialize(
+        parent,
+        'LobbyObservationGlass',
+        glassGeometry,
+        this.materials.glass,
+        GLASS_SURFACE_OPTIONS,
       );
     } catch (error: unknown) {
       this.dispose();
@@ -82,7 +108,8 @@ export class LobbyRenderer {
     if (this.disposed) {
       return;
     }
-    this.effectsMesh.dispose();
+    this.glassMesh.dispose();
+    this.emissiveMesh.dispose();
     this.surfaceMesh.dispose();
     this.materials.dispose();
     this.disposed = true;

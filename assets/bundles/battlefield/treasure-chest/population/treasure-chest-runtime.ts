@@ -1,10 +1,8 @@
-import {
-  type EquipmentLibrary,
-  EquipmentId,
-} from '../../../../core/equipment/equipment';
 import { type LootTable } from '../../../../core/loot/weighted-loot-table';
 import { normalizeRandomSeed } from '../../../../core/math/xorshift32';
 import { DroppedEquipmentPopulation } from '../../equipment/population/dropped-equipment-population';
+import { type BattlefieldEquipmentLibrary } from '../../equipment/catalog/battlefield-equipment-contracts';
+import { EquipmentId } from '../../equipment/catalog/equipment-id';
 import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
 import { createLootScatterTrajectories } from '../../loot/model/loot-scatter-trajectory';
 import {
@@ -50,7 +48,7 @@ export class TreasureChestRuntime {
     sharedRenderer: TreasureChestSharedRenderer,
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
     private readonly sessionState: BattlefieldTreasureChestSessionState,
-    private readonly equipmentLibrary: EquipmentLibrary,
+    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
     private readonly drops: DroppedEquipmentPopulation,
   ) {

@@ -10,11 +10,9 @@ import {
   Vec3,
   VerticalTextAlignment,
 } from 'cc';
-import {
-  EquipmentId,
-  type EquipmentLibrary,
-} from '../../../../core/equipment/equipment';
 import { useSharedCharacterAtlas } from '../../../../core/ui/shared-character-atlas-label';
+import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
+import { EquipmentId } from '../catalog/equipment-id';
 import { EQUIPMENT_RARITY_STYLE } from './equipment-rarity-style';
 
 const PANEL_WIDTH = 176;
@@ -43,7 +41,7 @@ export class BattlefieldEquipmentLabelHud {
   constructor(
     private readonly canvasNode: Node,
     private readonly worldCamera: Camera,
-    private readonly equipmentLibrary: EquipmentLibrary,
+    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
   ) {
     const root = new Node('BattlefieldEquipmentLabel');
     root.layer = Layers.Enum.UI_2D;

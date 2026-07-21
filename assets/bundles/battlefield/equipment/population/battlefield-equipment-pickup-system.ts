@@ -1,7 +1,7 @@
 import {
   EquipmentId,
   type WeaponEquipmentId,
-} from '../../../../core/equipment/equipment';
+} from '../catalog/equipment-id';
 import {
   BattlefieldInteractionAction,
   type BattlefieldInteractionProvider,

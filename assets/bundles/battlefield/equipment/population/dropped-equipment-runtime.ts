@@ -1,4 +1,4 @@
-import { EquipmentId } from '../../../../core/equipment/equipment';
+import { EquipmentId } from '../catalog/equipment-id';
 import {
   evaluateLootScatterTrajectory,
   LootScatterPhase,
