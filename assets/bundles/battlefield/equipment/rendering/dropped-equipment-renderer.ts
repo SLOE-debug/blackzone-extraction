@@ -96,7 +96,7 @@ export class DroppedEquipmentRenderer {
     }
     const visible = this.writePoses();
     writePositionBounds(this.geometry.getPositionView(), this.bounds);
-    this.batch.uploadVertexAttributes(MeshDirty.Position);
+    this.batch.uploadVertexAttributes(MeshDirty.Position, this.geometry.vertexCount);
     this.batch.updateBounds(this.bounds);
     this.batch.setVisible(visible);
   }

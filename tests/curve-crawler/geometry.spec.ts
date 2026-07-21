@@ -59,7 +59,7 @@ describe('Curve Crawler 编译式动态几何', () => {
 
     const eyeColorOffset = curveCrawlerMeshPlan.eyes.vertexOffset * 4;
     const liquidColorOffset = curveCrawlerMeshPlan.liquid.vertexOffset * 4;
-    expect(streams.colors[0]).toBeCloseTo(92 / 255, 6);
+    expect(streams.colors[0]).toBeCloseTo(84 / 255, 6);
     expect(streams.colors[eyeColorOffset]).toBeCloseTo(1, 6);
     expect(streams.colors[eyeColorOffset + 1]).toBeCloseTo(168 / 255, 6);
     expect(streams.colors[liquidColorOffset]).toBeCloseTo(27 / 255, 6);

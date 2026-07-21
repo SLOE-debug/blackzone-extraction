@@ -182,7 +182,10 @@ export class CompiledMeshBatchRenderer<
           requested,
         );
         if ((changed & (MeshDirty.Position | MeshDirty.Normal | MeshDirty.Color)) !== 0) {
-          layer.batch.uploadVertexAttributes(changed);
+          layer.batch.uploadVertexAttributes(
+            changed,
+            layer.streams.positions.length / 3,
+          );
         }
         if (bounds !== undefined && (changed & MeshDirty.Bounds) !== 0) {
           layer.batch.updateBounds(bounds);

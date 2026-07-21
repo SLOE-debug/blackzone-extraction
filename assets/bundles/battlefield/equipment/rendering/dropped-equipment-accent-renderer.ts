@@ -78,7 +78,10 @@ export class DroppedEquipmentAccentRenderer {
     }
     const anyVisible = this.writeState();
     writePositionBounds(this.geometry.positions, this.bounds);
-    this.batch.uploadVertexAttributes(MeshDirty.Position | MeshDirty.Color);
+    this.batch.uploadVertexAttributes(
+      MeshDirty.Position | MeshDirty.Color,
+      this.geometry.vertexCount,
+    );
     this.batch.updateBounds(this.bounds);
     this.batch.setVisible(anyVisible);
   }

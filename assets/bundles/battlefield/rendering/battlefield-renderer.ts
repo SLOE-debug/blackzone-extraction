@@ -145,6 +145,7 @@ export class BattlefieldRenderer {
     }
     this.groundMesh.uploadVertexAttributes(
       MeshDirty.Position | MeshDirty.Color,
+      this.groundGeometry.renderGeometry.vertexCount,
     );
     const chunkSize = BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize;
     this.groundRoot.setPosition(

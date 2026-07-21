@@ -18,21 +18,19 @@ import {
   type CurveCrawlerBounds,
   updateCurveCrawlerBounds,
 } from './curve-crawler-bounds';
-import { CurveCrawlerColorSnapshot } from './curve-crawler-color-snapshot';
 import { CurveCrawlerMaterials } from './curve-crawler-materials';
 import { type CurveCrawlerPopulationRendering } from './curve-crawler-population-rendering';
 import { CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
+import { shadeCurveCrawlerUnlitEntities } from './curve-crawler-unlit-vertex-shading';
 
 const SHARED_SURFACE_OPTIONS = Object.freeze({
   castShadows: false,
   receiveShadows: false,
 });
-const EMPTY_NORMAL_STREAM = new Float32Array(0);
 
 interface CurveCrawlerSharedRenderEntry {
   readonly state: CurveCrawlerState;
   readonly bounds: CurveCrawlerBounds;
-  readonly colors: CurveCrawlerColorSnapshot;
   readonly residents: CurveCrawlerResidentLayout;
   dirty: boolean;
   active: boolean;
@@ -46,7 +44,7 @@ interface CurveCrawlerSharedRenderEntry {
  */
 export class CurveCrawlerSharedRenderer {
   private readonly materials: CurveCrawlerMaterials;
-  private readonly evaluator = new CurveCrawlerMeshEvaluator(false);
+  private readonly evaluator = new CurveCrawlerMeshEvaluator();
   private readonly entries: CurveCrawlerSharedRenderEntry[] = [];
   private readonly bounds: CurveCrawlerBounds = {
     minX: 0,
@@ -69,6 +67,11 @@ export class CurveCrawlerSharedRenderer {
     return this.activeEntityCount;
   }
 
+  /** 当前共享网格可容纳的紧凑可见实体数量。 */
+  public get renderCapacity(): number {
+    return this.entityCapacity;
+  }
+
   constructor(
     private readonly parent: Node,
     surfaceMaterialTemplate: Material,
@@ -86,7 +89,6 @@ export class CurveCrawlerSharedRenderer {
     const entry: CurveCrawlerSharedRenderEntry = {
       state,
       bounds: createCurveCrawlerBounds(state),
-      colors: new CurveCrawlerColorSnapshot(state),
       residents: new CurveCrawlerResidentLayout(state.count, this.visibility),
       dirty: true,
       active: true,
@@ -137,8 +139,12 @@ export class CurveCrawlerSharedRenderer {
     if (requiresGrowth) {
       this.replaceBatch(geometry, streams, nextCapacity);
     } else {
-      if ((changed & (MeshDirty.Position | MeshDirty.Normal | MeshDirty.Color)) !== 0) {
-        this.batch?.uploadVertexAttributes(changed);
+      const uploadChanged = getUnlitUploadDirty(changed);
+      if (uploadChanged !== MeshDirty.None) {
+        this.batch?.uploadVertexAttributes(
+          uploadChanged,
+          residentCount * curveCrawlerMeshPlan.vertexCount,
+        );
       }
       if (boundsChanged) {
         this.batch?.updateBounds(this.bounds);
@@ -226,15 +232,8 @@ export class CurveCrawlerSharedRenderer {
     let changed = MeshDirty.None;
     let targetEntityOffset = 0;
     for (const entry of this.entries) {
-      const colorChanged = entry.colors.captureResident(
-        entry.residents.entityIndices,
-        entry.residents.count,
-      );
       if (forceRewrite || entry.dirty) {
-        let requested = MeshDirty.Position;
-        if (forceRewrite || colorChanged) {
-          requested |= MeshDirty.Color;
-        }
+        const firstTargetEntity = targetEntityOffset;
         changed |= this.evaluator.evaluatePacked(
           entry.state,
           curveCrawlerMeshPlan,
@@ -242,7 +241,13 @@ export class CurveCrawlerSharedRenderer {
           entry.residents.entityIndices,
           entry.residents.count,
           targetEntityOffset,
-          requested,
+          MeshDirty.Pose | MeshDirty.Color,
+        );
+        shadeCurveCrawlerUnlitEntities(
+          streams,
+          curveCrawlerMeshPlan,
+          firstTargetEntity,
+          entry.residents.count,
         );
       }
       targetEntityOffset += entry.residents.count;
@@ -362,11 +367,16 @@ function createSharedGeometry(entityCapacity: number): UnlitColorBufferGeometry 
   return geometry;
 }
 
-/** 为通用求值器补一份不会上传 GPU 的占位法线流。 */
+/** 为 Unlit 明暗计算补一份只保留在 CPU、不会上传 GPU 的法线流。 */
 function createUnlitEvaluationStreams(geometry: UnlitColorBufferGeometry): VertexStreams {
   return Object.freeze({
     positions: geometry.positions,
-    normals: EMPTY_NORMAL_STREAM,
+    normals: new Float32Array(geometry.maxVertices * 3),
     colors: geometry.colors,
   });
+}
+
+/** 共享 Unlit 网格只向 GPU 提交 Position 与已经烘焙明暗的 Color。 */
+function getUnlitUploadDirty(changed: MeshDirty): MeshDirty {
+  return (changed & (MeshDirty.Position | MeshDirty.Color)) as MeshDirty;
 }

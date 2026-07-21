@@ -244,11 +244,15 @@ export class TreasureChestSharedRenderer implements Disposable {
           forceRewrite
             ? MeshDirty.Position | MeshDirty.Color
             : MeshDirty.Position,
+          count * this.bodySource.geometry.vertexCount,
         );
         this.bodyBatch?.updateBounds(this.bodyBounds);
       }
       if (beaconChanged) {
-        this.beaconBatch?.uploadVertexAttributes(MeshDirty.Position | MeshDirty.Color);
+        this.beaconBatch?.uploadVertexAttributes(
+          MeshDirty.Position | MeshDirty.Color,
+          count * this.beaconSource.vertexCount,
+        );
         this.beaconBatch?.updateBounds(this.beaconBounds);
       }
     }

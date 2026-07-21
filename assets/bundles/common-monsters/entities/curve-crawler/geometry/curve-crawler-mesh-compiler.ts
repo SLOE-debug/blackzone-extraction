@@ -64,31 +64,46 @@ export function compileCurveCrawlerMeshPlan(): CurveCrawlerMeshPlan {
   for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {
     legVertexOffsets[leg] = vertexOffset;
     legIndexOffsets[leg] = indexOffset;
+    const legVertexEnd = vertexOffset + legTube.vertexCount;
+    semanticIds.fill(CurveCrawlerMeshSemantic.Leg, vertexOffset, legVertexEnd);
     appendLocalIndices(indices, indexOffset, vertexOffset, legTube.indices);
-    vertexOffset += legTube.vertexCount;
+    vertexOffset = legVertexEnd;
     indexOffset += legTube.indexCount;
 
     footVertexOffsets[leg] = vertexOffset;
     footIndexOffsets[leg] = indexOffset;
+    const footVertexEnd = vertexOffset + footEllipsoid.vertexCount;
+    semanticIds.fill(CurveCrawlerMeshSemantic.Foot, vertexOffset, footVertexEnd);
     appendLocalIndices(indices, indexOffset, vertexOffset, footEllipsoid.indices);
-    vertexOffset += footEllipsoid.vertexCount;
+    vertexOffset = footVertexEnd;
     indexOffset += footEllipsoid.indexCount;
   }
 
   const abdomenVertexOffset = vertexOffset;
   const abdomenIndexOffset = indexOffset;
+  const abdomenVertexEnd = vertexOffset + bodyEllipsoid.vertexCount;
+  semanticIds.fill(
+    CurveCrawlerMeshSemantic.Abdomen,
+    abdomenVertexOffset,
+    abdomenVertexEnd,
+  );
   appendLocalIndices(indices, indexOffset, vertexOffset, bodyEllipsoid.indices);
-  vertexOffset += bodyEllipsoid.vertexCount;
+  vertexOffset = abdomenVertexEnd;
   indexOffset += bodyEllipsoid.indexCount;
 
   const thoraxVertexOffset = vertexOffset;
   const thoraxIndexOffset = indexOffset;
+  const thoraxVertexEnd = vertexOffset + bodyEllipsoid.vertexCount;
+  semanticIds.fill(
+    CurveCrawlerMeshSemantic.Thorax,
+    thoraxVertexOffset,
+    thoraxVertexEnd,
+  );
   appendLocalIndices(indices, indexOffset, vertexOffset, bodyEllipsoid.indices);
-  vertexOffset += bodyEllipsoid.vertexCount;
+  vertexOffset = thoraxVertexEnd;
   indexOffset += bodyEllipsoid.indexCount;
   const bodyVertexCount = vertexOffset;
   const bodyIndexCount = indexOffset;
-  semanticIds.fill(CurveCrawlerMeshSemantic.Body, 0, vertexOffset);
 
   const eyeVertexOffset = vertexOffset;
   const eyeIndexOffset = indexOffset;

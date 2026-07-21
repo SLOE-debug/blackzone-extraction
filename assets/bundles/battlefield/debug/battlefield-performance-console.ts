@@ -10,6 +10,7 @@ export interface BattlefieldPerformanceSnapshot {
   monsterSlots: number;
   aliveMonsters: number;
   visibleMonsters: number;
+  monsterRenderCapacity: number;
   activeChests: number;
   openedChests: number;
   droppedEquipment: number;
@@ -36,6 +37,14 @@ export interface BattlefieldPerformanceConsoleReport {
   readonly stageMaximums: Float64Array;
   readonly stageSamples: Uint32Array;
   readonly slowestFrameStages: Float64Array;
+  readonly monsterStageNames: readonly string[];
+  readonly monsterStageTotals: Float64Array;
+  readonly monsterStageMaximums: Float64Array;
+  readonly monsterStageSamples: Uint32Array;
+  readonly slowestFrameMonsterStages: Float64Array;
+  readonly slowestFrameVisibleMonsters: number;
+  readonly slowestFrameMonsterRenderCapacity: number;
+  readonly slowestFrameAliveMonsters: number;
   readonly eventNames: readonly string[];
   readonly eventValues: Float64Array;
   readonly slowestFrameEvents: Float64Array;
@@ -52,6 +61,16 @@ interface BattlefieldPerformanceTableRow {
   样本数: number;
 }
 
+interface BattlefieldMonsterPerformanceTableRow {
+  子阶段: string;
+  '平均每帧(ms)': number;
+  '该子阶段峰值(ms)': number;
+  '最慢update帧内(ms)': number;
+  '窗口累计(ms)': number;
+  '怪物阶段占比': string;
+  样本数: number;
+}
+
 /**
  * 把一个诊断窗口压成单个折叠控制台组，并按窗口累计成本降序显示表格。
  *
@@ -61,21 +80,52 @@ export function presentBattlefieldPerformanceReport(
   report: Readonly<BattlefieldPerformanceConsoleReport>,
 ): void {
   const rows = createSortedRows(report);
+  const monsterRows = createSortedMonsterRows(report);
   console.groupCollapsed(createGroupTitle(report));
   try {
     console.table(rows);
+    console.info('怪物群体细分（以下耗时已经包含在主表“怪物群体”中）');
+    console.table(monsterRows);
     console.info(
       `窗口事件: ${formatEvents(report.eventNames, report.eventValues)}`
       + ` | 最慢 update 帧事件: ${formatEvents(
         report.eventNames,
         report.slowestFrameEvents,
       )}`
+      + ` | 最慢 update 怪物: 可见${report.slowestFrameVisibleMonsters}`
+      + `/批次容量${report.slowestFrameMonsterRenderCapacity}`
+      + `/存活${report.slowestFrameAliveMonsters}`
       + ` | 上次表格输出 ${format(report.previousConsoleOutputMilliseconds)} ms`,
     );
     console.info(formatScale(report.snapshot));
   } finally {
     console.groupEnd();
   }
+}
+
+function createSortedMonsterRows(
+  report: Readonly<BattlefieldPerformanceConsoleReport>,
+): BattlefieldMonsterPerformanceTableRow[] {
+  const rows: BattlefieldMonsterPerformanceTableRow[] = [];
+  let monsterTotal = 0;
+  for (let stage = 0; stage < report.monsterStageTotals.length; stage++) {
+    monsterTotal += report.monsterStageTotals[stage] ?? 0;
+  }
+  for (let stage = 0; stage < report.monsterStageNames.length; stage++) {
+    const total = report.monsterStageTotals[stage] ?? 0;
+    const samples = report.monsterStageSamples[stage] ?? 0;
+    rows.push({
+      子阶段: report.monsterStageNames[stage] ?? String(stage),
+      '平均每帧(ms)': round(samples > 0 ? total / samples : 0),
+      '该子阶段峰值(ms)': round(report.monsterStageMaximums[stage] ?? 0),
+      '最慢update帧内(ms)': round(report.slowestFrameMonsterStages[stage] ?? 0),
+      '窗口累计(ms)': round(total),
+      '怪物阶段占比': formatPercentage(total, monsterTotal),
+      样本数: samples,
+    });
+  }
+  rows.sort((left, right) => right['窗口累计(ms)'] - left['窗口累计(ms)']);
+  return rows;
 }
 
 function createSortedRows(
@@ -133,7 +183,7 @@ function formatScale(snapshot: Readonly<BattlefieldPerformanceSnapshot>): string
     + ` | Chunk ${snapshot.activeChunks}`
     + ` | 环境实体 ${snapshot.environmentEntities}/批次${snapshot.environmentBatches}`
     + ` | 怪物 可见${snapshot.visibleMonsters}/存活${snapshot.aliveMonsters}`
-    + `/槽位${snapshot.monsterSlots}`
+    + `/批次容量${snapshot.monsterRenderCapacity}/槽位${snapshot.monsterSlots}`
     + ` | 宝箱 ${snapshot.activeChests}(已开${snapshot.openedChests})`
     + ` | 掉落 ${snapshot.droppedEquipment}`
     + `(批次${snapshot.droppedRenderBatches})`

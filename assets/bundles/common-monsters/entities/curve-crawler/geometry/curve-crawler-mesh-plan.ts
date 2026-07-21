@@ -5,8 +5,14 @@ import { type FanSamplePlan } from './kernels/fan-sample-plan';
 
 /** Curve Crawler 编译网格中每个最终顶点所属的稳定语义。 */
 export enum CurveCrawlerMeshSemantic {
-  /** 腿、脚、腹部和胸部。 */
-  Body,
+  /** 八条分节腿。 */
+  Leg,
+  /** 八个接触地面的脚端。 */
+  Foot,
+  /** 靠后的大腹部。 */
+  Abdomen,
+  /** 靠前的胸部。 */
+  Thorax,
   /** 左右两颗眼睛。 */
   Eye,
   /** 死亡后展开和收拢的液体扇面。 */

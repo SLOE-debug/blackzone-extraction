@@ -32,7 +32,7 @@ export class DroppedEquipmentInstanceIdSequence {
   }
 }
 
-/** 管理一个宝箱爆出的全部掉落装备、共享材质和近距离查询。 */
+/** 管理战场全部宝箱掉落与玩家丢弃装备的统一渲染、动画和近距离查询。 */
 export class DroppedEquipmentPopulation {
   private readonly material: Material;
   private readonly items: DroppedEquipmentRuntime[] = [];
@@ -45,7 +45,7 @@ export class DroppedEquipmentPopulation {
     return this.items.length;
   }
 
-  /** 当前掉落物本体与毛笔形信标实际占用的渲染批次数量。 */
+  /** 当前掉落物本体与毛笔形信标实际占用的固定全局批次数量。 */
   public get renderBatchCount(): number {
     return (this.renderer === null ? 0 : 1) + (this.accentRenderer === null ? 0 : 1);
   }
@@ -62,7 +62,7 @@ export class DroppedEquipmentPopulation {
   public spawnBurst(
     equipmentIds: readonly EquipmentId[],
     trajectories: readonly Readonly<LootScatterTrajectory>[],
-  ): void {
+  ): readonly number[] {
     this.ensureActive();
     if (equipmentIds.length !== trajectories.length) {
       throw new Error('掉落装备数量必须与爆散轨迹数量一致。');
@@ -84,6 +84,7 @@ export class DroppedEquipmentPopulation {
         this.items.push(item);
       }
       this.rebuildRenderer();
+      return Object.freeze(created.map((item) => item.instanceId));
     } catch (error: unknown) {
       for (const item of created) {
         const itemIndex = this.items.indexOf(item);
@@ -179,6 +180,46 @@ export class DroppedEquipmentPopulation {
     }
     item.dispose();
     return true;
+  }
+
+  /**
+   * 批量移除同一运行时所有权范围内的装备，只在完整移除后重建一次共享批次。
+   *
+   * 该入口用于 Chunk 离场，不要求装备已经落地，也不会改变宝箱会话中的剩余战利品。
+   */
+  public removeOwned(instanceIds: readonly number[]): void {
+    if (this.disposed || instanceIds.length === 0) {
+      return;
+    }
+    const ownedIds = new Set(instanceIds);
+    const removed: Array<Readonly<{
+      index: number;
+      item: DroppedEquipmentRuntime;
+    }>> = [];
+    for (let index = this.items.length - 1; index >= 0; index--) {
+      const item = this.items[index];
+      if (item !== undefined && ownedIds.has(item.instanceId)) {
+        removed.push(Object.freeze({ index, item }));
+        this.items.splice(index, 1);
+      }
+    }
+    if (removed.length === 0) {
+      return;
+    }
+    try {
+      this.rebuildRenderer();
+    } catch (error: unknown) {
+      for (let removedIndex = removed.length - 1; removedIndex >= 0; removedIndex--) {
+        const entry = removed[removedIndex];
+        if (entry !== undefined) {
+          this.items.splice(entry.index, 0, entry.item);
+        }
+      }
+      throw error;
+    }
+    for (const entry of removed) {
+      entry.item.dispose();
+    }
   }
 
   public dispose(): void {

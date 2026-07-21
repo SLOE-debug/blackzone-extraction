@@ -11,6 +11,10 @@ import {
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import { BattlefieldMonsterFrustumVisibility } from './battlefield-monster-frustum-visibility';
+import {
+  type BattlefieldMonsterPerformanceRecorder,
+  BattlefieldMonsterPerformanceStage,
+} from './battlefield-monster-performance';
 
 const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
 const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
@@ -108,6 +112,11 @@ implements Disposable {
     return this.renderBatch.visibleEntityCount;
   }
 
+  /** 当前共享动态网格已经分配的可见实体容量。 */
+  public get renderCapacity(): number {
+    return this.renderBatch.renderCapacity;
+  }
+
   /**
    * 在精确世界坐标创建一只用于观察出生演出的蜘蛛。
    *
@@ -139,6 +148,7 @@ implements Disposable {
   public update(
     deltaTime: number,
     target: Readonly<BattlefieldMonsterCombatTarget> | null,
+    performance: BattlefieldMonsterPerformanceRecorder,
   ): number {
     if (this.disposed) {
       return 0;
@@ -146,6 +156,7 @@ implements Disposable {
     if (!Number.isFinite(deltaTime)) {
       throw new Error('战场怪物聚合群体帧时间必须是有限数值。');
     }
+    let stageStarted = performance.beginMonsterStage();
     if (target !== null) {
       this.waveElapsedSeconds += Math.max(
         0,
@@ -161,12 +172,39 @@ implements Disposable {
         desiredPopulationCount,
       );
     }
+    performance.endMonsterStage(
+      BattlefieldMonsterPerformanceStage.PopulationMaintenance,
+      stageStarted,
+    );
+
+    stageStarted = performance.beginMonsterStage();
     let damage = 0;
     for (const group of this.groups) {
       damage += group.update(deltaTime, target);
     }
+    performance.endMonsterStage(
+      BattlefieldMonsterPerformanceStage.Simulation,
+      stageStarted,
+    );
+
+    stageStarted = performance.beginMonsterStage();
     this.visibility.synchronize();
+    performance.endMonsterStage(
+      BattlefieldMonsterPerformanceStage.Visibility,
+      stageStarted,
+    );
+
+    const previousCapacity = this.renderBatch.renderCapacity;
+    stageStarted = performance.beginMonsterStage();
     this.renderBatch.synchronize();
+    performance.endMonsterStage(
+      BattlefieldMonsterPerformanceStage.RenderingSynchronization,
+      stageStarted,
+    );
+    const nextCapacity = this.renderBatch.renderCapacity;
+    if (nextCapacity > previousCapacity) {
+      performance.recordMonsterBatchGrowth(previousCapacity, nextCapacity);
+    }
     return damage;
   }
 

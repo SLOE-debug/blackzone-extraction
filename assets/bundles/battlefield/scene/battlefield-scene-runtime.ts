@@ -353,13 +353,14 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       const attackDamage = this.monsters.update(
         deltaTime,
         this.player.isAlive ? target : null,
+        performanceLogger,
       );
       if (attackDamage > 0) {
         performanceLogger.recordEvent(BattlefieldPerformanceEvent.PlayerDamage, attackDamage);
         this.player.damage(attackDamage);
       }
     } else {
-      this.monsters?.update(deltaTime, null);
+      this.monsters?.update(deltaTime, null, performanceLogger);
     }
     performanceLogger.endStage(BattlefieldPerformanceStage.Monsters, stageStarted);
 

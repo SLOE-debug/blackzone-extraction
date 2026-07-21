@@ -85,7 +85,7 @@ export class BattlefieldProjectileRenderer {
     }
     writeBattlefieldProjectilePositions(this.state, this.geometry.positions, this.visual);
     const visible = this.updateBounds();
-    this.batch.uploadVertexAttributes(MeshDirty.Position);
+    this.batch.uploadVertexAttributes(MeshDirty.Position, this.geometry.vertexCount);
     this.batch.updateBounds(this.bounds);
     this.batch.setVisible(visible);
   }

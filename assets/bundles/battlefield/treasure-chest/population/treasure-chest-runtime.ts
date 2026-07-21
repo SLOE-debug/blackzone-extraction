@@ -1,15 +1,10 @@
-import { Node } from 'cc';
 import {
   type EquipmentLibrary,
   EquipmentId,
 } from '../../../../core/equipment/equipment';
 import { type LootTable } from '../../../../core/loot/weighted-loot-table';
 import { normalizeRandomSeed } from '../../../../core/math/xorshift32';
-import {
-  type MutableDroppedEquipmentInspection,
-  DroppedEquipmentPopulation,
-  DroppedEquipmentInstanceIdSequence,
-} from '../../equipment/population/dropped-equipment-population';
+import { DroppedEquipmentPopulation } from '../../equipment/population/dropped-equipment-population';
 import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
 import { createLootScatterTrajectories } from '../../loot/model/loot-scatter-trajectory';
 import {
@@ -39,7 +34,7 @@ export class TreasureChestRuntime {
   public readonly x: number;
   public readonly z: number;
   private readonly renderer: TreasureChestRenderHandle;
-  private readonly drops: DroppedEquipmentPopulation;
+  private readonly dropInstanceIds: number[] = [];
   private readonly lootRandomState = new Uint32Array(1);
   private readonly scatterRandomState = new Uint32Array(1);
   private phase = TreasureChestPhase.Closed;
@@ -52,13 +47,12 @@ export class TreasureChestRuntime {
 
   constructor(
     id: number,
-    parent: Node,
     sharedRenderer: TreasureChestSharedRenderer,
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
     private readonly sessionState: BattlefieldTreasureChestSessionState,
     private readonly equipmentLibrary: EquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
-    instanceIds: DroppedEquipmentInstanceIdSequence,
+    private readonly drops: DroppedEquipmentPopulation,
   ) {
     if (!Number.isSafeInteger(id) || id <= 0) {
       throw new Error('宝箱运行时标识必须是正安全整数。');
@@ -70,19 +64,10 @@ export class TreasureChestRuntime {
     this.scatterRandomState[0] = normalizeRandomSeed(spawn.seed);
     this.renderer = sharedRenderer.register(spawn);
     try {
-      this.drops = new DroppedEquipmentPopulation(
-        parent,
-        instanceIds,
-        equipmentLibrary,
-      );
-    } catch (error: unknown) {
-      this.renderer.dispose();
-      throw error;
-    }
-    try {
       this.restoreOpenedState();
     } catch (error: unknown) {
-      this.drops.dispose();
+      this.drops.removeOwned(this.dropInstanceIds);
+      this.dropInstanceIds.length = 0;
       this.renderer.dispose();
       throw error;
     }
@@ -100,12 +85,7 @@ export class TreasureChestRuntime {
 
   /** 当前仍属于本宝箱的世界掉落物数量。 */
   public get droppedEquipmentCount(): number {
-    return this.drops.count;
-  }
-
-  /** 本宝箱掉落物当前占用的本体与信标渲染批次数量。 */
-  public get droppedRenderBatchCount(): number {
-    return this.drops.renderBatchCount;
+    return this.dropInstanceIds.length;
   }
 
   /** 启动一次不可逆的丝滑开启动画。 */
@@ -162,30 +142,25 @@ export class TreasureChestRuntime {
         this.phase = TreasureChestPhase.Open;
       }
     }
-    this.drops.update(safeDeltaTime);
     return releasedLootCount;
   }
 
-  /** 把最近落地装备查询交给宝箱独占的掉落群体。 */
-  public writeNearestEquipmentInspection(
-    playerX: number,
-    playerZ: number,
-    result: MutableDroppedEquipmentInspection,
-  ): boolean {
-    return this.drops.writeNearestInspection(playerX, playerZ, result);
-  }
-
-  /** 查询本宝箱掉落群中的稳定装备实例。 */
-  public getDroppedEquipmentId(instanceId: number): EquipmentId | null {
-    return this.drops.getEquipmentId(instanceId);
+  /** 判断一个全局掉落实例当前是否由本宝箱拥有。 */
+  public ownsDroppedEquipment(instanceId: number): boolean {
+    return this.dropInstanceIds.includes(instanceId);
   }
 
   /** 移除本宝箱掉落群中已经完成拾取的装备实例。 */
   public removeDroppedEquipment(instanceId: number): boolean {
+    const ownedIndex = this.dropInstanceIds.indexOf(instanceId);
+    if (ownedIndex < 0) {
+      return false;
+    }
     const equipmentId = this.drops.getEquipmentId(instanceId);
     if (equipmentId === null || !this.drops.remove(instanceId)) {
       return false;
     }
+    this.dropInstanceIds.splice(ownedIndex, 1);
     this.sessionState.consumeLoot(this.spawn.key, equipmentId);
     return true;
   }
@@ -195,7 +170,8 @@ export class TreasureChestRuntime {
       return;
     }
     this.disposed = true;
-    this.drops.dispose();
+    this.drops.removeOwned(this.dropInstanceIds);
+    this.dropInstanceIds.length = 0;
     this.renderer.dispose();
   }
 
@@ -240,7 +216,8 @@ export class TreasureChestRuntime {
       this.spawn.y + TREASURE_CHEST_LAYOUT.lootReleaseHeight,
       this.spawn.z,
     );
-    this.drops.spawnBurst(equipmentIds, trajectories);
+    const instanceIds = this.drops.spawnBurst(equipmentIds, trajectories);
+    this.dropInstanceIds.push(...instanceIds);
     this.lootReleased = true;
     return equipmentIds.length;
   }

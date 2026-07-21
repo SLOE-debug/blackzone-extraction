@@ -21,6 +21,11 @@ enum DynamicMeshBatchState {
   Disposed,
 }
 
+const FLOAT_COMPONENT_BYTE_LENGTH = Float32Array.BYTES_PER_ELEMENT;
+const POSITION_COMPONENT_COUNT = 3;
+const NORMAL_COMPONENT_COUNT = 3;
+const COLOR_COMPONENT_COUNT = 4;
+
 /** 动态网格使用的阴影策略。 */
 export interface DynamicMeshBatchOptions {
   readonly castShadows: boolean;
@@ -46,9 +51,7 @@ export class DynamicMeshBatch {
   private positionSource: ArrayBuffer | null = null;
   private normalSource: ArrayBuffer | null = null;
   private colorSource: ArrayBuffer | null = null;
-  private positionByteLength = 0;
-  private normalByteLength = 0;
-  private colorByteLength = 0;
+  private maximumVertexCount = 0;
   private maximumIndexCount = 0;
   private activeIndexCount = 0;
   private readonly minimumPosition = new Vec3();
@@ -155,9 +158,7 @@ export class DynamicMeshBatch {
     this.positionSource = positions.buffer;
     this.normalSource = normalSource;
     this.colorSource = colors.buffer;
-    this.positionByteLength = positions.byteLength;
-    this.normalByteLength = normals?.byteLength ?? 0;
-    this.colorByteLength = colors.byteLength;
+    this.maximumVertexCount = geometry.vertexCount;
     this.maximumIndexCount = geometry.indexCount;
     this.activeIndexCount = geometry.indexCount;
     this.state = DynamicMeshBatchState.Initialized;
@@ -167,9 +168,10 @@ export class DynamicMeshBatch {
    * 将实际发生变化的顶点流完整上传到 GPU。
    *
    * @param dirty Evaluator 返回的实际变化位标志；未标记的属性不会提交 GPU 更新。
+   * @param activeVertexCount 从各顶点流开头实际需要上传的连续顶点数量。
    * @returns 无返回值；无异常时所有标记且已创建的流均已上传。
    */
-  public uploadVertexAttributes(dirty: MeshDirty): void {
+  public uploadVertexAttributes(dirty: MeshDirty, activeVertexCount: number): void {
     if (this.state !== DynamicMeshBatchState.Initialized
       || this.positionBuffer === null
       || this.colorBuffer === null
@@ -177,18 +179,35 @@ export class DynamicMeshBatch {
       || this.colorSource === null) {
       throw new Error('动态网格批次尚未初始化或已经释放。');
     }
+    if (!Number.isInteger(activeVertexCount)
+      || activeVertexCount < 0
+      || activeVertexCount > this.maximumVertexCount) {
+      throw new Error('动态网格活动顶点数必须位于已分配容量内。');
+    }
+    if (activeVertexCount === 0) {
+      return;
+    }
 
     if ((dirty & MeshDirty.Position) !== 0) {
-      this.positionBuffer.update(this.positionSource, this.positionByteLength);
+      this.positionBuffer.update(
+        this.positionSource,
+        activeVertexCount * POSITION_COMPONENT_COUNT * FLOAT_COMPONENT_BYTE_LENGTH,
+      );
     }
     if ((dirty & MeshDirty.Normal) !== 0) {
       if (this.normalBuffer === null || this.normalSource === null) {
         throw new Error('当前顶点布局不包含可上传的法线流。');
       }
-      this.normalBuffer.update(this.normalSource, this.normalByteLength);
+      this.normalBuffer.update(
+        this.normalSource,
+        activeVertexCount * NORMAL_COMPONENT_COUNT * FLOAT_COMPONENT_BYTE_LENGTH,
+      );
     }
     if ((dirty & MeshDirty.Color) !== 0) {
-      this.colorBuffer.update(this.colorSource, this.colorByteLength);
+      this.colorBuffer.update(
+        this.colorSource,
+        activeVertexCount * COLOR_COMPONENT_COUNT * FLOAT_COMPONENT_BYTE_LENGTH,
+      );
     }
   }
 
@@ -273,9 +292,7 @@ export class DynamicMeshBatch {
     this.positionSource = null;
     this.normalSource = null;
     this.colorSource = null;
-    this.positionByteLength = 0;
-    this.normalByteLength = 0;
-    this.colorByteLength = 0;
+    this.maximumVertexCount = 0;
     this.maximumIndexCount = 0;
     this.activeIndexCount = 0;
     this.state = DynamicMeshBatchState.Disposed;

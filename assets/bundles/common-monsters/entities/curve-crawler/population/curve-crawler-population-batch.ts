@@ -33,6 +33,11 @@ export class CurveCrawlerPopulationBatch {
     return this.rendering.visibleEntityCount;
   }
 
+  /** 当前共享 GPU 批次已经分配的实体容量。 */
+  public get renderCapacity(): number {
+    return this.rendering.renderCapacity;
+  }
+
   /** 创建一个保留独立战斗状态、但登记到共享渲染批次的群体。 */
   public createCurveCrawler(
     options: Readonly<CurveCrawlerBatchPopulationOptions>,

@@ -5,9 +5,18 @@ import {
 } from './curve-crawler-mesh-plan';
 
 const COLOR_BYTE_SCALE = 1 / 255;
-const BODY_RED = 92 * COLOR_BYTE_SCALE;
-const BODY_GREEN = 84 * COLOR_BYTE_SCALE;
-const BODY_BLUE = 102 * COLOR_BYTE_SCALE;
+const LEG_RED = 84 * COLOR_BYTE_SCALE;
+const LEG_GREEN = 75 * COLOR_BYTE_SCALE;
+const LEG_BLUE = 96 * COLOR_BYTE_SCALE;
+const FOOT_RED = 72 * COLOR_BYTE_SCALE;
+const FOOT_GREEN = 64 * COLOR_BYTE_SCALE;
+const FOOT_BLUE = 82 * COLOR_BYTE_SCALE;
+const ABDOMEN_RED = 102 * COLOR_BYTE_SCALE;
+const ABDOMEN_GREEN = 92 * COLOR_BYTE_SCALE;
+const ABDOMEN_BLUE = 112 * COLOR_BYTE_SCALE;
+const THORAX_RED = 90 * COLOR_BYTE_SCALE;
+const THORAX_GREEN = 80 * COLOR_BYTE_SCALE;
+const THORAX_BLUE = 101 * COLOR_BYTE_SCALE;
 const EYE_RED = 1;
 const EYE_GREEN = 168 * COLOR_BYTE_SCALE;
 const EYE_BLUE = 188 * COLOR_BYTE_SCALE;
@@ -44,9 +53,6 @@ export function evaluateCurveCrawlerColors(
 ): void {
   const hitFlash = state.data.animation.hitFlash[entityIndex] ?? 0;
   const liquidDrain = state.data.animation.liquidDrain[entityIndex] ?? 0;
-  const bodyRed = mix(BODY_RED, HIT_RED, hitFlash);
-  const bodyGreen = mix(BODY_GREEN, HIT_GREEN, hitFlash);
-  const bodyBlue = mix(BODY_BLUE, HIT_BLUE, hitFlash);
   const eyeRed = mix(EYE_RED, HIT_RED, hitFlash);
   const eyeGreen = mix(EYE_GREEN, HIT_GREEN, hitFlash);
   const eyeBlue = mix(EYE_BLUE, HIT_BLUE, hitFlash);
@@ -57,10 +63,17 @@ export function evaluateCurveCrawlerColors(
   for (let localVertex = 0; localVertex < plan.vertexCount; localVertex++) {
     const colorOffset = (entityVertexOffset + localVertex) * 4;
     switch (plan.semanticIds[localVertex]) {
-      case CurveCrawlerMeshSemantic.Body:
-        colors[colorOffset] = bodyRed;
-        colors[colorOffset + 1] = bodyGreen;
-        colors[colorOffset + 2] = bodyBlue;
+      case CurveCrawlerMeshSemantic.Leg:
+        writeHitColor(colors, colorOffset, LEG_RED, LEG_GREEN, LEG_BLUE, hitFlash);
+        break;
+      case CurveCrawlerMeshSemantic.Foot:
+        writeHitColor(colors, colorOffset, FOOT_RED, FOOT_GREEN, FOOT_BLUE, hitFlash);
+        break;
+      case CurveCrawlerMeshSemantic.Abdomen:
+        writeHitColor(colors, colorOffset, ABDOMEN_RED, ABDOMEN_GREEN, ABDOMEN_BLUE, hitFlash);
+        break;
+      case CurveCrawlerMeshSemantic.Thorax:
+        writeHitColor(colors, colorOffset, THORAX_RED, THORAX_GREEN, THORAX_BLUE, hitFlash);
         break;
       case CurveCrawlerMeshSemantic.Eye:
         colors[colorOffset] = eyeRed;
@@ -92,6 +105,20 @@ export function evaluateCurveCrawlerColors(
     }
     colors[colorOffset + 3] = 1;
   }
+}
+
+/** 将身体分区的固有色与受击闪烁写入目标顶点。 */
+function writeHitColor(
+  colors: Float32Array,
+  colorOffset: number,
+  red: number,
+  green: number,
+  blue: number,
+  hitFlash: number,
+): void {
+  colors[colorOffset] = mix(red, HIT_RED, hitFlash);
+  colors[colorOffset + 1] = mix(green, HIT_GREEN, hitFlash);
+  colors[colorOffset + 2] = mix(blue, HIT_BLUE, hitFlash);
 }
 
 /** 将两个颜色通道按事件强度线性混合。 */

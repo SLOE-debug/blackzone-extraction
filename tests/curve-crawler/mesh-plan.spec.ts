@@ -12,6 +12,9 @@ import {
   CurveCrawlerMeshSemantic,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-plan';
 import {
+  shadeCurveCrawlerUnlitEntities,
+} from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-unlit-vertex-shading';
+import {
   CURVE_CRAWLER_SURFACE_TOPOLOGY,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-topology';
 import {
@@ -39,8 +42,19 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(freshPlan.liquidFan.rayVertexOffsets).toHaveLength(freshPlan.liquidFan.rayCount);
     expect(Array.from(freshPlan.indices).every((index) => index < freshPlan.vertexCount)).toBe(true);
     expect(Array.from(freshPlan.semanticIds).filter(
-      (semantic) => semantic === CurveCrawlerMeshSemantic.Body,
-    )).toHaveLength(freshPlan.body.vertexCount);
+      (semantic) => semantic === CurveCrawlerMeshSemantic.Leg,
+    )).toHaveLength(freshPlan.legTube.vertexCount * freshPlan.body.legVertexOffsets.length);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.Foot,
+    )).toHaveLength(
+      freshPlan.footEllipsoid.vertexCount * freshPlan.body.footVertexOffsets.length,
+    );
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.Abdomen,
+    )).toHaveLength(freshPlan.bodyEllipsoid.vertexCount);
+    expect(Array.from(freshPlan.semanticIds).filter(
+      (semantic) => semantic === CurveCrawlerMeshSemantic.Thorax,
+    )).toHaveLength(freshPlan.bodyEllipsoid.vertexCount);
     expect(Array.from(freshPlan.semanticIds).filter(
       (semantic) => semantic === CurveCrawlerMeshSemantic.Eye,
     )).toHaveLength(freshPlan.eyes.vertexCount);
@@ -57,6 +71,43 @@ describe('Curve Crawler 编译式网格计划', () => {
       (semantic) => semantic === CurveCrawlerMeshSemantic.EmergenceShard,
     ).length).toBeGreaterThan(0);
     expect(Array.from(freshPlan.indices)).toEqual(Array.from(curveCrawlerMeshPlan.indices));
+  });
+
+  it('共享 Unlit 路径把 CPU 法线烘成身体分档明暗并保持眼睛清晰', () => {
+    const state = createCurveCrawlerMeshTestState(1);
+    const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 1);
+    curveCrawlerMeshEvaluator.evaluate(
+      state,
+      curveCrawlerMeshPlan,
+      streams,
+      createEntityRange(0, 1, 1),
+      MeshDirty.All,
+    );
+    const baseColors = streams.colors.slice();
+
+    shadeCurveCrawlerUnlitEntities(streams, curveCrawlerMeshPlan, 0, 1);
+
+    const legStart = curveCrawlerMeshPlan.body.legVertexOffsets[0] ?? 0;
+    const legEnd = legStart + curveCrawlerMeshPlan.legTube.vertexCount;
+    const legRedLevels = new Set<number>();
+    for (let vertex = legStart; vertex < legEnd; vertex++) {
+      const colorOffset = vertex * 4;
+      const shadedRed = streams.colors[colorOffset] ?? 0;
+      const baseRed = baseColors[colorOffset] ?? 0;
+      legRedLevels.add(Number(shadedRed.toFixed(5)));
+      expect(shadedRed).toBeGreaterThanOrEqual(baseRed * 0.64 - 0.000001);
+      expect(shadedRed).toBeLessThanOrEqual(baseRed * 0.88 + 0.000001);
+      expect(streams.colors[vertex * 4 + 3]).toBe(1);
+    }
+    expect(legRedLevels.size).toBeGreaterThan(1);
+
+    const eyeColorOffset = curveCrawlerMeshPlan.eyes.vertexOffset * 4;
+    expect(streams.colors[eyeColorOffset] ?? 0).toBeLessThanOrEqual(
+      baseColors[eyeColorOffset] ?? 0,
+    );
+    expect(streams.colors[eyeColorOffset] ?? 0).toBeGreaterThan(
+      (baseColors[eyeColorOffset] ?? 0) * 0.8,
+    );
   });
 
   it('步态作为 Pose 成对更新 Position 和 Normal，且不改 Color 或局部索引', () => {

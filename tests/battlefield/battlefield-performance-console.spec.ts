@@ -25,6 +25,17 @@ describe('战场性能控制台表格', () => {
     ]);
     expect(rows[0]?.['平均每帧(ms)']).toBe(5);
     expect(rows[0]?.['战场CPU占比']).toBe('50.0%');
+
+    const monsterRows = table.mock.calls[1]?.[0] as readonly Readonly<
+      Record<string, unknown>
+    >[];
+    expect(monsterRows.map((row) => row['子阶段'])).toEqual([
+      '群体模拟',
+      '共享网格同步',
+      '人口维护',
+      '视锥筛选',
+    ]);
+    expect(monsterRows[0]?.['怪物阶段占比']).toBe('50.0%');
   });
 });
 
@@ -48,6 +59,19 @@ function createReport(): BattlefieldPerformanceConsoleReport {
     stageMaximums: Float64Array.of(2, 4, 12),
     stageSamples: Uint32Array.of(10, 10, 10),
     slowestFrameStages: Float64Array.of(1, 3, 12),
+    monsterStageNames: Object.freeze([
+      '人口维护',
+      '群体模拟',
+      '视锥筛选',
+      '共享网格同步',
+    ]),
+    monsterStageTotals: Float64Array.of(5, 25, 2, 18),
+    monsterStageMaximums: Float64Array.of(1, 8, 0.5, 12),
+    monsterStageSamples: Uint32Array.of(10, 10, 10, 10),
+    slowestFrameMonsterStages: Float64Array.of(1, 4, 0.2, 7),
+    slowestFrameVisibleMonsters: 76,
+    slowestFrameMonsterRenderCapacity: 128,
+    slowestFrameAliveMonsters: 130,
     eventNames: Object.freeze(['开启宝箱', '释放掉落物']),
     eventValues: Float64Array.of(1, 3),
     slowestFrameEvents: Float64Array.of(0, 3),
@@ -62,6 +86,7 @@ function createReport(): BattlefieldPerformanceConsoleReport {
       monsterSlots: 220,
       aliveMonsters: 128,
       visibleMonsters: 72,
+      monsterRenderCapacity: 128,
       activeChests: 5,
       openedChests: 1,
       droppedEquipment: 3,

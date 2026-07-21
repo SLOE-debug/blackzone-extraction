@@ -3,6 +3,10 @@ import {
   type BattlefieldPerformanceSnapshot,
   presentBattlefieldPerformanceReport,
 } from './battlefield-performance-console';
+import {
+  type BattlefieldMonsterPerformanceRecorder,
+  BattlefieldMonsterPerformanceStage,
+} from '../population/battlefield-monster-performance';
 
 const LOG_INTERVAL_MILLISECONDS = 2000;
 
@@ -29,6 +33,8 @@ export enum BattlefieldPerformanceEvent {
   LootReleased,
   EquipmentPicked,
   PlayerDamage,
+  MonsterBatchGrowth,
+  MonsterBatchCapacityAdded,
   Count,
 }
 
@@ -42,7 +48,12 @@ export interface BattlefieldPerformanceSources {
     renderingSynchronizing: boolean;
   }>;
   readonly ground: Readonly<{ synchronizing: boolean }>;
-  readonly monsters: Readonly<{ count: number; aliveCount: number; visibleCount: number }>;
+  readonly monsters: Readonly<{
+    count: number;
+    aliveCount: number;
+    visibleCount: number;
+    renderCapacity: number;
+  }>;
   readonly treasures: Readonly<{
     activeChestCount: number;
     openedChestCount: number;
@@ -71,6 +82,15 @@ const EVENT_NAMES = Object.freeze([
   '释放掉落物',
   '拾取装备',
   '玩家受伤量',
+  '怪物批次扩容',
+  '怪物容量增加',
+]);
+
+const MONSTER_STAGE_NAMES = Object.freeze([
+  '人口维护',
+  '群体模拟',
+  '视锥筛选',
+  '共享网格同步',
 ]);
 
 /**
@@ -79,12 +99,27 @@ const EVENT_NAMES = Object.freeze([
  * 高频路径只写 TypedArray，不创建对象或字符串；窗口结束时才读取引擎统计并输出
  * 一个按累计成本排序的折叠表格。
  */
-export class BattlefieldPerformanceLogger {
+export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerformanceRecorder {
   private readonly stageTotals = new Float64Array(BattlefieldPerformanceStage.Count);
   private readonly stageMaximums = new Float64Array(BattlefieldPerformanceStage.Count);
   private readonly stageSamples = new Uint32Array(BattlefieldPerformanceStage.Count);
   private readonly currentFrameStages = new Float64Array(BattlefieldPerformanceStage.Count);
   private readonly slowestFrameStages = new Float64Array(BattlefieldPerformanceStage.Count);
+  private readonly monsterStageTotals = new Float64Array(
+    BattlefieldMonsterPerformanceStage.Count,
+  );
+  private readonly monsterStageMaximums = new Float64Array(
+    BattlefieldMonsterPerformanceStage.Count,
+  );
+  private readonly monsterStageSamples = new Uint32Array(
+    BattlefieldMonsterPerformanceStage.Count,
+  );
+  private readonly currentFrameMonsterStages = new Float64Array(
+    BattlefieldMonsterPerformanceStage.Count,
+  );
+  private readonly slowestFrameMonsterStages = new Float64Array(
+    BattlefieldMonsterPerformanceStage.Count,
+  );
   private readonly eventValues = new Float64Array(BattlefieldPerformanceEvent.Count);
   private readonly currentFrameEvents = new Float64Array(BattlefieldPerformanceEvent.Count);
   private readonly slowestFrameEvents = new Float64Array(BattlefieldPerformanceEvent.Count);
@@ -99,6 +134,7 @@ export class BattlefieldPerformanceLogger {
     monsterSlots: 0,
     aliveMonsters: 0,
     visibleMonsters: 0,
+    monsterRenderCapacity: 0,
     activeChests: 0,
     openedChests: 0,
     droppedEquipment: 0,
@@ -112,6 +148,9 @@ export class BattlefieldPerformanceLogger {
   private updateMaximum = 0;
   private frameIntervalTotal = 0;
   private frameIntervalMaximum = 0;
+  private slowestFrameVisibleMonsters = 0;
+  private slowestFrameMonsterRenderCapacity = 0;
+  private slowestFrameAliveMonsters = 0;
   private previousConsoleOutputMilliseconds = 0;
 
   /** 初始化完成后绑定长期存在的只读统计门面。 */
@@ -129,6 +168,7 @@ export class BattlefieldPerformanceLogger {
       this.windowStarted = now;
     }
     this.currentFrameStages.fill(0);
+    this.currentFrameMonsterStages.fill(0);
     this.currentFrameEvents.fill(0);
     this.frameStarted = now;
   }
@@ -150,6 +190,46 @@ export class BattlefieldPerformanceLogger {
     this.currentFrameStages[stage] = (this.currentFrameStages[stage] ?? 0) + elapsed;
   }
 
+  /** 开始记录怪物总阶段内部的一个子阶段。 */
+  public beginMonsterStage(): number {
+    return performance.now();
+  }
+
+  /** 把怪物子阶段耗时累计到独立明细表。 */
+  public endMonsterStage(
+    stage: BattlefieldMonsterPerformanceStage,
+    startedAt: number,
+  ): void {
+    if (stage < 0 || stage >= BattlefieldMonsterPerformanceStage.Count) {
+      throw new Error('怪物性能子阶段标识越界。');
+    }
+    const elapsed = Math.max(0, performance.now() - startedAt);
+    this.monsterStageTotals[stage] = (this.monsterStageTotals[stage] ?? 0) + elapsed;
+    this.monsterStageMaximums[stage] = Math.max(
+      this.monsterStageMaximums[stage] ?? 0,
+      elapsed,
+    );
+    this.monsterStageSamples[stage] = (this.monsterStageSamples[stage] ?? 0) + 1;
+    this.currentFrameMonsterStages[stage] = (
+      this.currentFrameMonsterStages[stage] ?? 0
+    ) + elapsed;
+  }
+
+  /** 记录共享蜘蛛批次跨过容量边界的次数与新增槽位数量。 */
+  public recordMonsterBatchGrowth(previousCapacity: number, nextCapacity: number): void {
+    if (!Number.isInteger(previousCapacity)
+      || previousCapacity < 0
+      || !Number.isInteger(nextCapacity)
+      || nextCapacity <= previousCapacity) {
+      throw new Error('怪物批次扩容范围无效。');
+    }
+    this.recordEvent(BattlefieldPerformanceEvent.MonsterBatchGrowth);
+    this.recordEvent(
+      BattlefieldPerformanceEvent.MonsterBatchCapacityAdded,
+      nextCapacity - previousCapacity,
+    );
+  }
+
   /** 累计窗口内一次事件或一份数值。 */
   public recordEvent(event: BattlefieldPerformanceEvent, value = 1): void {
     if (event < 0 || event >= BattlefieldPerformanceEvent.Count
@@ -169,7 +249,14 @@ export class BattlefieldPerformanceLogger {
     if (updateElapsed > this.updateMaximum) {
       this.updateMaximum = updateElapsed;
       this.slowestFrameStages.set(this.currentFrameStages);
+      this.slowestFrameMonsterStages.set(this.currentFrameMonsterStages);
       this.slowestFrameEvents.set(this.currentFrameEvents);
+      const monsters = this.sources?.monsters;
+      if (monsters !== undefined) {
+        this.slowestFrameVisibleMonsters = monsters.visibleCount;
+        this.slowestFrameMonsterRenderCapacity = monsters.renderCapacity;
+        this.slowestFrameAliveMonsters = monsters.aliveCount;
+      }
     }
     this.frameIntervalTotal += frameInterval;
     this.frameIntervalMaximum = Math.max(this.frameIntervalMaximum, frameInterval);
@@ -217,6 +304,14 @@ export class BattlefieldPerformanceLogger {
       stageMaximums: this.stageMaximums,
       stageSamples: this.stageSamples,
       slowestFrameStages: this.slowestFrameStages,
+      monsterStageNames: MONSTER_STAGE_NAMES,
+      monsterStageTotals: this.monsterStageTotals,
+      monsterStageMaximums: this.monsterStageMaximums,
+      monsterStageSamples: this.monsterStageSamples,
+      slowestFrameMonsterStages: this.slowestFrameMonsterStages,
+      slowestFrameVisibleMonsters: this.slowestFrameVisibleMonsters,
+      slowestFrameMonsterRenderCapacity: this.slowestFrameMonsterRenderCapacity,
+      slowestFrameAliveMonsters: this.slowestFrameAliveMonsters,
       eventNames: EVENT_NAMES,
       eventValues: this.eventValues,
       slowestFrameEvents: this.slowestFrameEvents,
@@ -242,6 +337,7 @@ export class BattlefieldPerformanceLogger {
     snapshot.monsterSlots = sources.monsters.count;
     snapshot.aliveMonsters = sources.monsters.aliveCount;
     snapshot.visibleMonsters = sources.monsters.visibleCount;
+    snapshot.monsterRenderCapacity = sources.monsters.renderCapacity;
     snapshot.activeChests = sources.treasures.activeChestCount;
     snapshot.openedChests = sources.treasures.openedChestCount;
     snapshot.droppedEquipment = sources.treasures.droppedEquipmentCount;
@@ -254,6 +350,10 @@ export class BattlefieldPerformanceLogger {
     this.stageMaximums.fill(0);
     this.stageSamples.fill(0);
     this.slowestFrameStages.fill(0);
+    this.monsterStageTotals.fill(0);
+    this.monsterStageMaximums.fill(0);
+    this.monsterStageSamples.fill(0);
+    this.slowestFrameMonsterStages.fill(0);
     this.eventValues.fill(0);
     this.slowestFrameEvents.fill(0);
     this.windowStarted = now;
@@ -262,5 +362,8 @@ export class BattlefieldPerformanceLogger {
     this.updateMaximum = 0;
     this.frameIntervalTotal = 0;
     this.frameIntervalMaximum = 0;
+    this.slowestFrameVisibleMonsters = 0;
+    this.slowestFrameMonsterRenderCapacity = 0;
+    this.slowestFrameAliveMonsters = 0;
   }
 }
