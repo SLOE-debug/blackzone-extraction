@@ -111,6 +111,8 @@ function initializeCurveCrawlerData(
       ? -Math.PI * 0.5
       : randomRange(identity.randomState, index, -Math.PI, Math.PI);
     transform.heading[index] = heading;
+    transform.headingCosine[index] = Math.cos(heading);
+    transform.headingSine[index] = Math.sin(heading);
     transform.targetHeading[index] = heading;
 
     morphology.bodyLength[index] = observationDisplay
@@ -252,8 +254,10 @@ function initializeCurveCrawlerData(
     const phaseOffset = index * CURVE_CRAWLER_LEG_COUNT;
     for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {
       const alternatingPhase = leg === 1 || leg === 3 || leg === 4 || leg === 6 ? Math.PI : 0;
-      animation.legPhaseOffsets[phaseOffset + leg] = alternatingPhase
+      const legPhase = alternatingPhase
         + randomRange(identity.randomState, index, -0.18, 0.18);
+      animation.legPhaseCosines[phaseOffset + leg] = Math.cos(legPhase);
+      animation.legPhaseSines[phaseOffset + leg] = Math.sin(legPhase);
     }
 
     // 提前推进一次，确保不同实体即使输入种子相邻也不会保留初始化模式。

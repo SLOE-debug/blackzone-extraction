@@ -95,9 +95,8 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
     const elapsedTime = death.stageTime[index] ?? 0;
     const progress = clamp01(elapsedTime / CURVE_CRAWLER_BURST_DURATION);
     const travelProgress = 1 - (1 - progress) * (1 - progress);
-    const heading = transform.heading[index] ?? 0;
-    const headingCosine = Math.cos(heading);
-    const headingSine = Math.sin(heading);
+    const headingCosine = transform.headingCosine[index] ?? 1;
+    const headingSine = transform.headingSine[index] ?? 0;
     const fragmentOffset = index * CURVE_CRAWLER_FRAGMENT_COUNT;
 
     animation.surfaceCollapse[index] = smoothStep(0.72, 1, progress);

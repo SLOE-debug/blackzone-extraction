@@ -152,6 +152,22 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
   private slowestFrameMonsterRenderCapacity = 0;
   private slowestFrameAliveMonsters = 0;
   private previousConsoleOutputMilliseconds = 0;
+  private diagnosticsEnabled = false;
+
+  /** 性能诊断默认关闭，避免计时器和控制台序列化反过来污染 Game Logic。 */
+  public get enabled(): boolean {
+    return this.diagnosticsEnabled;
+  }
+
+  /** 由战场调试面板显式开关分阶段采样。 */
+  public setEnabled(enabled: boolean): void {
+    if (enabled === this.diagnosticsEnabled) {
+      return;
+    }
+    this.diagnosticsEnabled = enabled;
+    this.previousConsoleOutputMilliseconds = 0;
+    this.reset(enabled ? performance.now() : 0);
+  }
 
   /** 初始化完成后绑定长期存在的只读统计门面。 */
   public bindSources(sources: Readonly<BattlefieldPerformanceSources>): void {
@@ -163,6 +179,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
 
   /** 开始记录一帧战场业务编排。 */
   public beginFrame(): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
     const now = performance.now();
     if (this.windowStarted === 0) {
       this.windowStarted = now;
@@ -175,11 +194,14 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
 
   /** 返回一个无分配阶段时间戳。 */
   public beginStage(): number {
-    return performance.now();
+    return this.diagnosticsEnabled ? performance.now() : 0;
   }
 
   /** 把阶段开始时间累计为本窗口的总耗时、峰值和样本数。 */
   public endStage(stage: BattlefieldPerformanceStage, startedAt: number): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
     if (stage < 0 || stage >= BattlefieldPerformanceStage.Count) {
       throw new Error('战场性能阶段标识越界。');
     }
@@ -192,7 +214,7 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
 
   /** 开始记录怪物总阶段内部的一个子阶段。 */
   public beginMonsterStage(): number {
-    return performance.now();
+    return this.diagnosticsEnabled ? performance.now() : 0;
   }
 
   /** 把怪物子阶段耗时累计到独立明细表。 */
@@ -200,6 +222,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     stage: BattlefieldMonsterPerformanceStage,
     startedAt: number,
   ): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
     if (stage < 0 || stage >= BattlefieldMonsterPerformanceStage.Count) {
       throw new Error('怪物性能子阶段标识越界。');
     }
@@ -217,6 +242,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
 
   /** 记录共享蜘蛛批次跨过容量边界的次数与新增槽位数量。 */
   public recordMonsterBatchGrowth(previousCapacity: number, nextCapacity: number): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
     if (!Number.isInteger(previousCapacity)
       || previousCapacity < 0
       || !Number.isInteger(nextCapacity)
@@ -232,6 +260,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
 
   /** 累计窗口内一次事件或一份数值。 */
   public recordEvent(event: BattlefieldPerformanceEvent, value = 1): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
     if (event < 0 || event >= BattlefieldPerformanceEvent.Count
       || !Number.isFinite(value) || value < 0) {
       throw new Error('战场性能事件标识或数值无效。');
@@ -242,6 +273,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
 
   /** 完成本帧统计，并在达到两秒窗口时自行采集活动规模与输出。 */
   public endFrame(deltaTime: number): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
     const now = performance.now();
     const updateElapsed = Math.max(0, now - this.frameStarted);
     const frameInterval = Math.max(0, deltaTime * 1000);

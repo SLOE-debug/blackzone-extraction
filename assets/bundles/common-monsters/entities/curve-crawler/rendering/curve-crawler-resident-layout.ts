@@ -1,8 +1,11 @@
 import {
   isMonsterLifecycleResident,
-  type MonsterLifecycleState,
+  MonsterLifecycleState,
 } from '../../../../../core/contracts/monster-lifecycle';
-import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
+import {
+  type PlanarCircleVisibility,
+  PlanarVisibilityDetail,
+} from '../../../../../core/contracts/planar-circle-visibility';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /**
@@ -12,6 +15,8 @@ import { type CurveCrawlerState } from '../model/curve-crawler-state';
  */
 export class CurveCrawlerResidentLayout {
   public readonly entityIndices: Uint32Array;
+  public readonly detailLevels: Uint8Array;
+  private readonly sourceDetailLevels: Uint8Array;
   private residentCount = 0;
 
   constructor(
@@ -22,6 +27,9 @@ export class CurveCrawlerResidentLayout {
       throw new Error('Curve Crawler 驻留布局容量必须是正整数。');
     }
     this.entityIndices = new Uint32Array(capacity);
+    this.detailLevels = new Uint8Array(capacity);
+    this.sourceDetailLevels = new Uint8Array(capacity);
+    this.sourceDetailLevels.fill(PlanarVisibilityDetail.Minimal);
   }
 
   /** 当前需要进入渲染批次的实体数量。 */
@@ -42,14 +50,28 @@ export class CurveCrawlerResidentLayout {
     let nextCount = 0;
     let changed = false;
     for (let entityIndex = 0; entityIndex < state.count; entityIndex++) {
-      if (!isMonsterLifecycleResident(lifecycle[entityIndex] as MonsterLifecycleState)
+      const lifecycleState = lifecycle[entityIndex] as MonsterLifecycleState;
+      if (!isMonsterLifecycleResident(lifecycleState)
+        || (lifecycleState === MonsterLifecycleState.Spawning
+          && (state.data.vitality.stateTime[entityIndex] ?? 0) < 0)
         || !this.isVisible(state, entityIndex)) {
         continue;
       }
       if ((this.entityIndices[nextCount] ?? 0) !== entityIndex) {
         changed = true;
       }
+      const detail = this.visibility.resolveDetail(
+        state.data.transform.x[entityIndex] ?? 0,
+        state.data.transform.y[entityIndex] ?? 0,
+        (this.sourceDetailLevels[entityIndex]
+          ?? PlanarVisibilityDetail.Minimal) as PlanarVisibilityDetail,
+      );
+      if ((this.detailLevels[nextCount] ?? 0) !== detail) {
+        changed = true;
+      }
       this.entityIndices[nextCount] = entityIndex;
+      this.detailLevels[nextCount] = detail;
+      this.sourceDetailLevels[entityIndex] = detail;
       nextCount++;
     }
     if (nextCount !== this.residentCount) {

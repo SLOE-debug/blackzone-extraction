@@ -3,6 +3,7 @@ import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
+import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobber-config';
 import { calculateBattlefieldMonsterTargetCount } from '../model/battlefield-monster-wave-schedule';
 import {
   type BattlefieldMonsterCombatTarget,
@@ -11,6 +12,8 @@ import {
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import { BattlefieldMonsterFrustumVisibility } from './battlefield-monster-frustum-visibility';
+import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
+import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
   BattlefieldMonsterPerformanceStage,
@@ -28,7 +31,7 @@ export type {
 } from './battlefield-monster-contracts';
 
 /**
- * 聚合固定容量、渐进激活的玩家周边尸潮与可选 Debug 观察实体。
+ * 聚合固定容量、渐进激活的 Curve Crawler 尸潮、Venom Lobber 专家怪与 Debug 实体。
  *
  * 正式尸潮不再由 Chunk 持有；同一 SoA 内的空闲槽位按波次进入完整出生生命周期。
  */
@@ -40,17 +43,13 @@ implements Disposable {
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
   >;
   private readonly groups: BattlefieldMonsterGroup[] = [];
-  private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
-  private readonly projectileHitCandidate: MutableBattlefieldProjectileHit = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    z: 0,
-    segmentProgress: 0,
-  };
+  private readonly targets = new BattlefieldMonsterTargetRegistry();
+  private readonly venomGroup: BattlefieldVenomLobberGroup;
   private swarm: BattlefieldMonsterGroup | null = null;
   private debugGroup: BattlefieldMonsterGroup | null = null;
   private waveElapsedSeconds = 0;
+  private detailCenterX = 0;
+  private detailCenterZ = 0;
   private disposed = false;
 
   constructor(
@@ -83,38 +82,69 @@ implements Disposable {
       renderRoot.destroy();
       throw error;
     }
+    let venomGroup: BattlefieldVenomLobberGroup | null = null;
     try {
       // 固定容量 SoA 在加载阶段准备；开场帧只同步零驻留布局，不再临时分配完整群体。
       this.ensureSwarm(initialCenterX, initialCenterZ);
+      venomGroup = new BattlefieldVenomLobberGroup(
+        renderRoot,
+        surfaceMaterialTemplate,
+        this.visibility,
+        commonMonsters,
+        initialCenterX,
+        initialCenterZ,
+      );
+      this.targets.register(venomGroup);
     } catch (error: unknown) {
+      venomGroup?.dispose();
+      while (this.groups.length > 0) {
+        const group = this.groups.pop();
+        if (group !== undefined) {
+          this.targets.unregister(group);
+          group.dispose();
+        }
+      }
       this.renderBatch.dispose();
       renderRoot.destroy();
       throw error;
     }
+    this.detailCenterX = initialCenterX;
+    this.detailCenterZ = initialCenterZ;
+    if (venomGroup === null) {
+      this.renderBatch.dispose();
+      renderRoot.destroy();
+      throw new Error('战场 Venom Lobber 群体初始化结果缺失。');
+    }
+    this.venomGroup = venomGroup;
   }
 
-  /** 当前正式尸潮与 Debug 观察实体的总槽位数。 */
+  /** 当前普通尸潮、专家怪与 Debug 观察实体的总槽位数。 */
   public get count(): number {
-    let count = 0;
+    let count = this.venomGroup.count;
     for (const group of this.groups) {
       count += group.count;
     }
     return count;
   }
 
-  /** 当前正式尸潮中真正处于存活阶段的怪物数量。 */
+  /** 当前普通尸潮与专家怪中真正处于存活阶段的怪物数量。 */
   public get aliveCount(): number {
-    return this.swarm?.aliveCount ?? 0;
+    return (this.swarm?.aliveCount ?? 0) + this.venomGroup.aliveCount;
   }
 
   /** 当前通过相机视锥筛选并实际进入动态网格的怪物数量。 */
   public get visibleCount(): number {
-    return this.renderBatch.visibleEntityCount;
+    return this.renderBatch.visibleEntityCount + this.venomGroup.visibleCount;
   }
 
   /** 当前共享动态网格已经分配的可见实体容量。 */
   public get renderCapacity(): number {
-    return this.renderBatch.renderCapacity;
+    return this.renderBatch.renderCapacity + this.venomGroup.count;
+  }
+
+  /** 酸池对玩家下一帧移动输入施加的速度乘数。 */
+  public get playerMovementSpeedMultiplier(): number {
+    return this.venomGroup.movementMultiplier;
   }
 
   /**
@@ -128,6 +158,7 @@ implements Disposable {
       throw new Error('Debug 蜘蛛生成坐标必须是有限数值。');
     }
     if (this.debugGroup !== null) {
+      this.targets.unregister(this.debugGroup);
       removeMonsterGroup(this.groups, this.debugGroup);
       this.debugGroup.dispose();
     }
@@ -141,6 +172,7 @@ implements Disposable {
       1,
     );
     this.groups.push(group);
+    this.targets.register(group);
     this.debugGroup = group;
   }
 
@@ -158,6 +190,8 @@ implements Disposable {
     }
     let stageStarted = performance.beginMonsterStage();
     if (target !== null) {
+      this.detailCenterX = target.x;
+      this.detailCenterZ = target.z;
       this.waveElapsedSeconds += Math.max(
         0,
         Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME),
@@ -171,9 +205,21 @@ implements Disposable {
         target.z,
         desiredPopulationCount,
       );
+      const desiredVenomCount = calculateBattlefieldMonsterTargetCount(
+        BATTLEFIELD_VENOM_LOBBER_CONFIG,
+        this.waveElapsedSeconds,
+      );
+      this.venomGroup.maintainAround(target.x, target.z, desiredVenomCount);
     }
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.PopulationMaintenance,
+      stageStarted,
+    );
+
+    stageStarted = performance.beginMonsterStage();
+    this.visibility.synchronize(this.detailCenterX, this.detailCenterZ);
+    performance.endMonsterStage(
+      BattlefieldMonsterPerformanceStage.Visibility,
       stageStarted,
     );
 
@@ -182,15 +228,9 @@ implements Disposable {
     for (const group of this.groups) {
       damage += group.update(deltaTime, target);
     }
+    damage += this.venomGroup.update(deltaTime, target);
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.Simulation,
-      stageStarted,
-    );
-
-    stageStarted = performance.beginMonsterStage();
-    this.visibility.synchronize();
-    performance.endMonsterStage(
-      BattlefieldMonsterPerformanceStage.Visibility,
       stageStarted,
     );
 
@@ -224,6 +264,7 @@ implements Disposable {
       0,
     );
     this.groups.push(group);
+    this.targets.register(group);
     this.swarm = group;
   }
 
@@ -238,30 +279,14 @@ implements Disposable {
     if (this.disposed) {
       return false;
     }
-    let found = false;
-    let bestDistanceSquared = Number.POSITIVE_INFINITY;
-    for (const group of this.groups) {
-      if (!group.writeAimTarget(
-        originX,
-        originZ,
-        directionX,
-        directionZ,
-        this.aimCandidate,
-      )) {
-        continue;
-      }
-      const deltaX = this.aimCandidate.x - originX;
-      const deltaZ = this.aimCandidate.z - originZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      if (distanceSquared < bestDistanceSquared) {
-        result.x = this.aimCandidate.x;
-        result.y = this.aimCandidate.y;
-        result.z = this.aimCandidate.z;
-        bestDistanceSquared = distanceSquared;
-        found = true;
-      }
-    }
-    return found;
+    return this.targets.resolveAimTarget(
+      originX,
+      originZ,
+      directionX,
+      directionZ,
+      false,
+      result,
+    );
   }
 
   /** 在全部活动群体中使用更宽的移动朝向锥体选择自动射击目标。 */
@@ -275,30 +300,14 @@ implements Disposable {
     if (this.disposed) {
       return false;
     }
-    let found = false;
-    let bestDistanceSquared = Number.POSITIVE_INFINITY;
-    for (const group of this.groups) {
-      if (!group.writeAutoTarget(
-        originX,
-        originZ,
-        directionX,
-        directionZ,
-        this.aimCandidate,
-      )) {
-        continue;
-      }
-      const deltaX = this.aimCandidate.x - originX;
-      const deltaZ = this.aimCandidate.z - originZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      if (distanceSquared < bestDistanceSquared) {
-        result.x = this.aimCandidate.x;
-        result.y = this.aimCandidate.y;
-        result.z = this.aimCandidate.z;
-        bestDistanceSquared = distanceSquared;
-        found = true;
-      }
-    }
-    return found;
+    return this.targets.resolveAimTarget(
+      originX,
+      originZ,
+      directionX,
+      directionZ,
+      true,
+      result,
+    );
   }
 
   /** 查找一段世界子弹位移最先接触的怪物，并只对该实体施加一次伤害。 */
@@ -316,36 +325,17 @@ implements Disposable {
     if (this.disposed) {
       return false;
     }
-    let bestGroup: BattlefieldMonsterGroup | null = null;
-    let bestProgress = Number.POSITIVE_INFINITY;
-    let bestEntityId = -1;
-    for (const group of this.groups) {
-      if (!group.writeProjectileHit(
-        startX,
-        startY,
-        startZ,
-        endX,
-        endY,
-        endZ,
-        impactRadius,
-        this.projectileHitCandidate,
-      ) || this.projectileHitCandidate.segmentProgress >= bestProgress) {
-        continue;
-      }
-      bestGroup = group;
-      bestProgress = this.projectileHitCandidate.segmentProgress;
-      bestEntityId = this.projectileHitCandidate.entityId;
-      result.entityId = bestEntityId;
-      result.x = this.projectileHitCandidate.x;
-      result.y = this.projectileHitCandidate.y;
-      result.z = this.projectileHitCandidate.z;
-      result.segmentProgress = bestProgress;
-    }
-    if (bestGroup === null) {
-      return false;
-    }
-    bestGroup.damageMonster(bestEntityId, damage);
-    return true;
+    return this.targets.damageFirstAlongSegment(
+      startX,
+      startY,
+      startZ,
+      endX,
+      endY,
+      endZ,
+      impactRadius,
+      damage,
+      result,
+    );
   }
 
   /** 释放尸潮状态、共享渲染批次和调试实体。 */
@@ -354,8 +344,14 @@ implements Disposable {
       return;
     }
     this.disposed = true;
+    this.targets.unregister(this.venomGroup);
+    this.venomGroup.dispose();
     while (this.groups.length > 0) {
-      this.groups.pop()?.dispose();
+      const group = this.groups.pop();
+      if (group !== undefined) {
+        this.targets.unregister(group);
+        group.dispose();
+      }
     }
     this.renderBatch.dispose();
     if (this.renderRoot.isValid) {

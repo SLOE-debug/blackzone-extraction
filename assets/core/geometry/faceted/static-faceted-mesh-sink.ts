@@ -19,6 +19,11 @@ export class StaticFacetedMeshSink implements FacetedTriangleSink<Readonly<Facet
   private readonly normals: number[] = [];
   private readonly colors: number[] = [];
 
+  /** 当前已写入的独立硬边顶点数量，供领域编译器记录语义区段。 */
+  public get vertexCount(): number {
+    return this.positions.length / 3;
+  }
+
   /** 追加一个已经完成绕序和单位法线计算的三角形。 */
   public appendFlatTriangle(
     ax: number,

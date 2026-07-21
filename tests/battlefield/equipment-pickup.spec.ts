@@ -45,7 +45,7 @@ describe('玩家唯一武器槽拾取替换', () => {
     let discardCount = 0;
     const source: BattlefieldEquipmentPickupSource = {
       writeNearestEquipmentInspection: () => false,
-      getDroppedEquipmentId: () => EquipmentId.HandgunAmmunition,
+      getDroppedEquipmentId: () => EquipmentId.FiftyActionExpressAmmunition,
       removeDroppedEquipment: () => {
         removed = true;
         return true;
@@ -70,7 +70,7 @@ describe('玩家唯一武器槽拾取替换', () => {
       91,
       BattlefieldInteractionAction.PickupEquipment,
     )).toBe(true);
-    expect(receivedEquipmentId).toBe(EquipmentId.HandgunAmmunition);
+    expect(receivedEquipmentId).toBe(EquipmentId.FiftyActionExpressAmmunition);
     expect(removed).toBe(true);
     expect(discardCount).toBe(0);
   });

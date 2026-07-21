@@ -21,6 +21,7 @@ import {
   type MutableBattlefieldAimTarget,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
+import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 
 const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 19;
 const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(24 / 180 * Math.PI);
@@ -70,7 +71,7 @@ interface MutablePlanarMonsterHitQuery extends PlanarMonsterHitQuery {
 }
 
 /** 保持一个地图随机怪物群的独立模拟，并接入战场共享怪物渲染批次。 */
-export class BattlefieldMonsterGroup {
+export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
   private readonly population: BattlefieldMonsterRuntime;
   private readonly localTargetQuery: MutablePlanarTargetQuery = {
     originX: 0,

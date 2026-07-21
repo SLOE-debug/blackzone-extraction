@@ -12,15 +12,21 @@ import {
 } from '../entities/curve-crawler';
 import { CurveCrawlerRenderer } from '../entities/curve-crawler/rendering/curve-crawler-renderer';
 import { CommonMonsterId } from '../contracts/common-monster-id';
+import {
+  VenomLobberPopulation,
+  type VenomLobberPopulationOptions,
+} from '../entities/venom-lobber';
 
 /** Common Monsters 怪物标识到创建参数的精确映射。 */
 export interface CommonMonsterOptionsMap {
   readonly [CommonMonsterId.CurveCrawler]: CurveCrawlerPopulationOptions;
+  readonly [CommonMonsterId.VenomLobber]: VenomLobberPopulationOptions;
 }
 
 /** Common Monsters 怪物标识到群体实例的精确映射。 */
 export interface CommonMonsterPopulationMap {
   readonly [CommonMonsterId.CurveCrawler]: CurveCrawlerPopulation;
+  readonly [CommonMonsterId.VenomLobber]: VenomLobberPopulation;
 }
 
 /**
@@ -48,6 +54,12 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
     visibility: PlanarCircleVisibility,
   ): CurveCrawlerPopulationBatch;
 
+  /** 创建拥有抛物线毒弹、落点预警与催化酸池的 Venom Lobber 群体。 */
+  createVenomLobber(
+    parent: Node,
+    options: Readonly<VenomLobberPopulationOptions>,
+  ): VenomLobberPopulation;
+
   /**
    * 按怪物标识创建与参数类型对应的群体实例。
    */
@@ -73,6 +85,10 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
 
   private readonly factories: CommonMonsterFactoryMap = Object.freeze({
     [CommonMonsterId.CurveCrawler]: (parent, options) => this.createCurveCrawler(
+      parent,
+      options,
+    ),
+    [CommonMonsterId.VenomLobber]: (parent, options) => this.createVenomLobber(
       parent,
       options,
     ),
@@ -106,6 +122,13 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
     visibility: PlanarCircleVisibility,
   ): CurveCrawlerPopulationBatch {
     return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate, visibility);
+  }
+
+  public createVenomLobber(
+    parent: Node,
+    options: Readonly<VenomLobberPopulationOptions>,
+  ): VenomLobberPopulation {
+    return new VenomLobberPopulation(parent, options);
   }
 
   public create<TId extends CommonMonsterId>(

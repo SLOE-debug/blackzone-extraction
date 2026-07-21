@@ -1,4 +1,6 @@
 import { type EntityRange } from '../../../../../core/entities/entity-range';
+import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import { PlanarVisibilityDetail } from '../../../../../core/contracts/planar-circle-visibility';
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
 import { type MeshEvaluator } from '../../../../../core/mesh/mesh-evaluator';
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
@@ -13,6 +15,7 @@ import { evaluateCurveCrawlerColors } from './curve-crawler-mesh-colors';
 import { evaluateCurveCrawlerEyeMesh } from './curve-crawler-eye-mesh-evaluator';
 import { evaluateCurveCrawlerLiquidMesh } from './curve-crawler-liquid-mesh-evaluator';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
+import { CurveCrawlerPackedMeshUpdate } from './curve-crawler-packed-mesh-update';
 import { curveCrawlerMeshPlan } from './curve-crawler-mesh-compiler';
 import {
   createCurveCrawlerEmergenceScratch,
@@ -78,6 +81,8 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         entityVertexOffset,
         writeGeometry,
         writeColors,
+        PlanarVisibilityDetail.Full,
+        this.writeNormals,
       );
     }
 
@@ -96,6 +101,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     plan: CurveCrawlerMeshPlan,
     streams: VertexStreams,
     entityIndices: Uint32Array,
+    detailLevels: Uint8Array,
     entityCount: number,
     targetEntityOffset: number,
     requested: MeshDirty,
@@ -103,6 +109,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     if (!Number.isInteger(entityCount)
       || entityCount < 0
       || entityCount > entityIndices.length
+      || entityCount > detailLevels.length
       || !Number.isInteger(targetEntityOffset)
       || targetEntityOffset < 0) {
       throw new Error('Curve Crawler 紧凑求值范围无效。');
@@ -123,8 +130,17 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     );
     for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
       const entityIndex = entityIndices[packedIndex];
+      const detailValue = detailLevels[packedIndex];
       if (entityIndex === undefined || entityIndex >= state.count) {
         throw new Error('Curve Crawler 紧凑求值清单包含越界实体槽位。');
+      }
+      if (detailValue === undefined) {
+        throw new Error('Curve Crawler 紧凑求值清单缺少细节档位。');
+      }
+      const detail = detailValue as PlanarVisibilityDetail;
+      if (detail < PlanarVisibilityDetail.Full
+        || detail > PlanarVisibilityDetail.Minimal) {
+        throw new Error('Curve Crawler 紧凑求值清单包含无效细节档位。');
       }
       this.evaluateEntity(
         state,
@@ -134,9 +150,77 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         (targetEntityOffset + packedIndex) * plan.vertexCount,
         writeGeometry,
         writeColors,
+        detail,
+        this.writeNormals,
       );
     }
     return createChangedFlags(requested, writeGeometry, writeColors, this.writeNormals);
+  }
+
+  /**
+   * 按单实体更新命令错峰求值共享 Unlit 批次。
+   *
+   * Position 命令不计算 CPU 法线与颜色；Shaded 命令只重算发生颜色档位变化的
+   * 实体，供调用方随后烘焙该实体的分面明暗。
+   */
+  public evaluatePackedScheduled(
+    state: CurveCrawlerState,
+    plan: CurveCrawlerMeshPlan,
+    streams: VertexStreams,
+    entityIndices: Uint32Array,
+    detailLevels: Uint8Array,
+    updates: Uint8Array,
+    entityCount: number,
+    targetEntityOffset: number,
+  ): MeshDirty {
+    if (!Number.isInteger(entityCount)
+      || entityCount < 0
+      || entityCount > entityIndices.length
+      || entityCount > detailLevels.length
+      || entityCount > updates.length
+      || !Number.isInteger(targetEntityOffset)
+      || targetEntityOffset < 0) {
+      throw new Error('Curve Crawler 错峰紧凑求值范围无效。');
+    }
+    assertCurveCrawlerStreamCapacity(
+      plan,
+      streams,
+      targetEntityOffset + entityCount,
+      true,
+    );
+    let changed = MeshDirty.None;
+    for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
+      const update = updates[packedIndex] as CurveCrawlerPackedMeshUpdate;
+      if (update === CurveCrawlerPackedMeshUpdate.None) {
+        continue;
+      }
+      const entityIndex = entityIndices[packedIndex];
+      const detail = detailLevels[packedIndex] as PlanarVisibilityDetail;
+      if (entityIndex === undefined || entityIndex >= state.count
+        || detail < PlanarVisibilityDetail.Full
+        || detail > PlanarVisibilityDetail.Minimal
+        || update < CurveCrawlerPackedMeshUpdate.Position
+        || update > CurveCrawlerPackedMeshUpdate.Shaded) {
+        throw new Error('Curve Crawler 错峰紧凑求值命令无效。');
+      }
+      const shaded = update === CurveCrawlerPackedMeshUpdate.Shaded;
+      this.evaluateEntity(
+        state,
+        plan,
+        streams,
+        entityIndex,
+        (targetEntityOffset + packedIndex) * plan.vertexCount,
+        true,
+        shaded,
+        detail,
+        shaded,
+      );
+      changed |= MeshDirty.Position;
+      if (shaded) {
+        changed |= MeshDirty.Color;
+      }
+    }
+    return changed;
   }
 
   /** 将一个源实体求值到指定的目标顶点区段。 */
@@ -148,62 +232,73 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     entityVertexOffset: number,
     writeGeometry: boolean,
     writeColors: boolean,
+    detail: PlanarVisibilityDetail,
+    writeNormals: boolean,
   ): void {
     if (writeGeometry) {
-      const surfaceCollapse = state.data.animation.surfaceCollapse[entityIndex] ?? 0;
-      if (surfaceCollapse >= 0.999) {
-        collapseCurveCrawlerBodyAndEyes(
-          plan,
-          streams,
-          entityVertexOffset,
-          state.data.transform.x[entityIndex] ?? 0,
-          state.data.transform.y[entityIndex] ?? 0,
-          true,
-          this.writeNormals,
-        );
-      } else {
-        const fragmentScale = Math.max(0.0001, 1 - surfaceCollapse);
-        evaluateCurveCrawlerBodyMesh(
+      const lifecycle = state.data.vitality.state[entityIndex] as MonsterLifecycleState;
+      const bodyVisible = lifecycle !== MonsterLifecycleState.Spawning
+        || (state.data.animation.emergenceBodyScale[entityIndex] ?? 0) > 0.001;
+      if (bodyVisible) {
+        const surfaceCollapse = state.data.animation.surfaceCollapse[entityIndex] ?? 0;
+        if (surfaceCollapse >= 0.999) {
+          collapseCurveCrawlerBodyAndEyes(
+            plan,
+            streams,
+            entityVertexOffset,
+            state.data.transform.x[entityIndex] ?? 0,
+            state.data.transform.y[entityIndex] ?? 0,
+            true,
+            writeNormals,
+          );
+        } else {
+          const fragmentScale = Math.max(0.0001, 1 - surfaceCollapse);
+          evaluateCurveCrawlerBodyMesh(
+            state,
+            plan,
+            entityIndex,
+            entityVertexOffset,
+            fragmentScale,
+            streams,
+            true,
+            writeNormals,
+            detail,
+            this.legScratch,
+          );
+          evaluateCurveCrawlerEyeMesh(
+            state,
+            plan,
+            entityIndex,
+            entityVertexOffset,
+            fragmentScale,
+            streams,
+            true,
+            writeNormals,
+          );
+        }
+      }
+      if (lifecycle === MonsterLifecycleState.Dying) {
+        evaluateCurveCrawlerLiquidMesh(
           state,
           plan,
           entityIndex,
           entityVertexOffset,
-          fragmentScale,
           streams,
           true,
-          this.writeNormals,
-          this.legScratch,
+          writeNormals,
         );
-        evaluateCurveCrawlerEyeMesh(
+      } else if (lifecycle === MonsterLifecycleState.Spawning) {
+        evaluateCurveCrawlerEmergenceMesh(
           state,
           plan,
           entityIndex,
           entityVertexOffset,
-          fragmentScale,
           streams,
           true,
-          this.writeNormals,
+          writeNormals,
+          this.emergenceScratch,
         );
       }
-      evaluateCurveCrawlerLiquidMesh(
-        state,
-        plan,
-        entityIndex,
-        entityVertexOffset,
-        streams,
-        true,
-        this.writeNormals,
-      );
-      evaluateCurveCrawlerEmergenceMesh(
-        state,
-        plan,
-        entityIndex,
-        entityVertexOffset,
-        streams,
-        true,
-        this.writeNormals,
-        this.emergenceScratch,
-      );
     }
     if (writeColors) {
       evaluateCurveCrawlerColors(

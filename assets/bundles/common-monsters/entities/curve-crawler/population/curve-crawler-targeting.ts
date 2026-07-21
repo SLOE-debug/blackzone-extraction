@@ -27,13 +27,20 @@ export class CurveCrawlerTargeting {
       }
       const deltaX = (transform.x[index] ?? 0) - query.originX;
       const deltaY = (transform.y[index] ?? 0) - query.originY;
-      const distance = Math.hypot(deltaX, deltaY);
-      if (distance <= DIRECTION_EPSILON || distance > query.maximumDistance) {
+      const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+      if (distanceSquared <= DIRECTION_EPSILON * DIRECTION_EPSILON
+        || distanceSquared > query.maximumDistance * query.maximumDistance) {
         continue;
       }
-      const inverseDistance = 1 / distance;
-      const alignment = (deltaX * query.directionX + deltaY * query.directionY)
-        * inverseDistance;
+      const forwardDistance = deltaX * query.directionX + deltaY * query.directionY;
+      if (query.minimumAlignment >= 0
+        && (forwardDistance < 0
+          || forwardDistance * forwardDistance
+            < query.minimumAlignment * query.minimumAlignment * distanceSquared)) {
+        continue;
+      }
+      const distance = Math.sqrt(distanceSquared);
+      const alignment = forwardDistance / distance;
       if (alignment < query.minimumAlignment) {
         continue;
       }

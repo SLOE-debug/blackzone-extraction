@@ -19,7 +19,7 @@ import { BattlefieldEnvironmentRenderer } from '../rendering/battlefield-environ
 /**
  * 战场环境 ECS 门面。
  *
- * 门面只编排确定性 Chunk 生成、静态障碍索引和可裁剪 Chunk 批次，不承载造型配方。
+ * 门面只编排确定性 Chunk 生成、静态障碍索引和统一窗口批次，不承载造型配方。
  */
 export class BattlefieldEnvironmentPopulation {
   private readonly preparation = prepareBattlefieldEnvironment();
@@ -48,12 +48,12 @@ export class BattlefieldEnvironmentPopulation {
     return count;
   }
 
-  /** 环境渲染器是否仍在分帧创建新的 Chunk 批次。 */
+  /** 环境渲染器是否仍在分帧构建下一份统一窗口几何。 */
   public get renderingSynchronizing(): boolean {
     return this.renderer.synchronizing;
   }
 
-  /** 当前具有独立包围盒并可由相机剔除的环境 Chunk 批次数量。 */
+  /** 当前环境窗口实际占用的渲染批次数量，稳定上限为一。 */
   public get renderBatchCount(): number {
     return this.renderer.activeBatchCount;
   }
@@ -72,7 +72,7 @@ export class BattlefieldEnvironmentPopulation {
       initialTransition,
     );
     try {
-      // 场景尚未激活，首次 Chunk 批次在加载阶段一次完成，避免把初始化成本泄漏到开场帧。
+      // 场景尚未激活，首份统一批次在加载阶段完成，避免把初始化成本泄漏到开场帧。
       this.renderer.completeInitialSynchronization();
     } catch (error: unknown) {
       this.renderer.dispose();
@@ -97,7 +97,7 @@ export class BattlefieldEnvironmentPopulation {
     return this.placement.isAreaClearOf(prototypes, x, z, clearanceRadius);
   }
 
-  /** 玩家跨越 Chunk 边界时同步重用实体槽位、空间索引和 GPU 顶点流。 */
+  /** 玩家跨越 Chunk 边界时重用实体槽位、重建空间索引并请求统一 GPU 批次。 */
   public update(playerX: number, playerZ: number): void {
     this.ensureActive();
     const nextChunkX = worldCoordinateToEnvironmentChunk(playerX);

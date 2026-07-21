@@ -75,26 +75,27 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
 
       const deltaX = this.targetX - (state.data.transform.x[index] ?? 0);
       const deltaY = this.targetY - (state.data.transform.y[index] ?? 0);
-      const distance = Math.hypot(deltaX, deltaY);
+      const distanceSquared = deltaX * deltaX + deltaY * deltaY;
       const engaged = (combat.engaged[index] ?? 0) !== 0;
       if (!engaged) {
-        if (distance > this.options.detectionRadius) {
+        if (distanceSquared > this.options.detectionRadius * this.options.detectionRadius) {
           continue;
         }
         combat.engaged[index] = 1;
-      } else if (distance > this.options.disengageRadius) {
+      } else if (distanceSquared
+        > this.options.disengageRadius * this.options.disengageRadius) {
         this.disengage(state, index);
         continue;
       }
 
       state.data.transform.targetHeading[index] = Math.atan2(deltaY, deltaX);
       if (wasBiting) {
-        this.updateBite(state, index, deltaTime, distance);
+        this.updateBite(state, index, deltaTime, distanceSquared);
         continue;
       }
 
       const attackDistance = this.targetCollisionRadius + this.options.attackReach;
-      if (distance > attackDistance) {
+      if (distanceSquared > attackDistance * attackDistance) {
         this.pursue(state, index);
         continue;
       }
@@ -167,7 +168,7 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
     state: CurveCrawlerState,
     index: number,
     deltaTime: number,
-    targetDistance: number,
+    targetDistanceSquared: number,
   ): void {
     const { behavior, combat, intent } = state.data;
     const timing = this.options.biteTiming;
@@ -204,7 +205,7 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
       const maximumImpactDistance = this.targetCollisionRadius
         + this.options.attackReach
         + this.options.impactTolerance;
-      if (targetDistance <= maximumImpactDistance) {
+      if (targetDistanceSquared <= maximumImpactDistance * maximumImpactDistance) {
         this.pendingAttackDamage += this.options.damage;
       }
     }

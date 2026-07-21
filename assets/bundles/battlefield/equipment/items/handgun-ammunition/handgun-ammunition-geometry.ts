@@ -28,7 +28,7 @@ const CASE_OUTLINE = Object.freeze([
 ] satisfies readonly AmmunitionPackOutlinePoint[]);
 
 /** 创建带蓝色切角弹盒和外露黄铜弹头的手枪弹药拾取物。 */
-export function createHandgunAmmunitionGeometry() {
+export function createFiftyActionExpressAmmunitionGeometry() {
   const sink = new StaticFacetedMeshSink();
   appendFacetedAmmunitionCase(
     sink,
@@ -76,4 +76,5 @@ function color(red: number, green: number, blue: number): Readonly<FacetedColor>
 }
 
 /** 模块级复用的手枪弹药固定拓扑。 */
-export const HANDGUN_AMMUNITION_GEOMETRY = createHandgunAmmunitionGeometry();
+export const FIFTY_ACTION_EXPRESS_AMMUNITION_GEOMETRY =
+  createFiftyActionExpressAmmunitionGeometry();

@@ -44,6 +44,7 @@ import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
 import { CurveCrawlerProjectileHitSystem } from './curve-crawler-projectile-hit-system';
 import { CurveCrawlerRepopulationSystem } from './curve-crawler-repopulation-system';
+import { CurveCrawlerSimulationCadence } from './curve-crawler-simulation-cadence';
 import { CurveCrawlerTargeting } from './curve-crawler-targeting';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
@@ -70,6 +71,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly repopulation: CurveCrawlerRepopulationSystem;
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly emergence = new CurveCrawlerEmergenceSystem();
+  private readonly cadence = new CurveCrawlerSimulationCadence();
   private readonly rendering: CurveCrawlerPopulationRendering;
   public readonly observationFootprint: Readonly<MonsterObservationFootprint>;
   private disposed = false;
@@ -134,16 +136,24 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
 
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
     if (!this.repopulation.hasResidents()) {
+      this.cadence.reset();
       return;
     }
+    this.cadence.advance(safeDeltaTime);
     this.emergence.update(this.state, safeDeltaTime);
     this.hit.update(this.state, safeDeltaTime);
     this.death.update(this.state, safeDeltaTime);
-    this.behavior.update(this.state, safeDeltaTime);
-    this.observation.update(this.state, safeDeltaTime);
-    this.combat?.update(this.state, safeDeltaTime);
+    const intentDeltaTime = this.cadence.intentDeltaTime;
+    if (intentDeltaTime > 0) {
+      this.behavior.update(this.state, intentDeltaTime);
+      this.observation.update(this.state, intentDeltaTime);
+      this.combat?.update(this.state, intentDeltaTime);
+    }
     this.movement.update(this.state, safeDeltaTime);
-    this.separation.update(this.state, safeDeltaTime);
+    const separationDeltaTime = this.cadence.separationDeltaTime;
+    if (separationDeltaTime > 0) {
+      this.separation.update(this.state, separationDeltaTime);
+    }
     this.animation.update(this.state, safeDeltaTime);
     this.rendering.update();
   }

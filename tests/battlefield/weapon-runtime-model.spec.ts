@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
+import {
+  BATTLEFIELD_EQUIPMENT_LIBRARY,
+  getBattlefieldWeaponPrototype,
+} from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import { createWeaponAmmunition } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition';
 import { WeaponAmmunitionReserve } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition-reserve';
+import { WeaponAmmunitionInventory } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition-inventory';
 import { BattlefieldWeaponActionState } from '../../assets/bundles/battlefield/equipment/combat/battlefield-weapon-action-state';
 import {
   BattlefieldWeaponAttackExecutor,
   BattlefieldWeaponAttackResult,
 } from '../../assets/bundles/battlefield/equipment/combat/battlefield-weapon-attack-executor';
+import { writeBattlefieldWeaponMuzzlePose } from '../../assets/bundles/battlefield/equipment/combat/battlefield-weapon-muzzle-pose';
 import {
   BATTLEFIELD_PROJECTILE_TOPOLOGY,
   writeBattlefieldProjectilePositions,
@@ -31,10 +36,6 @@ import {
 import { VanguardWeaponPose } from '../../assets/player/vanguard/model/vanguard-weapon-pose';
 import { VanguardWeaponAction } from '../../assets/player/vanguard/model/vanguard-weapon-action';
 import {
-  getVanguardWeaponRigProfile,
-  VanguardWeaponRigSocket,
-} from '../../assets/player/vanguard/model/vanguard-weapon-rig';
-import {
   toVanguardWeaponAction,
   toVanguardWeaponPose,
 } from '../../assets/bundles/battlefield/scene/battlefield-vanguard-weapon-adapter';
@@ -43,7 +44,7 @@ describe('玩家武器运行时模型', () => {
   it('只在场景边界把中立武器语义适配为 Vanguard 动画枚举', () => {
     expect(toVanguardWeaponPose(null)).toBe(VanguardWeaponPose.Unarmed);
     expect(toVanguardWeaponPose(WeaponGrip.Handgun)).toBe(VanguardWeaponPose.Handgun);
-    expect(toVanguardWeaponPose(WeaponGrip.LongGun)).toBe(VanguardWeaponPose.Shotgun);
+    expect(toVanguardWeaponPose(WeaponGrip.LongGun)).toBe(VanguardWeaponPose.LongGun);
     expect(toVanguardWeaponAction(WeaponAction.Ready)).toBe(VanguardWeaponAction.Ready);
     expect(toVanguardWeaponAction(WeaponAction.Fire)).toBe(VanguardWeaponAction.Fire);
     expect(toVanguardWeaponAction(WeaponAction.Reload)).toBe(VanguardWeaponAction.Reload);
@@ -113,7 +114,7 @@ describe('玩家武器运行时模型', () => {
     expect(ammunition.tryConsumeShot()).toBe(false);
     expect(ammunition.beginReload()).toBe(false);
 
-    reserve.add(AmmunitionType.HandgunRound, 6);
+    reserve.add(AmmunitionType.FiftyActionExpress, 6);
     expect(ammunition.beginReload()).toBe(true);
     ammunition.update(1.08);
     expect(ammunition.roundsRemaining).toBe(6);
@@ -123,7 +124,7 @@ describe('玩家武器运行时模型', () => {
   it('霰弹枪耗尽五发后按单发节奏连续装填管式弹仓', () => {
     const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.PumpShotgun);
     const reserve = new WeaponAmmunitionReserve();
-    reserve.add(AmmunitionType.ShotgunShell, 5);
+    reserve.add(AmmunitionType.TwelveGauge, 5);
     const ammunition = createWeaponAmmunition(definition.ammunition, reserve);
 
     for (let shot = 0; shot < 5; shot++) {
@@ -140,6 +141,40 @@ describe('玩家武器运行时模型', () => {
     expect(ammunition.roundsRemaining).toBe(5);
     expect(ammunition.reserveRounds).toBe(0);
     expect(ammunition.reloading).toBe(false);
+  });
+
+  it('再次拾取同款枪时创建全新满弹仓，不复用已经打空的旧实例', () => {
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
+    const inventory = new WeaponAmmunitionInventory();
+    const firstWeapon = inventory.createFreshMagazine(definition);
+    inventory.provisionFirstAcquisition(definition);
+    for (let shot = 0; shot < definition.ammunition.capacity; shot++) {
+      expect(firstWeapon.tryConsumeShot()).toBe(true);
+    }
+    expect(firstWeapon.empty).toBe(true);
+
+    const replacement = inventory.createFreshMagazine(definition);
+    inventory.provisionFirstAcquisition(definition);
+
+    expect(replacement).not.toBe(firstWeapon);
+    expect(replacement.roundsRemaining).toBe(definition.ammunition.capacity);
+    expect(replacement.reserveRounds).toBe(definition.ammunition.initialReserveRounds);
+  });
+
+  it('不同枪型首次拾取会按自身口径发放充足备用弹', () => {
+    const inventory = new WeaponAmmunitionInventory();
+    const vector = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.KrissVector);
+    const m4a1 = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.M4A1);
+
+    const vectorAmmunition = inventory.createFreshMagazine(vector);
+    inventory.provisionFirstAcquisition(vector);
+    const m4Ammunition = inventory.createFreshMagazine(m4a1);
+    inventory.provisionFirstAcquisition(m4a1);
+
+    expect(vectorAmmunition.reserveRounds).toBe(210);
+    expect(m4Ammunition.reserveRounds).toBe(180);
+    expect(vectorAmmunition.ammunitionType).toBe(AmmunitionType.FortyFiveAcp);
+    expect(m4Ammunition.ammunitionType).toBe(AmmunitionType.FiveFiveSixNato);
   });
 
   it('按射速与飞行时间推导子弹槽位并原地复用', () => {
@@ -161,17 +196,39 @@ describe('玩家武器运行时模型', () => {
   });
 
   it('从手枪几何的真实枪口推导掌心前方弹道起点', () => {
-    const muzzle = getVanguardWeaponRigProfile(VanguardWeaponPose.Handgun)
-      .sockets[VanguardWeaponRigSocket.Muzzle];
-    expect(muzzle.z).toBeCloseTo(0.3484, 6);
-    expect(muzzle.y).toBeCloseTo(0.1028, 6);
+    const held = getBattlefieldWeaponPrototype(EquipmentId.DesertEagle).held;
+    expect(held.muzzleForwardOffset).toBeCloseTo(0.35, 6);
+    expect(held.muzzleHeightOffset).toBeCloseTo(0.103, 6);
   });
 
-  it('从霰弹枪真实枪口推导远于双手的弹道起点', () => {
-    const muzzle = getVanguardWeaponRigProfile(VanguardWeaponPose.Shotgun)
-      .sockets[VanguardWeaponRigSocket.Muzzle];
-    expect(muzzle.z).toBeCloseTo(0.998, 6);
-    expect(muzzle.y).toBeCloseTo(0.118, 6);
+  it('每把长枪按自身模型长度提供独立枪口，不再共用霰弹枪挂点', () => {
+    const vector = getBattlefieldWeaponPrototype(EquipmentId.KrissVector).held;
+    const shotgun = getBattlefieldWeaponPrototype(EquipmentId.PumpShotgun).held;
+    const m4a1 = getBattlefieldWeaponPrototype(EquipmentId.M4A1).held;
+    expect(vector.muzzleForwardOffset).toBeCloseTo(0.794, 6);
+    expect(shotgun.muzzleForwardOffset).toBeCloseTo(0.998, 6);
+    expect(m4a1.muzzleForwardOffset).toBeCloseTo(0.978, 6);
+    expect(vector.muzzleForwardOffset).not.toBe(shotgun.muzzleForwardOffset);
+  });
+
+  it('把枪型独立枪口偏移随 WeaponAimRoot 四元数旋转到世界空间', () => {
+    const held = getBattlefieldWeaponPrototype(EquipmentId.KrissVector).held;
+    const halfAngle = Math.PI * 0.25;
+    const result = { muzzleX: 0, muzzleY: 0, muzzleZ: 0 };
+
+    writeBattlefieldWeaponMuzzlePose({
+      rootX: 3,
+      rootY: 2,
+      rootZ: 5,
+      rotationX: 0,
+      rotationY: Math.sin(halfAngle),
+      rotationZ: 0,
+      rotationW: Math.cos(halfAngle),
+    }, held, result);
+
+    expect(result.muzzleX).toBeCloseTo(3 + held.muzzleForwardOffset, 6);
+    expect(result.muzzleY).toBeCloseTo(2 + held.muzzleHeightOffset, 6);
+    expect(result.muzzleZ).toBeCloseTo(5, 6);
   });
 
   it('九枚霰弹以准星中心为首发并形成确定性单位方向锥', () => {

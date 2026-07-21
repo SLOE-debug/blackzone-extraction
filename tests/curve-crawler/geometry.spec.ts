@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEntityRange } from '../../assets/core/entities/entity-range';
 import { MeshDirty } from '../../assets/core/mesh/mesh-dirty';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import {
   curveCrawlerMeshPlan,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-compiler';
@@ -72,6 +73,7 @@ describe('Curve Crawler 编译式动态几何', () => {
     const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, range.count);
     state.data.animation.liquidSpread[0] = 1;
     state.data.animation.liquidDrain[0] = 0;
+    state.data.vitality.state[0] = MonsterLifecycleState.Dying;
     const indices = Array.from(curveCrawlerMeshPlan.indices);
 
     curveCrawlerMeshEvaluator.evaluate(
@@ -138,6 +140,7 @@ describe('Curve Crawler 编译式动态几何', () => {
     const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, range.count);
     state.data.animation.surfaceCollapse[0] = 0.74;
     state.data.animation.liquidSpread[0] = 0.9;
+    state.data.vitality.state[0] = MonsterLifecycleState.Dying;
     for (let fragment = 0; fragment < 12; fragment++) {
       state.data.animation.fragmentOffsetX[fragment] = fragment * 0.31;
       state.data.animation.fragmentOffsetY[fragment] = -fragment * 0.17;

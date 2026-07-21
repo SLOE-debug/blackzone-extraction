@@ -29,9 +29,10 @@ export const PUMP_SHOTGUN_PROTOTYPE = Object.freeze({
     attackAnimationSeconds: 0.68,
     ammunition: Object.freeze({
       mode: WeaponAmmunitionMode.TubeMagazine,
-      ammunitionType: AmmunitionType.ShotgunShell,
+      ammunitionType: AmmunitionType.TwelveGauge,
       capacity: 5,
       shellReloadSeconds: 0.62,
+      initialReserveRounds: 36,
     }),
     shotPattern: Object.freeze({
       type: WeaponShotPatternType.PelletCone,
@@ -54,6 +55,9 @@ export const PUMP_SHOTGUN_PROTOTYPE = Object.freeze({
     originRightOffset: 0,
     originHeightOffset: 0.055,
     originForwardOffset: 0.045,
+    muzzleRightOffset: 0,
+    muzzleHeightOffset: 0.118,
+    muzzleForwardOffset: 0.998,
     rotationXDegrees: 0,
     rotationYDegrees: -90,
     rotationZDegrees: 0,

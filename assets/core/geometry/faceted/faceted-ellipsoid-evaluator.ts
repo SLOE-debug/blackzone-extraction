@@ -21,7 +21,51 @@ export function evaluateFacetedEllipsoid(
   writePositions: boolean,
   writeNormals: boolean,
 ): void {
-  if (![centerX, centerY, centerZ, radiusX, radiusY, radiusZ, rotation].every(Number.isFinite)
+  evaluateFacetedEllipsoidRotated(
+    plan,
+    streams,
+    vertexOffset,
+    centerX,
+    centerY,
+    centerZ,
+    radiusX,
+    radiusY,
+    radiusZ,
+    Math.cos(rotation),
+    Math.sin(rotation),
+    writePositions,
+    writeNormals,
+  );
+}
+
+/**
+ * 使用调用方已经缓存的旋转正余弦求值分面椭球。
+ *
+ * 大量同向实体可以复用同一对正余弦，避免每个身体分区重复执行三角函数。
+ */
+export function evaluateFacetedEllipsoidRotated(
+  plan: FacetedEllipsoidPlan,
+  streams: VertexStreams,
+  vertexOffset: number,
+  centerX: number,
+  centerY: number,
+  centerZ: number,
+  radiusX: number,
+  radiusY: number,
+  radiusZ: number,
+  rotationCosine: number,
+  rotationSine: number,
+  writePositions: boolean,
+  writeNormals: boolean,
+): void {
+  if (!Number.isFinite(centerX)
+    || !Number.isFinite(centerY)
+    || !Number.isFinite(centerZ)
+    || !Number.isFinite(radiusX)
+    || !Number.isFinite(radiusY)
+    || !Number.isFinite(radiusZ)
+    || !Number.isFinite(rotationCosine)
+    || !Number.isFinite(rotationSine)
     || radiusX <= 0
     || radiusY <= 0
     || radiusZ <= 0) {
@@ -32,8 +76,6 @@ export function evaluateFacetedEllipsoid(
   }
 
   if (writePositions) {
-    const rotationCosine = Math.cos(rotation);
-    const rotationSine = Math.sin(rotation);
     for (let vertex = 0; vertex < plan.vertexCount; vertex++) {
       const directionOffset = vertex * 3;
       const scale = plan.radiusScales[vertex] ?? 1;

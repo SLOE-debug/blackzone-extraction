@@ -135,6 +135,8 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.x.fill(0);
     state.data.transform.y.fill(0);
     state.data.transform.heading[0] = Math.PI * 0.5;
+    state.data.transform.headingCosine[0] = 0;
+    state.data.transform.headingSine[0] = 1;
     state.data.vitality.state[1] = MonsterLifecycleState.DeathComplete;
     state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const hitSystem = new CurveCrawlerProjectileHitSystem();

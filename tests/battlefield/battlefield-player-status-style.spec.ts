@@ -4,8 +4,8 @@ import { BATTLEFIELD_PLAYER_STATUS_STYLE } from '../../assets/bundles/battlefiel
 describe('战场玩家生命条布局', () => {
   it('保持单行紧凑尺寸并使用居中数字所需的标签空间', () => {
     const style = BATTLEFIELD_PLAYER_STATUS_STYLE;
-    expect(style.panelWidth).toBeLessThanOrEqual(140);
-    expect(style.panelHeight).toBeLessThanOrEqual(36);
+    expect(style.panelWidth).toBeLessThanOrEqual(120);
+    expect(style.panelHeight).toBeLessThanOrEqual(22);
     expect(style.labelHeight).toBeLessThan(style.panelHeight);
     expect(style.fillInset).toBeGreaterThan(0);
   });

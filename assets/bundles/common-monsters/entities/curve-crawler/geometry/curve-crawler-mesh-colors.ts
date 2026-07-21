@@ -1,5 +1,9 @@
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
+  quantizeCurveCrawlerHitFlash,
+  quantizeCurveCrawlerLiquidDrain,
+} from '../model/curve-crawler-color-signal';
+import {
   CurveCrawlerMeshSemantic,
   type CurveCrawlerMeshPlan,
 } from './curve-crawler-mesh-plan';
@@ -51,8 +55,12 @@ export function evaluateCurveCrawlerColors(
   entityVertexOffset: number,
   colors: Float32Array,
 ): void {
-  const hitFlash = state.data.animation.hitFlash[entityIndex] ?? 0;
-  const liquidDrain = state.data.animation.liquidDrain[entityIndex] ?? 0;
+  const hitFlash = quantizeCurveCrawlerHitFlash(
+    state.data.animation.hitFlash[entityIndex] ?? 0,
+  );
+  const liquidDrain = quantizeCurveCrawlerLiquidDrain(
+    state.data.animation.liquidDrain[entityIndex] ?? 0,
+  );
   const eyeRed = mix(EYE_RED, HIT_RED, hitFlash);
   const eyeGreen = mix(EYE_GREEN, HIT_GREEN, hitFlash);
   const eyeBlue = mix(EYE_BLUE, HIT_BLUE, hitFlash);

@@ -24,7 +24,9 @@ const TRANSLATION = Object.freeze({
 describe('掉落装备批几何', () => {
   it('把不同装备固定流拼为连续区段并只动态改写位置', () => {
     const first = getBattlefieldEquipmentPrototype(EquipmentId.DesertEagle).geometry;
-    const second = getBattlefieldEquipmentPrototype(EquipmentId.HandgunAmmunition).geometry;
+    const second = getBattlefieldEquipmentPrototype(
+      EquipmentId.FiftyActionExpressAmmunition,
+    ).geometry;
     const packed = createDroppedEquipmentBatchGeometry([first, second]);
 
     expect(packed.vertexOffsets).toEqual([0, first.vertexCount]);

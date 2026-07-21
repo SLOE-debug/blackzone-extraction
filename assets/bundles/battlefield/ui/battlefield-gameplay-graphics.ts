@@ -1,12 +1,13 @@
 import { Graphics, Layers, Node, UITransform } from 'cc';
 import { type VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { type BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
+import { type BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
 
 /**
- * 把常驻双摇杆与玩家血条压入同一个 Graphics 组件。
+ * 把常驻双摇杆、玩家血条与武器弹药板压入同一个 Graphics 组件。
  *
- * 各交互节点仍独立保留命中区域；只有可见几何集中提交，从三个常驻 UI Draw Call
- * 降为一个，并且仅在输入、生命值或布局实际变化时重建路径。
+ * 各交互节点仍独立保留命中区域；只有可见几何集中提交为一个 Graphics 批次，
+ * 并且仅在输入、生命值、弹药或布局实际变化时重建路径。
  */
 export class BattlefieldGameplayGraphics {
   private readonly root: Node;
@@ -15,6 +16,7 @@ export class BattlefieldGameplayGraphics {
   private movementRevision = -1;
   private aimRevision = -1;
   private playerStatusRevision = -1;
+  private weaponStatusRevision = -1;
   private width = -1;
   private height = -1;
   private disposed = false;
@@ -37,6 +39,7 @@ export class BattlefieldGameplayGraphics {
     movement: VirtualJoystick,
     aim: VirtualJoystick,
     playerStatus: BattlefieldPlayerStatusHud,
+    weaponStatus: BattlefieldWeaponStatusHud,
   ): void {
     if (this.disposed) {
       return;
@@ -45,7 +48,8 @@ export class BattlefieldGameplayGraphics {
     if (!frameChanged
       && movement.graphicsRevision === this.movementRevision
       && aim.graphicsRevision === this.aimRevision
-      && playerStatus.graphicsRevision === this.playerStatusRevision) {
+      && playerStatus.graphicsRevision === this.playerStatusRevision
+      && weaponStatus.graphicsRevision === this.weaponStatusRevision) {
       return;
     }
     if (frameChanged) {
@@ -57,9 +61,11 @@ export class BattlefieldGameplayGraphics {
     movement.draw(this.graphics);
     aim.draw(this.graphics);
     playerStatus.draw(this.graphics);
+    weaponStatus.draw(this.graphics);
     this.movementRevision = movement.graphicsRevision;
     this.aimRevision = aim.graphicsRevision;
     this.playerStatusRevision = playerStatus.graphicsRevision;
+    this.weaponStatusRevision = weaponStatus.graphicsRevision;
   }
 
   public dispose(): void {

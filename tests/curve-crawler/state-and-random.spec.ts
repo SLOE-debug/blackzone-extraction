@@ -29,8 +29,11 @@ describe('Curve Crawler 状态初始化', () => {
     expect(Array.from(first.data.death.fragmentSpinSpeed)).toEqual(
       Array.from(second.data.death.fragmentSpinSpeed),
     );
-    expect(Array.from(first.data.animation.legPhaseOffsets)).toEqual(
-      Array.from(second.data.animation.legPhaseOffsets),
+    expect(Array.from(first.data.animation.legPhaseCosines)).toEqual(
+      Array.from(second.data.animation.legPhaseCosines),
+    );
+    expect(Array.from(first.data.animation.legPhaseSines)).toEqual(
+      Array.from(second.data.animation.legPhaseSines),
     );
   });
 

@@ -21,6 +21,12 @@ export interface HeldWeaponProfile {
   readonly originRightOffset: number;
   readonly originHeightOffset: number;
   readonly originForwardOffset: number;
+  /** 枪口相对 WeaponAimRoot 的局部右向偏移。 */
+  readonly muzzleRightOffset: number;
+  /** 枪口相对 WeaponAimRoot 的局部高度偏移。 */
+  readonly muzzleHeightOffset: number;
+  /** 枪口相对 WeaponAimRoot 的局部前向偏移。 */
+  readonly muzzleForwardOffset: number;
   readonly rotationXDegrees: number;
   readonly rotationYDegrees: number;
   readonly rotationZDegrees: number;

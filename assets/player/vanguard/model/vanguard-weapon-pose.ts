@@ -2,5 +2,5 @@
 export enum VanguardWeaponPose {
   Unarmed,
   Handgun,
-  Shotgun,
+  LongGun,
 }

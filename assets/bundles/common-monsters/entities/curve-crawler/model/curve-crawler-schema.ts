@@ -37,6 +37,8 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
     x: entityField(Float32Array, 1),
     y: entityField(Float32Array, 1),
     heading: entityField(Float32Array, 1),
+    headingCosine: entityField(Float32Array, 1),
+    headingSine: entityField(Float32Array, 1),
     targetHeading: entityField(Float32Array, 1),
   },
   morphology: {
@@ -123,7 +125,8 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
     fragmentOffsetY: entityField(Float32Array, CURVE_CRAWLER_FRAGMENT_COUNT),
     fragmentOffsetZ: entityField(Float32Array, CURVE_CRAWLER_FRAGMENT_COUNT),
     fragmentRotation: entityField(Float32Array, CURVE_CRAWLER_FRAGMENT_COUNT),
-    legPhaseOffsets: entityField(Float32Array, CURVE_CRAWLER_LEG_COUNT),
+    legPhaseCosines: entityField(Float32Array, CURVE_CRAWLER_LEG_COUNT),
+    legPhaseSines: entityField(Float32Array, CURVE_CRAWLER_LEG_COUNT),
   },
 } as const);
 

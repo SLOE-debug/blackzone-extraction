@@ -45,8 +45,8 @@ const HANDGUN_STANCE = stance(
   joint(0.29, 0.46, 1.12, 0.01, -0.015, -0.14),
 );
 
-/** 霰弹枪使用固定双手骨段，不再通过 IK 反推肩、肘和腕关节。 */
-const SHOTGUN_STANCE = stance(
+/** 长枪使用固定双手骨段，不再通过 IK 反推肩、肘和腕关节。 */
+const LONG_GUN_STANCE = stance(
   1,
   1,
   joint(-0.75, 0.37, 0.6, -0.01, 0.008, -0.04),
@@ -60,7 +60,7 @@ const SHOTGUN_STANCE = stance(
 const VANGUARD_WEAPON_STANCES = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_STANCE,
   [VanguardWeaponPose.Handgun]: HANDGUN_STANCE,
-  [VanguardWeaponPose.Shotgun]: SHOTGUN_STANCE,
+  [VanguardWeaponPose.LongGun]: LONG_GUN_STANCE,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponStance>>>);
 
 /** 返回主角动画系统登记的完整武器姿态。 */

@@ -73,14 +73,14 @@ describe('主角模块化武器与跑步姿势', () => {
   it('霰弹枪使用固定双手折臂，换弹时也不会由 IK 拉扯关节', () => {
     const state = new VanguardState(TEST_OPTIONS);
     const animation = new VanguardAnimationSystem();
-    state.data.intent.weaponPose[0] = VanguardWeaponPose.Shotgun;
-    state.data.animation.weaponPose[0] = VanguardWeaponPose.Shotgun;
+    state.data.intent.weaponPose[0] = VanguardWeaponPose.LongGun;
+    state.data.animation.weaponPose[0] = VanguardWeaponPose.LongGun;
     state.data.animation.weaponStanceBlend[0] = 1;
     animation.initialize(state);
 
     const readySockets = createSocketPose();
     writeVanguardWeaponSockets(state, 0, readySockets);
-    const profile = getVanguardWeaponRigProfile(VanguardWeaponPose.Shotgun);
+    const profile = getVanguardWeaponRigProfile(VanguardWeaponPose.LongGun);
     const mainGrip = transformWeaponPoint(
       state,
       profile.sockets[VanguardWeaponRigSocket.MainGrip],

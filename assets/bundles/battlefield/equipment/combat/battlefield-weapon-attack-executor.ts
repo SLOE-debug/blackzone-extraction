@@ -10,13 +10,7 @@ import {
   getWeaponShotProjectileCount,
   writeBattlefieldShotProjectileDirection,
 } from '../projectile/model/battlefield-weapon-shot-pattern';
-
-/** 射击求解只需要的枪口世界坐标。 */
-export interface BattlefieldWeaponMuzzlePose {
-  readonly muzzleX: number;
-  readonly muzzleY: number;
-  readonly muzzleZ: number;
-}
+import { type BattlefieldWeaponMuzzlePose } from './battlefield-weapon-muzzle-pose';
 
 /** 射击求解依赖的最小弹体生成门面。 */
 export interface BattlefieldWeaponProjectileSink {

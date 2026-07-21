@@ -35,9 +35,8 @@ export class CurveCrawlerProjectileHitSystem {
       }
       const centerX = transform.x[index] ?? 0;
       const centerY = transform.y[index] ?? 0;
-      const heading = transform.heading[index] ?? 0;
-      const headingCosine = Math.cos(heading);
-      const headingSine = Math.sin(heading);
+      const headingCosine = transform.headingCosine[index] ?? 1;
+      const headingSine = transform.headingSine[index] ?? 0;
       const bodyLength = morphology.bodyLength[index] ?? 0;
       const bodyWidth = morphology.bodyWidth[index] ?? 0;
       const legLength = morphology.legLength[index] ?? 0;
