@@ -4,6 +4,7 @@ import { MeshDirty } from '../../../core/mesh/mesh-dirty';
 import { CompiledMeshBatchRenderer } from '../../../core/rendering/compiled-mesh-batch-renderer';
 import { VanguardMeshEvaluator } from '../geometry/vanguard-mesh-evaluator';
 import { type VanguardMeshPlan } from '../geometry/vanguard-mesh-plan';
+import { VanguardRenderMode } from '../model/vanguard-render-mode';
 import { VANGUARD_MATTE_MESH_PLAN } from '../geometry/vanguard-mesh-plans';
 import { type VanguardState } from '../model/vanguard-state';
 import { writeVanguardBounds } from './vanguard-bounds';
@@ -34,8 +35,13 @@ export class VanguardRenderer {
   private previousHitFlash = 0;
   private disposed = false;
 
-  constructor(parent: Node, state: VanguardState, surfaceMaterialTemplate: Material) {
-    this.materials = new VanguardMaterials(surfaceMaterialTemplate);
+  constructor(
+    parent: Node,
+    state: VanguardState,
+    surfaceMaterialTemplate: Material,
+    renderMode: VanguardRenderMode,
+  ) {
+    this.materials = new VanguardMaterials(surfaceMaterialTemplate, renderMode);
     writeVanguardBounds(state, this.bounds);
     try {
       this.batches = new CompiledMeshBatchRenderer({
@@ -46,8 +52,8 @@ export class VanguardRenderer {
         indexFormat: GeometryIndexFormat.Uint16,
         bounds: this.bounds,
         surfaceOptions: Object.freeze({
-          castShadows: true,
-          receiveShadows: true,
+          castShadows: renderMode === VanguardRenderMode.Lit,
+          receiveShadows: renderMode === VanguardRenderMode.Lit,
         }),
         layers: Object.freeze([
           Object.freeze({

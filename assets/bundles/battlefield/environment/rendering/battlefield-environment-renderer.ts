@@ -1,194 +1,153 @@
 import { Node } from 'cc';
 import {
-  createVertexLayoutGeometry,
-  GeometryIndexFormat,
-  type UnlitColorBufferGeometry,
-} from '../../../../core/geometry/buffer-geometry';
-import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
+  toChunkCoordinateKey,
+  type ChunkCoordinate,
+  type ChunkCoordinateKey,
+} from '../../../../core/world/chunk-coordinate';
+import { type ChunkWindowTransition } from '../../../../core/world/chunk-window-tracker';
 import {
   DynamicMeshBatch,
   type DynamicMeshBatchOptions,
 } from '../../../../core/rendering/dynamic-mesh-batch';
-import {
-  type BattlefieldEnvironmentMegaMeshSection,
-} from '../geometry/battlefield-environment-mega-mesh-layout';
 import { type PreparedBattlefieldEnvironment } from '../compilation/battlefield-environment-preparation';
+import { createBattlefieldEnvironmentChunkGeometry } from '../geometry/battlefield-environment-chunk-geometry';
 import { BattlefieldEnvironmentWorldState } from '../model/battlefield-environment-state';
 import { BattlefieldEnvironmentMaterials } from './battlefield-environment-materials';
-import {
-  type BattlefieldEnvironmentSectionStreams,
-  evaluateBattlefieldEnvironmentSectionRange,
-  type MutableBattlefieldEnvironmentBounds,
-  writeBattlefieldEnvironmentWorldBounds,
-} from './battlefield-environment-mesh-evaluator';
-import {
-  BattlefieldEnvironmentUpdateCursor,
-  type MutableBattlefieldEnvironmentUpdateRange,
-} from './battlefield-environment-update-cursor';
 
 const ENVIRONMENT_SURFACE_OPTIONS: DynamicMeshBatchOptions = Object.freeze({
   castShadows: false,
   receiveShadows: false,
 });
 
-/** 单帧最多重算约 1.2 万环境顶点，避免集显上形成周期性长帧。 */
-const ENVIRONMENT_UPDATE_VERTEX_BUDGET = 12_288;
-
-interface BattlefieldEnvironmentRenderSection {
-  readonly layout: BattlefieldEnvironmentMegaMeshSection;
-  readonly streams: BattlefieldEnvironmentSectionStreams;
+/** 相机视锥可独立剔除的单个环境 Chunk 批次。 */
+interface BattlefieldEnvironmentChunkBatch {
+  readonly coordinate: Readonly<ChunkCoordinate>;
+  readonly batch: DynamicMeshBatch;
 }
 
-/** 将全部环境 Archetype 压入单材质、单 MeshRenderer 的统一大网格。 */
+/**
+ * 按 Chunk 管理静态 Unlit 环境批次。
+ *
+ * 每个批次只包含该 Chunk 的真实活动实体并具有紧包围盒；相机外 Chunk 会由 Cocos
+ * 原生 Model 视锥裁剪直接跳过，不再提交整个 5×5 活动窗口的大网格。
+ */
 export class BattlefieldEnvironmentRenderer {
-  private readonly materials: BattlefieldEnvironmentMaterials;
-  private readonly geometry: UnlitColorBufferGeometry;
-  private readonly batch = new DynamicMeshBatch();
-  private readonly sections: readonly BattlefieldEnvironmentRenderSection[];
-  private readonly updateCursor: BattlefieldEnvironmentUpdateCursor;
-  private readonly updateRange: MutableBattlefieldEnvironmentUpdateRange = {
-    sectionIndex: 0,
-    firstEntity: 0,
-    entityCount: 0,
-    vertexCount: 0,
-  };
-  private readonly bounds: MutableBattlefieldEnvironmentBounds = {
-    minX: 0,
-    minY: 0,
-    minZ: 0,
-    maxX: 0,
-    maxY: 0,
-    maxZ: 0,
-  };
-  private uploadPending = false;
+  private readonly materials = new BattlefieldEnvironmentMaterials();
+  private readonly batches = new Map<ChunkCoordinateKey, BattlefieldEnvironmentChunkBatch>();
+  private readonly pendingChunks: Readonly<ChunkCoordinate>[] = [];
+  private readonly pendingKeys = new Set<ChunkCoordinateKey>();
   private disposed = false;
 
+  /** 是否仍有新增 Chunk 等待创建独立渲染批次。 */
+  public get synchronizing(): boolean {
+    return this.pendingChunks.length > 0;
+  }
+
+  /** 当前实际存在且可被相机独立裁剪的环境批次数量。 */
+  public get activeBatchCount(): number {
+    return this.batches.size;
+  }
+
   constructor(
-    parent: Node,
+    private readonly parent: Node,
     private readonly world: BattlefieldEnvironmentWorldState,
     private readonly preparation: PreparedBattlefieldEnvironment,
+    initialTransition: Readonly<ChunkWindowTransition>,
   ) {
-    this.materials = new BattlefieldEnvironmentMaterials();
-    const layout = preparation.megaMeshLayout;
-    this.geometry = createVertexLayoutGeometry(
-      layout.vertexLayout,
-      layout.vertexCount,
-      layout.indexCount,
-      GeometryIndexFormat.Uint32,
+    this.requestSynchronization(initialTransition);
+  }
+
+  /** 应用活动窗口差集：立即释放离场批次，并把新增 Chunk 排入分帧构建队列。 */
+  public requestSynchronization(transition: Readonly<ChunkWindowTransition>): void {
+    this.ensureActive();
+    for (const coordinate of transition.removed) {
+      const key = toChunkCoordinateKey(coordinate);
+      const existing = this.batches.get(key);
+      existing?.batch.dispose();
+      this.batches.delete(key);
+      this.removePending(key);
+    }
+    for (const coordinate of transition.added) {
+      const key = toChunkCoordinateKey(coordinate);
+      if (this.batches.has(key) || this.pendingKeys.has(key)) {
+        continue;
+      }
+      this.pendingChunks.push(coordinate);
+      this.pendingKeys.add(key);
+    }
+  }
+
+  /** 每帧最多创建一个新增 Chunk，避免跨边界时集中构造多个 Mesh。 */
+  public updateSynchronization(): void {
+    this.ensureActive();
+    const coordinate = this.pendingChunks.shift();
+    if (coordinate === undefined) {
+      return;
+    }
+    const key = toChunkCoordinateKey(coordinate);
+    this.pendingKeys.delete(key);
+    const result = createBattlefieldEnvironmentChunkGeometry(
+      this.world,
+      this.preparation.prototypes,
+      coordinate,
     );
-    this.geometry.commitCounts(layout.vertexCount, layout.indexCount);
-    this.geometry.index.set(layout.indices);
-    this.sections = Object.freeze(layout.sections.map((section) => Object.freeze({
-      layout: section,
-      streams: createSectionStreams(this.geometry, section),
-    })));
-    this.updateCursor = new BattlefieldEnvironmentUpdateCursor(
-      this.sections.map((section) => Object.freeze({
-        entityCount: section.layout.repeatCount,
-        verticesPerEntity: section.layout.plan.vertexCount,
-      })),
-    );
+    if (result === null) {
+      return;
+    }
+    const batch = new DynamicMeshBatch();
     try {
-      this.batch.initialize(
-        parent,
-        'BattlefieldEnvironmentMegaBatch',
-        this.geometry,
+      batch.initialize(
+        this.parent,
+        `BattlefieldEnvironmentChunk-${coordinate.x}-${coordinate.z}`,
+        result.geometry,
         this.materials.unified,
-        this.bounds,
+        result.geometry.computeBounds(),
         ENVIRONMENT_SURFACE_OPTIONS,
       );
-      this.batch.setVisible(false);
-      this.requestSynchronization();
+      this.batches.set(key, Object.freeze({ coordinate, batch }));
     } catch (error: unknown) {
-      this.dispose();
+      batch.dispose();
       throw error;
     }
   }
 
-  /** Chunk 窗口改变后重启多帧求值，旧 GPU 网格保持可见直到新数据完整。 */
-  public requestSynchronization(): void {
-    if (this.disposed) {
-      throw new Error('战场环境渲染器已经释放。');
-    }
-    this.updateCursor.restart();
-    this.uploadPending = false;
-  }
-
-  /** 在固定顶点预算内推进 CPU 求值，并在下一帧一次性提交完整 GPU 缓冲。 */
-  public updateSynchronization(): void {
-    if (this.disposed) {
-      throw new Error('战场环境渲染器已经释放。');
-    }
-    if (this.updateCursor.active) {
-      let remainingVertices = ENVIRONMENT_UPDATE_VERTEX_BUDGET;
-      while (remainingVertices > 0
-        && this.updateCursor.writeNext(remainingVertices, this.updateRange)) {
-        const section = this.sections[this.updateRange.sectionIndex];
-        if (section === undefined) {
-          throw new Error('环境更新任务指向了不存在的渲染区段。');
-        }
-        evaluateBattlefieldEnvironmentSectionRange(
-          this.world.get(section.layout.id),
-          section.layout.plan,
-          section.streams,
-          this.updateRange.firstEntity,
-          this.updateRange.entityCount,
-        );
-        remainingVertices -= this.updateRange.vertexCount;
-      }
-      if (!this.updateCursor.active) {
-        this.uploadPending = true;
-      }
-      return;
-    }
-    if (!this.uploadPending) {
-      return;
-    }
-    this.batch.uploadVertexAttributes(MeshDirty.Position | MeshDirty.Color);
-    writeBattlefieldEnvironmentWorldBounds(
-      this.world,
-      this.preparation.prototypes,
-      this.bounds,
-    );
-    this.batch.updateBounds(this.bounds);
-    this.batch.setVisible(true);
-    this.uploadPending = false;
-  }
-
-  /**
-   * 在场景仍由加载界面遮挡时完成首次求值和上传。
-   *
-   * 运行期 Chunk 切换不得调用此方法，避免把已经拆分的工作重新合并成长帧。
-   */
+  /** 场景激活前完成初始 5×5 Chunk 批次，不把加载成本泄漏到首帧。 */
   public completeInitialSynchronization(): void {
-    if (this.disposed) {
-      throw new Error('战场环境渲染器已经释放。');
-    }
-    do {
+    this.ensureActive();
+    while (this.pendingChunks.length > 0) {
       this.updateSynchronization();
-    } while (this.updateCursor.active || this.uploadPending);
+    }
   }
 
-  /** 先释放统一大网格，再释放其独占材质。 */
   public dispose(): void {
     if (this.disposed) {
       return;
     }
-    this.batch.dispose();
-    this.materials.dispose();
     this.disposed = true;
+    for (const entry of this.batches.values()) {
+      entry.batch.dispose();
+    }
+    this.batches.clear();
+    this.pendingChunks.length = 0;
+    this.pendingKeys.clear();
+    this.materials.dispose();
   }
 
-}
+  private removePending(key: ChunkCoordinateKey): void {
+    if (!this.pendingKeys.delete(key)) {
+      return;
+    }
+    for (let index = this.pendingChunks.length - 1; index >= 0; index--) {
+      const coordinate = this.pendingChunks[index];
+      if (coordinate !== undefined && toChunkCoordinateKey(coordinate) === key) {
+        this.pendingChunks.splice(index, 1);
+      }
+    }
+  }
 
-function createSectionStreams(
-  geometry: UnlitColorBufferGeometry,
-  section: Readonly<BattlefieldEnvironmentMegaMeshSection>,
-): BattlefieldEnvironmentSectionStreams {
-  const firstVertex = section.vertexOffset;
-  const endVertex = firstVertex + section.vertexCount;
-  return Object.freeze({
-    positions: geometry.positions.subarray(firstVertex * 3, endVertex * 3),
-    colors: geometry.colors.subarray(firstVertex * 4, endVertex * 4),
-  });
+  private ensureActive(): void {
+    if (this.disposed) {
+      throw new Error('战场环境 Chunk 渲染器已经释放。');
+    }
+  }
 }

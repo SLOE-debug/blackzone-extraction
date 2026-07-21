@@ -1,8 +1,4 @@
 import {
-  compileBattlefieldEnvironmentMegaMeshLayout,
-  type BattlefieldEnvironmentMegaMeshLayout,
-} from '../geometry/battlefield-environment-mega-mesh-layout';
-import {
   prepareBattlefieldEnvironmentCatalog,
   type PreparedBattlefieldEnvironmentCatalog,
 } from '../geometry/battlefield-environment-prepared-catalog';
@@ -10,7 +6,6 @@ import {
 /** Environment Population 初始化后独占复用的不可变编译结果。 */
 export interface PreparedBattlefieldEnvironment {
   readonly prototypes: PreparedBattlefieldEnvironmentCatalog;
-  readonly megaMeshLayout: BattlefieldEnvironmentMegaMeshLayout;
 }
 
 /**
@@ -20,8 +15,5 @@ export interface PreparedBattlefieldEnvironment {
  */
 export function prepareBattlefieldEnvironment(): PreparedBattlefieldEnvironment {
   const prototypes = prepareBattlefieldEnvironmentCatalog();
-  return Object.freeze({
-    prototypes,
-    megaMeshLayout: compileBattlefieldEnvironmentMegaMeshLayout(prototypes),
-  });
+  return Object.freeze({ prototypes });
 }

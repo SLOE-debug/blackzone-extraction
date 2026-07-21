@@ -1,4 +1,5 @@
 import { type Material, Node } from 'cc';
+import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import { type CurveCrawlerPopulationOptions } from '../model/curve-crawler-options';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { CurveCrawlerSharedRenderer } from '../rendering/curve-crawler-shared-renderer';
@@ -18,8 +19,18 @@ export class CurveCrawlerPopulationBatch {
   constructor(
     parent: Node,
     private readonly surfaceMaterialTemplate: Material,
+    visibility: PlanarCircleVisibility,
   ) {
-    this.rendering = new CurveCrawlerSharedRenderer(parent, surfaceMaterialTemplate);
+    this.rendering = new CurveCrawlerSharedRenderer(
+      parent,
+      surfaceMaterialTemplate,
+      visibility,
+    );
+  }
+
+  /** 当前相机视锥内实际进入共享渲染批次的实体数量。 */
+  public get visibleEntityCount(): number {
+    return this.rendering.visibleEntityCount;
   }
 
   /** 创建一个保留独立战斗状态、但登记到共享渲染批次的群体。 */

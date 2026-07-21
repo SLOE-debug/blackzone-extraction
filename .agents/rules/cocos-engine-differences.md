@@ -44,6 +44,13 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 验证真实 SpotLight 时，应降低 Ambient，并切换灯光 `enabled`：受光区域和阴影必须围绕同一目标同步出现、消失和移动。
 - 如果增大 `range` 后远处墙面突然受光，优先检查节点方向、`lookAt` 的 up 和灯光目标，不要先修改法线、材质亮度或增加模拟光斑。
 
+## 点光源在 Cocos 中的组件命名
+
+- 不得把 Three.js、Unity 等框架的 `PointLight` 类名直接套用到 Cocos Creator 3.8.8；Cocos 提供同类全向局部光照的组件名是 `SphereLight`。
+- 业务所说的“点光源”应通过 `Node.addComponent(SphereLight)` 创建。`size` 表示发光球半径，使用较小正值可以形成接近点状的局部光；光强和影响距离分别通过 `luminousFlux` 与 `range` 设置。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/3d/lights/sphere-light-component.ts` 验证：组件注册名为 `cc.SphereLight`，底层光类型为 `scene.LightType.SPHERE`，并公开 `size`、`range` 和 `luminousFlux`。
+- 验证局部点光源时，应让附近表面使用带 Normal 流的 `builtin-standard` 材质，再切换 `SphereLight` 节点显隐；只有周围受光变化而自发光提示几何保持不变，才能证明真实灯光与可见光效职责已经分离。
+
 ## 受光材质与程序几何
 
 - Cocos `builtin-standard` 参与实时光照、PBR 高光和阴影接收；`builtin-unlit` 不参与实时灯光计算。
@@ -60,7 +67,15 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/3d/misc/create-mesh.ts` 验证：`createDynamicMesh()` 仅在 `geometry.normals` 非空时创建 `ATTR_NORMAL` 独立流。
 - 验证动态受光材质时，应旋转或移动真实灯光并检查高光与明暗随法线变化；只有顶点色变化而灯光不产生响应，优先检查 Normal 流是否创建和逐帧上传。
 
-### GFX Buffer 的局部更新边界
+## 运行时主动查询相机视锥
+
+- Cocos 会在渲染流程中按 `Model.worldBounds` 自动执行相机视锥裁剪，但裁剪粒度是整个 `MeshRenderer`；把跨越大量 Chunk 或实体的内容合成一个超大 Renderer 后，任意局部可见都会让整批进入提交列表。
+- 需要在业务更新阶段主动读取 `Camera.camera.frustum` 筛选动态实体时，相机节点变换可能已经改变，而底层渲染相机矩阵仍处于惰性更新状态。查询前必须调用 `Camera.camera.update(true)`，再读取同一个底层相机的 `frustum`。
+- 高频逐实体测试应复用一个 `geometry.Sphere` 或 `geometry.AABB`，禁止每帧为每个实体创建 Cocos 几何与向量对象；保守边界必须额外留出动画和快速相机移动余量，避免视锥边缘闪烁。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/render-scene/scene/camera.ts` 与 `cocos/rendering/scene-culling.ts` 验证：前者在 `update()` 中刷新 ViewProjection 与 Frustum，后者以整个 Model 的 AABB 对相机 Frustum 做相交测试。
+- 固定容量合批只把未使用顶点收拢成零面积图元，不会减少 GPU 的索引提交数；需要紧凑绘制动态实体时，必须同时缩小 `RenderingSubMesh.drawInfo.indexCount` 与当前 `SubModel.inputAssembler.indexCount`，并确保范围不超过既有索引缓冲容量。该行为已通过 3.8.8 的 `cocos/render-scene/scene/submodel.ts`、`cocos/gfx/base/input-assembler.ts` 和粒子批次实现验证；隔离验证应观察可见实体减少后 Profiler 的 Triangle 数同步下降，而不仅是画面上看不到多余实体。
+
+## GFX Buffer 的局部更新边界
 
 - 不得把原生 WebGL `bufferSubData(target, dstByteOffset, ...)` 的目标偏移能力直接套用到 Cocos Creator 3.8.8 的公开 `gfx.Buffer.update()`：该 API 只接收数据源和可选字节数，不提供目标缓冲偏移参数。
 - WebGL 后端会把公开 `update()` 转换为目标偏移固定为零的 `WebGLCmdFuncUpdateBuffer` 调用；传入 TypedArray 子视图只会把该子视图写到 GPU 缓冲开头，不能用于更新大缓冲中间区段。

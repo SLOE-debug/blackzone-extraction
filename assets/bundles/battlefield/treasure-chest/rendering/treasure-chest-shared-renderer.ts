@@ -2,13 +2,12 @@ import { Color, type Material, Node } from 'cc';
 import { type Disposable } from '../../../../core/contracts/disposable';
 import {
   type MutableGeometryBounds,
-  type SurfaceBufferGeometry,
   type UnlitColorBufferGeometry,
   writePositionBounds,
 } from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../core/rendering/dynamic-mesh-batch';
-import { StandardVertexColorMaterialFactory } from '../../../../core/rendering/standard-vertex-color-material-factory';
+import { UnlitMaterialFactory } from '../../../../core/rendering/unlit-material-factory';
 import {
   evaluateTreasureChestAttention,
   TREASURE_CHEST_ATTENTION,
@@ -35,8 +34,8 @@ import {
 } from './treasure-chest-shared-geometry';
 
 const CHEST_SURFACE_OPTIONS = Object.freeze({
-  castShadows: true,
-  receiveShadows: true,
+  castShadows: false,
+  receiveShadows: false,
 });
 const BEACON_OPTIONS = Object.freeze({
   castShadows: false,
@@ -76,27 +75,20 @@ export class TreasureChestSharedRenderer implements Disposable {
   private readonly beaconBounds: MutableGeometryBounds = createEmptyBounds();
   private bodyBatch: DynamicMeshBatch | null = null;
   private beaconBatch: DynamicMeshBatch | null = null;
-  private bodyGeometry: SurfaceBufferGeometry | null = null;
+  private bodyGeometry: UnlitColorBufferGeometry | null = null;
   private beaconGeometry: UnlitColorBufferGeometry | null = null;
   private capacity = 0;
   private activeCount = 0;
   private structureDirty = false;
   private disposed = false;
 
-  constructor(
-    private readonly parent: Node,
-    surfaceMaterialTemplate: Material,
-  ) {
+  constructor(private readonly parent: Node) {
     let bodyMaterial: Material | null = null;
     let beaconMaterial: Material | null = null;
     try {
-      bodyMaterial = StandardVertexColorMaterialFactory.create(surfaceMaterialTemplate, {
-        name: 'TreasureChestSharedSurfaceMaterial',
+      bodyMaterial = UnlitMaterialFactory.create('TreasureChestSharedSurfaceMaterial', {
         mainColor: new Color(255, 255, 255, 255),
-        roughness: 0.72,
-        metallic: 0.14,
-        specularIntensity: 0.4,
-        emissive: new Color(11, 4, 1, 255),
+        useVertexColor: true,
       });
       beaconMaterial = createTreasureChestBeaconMaterial();
       this.bodyMaterial = bodyMaterial;
@@ -159,7 +151,7 @@ export class TreasureChestSharedRenderer implements Disposable {
       || this.beaconGeometry === null
       || count > this.capacity;
     const nextCapacity = requiresGrowth ? expandedCapacity(count) : this.capacity;
-    let bodyGeometry: SurfaceBufferGeometry;
+    let bodyGeometry: UnlitColorBufferGeometry;
     let beaconGeometry: UnlitColorBufferGeometry;
     if (requiresGrowth) {
       bodyGeometry = createSharedTreasureChestBodyGeometry(
@@ -249,7 +241,9 @@ export class TreasureChestSharedRenderer implements Disposable {
     } else {
       if (bodyChanged) {
         this.bodyBatch?.uploadVertexAttributes(
-          forceRewrite ? MeshDirty.All : MeshDirty.Pose,
+          forceRewrite
+            ? MeshDirty.Position | MeshDirty.Color
+            : MeshDirty.Position,
         );
         this.bodyBatch?.updateBounds(this.bodyBounds);
       }
@@ -299,7 +293,10 @@ export class TreasureChestSharedRenderer implements Disposable {
     playerDistanceSquared: number,
     active: boolean,
   ): void {
-    if (!entry.active || this.disposed || (!active && !entry.attentionActive)) {
+    if (!entry.active || this.disposed) {
+      return;
+    }
+    if (!active && !entry.attentionActive) {
       return;
     }
     const sampleIndex = Math.floor(elapsed * TREASURE_CHEST_ATTENTION.samplesPerSecond);
@@ -334,7 +331,7 @@ export class TreasureChestSharedRenderer implements Disposable {
   }
 
   private replaceBatches(
-    bodyGeometry: SurfaceBufferGeometry,
+    bodyGeometry: UnlitColorBufferGeometry,
     beaconGeometry: UnlitColorBufferGeometry,
     capacity: number,
   ): void {

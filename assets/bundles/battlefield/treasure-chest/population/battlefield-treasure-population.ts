@@ -1,8 +1,9 @@
-import { type Material, Node } from 'cc';
+import { Node } from 'cc';
 import { type Disposable } from '../../../../core/contracts/disposable';
 import {
   type EquipmentLibrary,
   EquipmentId,
+  type WeaponEquipmentId,
 } from '../../../../core/equipment/equipment';
 import { type LootTable } from '../../../../core/loot/weighted-loot-table';
 import {
@@ -49,18 +50,51 @@ BattlefieldInteractionProvider, Disposable {
   private nextTreasureChestId = 1;
   private disposed = false;
 
+  /** 当前活动 Chunk 中的宝箱数量。 */
+  public get activeChestCount(): number {
+    return this.chests.length;
+  }
+
+  /** 当前活动窗口内已经开始开启流程的宝箱数量。 */
+  public get openedChestCount(): number {
+    let count = 0;
+    for (const chest of this.chests) {
+      if (chest.opened) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /** 宝箱掉落与玩家丢弃装备的当前世界实例总数。 */
+  public get droppedEquipmentCount(): number {
+    let count = this.discardedEquipment.count;
+    for (const chest of this.chests) {
+      count += chest.droppedEquipmentCount;
+    }
+    return count;
+  }
+
+  /** 当前掉落物本体与毛笔形信标实际占用的渲染批次数量。 */
+  public get droppedRenderBatchCount(): number {
+    let count = this.discardedEquipment.renderBatchCount;
+    for (const chest of this.chests) {
+      count += chest.droppedRenderBatchCount;
+    }
+    return count;
+  }
+
   constructor(
     private readonly parent: Node,
-    private readonly surfaceMaterialTemplate: Material,
     private readonly equipmentLibrary: EquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
   ) {
-    this.renderer = new TreasureChestSharedRenderer(parent, surfaceMaterialTemplate);
+    this.renderer = new TreasureChestSharedRenderer(parent);
     try {
       this.discardedEquipment = new DroppedEquipmentPopulation(
         parent,
-        surfaceMaterialTemplate,
         this.equipmentInstanceIds,
+        equipmentLibrary,
       );
     } catch (error: unknown) {
       this.renderer.dispose();
@@ -92,7 +126,6 @@ BattlefieldInteractionProvider, Disposable {
       const chest = new TreasureChestRuntime(
         this.nextTreasureChestId++,
         this.parent,
-        this.surfaceMaterialTemplate,
         this.renderer,
         spawn,
         this.sessionState,
@@ -105,15 +138,18 @@ BattlefieldInteractionProvider, Disposable {
     }
   }
 
-  public update(deltaTime: number): void {
+  /** 推进全部宝箱、掉落物和共享渲染，并返回本帧首次释放的掉落物数量。 */
+  public update(deltaTime: number): number {
     if (this.disposed) {
-      return;
+      return 0;
     }
+    let releasedLootCount = 0;
     for (const chest of this.chests) {
-      chest.update(deltaTime);
+      releasedLootCount += chest.update(deltaTime);
     }
     this.discardedEquipment.update(deltaTime);
     this.renderer.synchronize();
+    return releasedLootCount;
   }
 
   /** 场景激活前提交加载阶段已经登记的全部初始宝箱。 */
@@ -268,7 +304,7 @@ BattlefieldInteractionProvider, Disposable {
 
   /** 把玩家刚替换下来的武器以克制弧线轻抛到脚边。 */
   public spawnPlayerDiscard(
-    equipmentId: EquipmentId,
+    equipmentId: WeaponEquipmentId,
     x: number,
     y: number,
     z: number,

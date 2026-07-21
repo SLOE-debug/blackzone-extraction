@@ -14,6 +14,7 @@ describe('战场近距离交互解析', () => {
     resolver.register(nearer);
 
     expect(resolver.resolve(0, 0)?.sourceId).toBe(2);
+    expect(resolver.currentAction).toBe(BattlefieldInteractionAction.OpenContainer);
     expect(resolver.activateCurrent()).toBe(true);
     expect(farther.activated).toBe(false);
     expect(nearer.activated).toBe(true);

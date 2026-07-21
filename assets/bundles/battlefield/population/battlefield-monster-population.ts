@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { type Camera, type Material, Node } from 'cc';
 import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -10,6 +10,7 @@ import {
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
+import { BattlefieldMonsterFrustumVisibility } from './battlefield-monster-frustum-visibility';
 
 const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
 const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
@@ -30,6 +31,7 @@ export type {
 export class BattlefieldMonsterPopulation
 implements Disposable {
   private readonly renderRoot: Node;
+  private readonly visibility: BattlefieldMonsterFrustumVisibility;
   private readonly renderBatch: ReturnType<
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
   >;
@@ -50,6 +52,7 @@ implements Disposable {
   constructor(
     parent: Node,
     surfaceMaterialTemplate: Material,
+    camera: Camera,
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
     initialCenterX: number,
     initialCenterZ: number,
@@ -58,6 +61,7 @@ implements Disposable {
       throw new Error('战场怪物群初始中心必须使用有限坐标。');
     }
     const config = BATTLEFIELD_MONSTER_SPAWN;
+    this.visibility = new BattlefieldMonsterFrustumVisibility(camera);
     const renderRoot = new Node('BattlefieldCommonMonstersBatchRoot');
     parent.addChild(renderRoot);
     renderRoot.setPosition(0, config.groundOffsetY, 0);
@@ -69,6 +73,7 @@ implements Disposable {
       this.renderBatch = commonMonsters.createCurveCrawlerBatch(
         renderRoot,
         surfaceMaterialTemplate,
+        this.visibility,
       );
     } catch (error: unknown) {
       renderRoot.destroy();
@@ -96,6 +101,11 @@ implements Disposable {
   /** 当前正式尸潮中真正处于存活阶段的怪物数量。 */
   public get aliveCount(): number {
     return this.swarm?.aliveCount ?? 0;
+  }
+
+  /** 当前通过相机视锥筛选并实际进入动态网格的怪物数量。 */
+  public get visibleCount(): number {
+    return this.renderBatch.visibleEntityCount;
   }
 
   /**
@@ -155,6 +165,7 @@ implements Disposable {
     for (const group of this.groups) {
       damage += group.update(deltaTime, target);
     }
+    this.visibility.synchronize();
     this.renderBatch.synchronize();
     return damage;
   }

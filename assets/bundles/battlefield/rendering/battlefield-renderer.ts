@@ -58,6 +58,11 @@ export class BattlefieldRenderer {
   private uploadPending = false;
   private disposed = false;
 
+  /** 跟随玩家的地面补丁是否仍在分帧求值或等待上传。 */
+  public get synchronizing(): boolean {
+    return this.synchronizationActive || this.uploadPending;
+  }
+
   constructor(parent: Node) {
     this.materials = new BattlefieldMaterials();
     this.groundRoot = new Node('BattlefieldGroundRoot');
@@ -138,7 +143,9 @@ export class BattlefieldRenderer {
     if (!this.uploadPending) {
       return;
     }
-    this.groundMesh.uploadVertexAttributes(MeshDirty.Position | MeshDirty.Color);
+    this.groundMesh.uploadVertexAttributes(
+      MeshDirty.Position | MeshDirty.Color,
+    );
     const chunkSize = BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.chunkSize;
     this.groundRoot.setPosition(
       this.pendingChunkX * chunkSize,

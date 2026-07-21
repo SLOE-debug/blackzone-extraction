@@ -1,4 +1,5 @@
 import { type Material, Node } from 'cc';
+import { type PlanarCircleVisibility } from '../../../core/contracts/planar-circle-visibility';
 import { type MonsterObservationPopulation } from '../../../core/contracts/monster-observation';
 import { BundleId, FeatureId } from '../../../core/contracts/runtime-id';
 import { type FeaturePlugin } from '../../../core/features/feature-plugin';
@@ -44,6 +45,7 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
   createCurveCrawlerBatch(
     parent: Node,
     surfaceMaterialTemplate: Material,
+    visibility: PlanarCircleVisibility,
   ): CurveCrawlerPopulationBatch;
 
   /**
@@ -101,8 +103,9 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public createCurveCrawlerBatch(
     parent: Node,
     surfaceMaterialTemplate: Material,
+    visibility: PlanarCircleVisibility,
   ): CurveCrawlerPopulationBatch {
-    return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate);
+    return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate, visibility);
   }
 
   public create<TId extends CommonMonsterId>(

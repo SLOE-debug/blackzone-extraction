@@ -1,4 +1,7 @@
-import { EquipmentId } from '../../../../core/equipment/equipment';
+import {
+  EquipmentId,
+  type WeaponEquipmentId,
+} from '../../../../core/equipment/equipment';
 import {
   BattlefieldInteractionAction,
   type BattlefieldInteractionProvider,
@@ -16,7 +19,7 @@ export interface BattlefieldEquipmentPickupSource {
   getDroppedEquipmentId(instanceId: number): EquipmentId | null;
   removeDroppedEquipment(instanceId: number): boolean;
   spawnPlayerDiscard(
-    equipmentId: EquipmentId,
+    equipmentId: WeaponEquipmentId,
     x: number,
     y: number,
     z: number,
@@ -24,9 +27,9 @@ export interface BattlefieldEquipmentPickupSource {
   ): void;
 }
 
-/** 拾取系统依赖的唯一武器槽门面。 */
+/** 拾取系统依赖的玩家装备接收门面。 */
 export interface BattlefieldEquipmentWeaponSlot {
-  equip(equipmentId: EquipmentId): EquipmentId | null;
+  receive(equipmentId: EquipmentId): WeaponEquipmentId | null;
 }
 
 /** 武器替换系统读取的玩家世界姿态。 */
@@ -37,7 +40,7 @@ export interface BattlefieldEquipmentCarrier {
   readonly heading: number;
 }
 
-/** 把宝箱掉落物查询适配为拾取交互，并在成功后替换玩家唯一武器槽。 */
+/** 把宝箱掉落物查询适配为拾取交互，并按类别替换武器或补充备用弹药。 */
 export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionProvider {
   private readonly inspection: MutableDroppedEquipmentInspection = {
     instanceId: -1,
@@ -86,9 +89,9 @@ export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionP
     if (equipmentId === null) {
       return false;
     }
-    const replacedEquipmentId = this.playerWeapon.equip(equipmentId);
+    const replacedEquipmentId = this.playerWeapon.receive(equipmentId);
     if (!this.treasures.removeDroppedEquipment(sourceId)) {
-      throw new Error('玩家装备成功后未能移除对应的战场掉落物。');
+      throw new Error('玩家接收装备后未能移除对应的战场掉落物。');
     }
     if (replacedEquipmentId !== null) {
       this.treasures.spawnPlayerDiscard(

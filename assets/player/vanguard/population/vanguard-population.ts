@@ -9,6 +9,7 @@ import {
   validateVanguardControlIntent,
 } from '../model/vanguard-control-intent';
 import { type VanguardPopulationOptions } from '../model/vanguard-options';
+import { VanguardRenderMode } from '../model/vanguard-render-mode';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { VANGUARD_MAX_HEALTH, VanguardLifePhase } from '../model/vanguard-life';
 import { VanguardState } from '../model/vanguard-state';
@@ -34,6 +35,7 @@ export class VanguardPopulation {
   constructor(
     parent: Node,
     surfaceMaterialTemplate: Material,
+    renderMode: VanguardRenderMode,
     options: Readonly<VanguardPopulationOptions>,
     movementConstraint: PlanarMovementConstraint,
   ) {
@@ -41,7 +43,12 @@ export class VanguardPopulation {
     this.movement = new VanguardMovementSystem(movementConstraint);
     this.animation.initialize(this.state);
     this.mantle.initialize(this.state);
-    this.renderer = new VanguardRenderer(parent, this.state, surfaceMaterialTemplate);
+    this.renderer = new VanguardRenderer(
+      parent,
+      this.state,
+      surfaceMaterialTemplate,
+      renderMode,
+    );
   }
 
   /** 当前主角脚底的世界 X 坐标。 */

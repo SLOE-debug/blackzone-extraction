@@ -19,7 +19,7 @@ import { BattlefieldEnvironmentRenderer } from '../rendering/battlefield-environ
 /**
  * 战场环境 ECS 门面。
  *
- * 门面只编排确定性 Chunk 生成、静态障碍索引和统一大网格，不承载造型配方。
+ * 门面只编排确定性 Chunk 生成、静态障碍索引和可裁剪 Chunk 批次，不承载造型配方。
  */
 export class BattlefieldEnvironmentPopulation {
   private readonly preparation = prepareBattlefieldEnvironment();
@@ -39,25 +39,46 @@ export class BattlefieldEnvironmentPopulation {
   private centerChunkZ = 0;
   private disposed = false;
 
+  /** 当前活动窗口实际启用的程序化环境实体数量。 */
+  public get activeEntityCount(): number {
+    let count = 0;
+    this.world.forEach((_prototype, state) => {
+      count += state.enabledCount;
+    });
+    return count;
+  }
+
+  /** 环境渲染器是否仍在分帧创建新的 Chunk 批次。 */
+  public get renderingSynchronizing(): boolean {
+    return this.renderer.synchronizing;
+  }
+
+  /** 当前具有独立包围盒并可由相机剔除的环境 Chunk 批次数量。 */
+  public get renderBatchCount(): number {
+    return this.renderer.activeBatchCount;
+  }
+
   constructor(parent: Node) {
     this.generator.populate(this.centerChunkX, this.centerChunkZ, this.world);
     this.obstacles.rebuild(this.world, this.centerChunkX, this.centerChunkZ);
+    const initialTransition = this.chunkWindow.synchronize(
+      this.centerChunkX,
+      this.centerChunkZ,
+    );
     this.renderer = new BattlefieldEnvironmentRenderer(
       parent,
       this.world,
       this.preparation,
+      initialTransition,
     );
     try {
-      // 场景尚未激活，首次大网格在加载阶段一次完成，避免把初始化成本泄漏到开场帧。
+      // 场景尚未激活，首次 Chunk 批次在加载阶段一次完成，避免把初始化成本泄漏到开场帧。
       this.renderer.completeInitialSynchronization();
     } catch (error: unknown) {
       this.renderer.dispose();
       throw error;
     }
-    this.pendingChunkTransition = this.chunkWindow.synchronize(
-      this.centerChunkX,
-      this.centerChunkZ,
-    );
+    this.pendingChunkTransition = initialTransition;
   }
 
   /** 玩家移动系统使用的无分配平面障碍约束。 */
@@ -90,10 +111,11 @@ export class BattlefieldEnvironmentPopulation {
     }
     this.generator.populate(nextChunkX, nextChunkZ, this.world);
     this.obstacles.rebuild(this.world, nextChunkX, nextChunkZ);
-    this.renderer.requestSynchronization();
+    const transition = this.chunkWindow.synchronize(nextChunkX, nextChunkZ);
+    this.renderer.requestSynchronization(transition);
     this.centerChunkX = nextChunkX;
     this.centerChunkZ = nextChunkZ;
-    this.pendingChunkTransition = this.chunkWindow.synchronize(nextChunkX, nextChunkZ);
+    this.pendingChunkTransition = transition;
   }
 
   /** 取走最近一次环境窗口切换产生的差集；没有变化时返回 null。 */

@@ -1,21 +1,21 @@
 import { type Material, Mat4, Node, Quat, Vec3 } from 'cc';
 import { type EquipmentId } from '../../../../core/equipment/equipment';
 import {
-  createSurfaceGeometry,
+  createUnlitColorGeometry,
   GeometryIndexFormat,
   type MutableGeometryBounds,
   type StaticSurfaceBufferGeometry,
-  type SurfaceBufferGeometry,
+  type UnlitColorBufferGeometry,
   writePositionBounds,
 } from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../core/rendering/dynamic-mesh-batch';
-import { getHeldWeaponProfile } from '../model/held-weapon-profile';
+import { getDroppedEquipmentProfile } from '../model/dropped-equipment-profile';
 import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
 
 const EQUIPMENT_SURFACE_OPTIONS = Object.freeze({
-  castShadows: true,
-  receiveShadows: true,
+  castShadows: false,
+  receiveShadows: false,
 });
 
 /** 掉落物大批次读取的稳定姿态契约。 */
@@ -32,7 +32,7 @@ export interface DroppedEquipmentRenderItem {
 
 /** 将一次或多次爆散产生的全部掉落装备压入一个动态 MeshRenderer。 */
 export class DroppedEquipmentRenderer {
-  private readonly geometry: SurfaceBufferGeometry;
+  private readonly geometry: UnlitColorBufferGeometry;
   private readonly sources: readonly StaticSurfaceBufferGeometry[];
   private readonly vertexOffsets: readonly number[];
   private readonly batch = new DynamicMeshBatch();
@@ -64,7 +64,7 @@ export class DroppedEquipmentRenderer {
     this.vertexOffsets = createVertexOffsets(this.sources);
     const vertexCount = this.sources.reduce((total, source) => total + source.vertexCount, 0);
     const indexCount = this.sources.reduce((total, source) => total + source.indexCount, 0);
-    this.geometry = createSurfaceGeometry(
+    this.geometry = createUnlitColorGeometry(
       vertexCount,
       indexCount,
       GeometryIndexFormat.Uint32,
@@ -89,14 +89,14 @@ export class DroppedEquipmentRenderer {
     }
   }
 
-  /** 一次性重写全部实例姿态并只上传一组 Position、Normal 缓冲。 */
+  /** 一次性重写全部实例姿态并只上传 Position 缓冲。 */
   public update(): void {
     if (this.disposed) {
       return;
     }
     const visible = this.writePoses();
     writePositionBounds(this.geometry.getPositionView(), this.bounds);
-    this.batch.uploadVertexAttributes(MeshDirty.Pose);
+    this.batch.uploadVertexAttributes(MeshDirty.Position);
     this.batch.updateBounds(this.bounds);
     this.batch.setVisible(visible);
   }
@@ -119,7 +119,7 @@ export class DroppedEquipmentRenderer {
         throw new Error('掉落装备批次实例、几何与顶点区段未能一一对应。');
       }
       anyVisible ||= item.visible;
-      const modelScale = getHeldWeaponProfile(item.equipmentId).droppedScale;
+      const modelScale = getDroppedEquipmentProfile(item.equipmentId).scale;
       this.position.set(item.x, item.y, item.z);
       this.scale.set(modelScale, modelScale, modelScale);
       Quat.fromEuler(this.rotation, item.rotationX, item.rotationY, item.rotationZ);
@@ -130,7 +130,6 @@ export class DroppedEquipmentRenderer {
         vertexOffset,
         item.visible,
         this.matrix,
-        modelScale,
       );
     }
     return anyVisible;
@@ -152,7 +151,7 @@ function createVertexOffsets(
 function writeFixedStreams(
   sources: readonly StaticSurfaceBufferGeometry[],
   vertexOffsets: readonly number[],
-  target: SurfaceBufferGeometry,
+  target: UnlitColorBufferGeometry,
 ): void {
   let targetIndexOffset = 0;
   for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
@@ -172,13 +171,11 @@ function writeFixedStreams(
 
 function writeTransformedGeometry(
   source: StaticSurfaceBufferGeometry,
-  target: SurfaceBufferGeometry,
+  target: UnlitColorBufferGeometry,
   targetVertexOffset: number,
   visible: boolean,
   matrix: Readonly<Mat4>,
-  modelScale: number,
 ): void {
-  const inverseScale = 1 / modelScale;
   for (let vertex = 0; vertex < source.vertexCount; vertex++) {
     const sourceOffset = vertex * 3;
     const targetOffset = (targetVertexOffset + vertex) * 3;
@@ -194,18 +191,5 @@ function writeTransformedGeometry(
     target.positions[targetOffset + 2] = visible
       ? matrix.m02 * x + matrix.m06 * y + matrix.m10 * z + matrix.m14
       : matrix.m14;
-
-    const normalX = source.normals[sourceOffset] ?? 0;
-    const normalY = source.normals[sourceOffset + 1] ?? 0;
-    const normalZ = source.normals[sourceOffset + 2] ?? 0;
-    target.normals[targetOffset] = (
-      matrix.m00 * normalX + matrix.m04 * normalY + matrix.m08 * normalZ
-    ) * inverseScale;
-    target.normals[targetOffset + 1] = (
-      matrix.m01 * normalX + matrix.m05 * normalY + matrix.m09 * normalZ
-    ) * inverseScale;
-    target.normals[targetOffset + 2] = (
-      matrix.m02 * normalX + matrix.m06 * normalY + matrix.m10 * normalZ
-    ) * inverseScale;
   }
 }

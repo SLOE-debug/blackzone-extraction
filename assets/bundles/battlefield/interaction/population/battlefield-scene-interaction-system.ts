@@ -1,4 +1,5 @@
 import { EquipmentId } from '../../../../core/equipment/equipment';
+import { BattlefieldInteractionAction } from '../model/battlefield-interaction';
 import { type BattlefieldEquipmentPickupSystem } from '../../equipment/population/battlefield-equipment-pickup-system';
 import { type MutableDroppedEquipmentInspection } from '../../equipment/population/dropped-equipment-population';
 import { type BattlefieldTreasurePopulation } from '../../treasure-chest/population/battlefield-treasure-population';
@@ -28,10 +29,12 @@ export class BattlefieldSceneInteractionSystem {
   }
 
   /** 消费 HUD 的一次性操作输入并路由给上次解析到的提供者。 */
-  public consumeActionInput(): void {
-    if (!this.disposed && this.active && this.hud.consumeContextActionPress()) {
-      this.resolver.activateCurrent();
+  public consumeActionInput(): BattlefieldInteractionAction | null {
+    if (this.disposed || !this.active || !this.hud.consumeContextActionPress()) {
+      return null;
     }
+    const action = this.resolver.currentAction;
+    return action !== null && this.resolver.activateCurrent() ? action : null;
   }
 
   /** 按玩家最新位置刷新操作图案和最近落地装备标签。 */

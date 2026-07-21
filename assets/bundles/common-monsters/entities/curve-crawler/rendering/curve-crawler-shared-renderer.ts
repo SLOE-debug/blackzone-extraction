@@ -1,16 +1,18 @@
 import { type Material, Node } from 'cc';
+import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import {
-  createSurfaceGeometry,
+  createUnlitColorGeometry,
   GeometryIndexFormat,
-  type SurfaceBufferGeometry,
+  type UnlitColorBufferGeometry,
 } from '../../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
 import { copyMeshPlanIndices } from '../../../../../core/mesh/mesh-plan-indices';
-import { createVertexStreams, type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
 import { DynamicMeshBatch } from '../../../../../core/rendering/dynamic-mesh-batch';
 import { curveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-compiler';
-import { curveCrawlerMeshEvaluator } from '../geometry/curve-crawler-mesh-evaluator';
+import { CurveCrawlerMeshEvaluator } from '../geometry/curve-crawler-mesh-evaluator';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { CurveCrawlerRenderMode } from '../model/curve-crawler-render-mode';
 import {
   createCurveCrawlerBounds,
   type CurveCrawlerBounds,
@@ -22,9 +24,10 @@ import { type CurveCrawlerPopulationRendering } from './curve-crawler-population
 import { CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
 
 const SHARED_SURFACE_OPTIONS = Object.freeze({
-  castShadows: true,
-  receiveShadows: true,
+  castShadows: false,
+  receiveShadows: false,
 });
+const EMPTY_NORMAL_STREAM = new Float32Array(0);
 
 interface CurveCrawlerSharedRenderEntry {
   readonly state: CurveCrawlerState;
@@ -43,6 +46,7 @@ interface CurveCrawlerSharedRenderEntry {
  */
 export class CurveCrawlerSharedRenderer {
   private readonly materials: CurveCrawlerMaterials;
+  private readonly evaluator = new CurveCrawlerMeshEvaluator(false);
   private readonly entries: CurveCrawlerSharedRenderEntry[] = [];
   private readonly bounds: CurveCrawlerBounds = {
     minX: 0,
@@ -53,18 +57,27 @@ export class CurveCrawlerSharedRenderer {
     maxZ: 1,
   };
   private batch: DynamicMeshBatch | null = null;
-  private geometry: SurfaceBufferGeometry | null = null;
+  private geometry: UnlitColorBufferGeometry | null = null;
   private streams: VertexStreams | null = null;
   private entityCapacity = 0;
   private activeEntityCount = 0;
   private structureDirty = false;
   private disposed = false;
 
+  /** 当前通过相机视锥筛选并实际进入 GPU 批次的实体数量。 */
+  public get visibleEntityCount(): number {
+    return this.activeEntityCount;
+  }
+
   constructor(
     private readonly parent: Node,
     surfaceMaterialTemplate: Material,
+    private readonly visibility: PlanarCircleVisibility,
   ) {
-    this.materials = new CurveCrawlerMaterials(surfaceMaterialTemplate);
+    this.materials = new CurveCrawlerMaterials(
+      surfaceMaterialTemplate,
+      CurveCrawlerRenderMode.Unlit,
+    );
   }
 
   /** 登记一个独立模拟状态，并返回只控制该状态的轻量句柄。 */
@@ -74,7 +87,7 @@ export class CurveCrawlerSharedRenderer {
       state,
       bounds: createCurveCrawlerBounds(state),
       colors: new CurveCrawlerColorSnapshot(state),
-      residents: new CurveCrawlerResidentLayout(state.count),
+      residents: new CurveCrawlerResidentLayout(state.count, this.visibility),
       dirty: true,
       active: true,
     };
@@ -104,11 +117,11 @@ export class CurveCrawlerSharedRenderer {
     const nextCapacity = requiresGrowth
       ? getExpandedEntityCapacity(residentCount)
       : this.entityCapacity;
-    let geometry: SurfaceBufferGeometry;
+    let geometry: UnlitColorBufferGeometry;
     let streams: VertexStreams;
     if (requiresGrowth) {
       geometry = createSharedGeometry(nextCapacity);
-      streams = createVertexStreams(geometry);
+      streams = createUnlitEvaluationStreams(geometry);
     } else {
       if (this.geometry === null || this.streams === null) {
         throw new Error('Curve Crawler 共享几何在容量复用时不存在。');
@@ -119,9 +132,6 @@ export class CurveCrawlerSharedRenderer {
 
     const forceRewrite = requiresGrowth || layoutChanged;
     const changed = this.evaluateEntries(streams, forceRewrite);
-    if (forceRewrite) {
-      collapseUnusedEntities(geometry, residentCount, nextCapacity);
-    }
     const boundsChanged = this.updateBounds(forceRewrite);
 
     if (requiresGrowth) {
@@ -134,6 +144,9 @@ export class CurveCrawlerSharedRenderer {
         this.batch?.updateBounds(this.bounds);
       }
     }
+    this.batch?.setActiveIndexCount(
+      residentCount * curveCrawlerMeshPlan.indexCount,
+    );
     this.batch?.setVisible(true);
     this.activeEntityCount = residentCount;
     this.structureDirty = false;
@@ -182,9 +195,7 @@ export class CurveCrawlerSharedRenderer {
   private synchronizeResidentLayouts(): boolean {
     let changed = false;
     for (const entry of this.entries) {
-      if (!this.structureDirty && !entry.dirty) {
-        continue;
-      }
+      // 可见性同时依赖相机视锥；即使实体状态未变，相机移动也必须重新筛选。
       changed = entry.residents.synchronize(entry.state) || changed;
     }
     return changed;
@@ -201,6 +212,7 @@ export class CurveCrawlerSharedRenderer {
 
   /** 在没有任何驻留实体时完全移除怪物 Draw Call。 */
   private synchronizeEmptyLayout(): void {
+    this.batch?.setActiveIndexCount(0);
     this.batch?.setVisible(false);
     for (const entry of this.entries) {
       entry.dirty = false;
@@ -219,11 +231,11 @@ export class CurveCrawlerSharedRenderer {
         entry.residents.count,
       );
       if (forceRewrite || entry.dirty) {
-        let requested = MeshDirty.Pose;
+        let requested = MeshDirty.Position;
         if (forceRewrite || colorChanged) {
           requested |= MeshDirty.Color;
         }
-        changed |= curveCrawlerMeshEvaluator.evaluatePacked(
+        changed |= this.evaluator.evaluatePacked(
           entry.state,
           curveCrawlerMeshPlan,
           streams,
@@ -241,7 +253,7 @@ export class CurveCrawlerSharedRenderer {
 
   /** 成功创建更大批次后再替换旧 GPU 资源，避免失败时提前丢失画面。 */
   private replaceBatch(
-    geometry: SurfaceBufferGeometry,
+    geometry: UnlitColorBufferGeometry,
     streams: VertexStreams,
     entityCapacity: number,
   ): void {
@@ -338,9 +350,9 @@ function getExpandedEntityCapacity(entityCount: number): number {
 }
 
 /** 创建只覆盖当前可见人口高水位的固定拓扑网格。 */
-function createSharedGeometry(entityCapacity: number): SurfaceBufferGeometry {
+function createSharedGeometry(entityCapacity: number): UnlitColorBufferGeometry {
   const plan = curveCrawlerMeshPlan;
-  const geometry = createSurfaceGeometry(
+  const geometry = createUnlitColorGeometry(
     plan.vertexCount * entityCapacity,
     plan.indexCount * entityCapacity,
     GeometryIndexFormat.Uint32,
@@ -350,15 +362,11 @@ function createSharedGeometry(entityCapacity: number): SurfaceBufferGeometry {
   return geometry;
 }
 
-/** 把容量余量收拢为零面积顶点，保持固定索引不变。 */
-function collapseUnusedEntities(
-  geometry: SurfaceBufferGeometry,
-  activeEntityCount: number,
-  entityCapacity: number,
-): void {
-  const firstUnusedVertex = activeEntityCount * curveCrawlerMeshPlan.vertexCount;
-  const endVertex = entityCapacity * curveCrawlerMeshPlan.vertexCount;
-  geometry.positions.fill(0, firstUnusedVertex * 3, endVertex * 3);
-  geometry.normals.fill(0, firstUnusedVertex * 3, endVertex * 3);
-  geometry.colors.fill(0, firstUnusedVertex * 4, endVertex * 4);
+/** 为通用求值器补一份不会上传 GPU 的占位法线流。 */
+function createUnlitEvaluationStreams(geometry: UnlitColorBufferGeometry): VertexStreams {
+  return Object.freeze({
+    positions: geometry.positions,
+    normals: EMPTY_NORMAL_STREAM,
+    colors: geometry.colors,
+  });
 }

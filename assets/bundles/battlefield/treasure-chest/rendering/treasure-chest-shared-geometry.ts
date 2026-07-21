@@ -1,8 +1,6 @@
 import {
-  createSurfaceGeometry,
   createUnlitColorGeometry,
   GeometryIndexFormat,
-  type SurfaceBufferGeometry,
   type UnlitColorBufferGeometry,
 } from '../../../../core/geometry/buffer-geometry';
 import { type TreasureChestBatchGeometry } from '../geometry/treasure-chest-batch-geometry';
@@ -11,10 +9,10 @@ import { type TreasureChestBatchGeometry } from '../geometry/treasure-chest-batc
 export function createSharedTreasureChestBodyGeometry(
   source: Readonly<TreasureChestBatchGeometry>,
   capacity: number,
-): SurfaceBufferGeometry {
+): UnlitColorBufferGeometry {
   validateCapacity(capacity);
   const sourceGeometry = source.geometry;
-  const target = createSurfaceGeometry(
+  const target = createUnlitColorGeometry(
     sourceGeometry.vertexCount * capacity,
     sourceGeometry.indexCount * capacity,
     GeometryIndexFormat.Uint32,
@@ -55,7 +53,7 @@ export function createSharedTreasureChestBeaconGeometry(
 /** 把一个局部箱体姿态旋转并平移到共享世界空间槽位。 */
 export function writeSharedTreasureChestBody(
   source: Readonly<TreasureChestBatchGeometry>,
-  target: SurfaceBufferGeometry,
+  target: UnlitColorBufferGeometry,
   slot: number,
   x: number,
   y: number,
@@ -77,13 +75,6 @@ export function writeSharedTreasureChestBody(
     target.positions[targetOffset] = x + localX * cosine + localZ * sine;
     target.positions[targetOffset + 1] = y + localY;
     target.positions[targetOffset + 2] = z - localX * sine + localZ * cosine;
-
-    const normalX = sourceGeometry.normals[sourceOffset] ?? 0;
-    const normalY = sourceGeometry.normals[sourceOffset + 1] ?? 0;
-    const normalZ = sourceGeometry.normals[sourceOffset + 2] ?? 0;
-    target.normals[targetOffset] = normalX * cosine + normalZ * sine;
-    target.normals[targetOffset + 1] = normalY;
-    target.normals[targetOffset + 2] = -normalX * sine + normalZ * cosine;
   }
   if (writeColors) {
     target.colors.set(
@@ -122,13 +113,12 @@ export function writeSharedTreasureChestBeacon(
 
 /** 把箱体容量余量收拢为不可见退化顶点。 */
 export function collapseSharedTreasureChestBodies(
-  geometry: SurfaceBufferGeometry,
+  geometry: UnlitColorBufferGeometry,
   verticesPerChest: number,
   firstSlot: number,
 ): void {
   const firstVertex = firstSlot * verticesPerChest;
   geometry.positions.fill(0, firstVertex * 3);
-  geometry.normals.fill(0, firstVertex * 3);
   geometry.colors.fill(0, firstVertex * 4);
 }
 

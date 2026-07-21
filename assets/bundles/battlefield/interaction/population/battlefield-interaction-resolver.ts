@@ -23,6 +23,11 @@ export class BattlefieldInteractionResolver {
   };
   private nearestProvider: BattlefieldInteractionProvider | null = null;
 
+  /** 最近一次成功解析到的强类型交互动作。 */
+  public get currentAction(): BattlefieldInteractionAction | null {
+    return this.nearestProvider === null ? null : this.nearestCandidate.action;
+  }
+
   /** 登记一个长期存在、内部可随 Chunk 增减实体的交互提供者。 */
   public register(provider: BattlefieldInteractionProvider): void {
     if (this.providers.includes(provider)) {

@@ -17,4 +17,17 @@ describe('沙漠之鹰程序化模型', () => {
       )).toBeCloseTo(1, 5);
     }
   });
+
+  it('主体顶点色以蓝色通道为主，不再使用灰紫色史诗外观', () => {
+    let red = 0;
+    let green = 0;
+    let blue = 0;
+    for (let offset = 0; offset < DESERT_EAGLE_GEOMETRY.colors.length; offset += 4) {
+      red += DESERT_EAGLE_GEOMETRY.colors[offset] ?? 0;
+      green += DESERT_EAGLE_GEOMETRY.colors[offset + 1] ?? 0;
+      blue += DESERT_EAGLE_GEOMETRY.colors[offset + 2] ?? 0;
+    }
+    expect(blue).toBeGreaterThan(green * 1.5);
+    expect(blue).toBeGreaterThan(red * 2.5);
+  });
 });

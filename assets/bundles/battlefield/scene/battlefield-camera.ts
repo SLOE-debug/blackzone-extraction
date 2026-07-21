@@ -217,9 +217,9 @@ function createCamera(parent: Node): Camera {
   const camera = cameraNode.addComponent(Camera);
   camera.projection = Camera.ProjectionType.PERSPECTIVE;
   camera.fovAxis = Camera.FOVAxis.VERTICAL;
-  camera.fov = 52;
+  camera.fov = BATTLEFIELD_LAYOUT.camera.verticalFovDegrees;
   camera.near = 0.1;
-  camera.far = 180;
+  camera.far = BATTLEFIELD_LAYOUT.camera.farClip;
   camera.aperture = Camera.Aperture.F5_6;
   camera.shutter = Camera.Shutter.D60;
   camera.iso = Camera.ISO.ISO200;

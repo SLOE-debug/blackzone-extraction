@@ -2,6 +2,7 @@ import {
   isMonsterLifecycleResident,
   type MonsterLifecycleState,
 } from '../../../../../core/contracts/monster-lifecycle';
+import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /**
@@ -13,7 +14,10 @@ export class CurveCrawlerResidentLayout {
   public readonly entityIndices: Uint32Array;
   private residentCount = 0;
 
-  constructor(capacity: number) {
+  constructor(
+    capacity: number,
+    private readonly visibility: PlanarCircleVisibility,
+  ) {
     if (!Number.isInteger(capacity) || capacity <= 0) {
       throw new Error('Curve Crawler 驻留布局容量必须是正整数。');
     }
@@ -38,9 +42,8 @@ export class CurveCrawlerResidentLayout {
     let nextCount = 0;
     let changed = false;
     for (let entityIndex = 0; entityIndex < state.count; entityIndex++) {
-      if (!isMonsterLifecycleResident(
-        lifecycle[entityIndex] as MonsterLifecycleState,
-      )) {
+      if (!isMonsterLifecycleResident(lifecycle[entityIndex] as MonsterLifecycleState)
+        || !this.isVisible(state, entityIndex)) {
         continue;
       }
       if ((this.entityIndices[nextCount] ?? 0) !== entityIndex) {
@@ -54,5 +57,18 @@ export class CurveCrawlerResidentLayout {
     }
     this.residentCount = nextCount;
     return changed;
+  }
+
+  /** 使用当前形态的平面最大伸展半径执行保守视锥筛选。 */
+  private isVisible(state: CurveCrawlerState, entityIndex: number): boolean {
+    const { transform, morphology } = state.data;
+    const radius = (morphology.bodyLength[entityIndex] ?? 0) * 0.5
+      + (morphology.legLength[entityIndex] ?? 0) * 1.35
+      + (morphology.legWidth[entityIndex] ?? 0);
+    return this.visibility.isCircleVisible(
+      transform.x[entityIndex] ?? 0,
+      transform.y[entityIndex] ?? 0,
+      radius,
+    );
   }
 }

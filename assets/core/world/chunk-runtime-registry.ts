@@ -36,6 +36,11 @@ export class ChunkRuntimeRegistry<TContext> implements Disposable {
   private synchronizationStarted = false;
   private disposed = false;
 
+  /** 当前仍由窗口持有的 Chunk 作用域数量。 */
+  public get activeScopeCount(): number {
+    return this.scopes.size;
+  }
+
   /** 在首次窗口同步前登记一个 Chunk 内容参与者。 */
   public register(participant: ChunkRuntimeParticipant<TContext>): void {
     this.ensureActive();

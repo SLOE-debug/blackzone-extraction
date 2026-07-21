@@ -4,6 +4,7 @@ import {
   type EquipmentId,
   type EquipmentLibrary,
   type WeaponEquipmentDefinition,
+  type WeaponEquipmentId,
 } from '../../../../core/equipment/equipment';
 import {
   VanguardWeaponAction,
@@ -21,6 +22,7 @@ import {
   createWeaponAmmunition,
   type WeaponAmmunition,
 } from '../model/weapon-ammunition';
+import { WeaponAmmunitionReserve } from '../model/weapon-ammunition-reserve';
 import {
   type MutableBattlefieldProjectileDirection,
   writeBattlefieldProjectileDirection,
@@ -54,6 +56,8 @@ export interface BattlefieldWeaponOwnerPose {
 /** 管理玩家唯一武器槽、攻击策略、类型化手持渲染和攻击姿态脉冲。 */
 export class BattlefieldPlayerWeaponRuntime {
   private readonly heldMaterial: Material;
+  private readonly ammunitionReserve = new WeaponAmmunitionReserve();
+  private readonly ammunitionStates = new Map<WeaponEquipmentId, WeaponAmmunition>();
   private definition: Readonly<WeaponEquipmentDefinition> | null = null;
   private profile: Readonly<HeldWeaponProfile> | null = null;
   private ammunition: WeaponAmmunition | null = null;
@@ -76,14 +80,13 @@ export class BattlefieldPlayerWeaponRuntime {
 
   constructor(
     private readonly parent: Node,
-    surfaceMaterialTemplate: Material,
     private readonly equipmentLibrary: EquipmentLibrary,
   ) {
-    this.heldMaterial = createHeldWeaponMaterial(surfaceMaterialTemplate);
+    this.heldMaterial = createHeldWeaponMaterial();
   }
 
   /** 当前唯一武器槽中的装备标识。 */
-  public get equippedEquipmentId(): EquipmentId | null {
+  public get equippedEquipmentId(): WeaponEquipmentId | null {
     return this.definition?.id ?? null;
   }
 
@@ -122,14 +125,15 @@ export class BattlefieldPlayerWeaponRuntime {
    *
    * @returns 被替换的旧装备标识；原槽为空时返回空值。
    */
-  public equip(equipmentId: EquipmentId): EquipmentId | null {
+  public equip(equipmentId: WeaponEquipmentId): WeaponEquipmentId | null {
     this.ensureActive();
     const definition = this.equipmentLibrary.get(equipmentId);
-    if (definition.category !== EquipmentCategory.Weapon) {
-      throw new Error(`玩家武器槽不能装备非武器物品：${equipmentId}。`);
-    }
     const profile = getHeldWeaponProfile(equipmentId);
-    const ammunition = createWeaponAmmunition(definition.ammunition);
+    const existingAmmunition = this.ammunitionStates.get(equipmentId);
+    const ammunition = existingAmmunition ?? createWeaponAmmunition(
+      definition.ammunition,
+      this.ammunitionReserve,
+    );
     let heldRenderer: HeldWeaponRenderer | null = null;
     let projectiles: BattlefieldProjectilePopulation | null = null;
     try {
@@ -143,6 +147,9 @@ export class BattlefieldPlayerWeaponRuntime {
     const replacedEquipmentId = this.definition?.id ?? null;
     this.projectiles?.dispose();
     this.heldRenderer?.dispose();
+    if (existingAmmunition === undefined) {
+      this.ammunitionStates.set(equipmentId, ammunition);
+    }
     this.definition = definition;
     this.profile = profile;
     this.ammunition = ammunition;
@@ -152,6 +159,23 @@ export class BattlefieldPlayerWeaponRuntime {
     this.attackAnimationElapsed = Number.POSITIVE_INFINITY;
     this.reloadPending = false;
     return replacedEquipmentId;
+  }
+
+  /** 接收一件世界装备；武器进入槽位，弹药则直接加入对应备用库存。 */
+  public receive(equipmentId: EquipmentId): WeaponEquipmentId | null {
+    this.ensureActive();
+    const definition = this.equipmentLibrary.get(equipmentId);
+    switch (definition.category) {
+      case EquipmentCategory.Weapon:
+        return this.equip(definition.id);
+      case EquipmentCategory.Ammunition:
+        this.ammunitionReserve.add(definition.ammunitionType, definition.rounds);
+        if (this.ammunition?.ammunitionType === definition.ammunitionType
+          && this.ammunition.empty) {
+          this.reloadPending = true;
+        }
+        return null;
+    }
   }
 
   /** 同步手持姿态、推进在途弹体，并对锁定目标触发射击。 */
@@ -216,6 +240,7 @@ export class BattlefieldPlayerWeaponRuntime {
     this.definition = null;
     this.profile = null;
     this.ammunition = null;
+    this.ammunitionStates.clear();
     this.projectiles = null;
     this.heldRenderer = null;
     this.reloadPending = false;

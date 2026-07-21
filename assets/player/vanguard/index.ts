@@ -5,6 +5,7 @@ export type { MutableVanguardWeaponSocketPose } from './model/vanguard-weapon-so
 export type { MutableVanguardWeaponRigPose } from './model/vanguard-weapon-rig-pose';
 export { VanguardWeaponAction } from './model/vanguard-weapon-action';
 export { VanguardWeaponPose } from './model/vanguard-weapon-pose';
+export { VanguardRenderMode } from './model/vanguard-render-mode';
 export {
   getVanguardWeaponRigProfile,
   VanguardWeaponRigSocket,

@@ -7,20 +7,27 @@ export {
   type LoadingProgressReporter,
 } from './contracts/loading-progress';
 export type { MonsterPopulation } from './contracts/monster-population';
+export type { PlanarCircleVisibility } from './contracts/planar-circle-visibility';
 export {
+  AmmunitionType,
   EquipmentCategory,
   EquipmentId,
   EquipmentRarity,
   WeaponAmmunitionMode,
   WeaponClass,
   WeaponShotPatternType,
+  type AmmunitionEquipmentDefinition,
+  type AmmunitionEquipmentId,
   type EquipmentDefinition,
+  type EquipmentDefinitionById,
   type EquipmentLibrary,
+  type MagazineWeaponAmmunitionDefinition,
   type PelletConeWeaponShotPattern,
   type SingleWeaponShotPattern,
   type TubeMagazineWeaponAmmunitionDefinition,
   type WeaponAmmunitionDefinition,
   type WeaponEquipmentDefinition,
+  type WeaponEquipmentId,
   type WeaponProjectileDefinition,
   type WeaponShotPattern,
 } from './equipment/equipment';

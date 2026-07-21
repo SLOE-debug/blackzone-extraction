@@ -6,6 +6,7 @@ import { curveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-compiler';
 import { curveCrawlerMeshEvaluator } from '../geometry/curve-crawler-mesh-evaluator';
 import { type CurveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-plan';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { CurveCrawlerRenderMode } from '../model/curve-crawler-render-mode';
 import {
   createCurveCrawlerBounds,
   type CurveCrawlerBounds,
@@ -45,7 +46,10 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
     surfaceMaterialTemplate: Material,
   ) {
     this.bounds = createCurveCrawlerBounds(state);
-    this.materials = new CurveCrawlerMaterials(surfaceMaterialTemplate);
+    this.materials = new CurveCrawlerMaterials(
+      surfaceMaterialTemplate,
+      CurveCrawlerRenderMode.Lit,
+    );
     this.colorSnapshot = new CurveCrawlerColorSnapshot(state);
     try {
       this.batches = new CompiledMeshBatchRenderer({

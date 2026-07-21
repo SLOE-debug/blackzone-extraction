@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { Node } from 'cc';
 import {
   type EquipmentLibrary,
   EquipmentId,
@@ -53,7 +53,6 @@ export class TreasureChestRuntime {
   constructor(
     id: number,
     parent: Node,
-    surfaceMaterialTemplate: Material,
     sharedRenderer: TreasureChestSharedRenderer,
     private readonly spawn: Readonly<BattlefieldTreasureChestSpawn>,
     private readonly sessionState: BattlefieldTreasureChestSessionState,
@@ -73,8 +72,8 @@ export class TreasureChestRuntime {
     try {
       this.drops = new DroppedEquipmentPopulation(
         parent,
-        surfaceMaterialTemplate,
         instanceIds,
+        equipmentLibrary,
       );
     } catch (error: unknown) {
       this.renderer.dispose();
@@ -92,6 +91,21 @@ export class TreasureChestRuntime {
   /** 只有尚未打开的宝箱能进入操作按钮候选。 */
   public get interactable(): boolean {
     return !this.disposed && this.phase === TreasureChestPhase.Closed;
+  }
+
+  /** 宝箱是否已经开始不可逆的开启流程。 */
+  public get opened(): boolean {
+    return this.phase !== TreasureChestPhase.Closed;
+  }
+
+  /** 当前仍属于本宝箱的世界掉落物数量。 */
+  public get droppedEquipmentCount(): number {
+    return this.drops.count;
+  }
+
+  /** 本宝箱掉落物当前占用的本体与信标渲染批次数量。 */
+  public get droppedRenderBatchCount(): number {
+    return this.drops.renderBatchCount;
   }
 
   /** 启动一次不可逆的丝滑开启动画。 */
@@ -122,10 +136,10 @@ export class TreasureChestRuntime {
     this.playerDistanceSquared = deltaX * deltaX + deltaZ * deltaZ;
   }
 
-  /** 推进箱盖动画和已经释放的掉落装备。 */
-  public update(deltaTime: number): void {
+  /** 推进箱盖动画和掉落装备，并返回本帧首次释放的掉落物数量。 */
+  public update(deltaTime: number): number {
     if (this.disposed) {
-      return;
+      return 0;
     }
     if (!Number.isFinite(deltaTime)) {
       throw new Error('宝箱帧时间必须是有限数值。');
@@ -137,17 +151,19 @@ export class TreasureChestRuntime {
       this.playerDistanceSquared,
       this.phase === TreasureChestPhase.Closed,
     );
+    let releasedLootCount = 0;
     if (this.phase === TreasureChestPhase.Opening) {
       this.elapsed += safeDeltaTime;
       this.renderer.setLidAngleDegrees(evaluateTreasureChestLidAngle(this.elapsed));
       if (!this.lootReleased && this.elapsed >= TREASURE_CHEST_ANIMATION.lootReleaseTime) {
-        this.releaseLoot();
+        releasedLootCount = this.releaseLoot();
       }
       if (this.elapsed >= TREASURE_CHEST_ANIMATION.duration) {
         this.phase = TreasureChestPhase.Open;
       }
     }
     this.drops.update(safeDeltaTime);
+    return releasedLootCount;
   }
 
   /** 把最近落地装备查询交给宝箱独占的掉落群体。 */
@@ -192,7 +208,7 @@ export class TreasureChestRuntime {
     this.elapsed = TREASURE_CHEST_ANIMATION.duration;
     this.renderer.setLidAngleDegrees(TREASURE_CHEST_ANIMATION.finalAngleDegrees);
     this.renderer.updateAttention(0, this.playerDistanceSquared, false);
-    this.releaseLoot();
+    void this.releaseLoot();
   }
 
   /** 第一次开箱时确定并校验整组战利品，后续 Chunk 重载不再重新抽取。 */
@@ -205,7 +221,7 @@ export class TreasureChestRuntime {
   }
 
   /** 使用会话中剩余的装备和首次开箱种子生成当前 Chunk 的掉落实例。 */
-  private releaseLoot(): void {
+  private releaseLoot(): number {
     const equipmentIds = this.sessionState.getRemainingLoot(this.spawn.key);
     const scatterSeed = this.sessionState.getScatterSeed(this.spawn.key);
     if (equipmentIds === null || scatterSeed === null) {
@@ -213,7 +229,7 @@ export class TreasureChestRuntime {
     }
     if (equipmentIds.length === 0) {
       this.lootReleased = true;
-      return;
+      return 0;
     }
     this.scatterRandomState[0] = scatterSeed;
     const trajectories = createLootScatterTrajectories(
@@ -226,5 +242,6 @@ export class TreasureChestRuntime {
     );
     this.drops.spawnBurst(equipmentIds, trajectories);
     this.lootReleased = true;
+    return equipmentIds.length;
   }
 }

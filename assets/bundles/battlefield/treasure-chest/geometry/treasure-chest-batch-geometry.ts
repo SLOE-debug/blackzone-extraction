@@ -1,8 +1,8 @@
 import {
-  createSurfaceGeometry,
+  createUnlitColorGeometry,
   GeometryIndexFormat,
   type StaticSurfaceBufferGeometry,
-  type SurfaceBufferGeometry,
+  type UnlitColorBufferGeometry,
 } from '../../../../core/geometry/buffer-geometry';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TREASURE_CHEST_BODY_GEOMETRY } from './treasure-chest-body-geometry';
@@ -10,7 +10,7 @@ import { TREASURE_CHEST_LID_GEOMETRY } from './treasure-chest-lid-geometry';
 
 /** 宝箱体与可动箱盖共享的固定拓扑动态几何。 */
 export interface TreasureChestBatchGeometry {
-  readonly geometry: SurfaceBufferGeometry;
+  readonly geometry: UnlitColorBufferGeometry;
   readonly lidVertexOffset: number;
 }
 
@@ -18,7 +18,7 @@ export interface TreasureChestBatchGeometry {
 export function createTreasureChestBatchGeometry(): TreasureChestBatchGeometry {
   const body = TREASURE_CHEST_BODY_GEOMETRY;
   const lid = TREASURE_CHEST_LID_GEOMETRY;
-  const geometry = createSurfaceGeometry(
+  const geometry = createUnlitColorGeometry(
     body.vertexCount + lid.vertexCount,
     body.indexCount + lid.indexCount,
     GeometryIndexFormat.Uint16,
@@ -33,7 +33,7 @@ export function createTreasureChestBatchGeometry(): TreasureChestBatchGeometry {
   return result;
 }
 
-/** 只重写箱盖区段的位置和法线，固定索引与颜色保持不变。 */
+/** 只重写箱盖区段的位置，固定索引与颜色保持不变。 */
 export function writeTreasureChestLidPose(
   batch: Readonly<TreasureChestBatchGeometry>,
   angleDegrees: number,
@@ -54,23 +54,15 @@ export function writeTreasureChestLidPose(
       + y * cosine - z * sine;
     target.positions[targetOffset + 2] = TREASURE_CHEST_LAYOUT.hingeZ
       + y * sine + z * cosine;
-
-    const normalX = source.normals[sourceOffset] ?? 0;
-    const normalY = source.normals[sourceOffset + 1] ?? 0;
-    const normalZ = source.normals[sourceOffset + 2] ?? 0;
-    target.normals[targetOffset] = normalX;
-    target.normals[targetOffset + 1] = normalY * cosine - normalZ * sine;
-    target.normals[targetOffset + 2] = normalY * sine + normalZ * cosine;
   }
 }
 
 function copyStaticVertexStreams(
   source: StaticSurfaceBufferGeometry,
-  target: SurfaceBufferGeometry,
+  target: UnlitColorBufferGeometry,
   targetVertexOffset: number,
 ): void {
   target.positions.set(source.getPositionView(), targetVertexOffset * 3);
-  target.normals.set(source.getNormalView(), targetVertexOffset * 3);
   target.colors.set(source.getColorView(), targetVertexOffset * 4);
 }
 

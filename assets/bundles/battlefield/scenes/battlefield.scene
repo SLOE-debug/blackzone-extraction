@@ -97,8 +97,8 @@
       "z": 0.2,
       "w": 0.520833125
     },
-    "_skyIllumHDR": 2600,
-    "_skyIllum": 2600,
+    "_skyIllumHDR": 0,
+    "_skyIllum": 0,
     "_groundAlbedoHDR": {
       "__type__": "cc.Vec4",
       "x": 0.2,
@@ -120,7 +120,7 @@
       "z": 0.2,
       "w": 1
     },
-    "_skyIllumLDR": 0.8,
+    "_skyIllumLDR": 0,
     "_groundAlbedoLDR": {
       "__type__": "cc.Vec4",
       "x": 0.2,
@@ -208,7 +208,7 @@
   },
   {
     "__type__": "cc.SkinInfo",
-    "_enabled": true,
+    "_enabled": false,
     "_blurRadius": 0.01,
     "_sssIntensity": 3
   },

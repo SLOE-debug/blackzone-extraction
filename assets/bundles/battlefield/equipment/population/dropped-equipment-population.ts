@@ -1,7 +1,11 @@
 import { type Material, Node } from 'cc';
-import { EquipmentId } from '../../../../core/equipment/equipment';
+import {
+  EquipmentId,
+  type EquipmentLibrary,
+} from '../../../../core/equipment/equipment';
 import { type LootScatterTrajectory } from '../../loot/model/loot-scatter-trajectory';
 import { createDroppedEquipmentMaterial } from '../rendering/dropped-equipment-material';
+import { DroppedEquipmentAccentRenderer } from '../rendering/dropped-equipment-accent-renderer';
 import { DroppedEquipmentRenderer } from '../rendering/dropped-equipment-renderer';
 import { DroppedEquipmentRuntime } from './dropped-equipment-runtime';
 
@@ -33,14 +37,25 @@ export class DroppedEquipmentPopulation {
   private readonly material: Material;
   private readonly items: DroppedEquipmentRuntime[] = [];
   private renderer: DroppedEquipmentRenderer | null = null;
+  private accentRenderer: DroppedEquipmentAccentRenderer | null = null;
   private disposed = false;
+
+  /** 当前仍在世界中的飞行或落地装备数量。 */
+  public get count(): number {
+    return this.items.length;
+  }
+
+  /** 当前掉落物本体与毛笔形信标实际占用的渲染批次数量。 */
+  public get renderBatchCount(): number {
+    return (this.renderer === null ? 0 : 1) + (this.accentRenderer === null ? 0 : 1);
+  }
 
   constructor(
     private readonly parent: Node,
-    surfaceMaterialTemplate: Material,
     private readonly instanceIds: DroppedEquipmentInstanceIdSequence,
+    private readonly equipmentLibrary: EquipmentLibrary,
   ) {
-    this.material = createDroppedEquipmentMaterial(surfaceMaterialTemplate);
+    this.material = createDroppedEquipmentMaterial();
   }
 
   /** 按一一对应的装备标识和轨迹创建整次爆散。 */
@@ -89,6 +104,7 @@ export class DroppedEquipmentPopulation {
       item.update(deltaTime);
     }
     this.renderer?.update();
+    this.accentRenderer?.update();
   }
 
   /** 查找玩家半径内最近且已经稳定落地的装备。 */
@@ -175,7 +191,9 @@ export class DroppedEquipmentPopulation {
     }
     this.items.length = 0;
     this.renderer?.dispose();
+    this.accentRenderer?.dispose();
     this.renderer = null;
+    this.accentRenderer = null;
     this.material.destroy();
   }
 
@@ -188,10 +206,24 @@ export class DroppedEquipmentPopulation {
   /** 拾取或新增只在低频事件发生时重建固定索引，不把每件装备拆成 Renderer。 */
   private rebuildRenderer(): void {
     let nextRenderer: DroppedEquipmentRenderer | null = null;
-    if (this.items.length > 0) {
-      nextRenderer = new DroppedEquipmentRenderer(this.parent, this.items, this.material);
+    let nextAccentRenderer: DroppedEquipmentAccentRenderer | null = null;
+    try {
+      if (this.items.length > 0) {
+        nextRenderer = new DroppedEquipmentRenderer(this.parent, this.items, this.material);
+        nextAccentRenderer = new DroppedEquipmentAccentRenderer(
+          this.parent,
+          this.items,
+          this.equipmentLibrary,
+        );
+      }
+    } catch (error: unknown) {
+      nextAccentRenderer?.dispose();
+      nextRenderer?.dispose();
+      throw error;
     }
+    this.accentRenderer?.dispose();
     this.renderer?.dispose();
     this.renderer = nextRenderer;
+    this.accentRenderer = nextAccentRenderer;
   }
 }

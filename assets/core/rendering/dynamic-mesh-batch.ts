@@ -49,6 +49,8 @@ export class DynamicMeshBatch {
   private positionByteLength = 0;
   private normalByteLength = 0;
   private colorByteLength = 0;
+  private maximumIndexCount = 0;
+  private activeIndexCount = 0;
   private readonly minimumPosition = new Vec3();
   private readonly maximumPosition = new Vec3();
 
@@ -156,6 +158,8 @@ export class DynamicMeshBatch {
     this.positionByteLength = positions.byteLength;
     this.normalByteLength = normals?.byteLength ?? 0;
     this.colorByteLength = colors.byteLength;
+    this.maximumIndexCount = geometry.indexCount;
+    this.activeIndexCount = geometry.indexCount;
     this.state = DynamicMeshBatchState.Initialized;
   }
 
@@ -203,6 +207,39 @@ export class DynamicMeshBatch {
     this.renderer.onGeometryChanged();
   }
 
+  /**
+   * 限制当前批次实际提交的连续索引范围，不重建已经分配的 GPU 缓冲。
+   *
+   * 固定容量批次可借此只绘制紧凑区段；容量余量不会再产生顶点或三角形提交。
+   */
+  public setActiveIndexCount(indexCount: number): void {
+    if (this.state !== DynamicMeshBatchState.Initialized
+      || this.mesh === null
+      || this.renderer === null) {
+      throw new Error('动态网格批次尚未初始化或已经释放。');
+    }
+    if (!Number.isInteger(indexCount)
+      || indexCount < 0
+      || indexCount > this.maximumIndexCount) {
+      throw new Error('动态网格活动索引数必须位于已提交索引容量内。');
+    }
+    if (indexCount === this.activeIndexCount) {
+      return;
+    }
+    const renderingSubMesh = this.mesh.renderingSubMeshes[0];
+    const drawInfo = renderingSubMesh?.drawInfo;
+    if (renderingSubMesh === undefined || drawInfo === undefined || drawInfo === null) {
+      throw new Error('动态网格缺少可调整的子网格绘制范围。');
+    }
+    drawInfo.indexCount = indexCount;
+    renderingSubMesh.drawInfo = drawInfo;
+    const inputAssembler = this.renderer.model?.subModels[0]?.inputAssembler;
+    if (inputAssembler !== undefined) {
+      inputAssembler.indexCount = indexCount;
+    }
+    this.activeIndexCount = indexCount;
+  }
+
   /** 在没有活动实体时停用批次节点，从提交列表中完全移除该 Draw Call。 */
   public setVisible(visible: boolean): void {
     if (this.state !== DynamicMeshBatchState.Initialized || this.node === null) {
@@ -239,6 +276,8 @@ export class DynamicMeshBatch {
     this.positionByteLength = 0;
     this.normalByteLength = 0;
     this.colorByteLength = 0;
+    this.maximumIndexCount = 0;
+    this.activeIndexCount = 0;
     this.state = DynamicMeshBatchState.Disposed;
   }
 }

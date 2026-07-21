@@ -34,7 +34,7 @@ describe('battlefield ground geometry', () => {
     }
   });
 
-  it('GPU 地面布局只上传位置和颜色，法线仅保留给 CPU 分面着色', () => {
+  it('GPU 地面布局只上传位置和颜色，同时保留 CPU 分面法线用于着色', () => {
     const metrics = battlefieldGroundGeometry.metrics;
     const geometry = new BattlefieldGroundRenderGeometry(
       metrics.verticesPerEntity,

@@ -1,5 +1,5 @@
 import { type Material, Node, Quat } from 'cc';
-import { EquipmentId } from '../../../../core/equipment/equipment';
+import { type WeaponEquipmentId } from '../../../../core/equipment/equipment';
 import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
 import {
   getHeldWeaponProfile,
@@ -8,9 +8,9 @@ import {
 import { getBattlefieldEquipmentGeometry } from './battlefield-equipment-geometry';
 
 const HELD_WEAPON_SURFACE_OPTIONS = Object.freeze({
-  castShadows: true,
-  receiveShadows: true,
-  uploadLightingAttributes: true,
+  castShadows: false,
+  receiveShadows: false,
+  uploadLightingAttributes: false,
 });
 
 /** 把一件程序化武器渲染到玩家 WeaponAimRoot 提供的权威姿态。 */
@@ -25,7 +25,7 @@ export class HeldWeaponRenderer {
 
   constructor(
     parent: Node,
-    equipmentId: EquipmentId,
+    equipmentId: WeaponEquipmentId,
     material: Material,
   ) {
     this.profile = getHeldWeaponProfile(equipmentId);

@@ -1,4 +1,4 @@
-/** 宝箱地面信标、漂浮光片和真实局部灯光共享的稳定布局。 */
+/** 宝箱地面信标与漂浮 Unlit 光片共享的稳定布局。 */
 export const TREASURE_CHEST_BEACON_LAYOUT = Object.freeze({
   groundY: 0.052,
   ringSegments: 12,

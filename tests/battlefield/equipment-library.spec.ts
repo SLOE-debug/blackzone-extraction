@@ -17,14 +17,14 @@ import { getBattlefieldEquipmentGeometry } from '../../assets/bundles/battlefiel
 import { mixRandomSeed } from '../../assets/core/math/xorshift32';
 
 describe('战场装备库', () => {
-  it('以史诗品质手枪定义登记沙漠之鹰并提供战斗参数', () => {
+  it('以蓝色普通手枪定义登记沙漠之鹰并降低单发伤害', () => {
     const weapon = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
     expect(weapon.displayName).toBe('沙漠之鹰');
     expect(weapon.category).toBe(EquipmentCategory.Weapon);
-    expect(weapon.rarity).toBe(EquipmentRarity.Epic);
+    expect(weapon.rarity).toBe(EquipmentRarity.Rare);
     expect(weapon.weaponClass).toBe(WeaponClass.Handgun);
-    expect(weapon.damage).toBeGreaterThan(0);
-    expect(weapon.ammunition.mode).toBe(WeaponAmmunitionMode.Infinite);
+    expect(weapon.damage).toBe(32);
+    expect(weapon.ammunition.mode).toBe(WeaponAmmunitionMode.Magazine);
     expect(weapon.shotPattern.type).toBe(WeaponShotPatternType.Single);
     expect(weapon.projectile.speed).toBeGreaterThan(0);
     expect(weapon.projectile.maximumRange).toBeGreaterThan(0);
@@ -43,14 +43,16 @@ describe('战场装备库', () => {
     expect(weapon.projectile.visual).toBeDefined();
   });
 
-  it('装备协议完整登记手枪与泵动霰弹枪', () => {
+  it('装备协议完整登记两种武器与两种对应弹药', () => {
     expect(Object.values(EquipmentId)).toEqual([
       EquipmentId.DesertEagle,
       EquipmentId.PumpShotgun,
+      EquipmentId.HandgunAmmunition,
+      EquipmentId.ShotgunAmmunition,
     ]);
   });
 
-  it('宝箱随机掉落一至三件已登记武器而非固定三把手枪', () => {
+  it('宝箱必出一把武器，并按概率附带一至两份对应口径弹药', () => {
     const observedCounts = new Set<number>();
     const observedEquipment = new Set<EquipmentId>();
     for (let seed = 1; seed <= 128; seed++) {
@@ -59,6 +61,16 @@ describe('战场装备库', () => {
       observedCounts.add(drops.length);
       expect(drops.length).toBeGreaterThanOrEqual(1);
       expect(drops.length).toBeLessThanOrEqual(3);
+      expect([
+        EquipmentId.DesertEagle,
+        EquipmentId.PumpShotgun,
+      ]).toContain(drops[0]);
+      const expectedAmmunition = drops[0] === EquipmentId.DesertEagle
+        ? EquipmentId.HandgunAmmunition
+        : EquipmentId.ShotgunAmmunition;
+      for (const ammunitionId of drops.slice(1)) {
+        expect(ammunitionId).toBe(expectedAmmunition);
+      }
       for (const id of drops) {
         observedEquipment.add(id);
         expect(Object.values(EquipmentId)).toContain(id);
@@ -68,10 +80,12 @@ describe('战场装备库', () => {
     expect(observedEquipment).toEqual(new Set([
       EquipmentId.DesertEagle,
       EquipmentId.PumpShotgun,
+      EquipmentId.HandgunAmmunition,
+      EquipmentId.ShotgunAmmunition,
     ]));
   });
 
-  it('两种武器均由非空程序化分面拓扑和单位法线构成', () => {
+  it('全部武器和弹药拾取物均由非空程序化分面拓扑和单位法线构成', () => {
     for (const equipmentId of Object.values(EquipmentId)) {
       const geometry = getBattlefieldEquipmentGeometry(equipmentId);
       expect(geometry.vertexCount).toBeGreaterThan(30);

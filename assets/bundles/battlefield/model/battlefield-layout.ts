@@ -14,6 +14,8 @@ export const BATTLEFIELD_LAYOUT = Object.freeze({
     pitchDegrees: 35,
     minimumPitchDegrees: 20,
     maximumPitchDegrees: 75,
+    verticalFovDegrees: 52,
     targetOffsetY: 1.3,
+    farClip: 150,
   }),
 });

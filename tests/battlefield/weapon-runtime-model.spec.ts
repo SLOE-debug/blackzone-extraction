@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/model/battlefield-equipment-library';
 import { createWeaponAmmunition } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition';
+import { WeaponAmmunitionReserve } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition-reserve';
 import {
   BATTLEFIELD_PROJECTILE_TOPOLOGY,
   writeBattlefieldProjectilePositions,
@@ -16,6 +17,7 @@ import {
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-weapon-shot-pattern';
 import {
   EquipmentId,
+  AmmunitionType,
   WeaponProjectileVisual,
   WeaponShotPatternType,
 } from '../../assets/core/equipment/equipment';
@@ -26,18 +28,29 @@ import {
 } from '../../assets/player/vanguard/model/vanguard-weapon-rig';
 
 describe('玩家武器运行时模型', () => {
-  it('默认无限弹药能够持续批准射击', () => {
+  it('手枪耗尽八发后必须消耗拾取的备用弹药才能重新装填', () => {
     const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
-    const ammunition = createWeaponAmmunition(definition.ammunition);
+    const reserve = new WeaponAmmunitionReserve();
+    const ammunition = createWeaponAmmunition(definition.ammunition, reserve);
 
-    for (let shot = 0; shot < 64; shot++) {
+    for (let shot = 0; shot < 8; shot++) {
       expect(ammunition.tryConsumeShot()).toBe(true);
     }
+    expect(ammunition.tryConsumeShot()).toBe(false);
+    expect(ammunition.beginReload()).toBe(false);
+
+    reserve.add(AmmunitionType.HandgunRound, 6);
+    expect(ammunition.beginReload()).toBe(true);
+    ammunition.update(1.08);
+    expect(ammunition.roundsRemaining).toBe(6);
+    expect(ammunition.reserveRounds).toBe(0);
   });
 
   it('霰弹枪耗尽五发后按单发节奏连续装填管式弹仓', () => {
     const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.PumpShotgun);
-    const ammunition = createWeaponAmmunition(definition.ammunition);
+    const reserve = new WeaponAmmunitionReserve();
+    reserve.add(AmmunitionType.ShotgunShell, 5);
+    const ammunition = createWeaponAmmunition(definition.ammunition, reserve);
 
     for (let shot = 0; shot < 5; shot++) {
       expect(ammunition.tryConsumeShot()).toBe(true);
@@ -51,6 +64,7 @@ describe('玩家武器运行时模型', () => {
     expect(ammunition.roundsRemaining).toBe(1);
     ammunition.update(0.62 * 4);
     expect(ammunition.roundsRemaining).toBe(5);
+    expect(ammunition.reserveRounds).toBe(0);
     expect(ammunition.reloading).toBe(false);
   });
 

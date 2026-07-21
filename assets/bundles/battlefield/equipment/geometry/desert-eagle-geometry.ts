@@ -13,14 +13,14 @@ import {
 } from './faceted-firearm-builder';
 
 const PALETTE = Object.freeze({
-  slideDark: Object.freeze({ red: 0.12, green: 0.13, blue: 0.145, alpha: 1 }),
-  slide: Object.freeze({ red: 0.28, green: 0.3, blue: 0.325, alpha: 1 }),
-  slideLight: Object.freeze({ red: 0.48, green: 0.5, blue: 0.52, alpha: 1 }),
-  frame: Object.freeze({ red: 0.17, green: 0.18, blue: 0.19, alpha: 1 }),
-  gripDark: Object.freeze({ red: 0.085, green: 0.052, blue: 0.035, alpha: 1 }),
-  grip: Object.freeze({ red: 0.21, green: 0.12, blue: 0.07, alpha: 1 }),
+  slideDark: Object.freeze({ red: 0.025, green: 0.11, blue: 0.25, alpha: 1 }),
+  slide: Object.freeze({ red: 0.055, green: 0.3, blue: 0.66, alpha: 1 }),
+  slideLight: Object.freeze({ red: 0.25, green: 0.62, blue: 0.96, alpha: 1 }),
+  frame: Object.freeze({ red: 0.035, green: 0.2, blue: 0.43, alpha: 1 }),
+  gripDark: Object.freeze({ red: 0.018, green: 0.065, blue: 0.13, alpha: 1 }),
+  grip: Object.freeze({ red: 0.045, green: 0.15, blue: 0.29, alpha: 1 }),
   bore: Object.freeze({ red: 0.018, green: 0.02, blue: 0.023, alpha: 1 }),
-  epic: Object.freeze({ red: 0.47, green: 0.16, blue: 0.78, alpha: 1 }),
+  rare: Object.freeze({ red: 0.18, green: 0.52, blue: 1, alpha: 1 }),
 } satisfies Readonly<Record<string, Readonly<FacetedColor>>>);
 
 const SLIDE = Object.freeze([
@@ -67,7 +67,7 @@ export function createDesertEagleGeometry() {
   appendTriggerGuard(sink);
   appendMuzzle(sink);
   appendSights(sink);
-  appendEpicInlay(sink);
+  appendRareInlay(sink);
   return sink.build();
 }
 
@@ -200,11 +200,11 @@ function appendSights(sink: StaticFacetedMeshSink): void {
   );
 }
 
-/** 在握把侧面嵌入紫色三角品质刻印。 */
-function appendEpicInlay(sink: StaticFacetedMeshSink): void {
+/** 在握把侧面嵌入蓝色三角品质刻印。 */
+function appendRareInlay(sink: StaticFacetedMeshSink): void {
   emitOrientedFlatTriangle(
     sink,
-    PALETTE.epic,
+    PALETTE.rare,
     point3(-0.63, -0.65, 0.176),
     point3(-0.24, -0.82, 0.176),
     point3(-0.52, -1.12, 0.176),

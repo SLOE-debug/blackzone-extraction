@@ -32,6 +32,8 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
   private readonly emergenceScratch: CurveCrawlerEmergenceScratch
     = createCurveCrawlerEmergenceScratch();
 
+  constructor(private readonly writeNormals = true) {}
+
   /**
    * 按请求的流位标志原地求值指定连续实体范围。
    *
@@ -49,7 +51,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     range: EntityRange,
     requested: MeshDirty,
   ): MeshDirty {
-    const flags = resolveEvaluationFlags(requested);
+    const flags = resolveEvaluationFlags(requested, this.writeNormals);
     const writeGeometry = (flags & CurveCrawlerEvaluationFlag.Geometry) !== 0;
     const writeColors = (flags & CurveCrawlerEvaluationFlag.Color) !== 0;
     if (!writeGeometry
@@ -57,7 +59,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
       && (requested & MeshDirty.Bounds) === 0) {
       return MeshDirty.None;
     }
-    assertCurveCrawlerStreamCapacity(plan, streams, range.count);
+    assertCurveCrawlerStreamCapacity(plan, streams, range.count, this.writeNormals);
 
     for (let localEntity = 0; localEntity < range.count; localEntity++) {
       const entityIndex = range.start + localEntity;
@@ -73,7 +75,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
       );
     }
 
-    return createChangedFlags(requested, writeGeometry, writeColors);
+    return createChangedFlags(requested, writeGeometry, writeColors, this.writeNormals);
   }
 
   /**
@@ -99,7 +101,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
       || targetEntityOffset < 0) {
       throw new Error('Curve Crawler 紧凑求值范围无效。');
     }
-    const flags = resolveEvaluationFlags(requested);
+    const flags = resolveEvaluationFlags(requested, this.writeNormals);
     const writeGeometry = (flags & CurveCrawlerEvaluationFlag.Geometry) !== 0;
     const writeColors = (flags & CurveCrawlerEvaluationFlag.Color) !== 0;
     if (!writeGeometry
@@ -111,6 +113,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
       plan,
       streams,
       targetEntityOffset + entityCount,
+      this.writeNormals,
     );
     for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
       const entityIndex = entityIndices[packedIndex];
@@ -127,7 +130,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         writeColors,
       );
     }
-    return createChangedFlags(requested, writeGeometry, writeColors);
+    return createChangedFlags(requested, writeGeometry, writeColors, this.writeNormals);
   }
 
   /** 将一个源实体求值到指定的目标顶点区段。 */
@@ -150,7 +153,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
           state.data.transform.x[entityIndex] ?? 0,
           state.data.transform.y[entityIndex] ?? 0,
           true,
-          true,
+          this.writeNormals,
         );
       } else {
         const fragmentScale = Math.max(0.0001, 1 - surfaceCollapse);
@@ -162,7 +165,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
           fragmentScale,
           streams,
           true,
-          true,
+          this.writeNormals,
           this.legScratch,
         );
         evaluateCurveCrawlerEyeMesh(
@@ -173,7 +176,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
           fragmentScale,
           streams,
           true,
-          true,
+          this.writeNormals,
         );
       }
       evaluateCurveCrawlerLiquidMesh(
@@ -183,7 +186,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         entityVertexOffset,
         streams,
         true,
-        true,
+        this.writeNormals,
       );
       evaluateCurveCrawlerEmergenceMesh(
         state,
@@ -192,7 +195,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         entityVertexOffset,
         streams,
         true,
-        true,
+        this.writeNormals,
         this.emergenceScratch,
       );
     }
@@ -215,13 +218,22 @@ const enum CurveCrawlerEvaluationFlag {
 }
 
 /** 验证成对姿态流并解析本次实际需要改写的属性。 */
-function resolveEvaluationFlags(requested: MeshDirty): CurveCrawlerEvaluationFlag {
+function resolveEvaluationFlags(
+  requested: MeshDirty,
+  writeNormals: boolean,
+): CurveCrawlerEvaluationFlag {
   const requestedPose = requested & MeshDirty.Pose;
-  if (requestedPose !== MeshDirty.None && requestedPose !== MeshDirty.Pose) {
+  if (writeNormals
+    && requestedPose !== MeshDirty.None
+    && requestedPose !== MeshDirty.Pose) {
     throw new Error('Curve Crawler 的 Position 和 Normal 必须作为同一姿态成对请求。');
   }
+  if (!writeNormals && (requested & MeshDirty.Normal) !== 0) {
+    throw new Error('Curve Crawler Unlit 批次不能请求不存在的 Normal 流。');
+  }
   let flags = CurveCrawlerEvaluationFlag.None;
-  if (requestedPose === MeshDirty.Pose) {
+  if ((writeNormals && requestedPose === MeshDirty.Pose)
+    || (!writeNormals && (requested & MeshDirty.Position) !== 0)) {
     flags |= CurveCrawlerEvaluationFlag.Geometry;
   }
   if ((requested & MeshDirty.Color) !== 0) {
@@ -235,10 +247,11 @@ function createChangedFlags(
   requested: MeshDirty,
   writeGeometry: boolean,
   writeColors: boolean,
+  writeNormals: boolean,
 ): MeshDirty {
   let changed = MeshDirty.None;
   if (writeGeometry) {
-    changed |= MeshDirty.Pose;
+    changed |= writeNormals ? MeshDirty.Pose : MeshDirty.Position;
   }
   if (writeColors) {
     changed |= MeshDirty.Color;
@@ -254,10 +267,11 @@ function assertCurveCrawlerStreamCapacity(
   plan: CurveCrawlerMeshPlan,
   streams: VertexStreams,
   entityCount: number,
+  requireNormals: boolean,
 ): void {
   const vertexCount = plan.vertexCount * entityCount;
   if (streams.positions.length < vertexCount * 3
-    || streams.normals.length < vertexCount * 3
+    || (requireNormals && streams.normals.length < vertexCount * 3)
     || streams.colors.length < vertexCount * 4) {
     throw new Error('Curve Crawler 动态顶点流容量不足。');
   }

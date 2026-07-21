@@ -1,6 +1,7 @@
 import {
+  AmmunitionType,
   EquipmentCategory,
-  type EquipmentDefinition,
+  type EquipmentDefinitionById,
   EquipmentId,
   type EquipmentLibrary,
   EquipmentRarity,
@@ -16,14 +17,17 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
     id: EquipmentId.DesertEagle,
     category: EquipmentCategory.Weapon,
     displayName: '沙漠之鹰',
-    description: '高威力大口径半自动手枪',
-    rarity: EquipmentRarity.Epic,
+    description: '稳定轻便的蓝色制式半自动手枪',
+    rarity: EquipmentRarity.Rare,
     weaponClass: WeaponClass.Handgun,
-    damage: 74,
+    damage: 32,
     fireIntervalSeconds: 0.32,
     attackAnimationSeconds: 0.22,
     ammunition: Object.freeze({
-      mode: WeaponAmmunitionMode.Infinite,
+      mode: WeaponAmmunitionMode.Magazine,
+      ammunitionType: AmmunitionType.HandgunRound,
+      capacity: 8,
+      reloadSeconds: 1.08,
     }),
     shotPattern: Object.freeze({
       type: WeaponShotPatternType.Single,
@@ -47,6 +51,7 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
     attackAnimationSeconds: 0.68,
     ammunition: Object.freeze({
       mode: WeaponAmmunitionMode.TubeMagazine,
+      ammunitionType: AmmunitionType.ShotgunShell,
       capacity: 5,
       shellReloadSeconds: 0.62,
     }),
@@ -63,16 +68,36 @@ const BATTLEFIELD_EQUIPMENT_DEFINITIONS = Object.freeze({
       visual: WeaponProjectileVisual.BuckshotPellet,
     }),
   }),
-} satisfies Readonly<Record<EquipmentId, EquipmentDefinition>>);
+  [EquipmentId.HandgunAmmunition]: Object.freeze({
+    id: EquipmentId.HandgunAmmunition,
+    category: EquipmentCategory.Ammunition,
+    displayName: '手枪弹药',
+    description: '十八发制式手枪备用弹',
+    rarity: EquipmentRarity.Common,
+    ammunitionType: AmmunitionType.HandgunRound,
+    rounds: 18,
+  }),
+  [EquipmentId.ShotgunAmmunition]: Object.freeze({
+    id: EquipmentId.ShotgunAmmunition,
+    category: EquipmentCategory.Ammunition,
+    displayName: '霰弹枪弹药',
+    description: '八发十二号霰弹枪备用弹',
+    rarity: EquipmentRarity.Common,
+    ammunitionType: AmmunitionType.ShotgunShell,
+    rounds: 8,
+  }),
+} satisfies Readonly<EquipmentDefinitionById>);
 
 /** 通过 EquipmentId 查询战场装备定义的只读实现。 */
 class BattlefieldEquipmentLibrary implements EquipmentLibrary {
-  public get(id: EquipmentId): Readonly<EquipmentDefinition> {
+  public get<TId extends EquipmentId>(
+    id: TId,
+  ): Readonly<EquipmentDefinitionById[TId]> {
     const definition = BATTLEFIELD_EQUIPMENT_DEFINITIONS[id];
     if (definition === undefined) {
       throw new Error(`战场装备尚未登记：${id}。`);
     }
-    return definition;
+    return definition as Readonly<EquipmentDefinitionById[TId]>;
   }
 }
 

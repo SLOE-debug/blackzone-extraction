@@ -10,7 +10,7 @@ const PANEL_OPTIONS = Object.freeze({
   width: 310,
 });
 
-/** 浏览器预览使用的战场环境光与相机调试面板。 */
+/** 浏览器预览使用的战场相机与观察动作调试面板。 */
 export class BattlefieldDebugPanel {
   private readonly panel: BrowserDebugPanel;
 
@@ -30,15 +30,6 @@ export class BattlefieldDebugPanel {
         controls.setFollowCameraPitchDegrees(value);
       },
     );
-    panel.addNumber('环境光亮度', 0, 5000, 25, snapshot.ambientIlluminance, (value) => {
-      controls.setAmbientIlluminance(value);
-    });
-    panel.addColor('天空环境色', snapshot.ambientSkyColor, (value) => {
-      controls.setAmbientSkyColor(value);
-    });
-    panel.addColor('地面环境色', snapshot.ambientGroundColor, (value) => {
-      controls.setAmbientGroundColor(value);
-    });
     panel.addButton('在玩家正前方生成蜘蛛', () => {
       controls.spawnCurveCrawlerAhead();
     });
