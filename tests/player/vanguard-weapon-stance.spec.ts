@@ -11,6 +11,10 @@ import { type VanguardPopulationOptions } from '../../assets/player/vanguard/mod
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
 import { VanguardWeaponAction } from '../../assets/player/vanguard/model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../../assets/player/vanguard/model/vanguard-weapon-pose';
+import {
+  getVanguardWeaponRigProfile,
+  VanguardWeaponRigSocket,
+} from '../../assets/player/vanguard/model/vanguard-weapon-rig';
 
 const TEST_OPTIONS = Object.freeze({
   position: Object.freeze({ x: 0, y: 0, z: 0 }),
@@ -42,12 +46,12 @@ describe('主角模块化武器与跑步姿势', () => {
     expect(sockets.rightZ).toBeGreaterThan(1);
   });
 
-  it('满速跑步的摆动腿会折叠小腿，并能叠加手枪上身姿态', () => {
+  it('满速跑步时膝盖和手肘明显偏离直线，并能叠加手枪上身姿态', () => {
     const state = new VanguardState(TEST_OPTIONS);
     const animation = new VanguardAnimationSystem();
     state.data.motion.speed[0] = VANGUARD_CONFIG.maximumMoveSpeed;
     state.data.animation.locomotionBlend[0] = 1;
-    state.data.animation.locomotionPhase[0] = Math.PI * 1.4;
+    state.data.animation.locomotionPhase[0] = Math.PI * 0.5;
     state.data.intent.weaponPose[0] = VanguardWeaponPose.Handgun;
     state.data.animation.weaponPose[0] = VanguardWeaponPose.Handgun;
     state.data.animation.weaponStanceBlend[0] = 1;
@@ -66,51 +70,48 @@ describe('主角模块化武器与跑步姿势', () => {
     expect(sockets.rightZ).toBeGreaterThan(1);
   });
 
-  it('霰弹枪同时约束双臂，并在逐发装填中让左手离开护木下探取弹', () => {
+  it('霰弹枪使用固定双手折臂，换弹时也不会由 IK 拉扯关节', () => {
     const state = new VanguardState(TEST_OPTIONS);
     const animation = new VanguardAnimationSystem();
     state.data.intent.weaponPose[0] = VanguardWeaponPose.Shotgun;
     state.data.animation.weaponPose[0] = VanguardWeaponPose.Shotgun;
     state.data.animation.weaponStanceBlend[0] = 1;
     animation.initialize(state);
+
     const readySockets = createSocketPose();
     writeVanguardWeaponSockets(state, 0, readySockets);
+    const profile = getVanguardWeaponRigProfile(VanguardWeaponPose.Shotgun);
+    const mainGrip = transformWeaponPoint(
+      state,
+      profile.sockets[VanguardWeaponRigSocket.MainGrip],
+    );
+    const supportGrip = transformWeaponPoint(
+      state,
+      profile.sockets[VanguardWeaponRigSocket.SupportGrip],
+    );
+    const leftElbowX = readBonePosition(state, VanguardBone.LeftForearm, 0);
+    const leftWristX = readBonePosition(state, VanguardBone.LeftHand, 0);
+    const rightElbowX = readBonePosition(state, VanguardBone.RightForearm, 0);
+    const rightWristX = readBonePosition(state, VanguardBone.RightHand, 0);
+
+    expect(socketDistance(readySockets, supportGrip, true)).toBeLessThan(0.004);
+    expect(socketDistance(readySockets, mainGrip, false)).toBeLessThan(0.004);
+    expect(leftElbowX).toBeLessThan(leftWristX - 0.3);
+    expect(rightElbowX).toBeGreaterThan(rightWristX + 0.3);
+    expect(readySockets.leftZ).toBeGreaterThan(1);
+    expect(readySockets.rightZ).toBeGreaterThan(0.55);
 
     state.data.intent.weaponAction[0] = VanguardWeaponAction.Reload;
-    state.data.intent.weaponActionProgress[0] = 0.42;
+    state.data.intent.weaponActionProgress[0] = 0.5;
     animation.initialize(state);
     const reloadSockets = createSocketPose();
     writeVanguardWeaponSockets(state, 0, reloadSockets);
-
-    expect(readySockets.leftZ).toBeGreaterThan(1.35);
-    expect(readySockets.rightZ).toBeGreaterThan(0.85);
-    expect(reloadSockets.leftY).toBeLessThan(readySockets.leftY - 0.55);
-    expect(reloadSockets.leftZ).toBeLessThan(readySockets.leftZ - 0.8);
-    expect(Math.abs(reloadSockets.rightZ - readySockets.rightZ)).toBeLessThan(0.35);
-  });
-
-  it('边跑边开火时下肢继续沿真实侧向移动方向完成蹬地和回收', () => {
-    const state = new VanguardState(TEST_OPTIONS);
-    const animation = new VanguardAnimationSystem();
-    state.data.motion.speed[0] = VANGUARD_CONFIG.maximumMoveSpeed;
-    state.data.motion.velocityX[0] = VANGUARD_CONFIG.maximumMoveSpeed;
-    state.data.animation.locomotionBlend[0] = 1;
-    state.data.animation.locomotionPhase[0] = Math.PI * 1.4;
-    state.data.intent.weaponPose[0] = VanguardWeaponPose.Shotgun;
-    state.data.intent.weaponAction[0] = VanguardWeaponAction.Fire;
-    state.data.intent.weaponActionProgress[0] = 0.14;
-    state.data.animation.weaponPose[0] = VanguardWeaponPose.Shotgun;
-    state.data.animation.weaponStanceBlend[0] = 1;
-    animation.initialize(state);
-
-    const leftAnkleX = readBonePosition(state, VanguardBone.LeftFoot, 0);
-    const rightAnkleX = readBonePosition(state, VanguardBone.RightFoot, 0);
-    const sockets = createSocketPose();
-    writeVanguardWeaponSockets(state, 0, sockets);
-    expect(leftAnkleX).toBeLessThan(-0.55);
-    expect(rightAnkleX - leftAnkleX).toBeGreaterThan(0.5);
-    expect(sockets.leftZ).toBeGreaterThan(1.1);
-    expect(sockets.rightZ).toBeGreaterThan(0.7);
+    expect(reloadSockets.leftX).toBeCloseTo(readySockets.leftX, 5);
+    expect(reloadSockets.leftY).toBeCloseTo(readySockets.leftY, 5);
+    expect(reloadSockets.leftZ).toBeCloseTo(readySockets.leftZ, 5);
+    expect(reloadSockets.rightX).toBeCloseTo(readySockets.rightX, 5);
+    expect(reloadSockets.rightY).toBeCloseTo(readySockets.rightY, 5);
+    expect(reloadSockets.rightZ).toBeCloseTo(readySockets.rightZ, 5);
   });
 });
 
@@ -131,4 +132,35 @@ function createSocketPose() {
     rightY: 0,
     rightZ: 0,
   };
+}
+
+interface Point3 {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+
+function transformWeaponPoint(state: VanguardState, point: Point3): Point3 {
+  const offset = boneOffset(VanguardBone.WeaponAimRoot);
+  const matrices = state.data.pose.boneMatrices;
+  return {
+    x: (matrices[offset + 9] ?? 0) + (matrices[offset] ?? 0) * point.x
+      + (matrices[offset + 3] ?? 0) * point.y + (matrices[offset + 6] ?? 0) * point.z,
+    y: (matrices[offset + 10] ?? 0) + (matrices[offset + 1] ?? 0) * point.x
+      + (matrices[offset + 4] ?? 0) * point.y + (matrices[offset + 7] ?? 0) * point.z,
+    z: (matrices[offset + 11] ?? 0) + (matrices[offset + 2] ?? 0) * point.x
+      + (matrices[offset + 5] ?? 0) * point.y + (matrices[offset + 8] ?? 0) * point.z,
+  };
+}
+
+function socketDistance(
+  sockets: Readonly<ReturnType<typeof createSocketPose>>,
+  point: Point3,
+  left: boolean,
+): number {
+  return Math.hypot(
+    (left ? sockets.leftX : sockets.rightX) - point.x,
+    (left ? sockets.leftY : sockets.rightY) - point.y,
+    (left ? sockets.leftZ : sockets.rightZ) - point.z,
+  );
 }

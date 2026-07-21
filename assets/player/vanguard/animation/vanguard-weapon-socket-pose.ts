@@ -6,7 +6,7 @@ import { type VanguardState } from '../model/vanguard-state';
 import { type MutableVanguardWeaponSocketPose } from '../model/vanguard-weapon-socket';
 
 // 从手部骨骼起点沿掌骨方向推进，避免武器停在手腕关节上。
-const WEAPON_SOCKET_DISTANCE = 0.17;
+export const VANGUARD_WEAPON_SOCKET_DISTANCE = 0.17;
 
 /** 从左右手骨骼矩阵一次写出两个掌心武器挂点。 */
 export function writeVanguardWeaponSockets(
@@ -37,5 +37,6 @@ function readSocketAxis(
   directionComponent: number,
 ): number {
   return (matrices[boneOffset + positionComponent] ?? 0)
-    + (matrices[boneOffset + directionComponent] ?? 0) * WEAPON_SOCKET_DISTANCE;
+    + (matrices[boneOffset + directionComponent] ?? 0)
+      * VANGUARD_WEAPON_SOCKET_DISTANCE;
 }

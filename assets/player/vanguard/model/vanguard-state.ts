@@ -13,7 +13,6 @@ import {
 import { writeVanguardMantleRestState } from './vanguard-mantle-state';
 import { VanguardWeaponPose } from './vanguard-weapon-pose';
 import { VanguardWeaponAction } from './vanguard-weapon-action';
-import { writeVanguardBindLocalPose } from '../rigging/vanguard-rig';
 
 /** 聚合可复用主角的单实体 SoA 状态。 */
 export class VanguardState {
@@ -39,7 +38,7 @@ function initializeVanguardData(
   data: VanguardData,
   options: Readonly<VanguardPopulationOptions>,
 ): void {
-  const { transform, morphology, intent, motion, vitality, animation, pose, mantle } = data;
+  const { transform, morphology, intent, motion, vitality, animation, mantle } = data;
   transform.x[0] = options.position.x;
   transform.y[0] = options.position.y;
   transform.z[0] = options.position.z;
@@ -69,7 +68,6 @@ function initializeVanguardData(
   animation.weaponPose[0] = VanguardWeaponPose.Unarmed;
   animation.weaponStanceBlend[0] = 0;
   animation.hitFlash[0] = 0;
-  writeVanguardBindLocalPose(pose.localPositions, pose.localRotations, 0);
   writeVanguardMantleRestState(
     mantle,
     0,

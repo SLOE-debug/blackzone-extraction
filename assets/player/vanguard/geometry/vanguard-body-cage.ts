@@ -40,12 +40,9 @@ function addTorso(builder: VanguardCageBuilder): Readonly<{
   const hip = addTorsoRow(builder, 1.74, 0.46, 0.225, -0.19, VanguardBone.Pelvis);
   const waist = addTorsoRow(
     builder, 2.04, 0.34, 0.2, -0.16,
-    VanguardBone.Pelvis, VanguardBone.SpineLower, 0.82,
+    VanguardBone.Pelvis, VanguardBone.Chest, 0.48,
   );
-  const ribs = addTorsoRow(
-    builder, 2.4, 0.5, 0.25, -0.195,
-    VanguardBone.SpineLower, VanguardBone.Chest, 0.88,
-  );
+  const ribs = addTorsoRow(builder, 2.4, 0.5, 0.25, -0.195, VanguardBone.Chest);
   const chest = addTorsoRow(builder, 2.68, 0.58, 0.275, -0.215, VanguardBone.Chest);
   const shoulder = addTorsoRow(
     builder, 2.86, 0.68, 0.235, -0.195,
@@ -285,16 +282,15 @@ function addArm(
   const upperBone = side < 0 ? VanguardBone.LeftUpperArm : VanguardBone.RightUpperArm;
   const forearmBone = side < 0 ? VanguardBone.LeftForearm : VanguardBone.RightForearm;
   const handBone = side < 0 ? VanguardBone.LeftHand : VanguardBone.RightHand;
-  const clavicleBone = side < 0 ? VanguardBone.LeftClavicle : VanguardBone.RightClavicle;
   const shoulderFront = side < 0 ? shoulderRow.frontLeft : shoulderRow.frontRight;
   const shoulderBack = side < 0 ? shoulderRow.backLeft : shoulderRow.backRight;
   const chestFront = side < 0 ? chestRow.frontLeft : chestRow.frontRight;
   const chestBack = side < 0 ? chestRow.backLeft : chestRow.backRight;
   const shoulder = Object.freeze({
     front: shoulderFront,
-    outer: builder.vertex(side * 0.77, 2.8, 0.018, clavicleBone, upperBone, 0.62),
+    outer: builder.vertex(side * 0.77, 2.8, 0.018, VanguardBone.Chest, upperBone, 0.62),
     back: shoulderBack,
-    inner: builder.vertex(side * 0.51, 2.68, 0.022, VanguardBone.Chest, clavicleBone, 0.65),
+    inner: builder.vertex(side * 0.51, 2.68, 0.022, VanguardBone.Chest, upperBone, 0.45),
   });
   builder.orientedTriangle(VanguardMatteSurface.Tunic, chestFront, shoulder.front, shoulder.inner, side, 0.2, 0.8);
   builder.orientedTriangle(VanguardMatteSurface.Tunic, chestBack, shoulder.inner, shoulder.back, side, 0.2, -0.8);
@@ -425,7 +421,6 @@ function addLeg(
   const thighBone = side < 0 ? VanguardBone.LeftThigh : VanguardBone.RightThigh;
   const shinBone = side < 0 ? VanguardBone.LeftShin : VanguardBone.RightShin;
   const footBone = side < 0 ? VanguardBone.LeftFoot : VanguardBone.RightFoot;
-  const toeBone = side < 0 ? VanguardBone.LeftToe : VanguardBone.RightToe;
   const thigh = addLimbSection(builder, side, side * 0.35, 1.3, 0.2, 0.17, 0.21, 0.17, thighBone);
   const knee = addLimbSection(builder, side, side * 0.35, 0.91, 0.145, 0.12, 0.12, 0.1, thighBone, shinBone, 0.52);
   const calf = addLimbSection(builder, side, side * 0.36, 0.56, 0.175, 0.135, 0.15, 0.12, shinBone);
@@ -434,7 +429,7 @@ function addLeg(
   connectLimbBand(builder, side, thigh, knee, VanguardMatteSurface.Pants, 0.009);
   connectLimbBand(builder, side, knee, calf, VanguardMatteSurface.Leather, 0.008);
   connectLimbBand(builder, side, calf, ankle, VanguardMatteSurface.Leather, 0.007);
-  addFoot(builder, side, ankle, footBone, toeBone);
+  addFoot(builder, side, ankle, footBone);
   return thigh.inner;
 }
 
@@ -444,22 +439,15 @@ function addFoot(
   side: -1 | 1,
   ankle: Readonly<LimbSection>,
   footBone: VanguardBone,
-  toeBone: VanguardBone,
 ): void {
   const centerX = side * 0.36;
   const heelOuter = builder.vertex(centerX + side * 0.105, 0.055, -0.09, footBone);
   const heelInner = builder.vertex(centerX - side * 0.09, 0.055, -0.075, footBone);
-  const archOuter = builder.vertex(
-    centerX + side * 0.13, 0.04, 0.17,
-    footBone, toeBone, 0.18,
-  );
-  const archInner = builder.vertex(
-    centerX - side * 0.11, 0.045, 0.15,
-    footBone, toeBone, 0.14,
-  );
-  const toeOuter = builder.vertex(centerX + side * 0.15, 0.045, 0.43, toeBone);
-  const toeInner = builder.vertex(centerX - side * 0.13, 0.045, 0.41, toeBone);
-  const toeTop = builder.vertex(centerX + side * 0.008, 0.13, 0.39, toeBone);
+  const archOuter = builder.vertex(centerX + side * 0.13, 0.04, 0.17, footBone);
+  const archInner = builder.vertex(centerX - side * 0.11, 0.045, 0.15, footBone);
+  const toeOuter = builder.vertex(centerX + side * 0.15, 0.045, 0.43, footBone);
+  const toeInner = builder.vertex(centerX - side * 0.13, 0.045, 0.41, footBone);
+  const toeTop = builder.vertex(centerX + side * 0.008, 0.13, 0.39, footBone);
   builder.orientedQuad(VanguardMatteSurface.Leather, ankle.outer, ankle.front, toeTop, archOuter, side, 0.35, 0.7, 0.005);
   builder.orientedQuad(VanguardMatteSurface.Leather, ankle.front, ankle.inner, archInner, toeTop, -side, 0.35, 0.7, 0.004);
   builder.orientedTriangle(VanguardMatteSurface.Leather, archOuter, toeTop, toeOuter, side, 0.3, 0.8);
