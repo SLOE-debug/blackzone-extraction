@@ -1,5 +1,4 @@
 import { type Material, Node } from 'cc';
-import { type PlanarCircleVisibility } from '../../../core/contracts/planar-circle-visibility';
 import { type MonsterObservationPopulation } from '../../../core/contracts/monster-observation';
 import { BundleId, FeatureId } from '../../../core/contracts/runtime-id';
 import { type FeaturePlugin } from '../../../core/features/feature-plugin';
@@ -51,7 +50,6 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
   createCurveCrawlerBatch(
     parent: Node,
     surfaceMaterialTemplate: Material,
-    visibility: PlanarCircleVisibility,
   ): CurveCrawlerPopulationBatch;
 
   /** 创建拥有抛物线毒弹、落点预警与催化酸池的 Venom Lobber 群体。 */
@@ -119,9 +117,8 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public createCurveCrawlerBatch(
     parent: Node,
     surfaceMaterialTemplate: Material,
-    visibility: PlanarCircleVisibility,
   ): CurveCrawlerPopulationBatch {
-    return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate, visibility);
+    return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate);
   }
 
   public createVenomLobber(

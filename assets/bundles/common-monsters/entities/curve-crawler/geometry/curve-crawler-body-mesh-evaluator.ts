@@ -1,12 +1,10 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
-import { PlanarVisibilityDetail } from '../../../../../core/contracts/planar-circle-visibility';
 import {
   evaluateFacetedEllipsoidRotated,
 } from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
 import {
   createFacetedCubicTubeWorkspace,
   evaluateFacetedCubicTube,
-  evaluatePlanarFacetedCubicTube,
   type FacetedCubicTubeWorkspace,
   type MutableFacetedCubicTubeControlPoints,
 } from '../../../../../core/geometry/faceted/faceted-cubic-tube-evaluator';
@@ -18,7 +16,6 @@ import {
   CurveCrawlerFragmentIndex,
 } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { isCurveCrawlerLegVisible } from '../model/curve-crawler-detail-level';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
 
 const LEG_FORWARD_FANS = new Float32Array([0.72, 0.25, -0.25, -0.72]);
@@ -73,7 +70,6 @@ export function createCurveCrawlerLegScratch(
  * @param streams 当前批次可写顶点流。
  * @param writePositions 是否允许改写位置流。
  * @param writeNormals 是否允许改写法线流。
- * @param detail 当前实体的距离细节档位。
  * @param legScratch 由调用方长期复用的腿部控制点缓存。
  */
 export function evaluateCurveCrawlerBodyMesh(
@@ -85,7 +81,6 @@ export function evaluateCurveCrawlerBodyMesh(
   streams: VertexStreams,
   writePositions: boolean,
   writeNormals: boolean,
-  detail: PlanarVisibilityDetail,
   legScratch: MutableCurveCrawlerLegScratch,
 ): void {
   const { transform, morphology, animation } = state.data;
@@ -115,14 +110,7 @@ export function evaluateCurveCrawlerBodyMesh(
   const turnDirection = animation.turnDirection[entityIndex] ?? 1;
   const biteAmount = animation.biteAmount[entityIndex] ?? 0;
   const legPhaseOffset = entityIndex * CURVE_CRAWLER_LEG_COUNT;
-  const evaluateTube = detail === PlanarVisibilityDetail.Full
-    ? evaluateFacetedCubicTube
-    : evaluatePlanarFacetedCubicTube;
-
   for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {
-    if (!isCurveCrawlerLegVisible(detail, leg)) {
-      continue;
-    }
     const side = leg < CURVE_CRAWLER_LEG_COUNT * 0.5 ? 1 : -1;
     const pair = leg % (CURVE_CRAWLER_LEG_COUNT * 0.5);
     const rootAlongBody = bodyLength * (0.42 - pair * 0.28);
@@ -226,7 +214,7 @@ export function evaluateCurveCrawlerBodyMesh(
         + headingCosine * fragmentSine;
     }
 
-    evaluateTube(
+    evaluateFacetedCubicTube(
       plan.legTube,
       streams,
       entityVertexOffset + (plan.body.legVertexOffsets[leg] ?? 0),
@@ -235,23 +223,21 @@ export function evaluateCurveCrawlerBodyMesh(
       writePositions,
       writeNormals,
     );
-    if (detail === PlanarVisibilityDetail.Full) {
-      evaluateFacetedEllipsoidRotated(
-        plan.footEllipsoid,
-        streams,
-        entityVertexOffset + (plan.body.footVertexOffsets[leg] ?? 0),
-        legScratch.p3x,
-        legScratch.p3y,
-        legScratch.p3z,
-        footRadius * 1.1,
-        footRadius,
-        footRadius,
-        legScratch.footRotationCosine,
-        legScratch.footRotationSine,
-        writePositions,
-        writeNormals,
-      );
-    }
+    evaluateFacetedEllipsoidRotated(
+      plan.footEllipsoid,
+      streams,
+      entityVertexOffset + (plan.body.footVertexOffsets[leg] ?? 0),
+      legScratch.p3x,
+      legScratch.p3y,
+      legScratch.p3z,
+      footRadius * 1.1,
+      footRadius,
+      footRadius,
+      legScratch.footRotationCosine,
+      legScratch.footRotationSine,
+      writePositions,
+      writeNormals,
+    );
   }
 
   const abdomenFragment = fragmentOffset + CurveCrawlerFragmentIndex.Abdomen;

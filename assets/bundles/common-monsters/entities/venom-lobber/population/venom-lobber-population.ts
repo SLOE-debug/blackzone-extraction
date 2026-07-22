@@ -57,7 +57,6 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
       this.state,
       this.combat.effects,
       combatOptions,
-      options.visibility,
     );
   }
 

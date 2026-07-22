@@ -89,7 +89,6 @@ const EVENT_NAMES = Object.freeze([
 const MONSTER_STAGE_NAMES = Object.freeze([
   '人口维护',
   '群体模拟',
-  '视锥筛选',
   '共享网格同步',
 ]);
 

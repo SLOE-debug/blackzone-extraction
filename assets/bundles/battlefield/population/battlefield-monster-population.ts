@@ -1,4 +1,4 @@
-import { type Camera, type Material, Node } from 'cc';
+import { type Material, Node } from 'cc';
 import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -11,7 +11,6 @@ import {
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
-import { BattlefieldMonsterFrustumVisibility } from './battlefield-monster-frustum-visibility';
 import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
@@ -38,7 +37,6 @@ export type {
 export class BattlefieldMonsterPopulation
 implements Disposable {
   private readonly renderRoot: Node;
-  private readonly visibility: BattlefieldMonsterFrustumVisibility;
   private readonly renderBatch: ReturnType<
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
   >;
@@ -48,14 +46,11 @@ implements Disposable {
   private swarm: BattlefieldMonsterGroup | null = null;
   private debugGroup: BattlefieldMonsterGroup | null = null;
   private waveElapsedSeconds = 0;
-  private detailCenterX = 0;
-  private detailCenterZ = 0;
   private disposed = false;
 
   constructor(
     parent: Node,
     surfaceMaterialTemplate: Material,
-    camera: Camera,
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
     initialCenterX: number,
     initialCenterZ: number,
@@ -64,7 +59,6 @@ implements Disposable {
       throw new Error('战场怪物群初始中心必须使用有限坐标。');
     }
     const config = BATTLEFIELD_MONSTER_SPAWN;
-    this.visibility = new BattlefieldMonsterFrustumVisibility(camera);
     const renderRoot = new Node('BattlefieldCommonMonstersBatchRoot');
     parent.addChild(renderRoot);
     renderRoot.setPosition(0, config.groundOffsetY, 0);
@@ -76,7 +70,6 @@ implements Disposable {
       this.renderBatch = commonMonsters.createCurveCrawlerBatch(
         renderRoot,
         surfaceMaterialTemplate,
-        this.visibility,
       );
     } catch (error: unknown) {
       renderRoot.destroy();
@@ -89,7 +82,6 @@ implements Disposable {
       venomGroup = new BattlefieldVenomLobberGroup(
         renderRoot,
         surfaceMaterialTemplate,
-        this.visibility,
         commonMonsters,
         initialCenterX,
         initialCenterZ,
@@ -108,8 +100,6 @@ implements Disposable {
       renderRoot.destroy();
       throw error;
     }
-    this.detailCenterX = initialCenterX;
-    this.detailCenterZ = initialCenterZ;
     if (venomGroup === null) {
       this.renderBatch.dispose();
       renderRoot.destroy();
@@ -132,12 +122,12 @@ implements Disposable {
     return (this.swarm?.aliveCount ?? 0) + this.venomGroup.aliveCount;
   }
 
-  /** 当前通过相机视锥筛选并实际进入动态网格的怪物数量。 */
+  /** 当前具有可渲染生命周期并实际进入动态网格的怪物数量。 */
   public get visibleCount(): number {
     return this.renderBatch.visibleEntityCount + this.venomGroup.visibleCount;
   }
 
-  /** 当前共享动态网格已经分配的可见实体容量。 */
+  /** 当前共享动态网格已经分配的实体容量。 */
   public get renderCapacity(): number {
     return this.renderBatch.renderCapacity + this.venomGroup.count;
   }
@@ -190,8 +180,6 @@ implements Disposable {
     }
     let stageStarted = performance.beginMonsterStage();
     if (target !== null) {
-      this.detailCenterX = target.x;
-      this.detailCenterZ = target.z;
       this.waveElapsedSeconds += Math.max(
         0,
         Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME),
@@ -213,13 +201,6 @@ implements Disposable {
     }
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.PopulationMaintenance,
-      stageStarted,
-    );
-
-    stageStarted = performance.beginMonsterStage();
-    this.visibility.synchronize(this.detailCenterX, this.detailCenterZ);
-    performance.endMonsterStage(
-      BattlefieldMonsterPerformanceStage.Visibility,
       stageStarted,
     );
 

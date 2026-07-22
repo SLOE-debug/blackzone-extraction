@@ -3,7 +3,6 @@ import {
   isMonsterLifecycleResident,
   MonsterLifecycleState,
 } from '../../../../../core/contracts/monster-lifecycle';
-import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import {
   createUnlitColorGeometry,
   GeometryIndexFormat,
@@ -48,7 +47,7 @@ export class VenomLobberBodyRenderer {
   private readonly previousHitFlash: Float32Array;
   private readonly previousSacPulse: Float32Array;
   private frameColorDirty = false;
-  private visibleCount = 0;
+  private residentCount = 0;
   private disposed = false;
 
   constructor(
@@ -56,7 +55,6 @@ export class VenomLobberBodyRenderer {
     private readonly state: VenomLobberState,
     private readonly combatOptions: Readonly<VenomLobberCombatOptions>,
     material: Material,
-    private readonly visibility: PlanarCircleVisibility,
   ) {
     this.packedEntityIds = new Int32Array(state.count);
     this.packedEntityIds.fill(-1);
@@ -82,17 +80,17 @@ export class VenomLobberBodyRenderer {
   }
 
   public get activeEntityCount(): number {
-    return this.visibleCount;
+    return this.residentCount;
   }
 
-  /** 原地重写可见实体，并用业务视锥筛选替代逐帧 Renderer 边界刷新。 */
+  /** 原地紧凑重写全部具有可渲染生命周期的实体。 */
   public update(): void {
     if (this.disposed) {
       return;
     }
-    const visibleCount = this.writeGeometry();
-    if (visibleCount > 0) {
-      const activeVertexCount = visibleCount
+    const residentCount = this.writeGeometry();
+    if (residentCount > 0) {
+      const activeVertexCount = residentCount
         * VENOM_LOBBER_MODEL_GEOMETRY.geometry.vertexCount;
       const dirty = this.frameColorDirty
         ? MeshDirty.Position | MeshDirty.Color
@@ -100,10 +98,10 @@ export class VenomLobberBodyRenderer {
       this.batch.uploadVertexAttributes(dirty, activeVertexCount);
     }
     this.batch.setActiveIndexCount(
-      visibleCount * VENOM_LOBBER_MODEL_GEOMETRY.geometry.indexCount,
+      residentCount * VENOM_LOBBER_MODEL_GEOMETRY.geometry.indexCount,
     );
-    this.batch.setVisible(visibleCount > 0);
-    this.visibleCount = visibleCount;
+    this.batch.setVisible(residentCount > 0);
+    this.residentCount = residentCount;
   }
 
   public dispose(): void {
@@ -117,16 +115,10 @@ export class VenomLobberBodyRenderer {
   private writeGeometry(): number {
     this.frameColorDirty = false;
     let packedIndex = 0;
-    const { transform, morphology, vitality, animation } = this.state.data;
+    const { vitality, animation } = this.state.data;
     for (let entityIndex = 0; entityIndex < this.state.count; entityIndex++) {
       const lifecycle = vitality.state[entityIndex] as MonsterLifecycleState;
-      if (!isMonsterLifecycleResident(lifecycle)
-        || !this.visibility.isCircleVisible(
-          transform.x[entityIndex] ?? 0,
-          transform.y[entityIndex] ?? 0,
-          VENOM_LOBBER_MODEL_GEOMETRY.visibilityRadius
-            * (morphology.scale[entityIndex] ?? 1),
-        )) {
+      if (!isMonsterLifecycleResident(lifecycle)) {
         continue;
       }
       const hitFlash = animation.hitFlash[entityIndex] ?? 0;

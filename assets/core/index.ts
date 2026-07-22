@@ -8,10 +8,6 @@ export {
 } from './contracts/loading-progress';
 export type { MonsterPopulation } from './contracts/monster-population';
 export {
-  PlanarVisibilityDetail,
-  type PlanarCircleVisibility,
-} from './contracts/planar-circle-visibility';
-export {
   AmmunitionType,
   EquipmentCategory,
   EquipmentRarity,

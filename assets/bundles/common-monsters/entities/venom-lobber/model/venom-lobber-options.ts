@@ -1,5 +1,4 @@
 import { type Material } from 'cc';
-import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import { type VenomLobberCombatOptions } from './venom-lobber-combat-options';
 
 /** Venom Lobber 固定容量群体使用的初始二维区域。 */
@@ -17,7 +16,6 @@ export interface VenomLobberPopulationOptions {
   readonly spawnArea: Readonly<VenomLobberSpawnArea>;
   readonly seed: number;
   readonly surfaceMaterialTemplate: Material;
-  readonly visibility: PlanarCircleVisibility;
   readonly combat: Readonly<VenomLobberCombatOptions>;
 }
 
@@ -52,10 +50,6 @@ export function normalizeVenomLobberOptions(
   }
   if (options.surfaceMaterialTemplate.effectAsset === null) {
     throw new Error('Venom Lobber 受光材质模板没有有效 EffectAsset。');
-  }
-  if (typeof options.visibility.isCircleVisible !== 'function'
-    || typeof options.visibility.resolveDetail !== 'function') {
-    throw new Error('Venom Lobber 缺少有效的平面可见性查询。');
   }
   return Object.freeze({
     count: options.count,

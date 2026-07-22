@@ -166,7 +166,6 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       monsters = new BattlefieldMonsterPopulation(
         runtimeRoot,
         this.surfaceMaterialTemplate,
-        cameraRig.camera,
         commonMonsters,
         player.positionX,
         player.positionZ,

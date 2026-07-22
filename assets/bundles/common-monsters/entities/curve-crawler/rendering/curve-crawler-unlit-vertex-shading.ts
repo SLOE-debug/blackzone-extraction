@@ -73,7 +73,7 @@ export function shadeScheduledCurveCrawlerUnlitEntities(
   if (!Number.isInteger(entityCount)
     || entityCount < 0
     || entityCount > updates.length) {
-    throw new Error('Curve Crawler 错峰顶点着色范围无效。');
+    throw new Error('Curve Crawler 脏区顶点着色范围无效。');
   }
   for (let entity = 0; entity < entityCount; entity++) {
     if ((updates[entity] as CurveCrawlerPackedMeshUpdate)

@@ -2,7 +2,6 @@
 export enum BattlefieldMonsterPerformanceStage {
   PopulationMaintenance,
   Simulation,
-  Visibility,
   RenderingSynchronization,
   Count,
 }

@@ -3,7 +3,6 @@ import {
   type MutablePlanarMonsterHitResult,
   type PlanarMonsterHitQuery,
 } from '../../../core/contracts/monster-hit';
-import { type PlanarCircleVisibility } from '../../../core/contracts/planar-circle-visibility';
 import {
   type MutablePlanarTargetResult,
   type PlanarTargetQuery,
@@ -112,7 +111,6 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
   constructor(
     parent: Node,
     surfaceMaterialTemplate: Material,
-    visibility: PlanarCircleVisibility,
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
     initialCenterX: number,
     initialCenterZ: number,
@@ -131,7 +129,6 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
       }),
       seed: config.seed,
       surfaceMaterialTemplate,
-      visibility,
       combat: Object.freeze({
         detectionRadius: combat.detectionRadius * inverseScale,
         disengageRadius: combat.disengageRadius * inverseScale,

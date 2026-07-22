@@ -2,10 +2,6 @@ import {
   isMonsterLifecycleResident,
   MonsterLifecycleState,
 } from '../../../../../core/contracts/monster-lifecycle';
-import {
-  type PlanarCircleVisibility,
-  PlanarVisibilityDetail,
-} from '../../../../../core/contracts/planar-circle-visibility';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 /**
@@ -15,21 +11,13 @@ import { type CurveCrawlerState } from '../model/curve-crawler-state';
  */
 export class CurveCrawlerResidentLayout {
   public readonly entityIndices: Uint32Array;
-  public readonly detailLevels: Uint8Array;
-  private readonly sourceDetailLevels: Uint8Array;
   private residentCount = 0;
 
-  constructor(
-    capacity: number,
-    private readonly visibility: PlanarCircleVisibility,
-  ) {
+  constructor(capacity: number) {
     if (!Number.isInteger(capacity) || capacity <= 0) {
       throw new Error('Curve Crawler 驻留布局容量必须是正整数。');
     }
     this.entityIndices = new Uint32Array(capacity);
-    this.detailLevels = new Uint8Array(capacity);
-    this.sourceDetailLevels = new Uint8Array(capacity);
-    this.sourceDetailLevels.fill(PlanarVisibilityDetail.Minimal);
   }
 
   /** 当前需要进入渲染批次的实体数量。 */
@@ -53,25 +41,13 @@ export class CurveCrawlerResidentLayout {
       const lifecycleState = lifecycle[entityIndex] as MonsterLifecycleState;
       if (!isMonsterLifecycleResident(lifecycleState)
         || (lifecycleState === MonsterLifecycleState.Spawning
-          && (state.data.vitality.stateTime[entityIndex] ?? 0) < 0)
-        || !this.isVisible(state, entityIndex)) {
+          && (state.data.vitality.stateTime[entityIndex] ?? 0) < 0)) {
         continue;
       }
       if ((this.entityIndices[nextCount] ?? 0) !== entityIndex) {
         changed = true;
       }
-      const detail = this.visibility.resolveDetail(
-        state.data.transform.x[entityIndex] ?? 0,
-        state.data.transform.y[entityIndex] ?? 0,
-        (this.sourceDetailLevels[entityIndex]
-          ?? PlanarVisibilityDetail.Minimal) as PlanarVisibilityDetail,
-      );
-      if ((this.detailLevels[nextCount] ?? 0) !== detail) {
-        changed = true;
-      }
       this.entityIndices[nextCount] = entityIndex;
-      this.detailLevels[nextCount] = detail;
-      this.sourceDetailLevels[entityIndex] = detail;
       nextCount++;
     }
     if (nextCount !== this.residentCount) {
@@ -79,18 +55,5 @@ export class CurveCrawlerResidentLayout {
     }
     this.residentCount = nextCount;
     return changed;
-  }
-
-  /** 使用当前形态的平面最大伸展半径执行保守视锥筛选。 */
-  private isVisible(state: CurveCrawlerState, entityIndex: number): boolean {
-    const { transform, morphology } = state.data;
-    const radius = (morphology.bodyLength[entityIndex] ?? 0) * 0.5
-      + (morphology.legLength[entityIndex] ?? 0) * 1.35
-      + (morphology.legWidth[entityIndex] ?? 0);
-    return this.visibility.isCircleVisible(
-      transform.x[entityIndex] ?? 0,
-      transform.y[entityIndex] ?? 0,
-      radius,
-    );
   }
 }

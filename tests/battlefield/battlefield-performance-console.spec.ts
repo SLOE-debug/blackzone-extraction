@@ -33,9 +33,8 @@ describe('战场性能控制台表格', () => {
       '群体模拟',
       '共享网格同步',
       '人口维护',
-      '视锥筛选',
     ]);
-    expect(monsterRows[0]?.['怪物阶段占比']).toBe('50.0%');
+    expect(monsterRows[0]?.['怪物阶段占比']).toBe('52.1%');
   });
 });
 
@@ -62,13 +61,12 @@ function createReport(): BattlefieldPerformanceConsoleReport {
     monsterStageNames: Object.freeze([
       '人口维护',
       '群体模拟',
-      '视锥筛选',
       '共享网格同步',
     ]),
-    monsterStageTotals: Float64Array.of(5, 25, 2, 18),
-    monsterStageMaximums: Float64Array.of(1, 8, 0.5, 12),
-    monsterStageSamples: Uint32Array.of(10, 10, 10, 10),
-    slowestFrameMonsterStages: Float64Array.of(1, 4, 0.2, 7),
+    monsterStageTotals: Float64Array.of(5, 25, 18),
+    monsterStageMaximums: Float64Array.of(1, 8, 12),
+    monsterStageSamples: Uint32Array.of(10, 10, 10),
+    slowestFrameMonsterStages: Float64Array.of(1, 4, 7),
     slowestFrameVisibleMonsters: 76,
     slowestFrameMonsterRenderCapacity: 128,
     slowestFrameAliveMonsters: 130,

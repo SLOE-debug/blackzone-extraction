@@ -37,6 +37,8 @@ export type DynamicColorBufferGeometry =
   | SurfaceBufferGeometry
   | UnlitColorBufferGeometry;
 
+type DynamicIndexSource = Uint16Array | Uint32Array;
+
 /**
  * 管理一个固定索引拓扑及由 VertexLayout 声明的动态 Cocos MeshRenderer。
  */
@@ -49,10 +51,10 @@ export class DynamicMeshBatch {
   private normalBuffer: gfx.Buffer | null = null;
   private colorBuffer: gfx.Buffer | null = null;
   private indexBuffer: gfx.Buffer | null = null;
-  private positionSource: ArrayBuffer | null = null;
-  private normalSource: ArrayBuffer | null = null;
-  private colorSource: ArrayBuffer | null = null;
-  private indexSource: ArrayBuffer | null = null;
+  private positionSource: Float32Array | null = null;
+  private normalSource: Float32Array | null = null;
+  private colorSource: Float32Array | null = null;
+  private indexSource: DynamicIndexSource | null = null;
   private indexComponentByteLength = 0;
   private maximumVertexCount = 0;
   private maximumIndexCount = 0;
@@ -100,7 +102,7 @@ export class DynamicMeshBatch {
       throw new Error('动态颜色流必须完整覆盖其底层 ArrayBuffer。');
     }
     const normals = getNormalView(geometry);
-    let normalSource: ArrayBuffer | null = null;
+    let normalSource: Float32Array | null = null;
     if (normals !== null) {
       if (!(normals.buffer instanceof ArrayBuffer)) {
         throw new Error('动态法线流必须由 ArrayBuffer 支持。');
@@ -108,7 +110,7 @@ export class DynamicMeshBatch {
       if (normals.byteOffset !== 0 || normals.byteLength !== normals.buffer.byteLength) {
         throw new Error('动态法线流必须完整覆盖其底层 ArrayBuffer。');
       }
-      normalSource = normals.buffer;
+      normalSource = normals;
     }
 
     const commonGeometry = {
@@ -168,10 +170,10 @@ export class DynamicMeshBatch {
     this.normalBuffer = normalBuffer ?? null;
     this.colorBuffer = colorBuffer;
     this.indexBuffer = indexBuffer;
-    this.positionSource = positions.buffer;
+    this.positionSource = positions;
     this.normalSource = normalSource;
-    this.colorSource = colors.buffer;
-    this.indexSource = indices.buffer;
+    this.colorSource = colors;
+    this.indexSource = indices;
     this.indexComponentByteLength = indices.BYTES_PER_ELEMENT;
     this.maximumVertexCount = geometry.vertexCount;
     this.maximumIndexCount = geometry.indexCount;
@@ -180,50 +182,67 @@ export class DynamicMeshBatch {
   }
 
   /**
-   * 将实际发生变化的顶点流完整上传到 GPU。
+   * 将实际发生变化的顶点流前缀上传到 GPU。
    *
    * @param dirty Evaluator 返回的实际变化位标志；未标记的属性不会提交 GPU 更新。
    * @param activeVertexCount 从各顶点流开头实际需要上传的连续顶点数量。
    * @returns 无返回值；无异常时所有标记且已创建的流均已上传。
    */
   public uploadVertexAttributes(dirty: MeshDirty, activeVertexCount: number): void {
-    if (this.state !== DynamicMeshBatchState.Initialized
-      || this.positionBuffer === null
-      || this.colorBuffer === null
-      || this.positionSource === null
-      || this.colorSource === null) {
-      throw new Error('动态网格批次尚未初始化或已经释放。');
-    }
-    if (!Number.isInteger(activeVertexCount)
-      || activeVertexCount < 0
-      || activeVertexCount > this.maximumVertexCount) {
-      throw new Error('动态网格活动顶点数必须位于已分配容量内。');
-    }
-    if (activeVertexCount === 0) {
-      return;
-    }
+    this.uploadVertexAttributeRange(dirty, 0, activeVertexCount);
+  }
 
+  /** 按连续顶点区段上传实际发生变化的属性流。 */
+  public uploadVertexAttributeRange(
+    dirty: MeshDirty,
+    firstVertex: number,
+    vertexCount: number,
+  ): void {
     if ((dirty & MeshDirty.Position) !== 0) {
-      this.positionBuffer.update(
-        this.positionSource,
-        activeVertexCount * POSITION_COMPONENT_COUNT * FLOAT_COMPONENT_BYTE_LENGTH,
-      );
+      this.uploadPositionRange(firstVertex, vertexCount);
     }
     if ((dirty & MeshDirty.Normal) !== 0) {
-      if (this.normalBuffer === null || this.normalSource === null) {
-        throw new Error('当前顶点布局不包含可上传的法线流。');
-      }
-      this.normalBuffer.update(
-        this.normalSource,
-        activeVertexCount * NORMAL_COMPONENT_COUNT * FLOAT_COMPONENT_BYTE_LENGTH,
-      );
+      this.uploadNormalRange(firstVertex, vertexCount);
     }
     if ((dirty & MeshDirty.Color) !== 0) {
-      this.colorBuffer.update(
-        this.colorSource,
-        activeVertexCount * COLOR_COMPONENT_COUNT * FLOAT_COMPONENT_BYTE_LENGTH,
-      );
+      this.uploadColorRange(firstVertex, vertexCount);
     }
+  }
+
+  /** 上传位置流中的连续顶点区段。 */
+  public uploadPositionRange(firstVertex: number, vertexCount: number): void {
+    this.uploadFloatRange(
+      this.positionBuffer,
+      this.positionSource,
+      firstVertex,
+      vertexCount,
+      POSITION_COMPONENT_COUNT,
+      '位置',
+    );
+  }
+
+  /** 上传法线流中的连续顶点区段。 */
+  public uploadNormalRange(firstVertex: number, vertexCount: number): void {
+    this.uploadFloatRange(
+      this.normalBuffer,
+      this.normalSource,
+      firstVertex,
+      vertexCount,
+      NORMAL_COMPONENT_COUNT,
+      '法线',
+    );
+  }
+
+  /** 上传颜色流中的连续顶点区段。 */
+  public uploadColorRange(firstVertex: number, vertexCount: number): void {
+    this.uploadFloatRange(
+      this.colorBuffer,
+      this.colorSource,
+      firstVertex,
+      vertexCount,
+      COLOR_COMPONENT_COUNT,
+      '颜色',
+    );
   }
 
   /** 刷新动态网格用于视锥裁剪的模型空间包围盒。 */
@@ -276,8 +295,6 @@ export class DynamicMeshBatch {
 
   /**
    * 从 CPU 索引流开头上传当前紧凑拓扑，并同步实际绘制范围。
-   *
-   * Cocos 公开 Buffer API 不支持目标偏移，因此调用方必须把活动索引压在前缀区间。
    */
   public uploadIndices(activeIndexCount: number): void {
     if (this.state !== DynamicMeshBatchState.Initialized
@@ -292,12 +309,30 @@ export class DynamicMeshBatch {
       throw new Error('动态网格活动索引数必须位于已分配容量内。');
     }
     if (activeIndexCount > 0) {
-      this.indexBuffer.update(
-        this.indexSource,
-        activeIndexCount * this.indexComponentByteLength,
-      );
+      this.uploadIndexRange(0, activeIndexCount);
     }
     this.setActiveIndexCount(activeIndexCount);
+  }
+
+  /** 上传索引流中的连续区段，不改变当前绘制范围。 */
+  public uploadIndexRange(firstIndex: number, indexCount: number): void {
+    if (this.state !== DynamicMeshBatchState.Initialized
+      || this.indexBuffer === null
+      || this.indexSource === null
+      || this.indexComponentByteLength <= 0) {
+      throw new Error('动态网格索引缓冲尚未初始化或已经释放。');
+    }
+    assertUploadRange(firstIndex, indexCount, this.maximumIndexCount, '索引');
+    if (indexCount === 0) {
+      return;
+    }
+    const endIndex = firstIndex + indexCount;
+    const source = this.indexSource.subarray(firstIndex, endIndex);
+    this.indexBuffer.update(
+      source,
+      source.byteLength,
+      firstIndex * this.indexComponentByteLength,
+    );
   }
 
   /** 在没有活动实体时停用批次节点，从提交列表中完全移除该 Draw Call。 */
@@ -340,6 +375,50 @@ export class DynamicMeshBatch {
     this.maximumIndexCount = 0;
     this.activeIndexCount = 0;
     this.state = DynamicMeshBatchState.Disposed;
+  }
+
+  /** 上传一个 Float32 顶点属性区段。 */
+  private uploadFloatRange(
+    buffer: gfx.Buffer | null,
+    source: Float32Array | null,
+    firstVertex: number,
+    vertexCount: number,
+    componentCount: number,
+    streamName: string,
+  ): void {
+    if (this.state !== DynamicMeshBatchState.Initialized
+      || buffer === null
+      || source === null) {
+      throw new Error(`动态网格${streamName}缓冲尚未初始化或已经释放。`);
+    }
+    assertUploadRange(firstVertex, vertexCount, this.maximumVertexCount, streamName);
+    if (vertexCount === 0) {
+      return;
+    }
+    const firstComponent = firstVertex * componentCount;
+    const componentLength = vertexCount * componentCount;
+    const stream = source.subarray(firstComponent, firstComponent + componentLength);
+    buffer.update(
+      stream,
+      stream.byteLength,
+      firstComponent * FLOAT_COMPONENT_BYTE_LENGTH,
+    );
+  }
+}
+
+/** 校验上传区段完整落在已经分配的元素容量内。 */
+function assertUploadRange(
+  firstElement: number,
+  elementCount: number,
+  capacity: number,
+  streamName: string,
+): void {
+  if (!Number.isInteger(firstElement)
+    || firstElement < 0
+    || !Number.isInteger(elementCount)
+    || elementCount < 0
+    || firstElement > capacity - elementCount) {
+    throw new Error(`动态网格${streamName}上传范围超出已分配容量。`);
   }
 }
 

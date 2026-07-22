@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createEntityRange } from '../../assets/core/entities/entity-range';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
-import { PlanarVisibilityDetail } from '../../assets/core/contracts/planar-circle-visibility';
 import { MeshDirty } from '../../assets/core/mesh/mesh-dirty';
 import {
   compileCurveCrawlerMeshPlan,
@@ -172,7 +171,6 @@ describe('Curve Crawler 编译式网格计划', () => {
       curveCrawlerMeshPlan,
       packed,
       indices,
-      new Uint8Array(3).fill(PlanarVisibilityDetail.Full),
       2,
       0,
       MeshDirty.All,
@@ -194,7 +192,7 @@ describe('Curve Crawler 编译式网格计划', () => {
     );
   });
 
-  it('错峰求值只重写被调度实体并把颜色职责限制到单独槽位', () => {
+  it('脏区求值只重写被调度实体并把颜色职责限制到单独槽位', () => {
     const state = createCurveCrawlerMeshTestState(3);
     const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 3);
     streams.positions.fill(-99);
@@ -212,7 +210,6 @@ describe('Curve Crawler 编译式网格计划', () => {
       curveCrawlerMeshPlan,
       streams,
       Uint32Array.of(0, 1, 2),
-      new Uint8Array(3).fill(PlanarVisibilityDetail.Full),
       updates,
       3,
       0,

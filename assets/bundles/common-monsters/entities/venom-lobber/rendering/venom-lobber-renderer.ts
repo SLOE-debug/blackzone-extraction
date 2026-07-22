@@ -1,6 +1,5 @@
 import { Color, Node } from 'cc';
 import { UnlitMaterialFactory } from '../../../../../core/rendering/unlit-material-factory';
-import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import { type VenomLobberState } from '../model/venom-lobber-state';
 import { type VenomBombSystem } from '../behavior/venom-bomb-system';
@@ -22,7 +21,6 @@ export class VenomLobberRenderer {
     state: VenomLobberState,
     abilityEffects: VenomBombSystem,
     combat: Readonly<VenomLobberCombatOptions>,
-    visibility: PlanarCircleVisibility,
   ) {
     let body: VenomLobberBodyRenderer | null = null;
     let effects: VenomLobberEffectRenderer | null = null;
@@ -32,7 +30,6 @@ export class VenomLobberRenderer {
         state,
         combat,
         this.material,
-        visibility,
       );
       effects = new VenomLobberEffectRenderer(
         parent,

@@ -1,5 +1,4 @@
 import { type Material, Node } from 'cc';
-import { type PlanarCircleVisibility } from '../../../../../core/contracts/planar-circle-visibility';
 import {
   UnlitColorBufferGeometry,
 } from '../../../../../core/geometry/buffer-geometry';
@@ -8,6 +7,7 @@ import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
 import { DynamicMeshBatch } from '../../../../../core/rendering/dynamic-mesh-batch';
 import { curveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-compiler';
 import { CurveCrawlerMeshEvaluator } from '../geometry/curve-crawler-mesh-evaluator';
+import { CurveCrawlerPackedMeshUpdate } from '../geometry/curve-crawler-packed-mesh-update';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { CurveCrawlerRenderMode } from '../model/curve-crawler-render-mode';
 import {
@@ -15,7 +15,7 @@ import {
   type CurveCrawlerActiveIndexSource,
 } from './curve-crawler-active-index-layout';
 import { CurveCrawlerColorSnapshot } from './curve-crawler-color-snapshot';
-import { CurveCrawlerRenderCadence } from './curve-crawler-render-cadence';
+import { CurveCrawlerDirtyUpdatePlan } from './curve-crawler-dirty-update-plan';
 import { CurveCrawlerMaterials } from './curve-crawler-materials';
 import { type CurveCrawlerPopulationRendering } from './curve-crawler-population-rendering';
 import { CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
@@ -41,7 +41,7 @@ interface CurveCrawlerSharedRenderEntry extends CurveCrawlerActiveIndexSource {
   readonly state: CurveCrawlerState;
   readonly residents: CurveCrawlerResidentLayout;
   readonly colorSnapshot: CurveCrawlerColorSnapshot;
-  readonly cadence: CurveCrawlerRenderCadence;
+  readonly updatePlan: CurveCrawlerDirtyUpdatePlan;
   dirty: boolean;
   active: boolean;
 }
@@ -49,8 +49,8 @@ interface CurveCrawlerSharedRenderEntry extends CurveCrawlerActiveIndexSource {
 /**
  * 将多个独立 Curve Crawler 群体的真实驻留实体紧凑压入一个动态 MeshRenderer。
  *
- * 休眠槽位不会占用顶点求值、GPU 上传或三角形提交；可见实体继续按距离减少
- * 足端和腿部，并按生命周期压缩索引。容量只在可见人口跨过二次幂边界时增长。
+ * 休眠槽位不会占用顶点求值、GPU 上传或三角形提交；驻留实体保持完整模型，
+ * 顶点流按连续脏区局部上传，索引只按生命周期压缩。
  */
 export class CurveCrawlerSharedRenderer {
   private readonly materials: CurveCrawlerMaterials;
@@ -64,15 +64,14 @@ export class CurveCrawlerSharedRenderer {
   private activeEntityCount = 0;
   private structureDirty = false;
   private nextRenderIdentity = 1;
-  private frameSequence = 0;
   private disposed = false;
 
-  /** 当前通过相机视锥筛选并实际进入 GPU 批次的实体数量。 */
+  /** 当前具有可渲染生命周期并实际进入 GPU 批次的实体数量。 */
   public get visibleEntityCount(): number {
     return this.activeEntityCount;
   }
 
-  /** 当前共享网格可容纳的紧凑可见实体数量。 */
+  /** 当前共享网格可容纳的紧凑驻留实体数量。 */
   public get renderCapacity(): number {
     return this.entityCapacity;
   }
@@ -80,7 +79,6 @@ export class CurveCrawlerSharedRenderer {
   constructor(
     private readonly parent: Node,
     surfaceMaterialTemplate: Material,
-    private readonly visibility: PlanarCircleVisibility,
   ) {
     this.meshEvaluator = new CurveCrawlerMeshEvaluator(curveCrawlerMeshPlan, true);
     this.materials = new CurveCrawlerMaterials(
@@ -95,9 +93,9 @@ export class CurveCrawlerSharedRenderer {
     const entry: CurveCrawlerSharedRenderEntry = {
       renderIdentity: this.nextRenderIdentity++,
       state,
-      residents: new CurveCrawlerResidentLayout(state.count, this.visibility),
+      residents: new CurveCrawlerResidentLayout(state.count),
       colorSnapshot: new CurveCrawlerColorSnapshot(state),
-      cadence: new CurveCrawlerRenderCadence(state.count),
+      updatePlan: new CurveCrawlerDirtyUpdatePlan(state.count),
       dirty: true,
       active: true,
     };
@@ -106,13 +104,10 @@ export class CurveCrawlerSharedRenderer {
     return new CurveCrawlerSharedRenderHandle(this, entry);
   }
 
-  /** 每帧只求值真实驻留实体，并统一上传距离 LOD 后的紧凑顶点与索引前缀。 */
+  /** 每帧只求值真实驻留实体，并上传连续脏区与紧凑索引前缀。 */
   public synchronize(): void {
     this.ensureActive();
-    this.frameSequence = (this.frameSequence + 1) & 0x7fffffff;
-    const residentLayoutChanged = this.structureDirty || (this.frameSequence & 1) === 0
-      ? this.synchronizeResidentLayouts()
-      : false;
+    const residentLayoutChanged = this.synchronizeResidentLayouts();
     this.synchronizeColorSnapshots();
     const residentCount = this.countResidentEntities();
     const layoutChanged = this.structureDirty
@@ -145,7 +140,7 @@ export class CurveCrawlerSharedRenderer {
     }
 
     const forceRewrite = requiresGrowth || layoutChanged;
-    const changed = this.evaluateEntries(streams, forceRewrite);
+    this.evaluateEntries(streams, forceRewrite, !requiresGrowth);
     const indicesChanged = this.activeIndices.synchronize(
       this.entries,
       geometry.index,
@@ -157,13 +152,6 @@ export class CurveCrawlerSharedRenderer {
     if (requiresGrowth) {
       this.replaceBatch(geometry, streams, nextCapacity);
     } else {
-      const uploadChanged = getUnlitUploadDirty(changed);
-      if (uploadChanged !== MeshDirty.None) {
-        this.batch?.uploadVertexAttributes(
-          uploadChanged,
-          residentCount * curveCrawlerMeshPlan.vertexCount,
-        );
-      }
       if (indicesChanged) {
         this.batch?.uploadIndices(activeIndexCount);
       }
@@ -215,17 +203,16 @@ export class CurveCrawlerSharedRenderer {
     }
   }
 
-  /** 原地同步全部群体的可见生命周期槽位。 */
+  /** 原地同步全部群体的可渲染生命周期槽位。 */
   private synchronizeResidentLayouts(): boolean {
     let changed = false;
     for (const entry of this.entries) {
-      // 可见性同时依赖相机视锥；即使实体状态未变，相机移动也必须重新筛选。
       changed = entry.residents.synchronize(entry.state) || changed;
     }
     return changed;
   }
 
-  /** 只比较可见实体的受击与死亡液体颜色输入。 */
+  /** 只比较驻留实体的受击与死亡液体颜色输入。 */
   private synchronizeColorSnapshots(): void {
     for (const entry of this.entries) {
       entry.colorSnapshot.captureResident(
@@ -259,26 +246,23 @@ export class CurveCrawlerSharedRenderer {
   private evaluateEntries(
     streams: VertexStreams,
     forceRewrite: boolean,
-  ): MeshDirty {
-    let changed = MeshDirty.None;
+    uploadRanges: boolean,
+  ): void {
     let targetEntityOffset = 0;
     for (const entry of this.entries) {
-      entry.cadence.schedule(
-        entry.renderIdentity,
+      entry.updatePlan.schedule(
         entry.state,
         entry.residents,
         entry.colorSnapshot,
-        this.frameSequence,
         entry.dirty,
         forceRewrite,
       );
-      changed |= this.meshEvaluator.evaluatePackedScheduled(
+      this.meshEvaluator.evaluatePackedScheduled(
         entry.state,
         curveCrawlerMeshPlan,
         streams,
         entry.residents.entityIndices,
-        entry.residents.detailLevels,
-        entry.cadence.updates,
+        entry.updatePlan.updates,
         entry.residents.count,
         targetEntityOffset,
       );
@@ -287,12 +271,57 @@ export class CurveCrawlerSharedRenderer {
         curveCrawlerMeshPlan,
         targetEntityOffset,
         entry.residents.count,
-        entry.cadence.updates,
+        entry.updatePlan.updates,
       );
+      if (uploadRanges) {
+        this.uploadScheduledAttributeRanges(
+          entry.updatePlan.updates,
+          entry.residents.count,
+          targetEntityOffset,
+          CurveCrawlerPackedMeshUpdate.Position,
+          MeshDirty.Position,
+        );
+        this.uploadScheduledAttributeRanges(
+          entry.updatePlan.updates,
+          entry.residents.count,
+          targetEntityOffset,
+          CurveCrawlerPackedMeshUpdate.Shaded,
+          MeshDirty.Color,
+        );
+      }
       targetEntityOffset += entry.residents.count;
       entry.dirty = false;
     }
-    return changed;
+  }
+
+  /** 合并连续实体脏区并提交单个顶点属性范围。 */
+  private uploadScheduledAttributeRanges(
+    updates: Uint8Array,
+    entityCount: number,
+    targetEntityOffset: number,
+    minimumUpdate: CurveCrawlerPackedMeshUpdate,
+    attribute: MeshDirty,
+  ): void {
+    if (this.batch === null) {
+      throw new Error('Curve Crawler 脏区上传缺少动态网格批次。');
+    }
+    let rangeStart = -1;
+    for (let packedIndex = 0; packedIndex <= entityCount; packedIndex++) {
+      const dirty = packedIndex < entityCount
+        && (updates[packedIndex] ?? CurveCrawlerPackedMeshUpdate.None) >= minimumUpdate;
+      if (dirty && rangeStart < 0) {
+        rangeStart = packedIndex;
+      } else if (!dirty && rangeStart >= 0) {
+        const firstEntity = targetEntityOffset + rangeStart;
+        const dirtyEntityCount = packedIndex - rangeStart;
+        this.batch.uploadVertexAttributeRange(
+          attribute,
+          firstEntity * curveCrawlerMeshPlan.vertexCount,
+          dirtyEntityCount * curveCrawlerMeshPlan.vertexCount,
+        );
+        rangeStart = -1;
+      }
+    }
   }
 
   /** 成功创建更大批次后再替换旧 GPU 资源，避免失败时提前丢失画面。 */
@@ -348,7 +377,7 @@ class CurveCrawlerSharedRenderHandle implements CurveCrawlerPopulationRendering 
   }
 }
 
-/** 为当前可见人口扩展到最近的二次幂，降低波次增长时的重建频率。 */
+/** 为当前驻留人口扩展到最近的二次幂，降低波次增长时的重建频率。 */
 function getExpandedEntityCapacity(entityCount: number): number {
   let capacity = 1;
   while (capacity < entityCount) {
@@ -357,7 +386,7 @@ function getExpandedEntityCapacity(entityCount: number): number {
   return capacity;
 }
 
-/** 创建只覆盖当前可见人口高水位的固定拓扑网格。 */
+/** 创建只覆盖当前驻留人口高水位的固定拓扑网格。 */
 function createSharedGeometry(
   entityCapacity: number,
 ): UnlitColorBufferGeometry<Uint32Array> {
@@ -378,9 +407,4 @@ function createUnlitEvaluationStreams(geometry: UnlitColorBufferGeometry): Verte
     normals: new Float32Array(geometry.maxVertices * 3),
     colors: geometry.colors,
   });
-}
-
-/** 共享 Unlit 网格只向 GPU 提交 Position 与已经烘焙明暗的 Color。 */
-function getUnlitUploadDirty(changed: MeshDirty): MeshDirty {
-  return (changed & (MeshDirty.Position | MeshDirty.Color)) as MeshDirty;
 }

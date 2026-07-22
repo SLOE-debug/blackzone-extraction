@@ -1,29 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
-import { PlanarVisibilityDetail } from '../../assets/core/contracts/planar-circle-visibility';
 import { curveCrawlerMeshPlan } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-compiler';
-import {
-  CurveCrawlerActiveIndexLayout,
-  getCurveCrawlerBodyLodIndexCount,
-} from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-active-index-layout';
+import { CurveCrawlerActiveIndexLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-active-index-layout';
 import { CurveCrawlerResidentLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-resident-layout';
 import { createCurveCrawlerMeshTestState } from './mesh-test-fixture';
 
-describe('Curve Crawler 活动索引与距离 LOD', () => {
-  it('同一共享批次按距离减少足部和腿部三角形', () => {
+describe('Curve Crawler 活动索引', () => {
+  it('全部驻留实体提交完整身体拓扑，不按距离删减', () => {
     const state = createCurveCrawlerMeshTestState(3);
     state.data.vitality.state.fill(MonsterLifecycleState.Alive);
     state.data.transform.x[0] = 0;
     state.data.transform.x[1] = 1;
     state.data.transform.x[2] = 2;
-    const residents = new CurveCrawlerResidentLayout(state.count, {
-      isCircleVisible: (): boolean => true,
-      resolveDetail: (centerX): PlanarVisibilityDetail => centerX === 0
-        ? PlanarVisibilityDetail.Full
-        : centerX === 1
-          ? PlanarVisibilityDetail.Reduced
-          : PlanarVisibilityDetail.Minimal,
-    });
+    const residents = new CurveCrawlerResidentLayout(state.count);
     residents.synchronize(state);
 
     const layout = new CurveCrawlerActiveIndexLayout(curveCrawlerMeshPlan);
@@ -34,18 +23,10 @@ describe('Curve Crawler 活动索引与距离 LOD', () => {
       state.count,
       true,
     )).toBe(true);
-    const expected = getCurveCrawlerBodyLodIndexCount(
-      curveCrawlerMeshPlan,
-      PlanarVisibilityDetail.Full,
-    ) + getCurveCrawlerBodyLodIndexCount(
-      curveCrawlerMeshPlan,
-      PlanarVisibilityDetail.Reduced,
-    ) + getCurveCrawlerBodyLodIndexCount(
-      curveCrawlerMeshPlan,
-      PlanarVisibilityDetail.Minimal,
-    );
+    const expected = (
+      curveCrawlerMeshPlan.body.indexCount + curveCrawlerMeshPlan.eyes.indexCount
+    ) * state.count;
     expect(layout.indexCount).toBe(expected);
-    expect(layout.indexCount).toBeLessThan(curveCrawlerMeshPlan.indexCount * 2);
     expect(maximumIndex(indices, layout.indexCount)).toBeLessThan(
       curveCrawlerMeshPlan.vertexCount * state.count,
     );
@@ -56,27 +37,12 @@ describe('Curve Crawler 活动索引与距离 LOD', () => {
       false,
     )).toBe(false);
 
-    const fullCount = getCurveCrawlerBodyLodIndexCount(
-      curveCrawlerMeshPlan,
-      PlanarVisibilityDetail.Full,
-    );
-    expect(getCurveCrawlerBodyLodIndexCount(
-      curveCrawlerMeshPlan,
-      PlanarVisibilityDetail.Reduced,
-    )).toBeLessThan(fullCount * 0.45);
-    expect(getCurveCrawlerBodyLodIndexCount(
-      curveCrawlerMeshPlan,
-      PlanarVisibilityDetail.Minimal,
-    )).toBeLessThan(fullCount * 0.36);
   });
 
   it('存活实体不提交出生和死亡拓扑，死亡时只追加液体扇面', () => {
     const state = createCurveCrawlerMeshTestState(1);
     state.data.vitality.state[0] = MonsterLifecycleState.Alive;
-    const residents = new CurveCrawlerResidentLayout(state.count, {
-      isCircleVisible: (): boolean => true,
-      resolveDetail: (): PlanarVisibilityDetail => PlanarVisibilityDetail.Full,
-    });
+    const residents = new CurveCrawlerResidentLayout(state.count);
     residents.synchronize(state);
     const layout = new CurveCrawlerActiveIndexLayout(curveCrawlerMeshPlan);
     const indices = new Uint32Array(curveCrawlerMeshPlan.indexCount);

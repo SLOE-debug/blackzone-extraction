@@ -45,7 +45,6 @@ export interface VenomLobberModelGeometry {
   readonly legGroups: Uint8Array;
   readonly strikeWeights: Float32Array;
   readonly tailBoneCount: number;
-  readonly visibilityRadius: number;
 }
 
 /**
@@ -111,7 +110,6 @@ export function createVenomLobberModelGeometry(): VenomLobberModelGeometry {
     legGroups,
     strikeWeights,
     tailBoneCount: TAIL_BONE_COUNT,
-    visibilityRadius: 8.8,
   });
 }
 
