@@ -35,6 +35,12 @@ export interface NormalizedCurveCrawlerPopulationOptions {
   readonly initialPopulationCount: number;
 }
 
+/** 领域状态初始化真正消费的参数，不携带 Rendering 专用材质资源。 */
+export type CurveCrawlerStateOptions = Omit<
+  NormalizedCurveCrawlerPopulationOptions,
+  'surfaceMaterialTemplate'
+>;
+
 /**
  * 校验并冻结群体参数，避免各系统重复处理输入边界。
  */

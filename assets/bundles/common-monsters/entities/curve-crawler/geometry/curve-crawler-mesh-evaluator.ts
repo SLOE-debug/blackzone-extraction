@@ -14,7 +14,6 @@ import { evaluateCurveCrawlerColors } from './curve-crawler-mesh-colors';
 import { evaluateCurveCrawlerEyeMesh } from './curve-crawler-eye-mesh-evaluator';
 import { evaluateCurveCrawlerLiquidMesh } from './curve-crawler-liquid-mesh-evaluator';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
-import { CurveCrawlerPackedMeshUpdate } from './curve-crawler-packed-mesh-update';
 import { curveCrawlerMeshPlan } from './curve-crawler-mesh-compiler';
 import {
   createCurveCrawlerEmergenceScratch,
@@ -37,7 +36,6 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
 
   constructor(
     plan: CurveCrawlerMeshPlan,
-    private readonly writeNormals = true,
   ) {
     this.legScratch = createCurveCrawlerLegScratch(plan.legTube);
   }
@@ -59,7 +57,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
     range: EntityRange,
     requested: MeshDirty,
   ): MeshDirty {
-    const flags = resolveEvaluationFlags(requested, this.writeNormals);
+    const flags = resolveEvaluationFlags(requested);
     const writeGeometry = (flags & CurveCrawlerEvaluationFlag.Geometry) !== 0;
     const writeColors = (flags & CurveCrawlerEvaluationFlag.Color) !== 0;
     if (!writeGeometry
@@ -67,7 +65,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
       && (requested & MeshDirty.Bounds) === 0) {
       return MeshDirty.None;
     }
-    assertCurveCrawlerStreamCapacity(plan, streams, range.count, this.writeNormals);
+    assertCurveCrawlerStreamCapacity(plan, streams, range.count);
 
     for (let localEntity = 0; localEntity < range.count; localEntity++) {
       const entityIndex = range.start + localEntity;
@@ -80,127 +78,11 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         entityVertexOffset,
         writeGeometry,
         writeColors,
-        this.writeNormals,
-      );
-    }
-
-    return createChangedFlags(requested, writeGeometry, writeColors, this.writeNormals);
-  }
-
-  /**
-   * 把任意 SoA 槽位清单紧凑写入目标网格的连续实体区段。
-   *
-   * @param entityIndices 按输出顺序排列的源实体槽位。
-   * @param entityCount 本次读取的清单有效数量。
-   * @param targetEntityOffset 目标网格中的首个紧凑实体槽位。
-   */
-  public evaluatePacked(
-    state: CurveCrawlerState,
-    plan: CurveCrawlerMeshPlan,
-    streams: VertexStreams,
-    entityIndices: Uint32Array,
-    entityCount: number,
-    targetEntityOffset: number,
-    requested: MeshDirty,
-  ): MeshDirty {
-    if (!Number.isInteger(entityCount)
-      || entityCount < 0
-      || entityCount > entityIndices.length
-      || !Number.isInteger(targetEntityOffset)
-      || targetEntityOffset < 0) {
-      throw new Error('Curve Crawler 紧凑求值范围无效。');
-    }
-    const flags = resolveEvaluationFlags(requested, this.writeNormals);
-    const writeGeometry = (flags & CurveCrawlerEvaluationFlag.Geometry) !== 0;
-    const writeColors = (flags & CurveCrawlerEvaluationFlag.Color) !== 0;
-    if (!writeGeometry
-      && !writeColors
-      && (requested & MeshDirty.Bounds) === 0) {
-      return MeshDirty.None;
-    }
-    assertCurveCrawlerStreamCapacity(
-      plan,
-      streams,
-      targetEntityOffset + entityCount,
-      this.writeNormals,
-    );
-    for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
-      const entityIndex = entityIndices[packedIndex];
-      if (entityIndex === undefined || entityIndex >= state.count) {
-        throw new Error('Curve Crawler 紧凑求值清单包含越界实体槽位。');
-      }
-      this.evaluateEntity(
-        state,
-        plan,
-        streams,
-        entityIndex,
-        (targetEntityOffset + packedIndex) * plan.vertexCount,
-        writeGeometry,
-        writeColors,
-        this.writeNormals,
-      );
-    }
-    return createChangedFlags(requested, writeGeometry, writeColors, this.writeNormals);
-  }
-
-  /**
-   * 按单实体脏区命令求值共享 Unlit 批次。
-   *
-   * Position 命令不计算 CPU 法线与颜色；Shaded 命令只重算发生颜色档位变化的
-   * 实体，供调用方随后烘焙该实体的分面明暗。
-   */
-  public evaluateScheduledToEntitySlots(
-    state: CurveCrawlerState,
-    plan: CurveCrawlerMeshPlan,
-    streams: VertexStreams,
-    entityIndices: Uint32Array,
-    updates: Uint8Array,
-    entityCount: number,
-    targetEntitySlotOffset: number,
-  ): MeshDirty {
-    if (!Number.isInteger(entityCount)
-      || entityCount < 0
-      || entityCount > entityIndices.length
-      || entityCount > updates.length
-      || !Number.isInteger(targetEntitySlotOffset)
-      || targetEntitySlotOffset < 0) {
-      throw new Error('Curve Crawler 脏区固定槽位求值范围无效。');
-    }
-    assertCurveCrawlerStreamCapacity(
-      plan,
-      streams,
-      targetEntitySlotOffset + state.count,
-      true,
-    );
-    let changed = MeshDirty.None;
-    for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
-      const update = updates[packedIndex] as CurveCrawlerPackedMeshUpdate;
-      if (update === CurveCrawlerPackedMeshUpdate.None) {
-        continue;
-      }
-      const entityIndex = entityIndices[packedIndex];
-      if (entityIndex === undefined || entityIndex >= state.count
-        || update < CurveCrawlerPackedMeshUpdate.Position
-        || update > CurveCrawlerPackedMeshUpdate.Shaded) {
-        throw new Error('Curve Crawler 脏区紧凑求值命令无效。');
-      }
-      const shaded = update === CurveCrawlerPackedMeshUpdate.Shaded;
-      this.evaluateEntity(
-        state,
-        plan,
-        streams,
-        entityIndex,
-        (targetEntitySlotOffset + entityIndex) * plan.vertexCount,
         true,
-        shaded,
-        shaded,
       );
-      changed |= MeshDirty.Position;
-      if (shaded) {
-        changed |= MeshDirty.Color;
-      }
     }
-    return changed;
+
+    return createChangedFlags(requested, writeGeometry, writeColors);
   }
 
   /** 将一个源实体求值到指定的目标顶点区段。 */
@@ -299,20 +181,14 @@ const enum CurveCrawlerEvaluationFlag {
 /** 验证成对姿态流并解析本次实际需要改写的属性。 */
 function resolveEvaluationFlags(
   requested: MeshDirty,
-  writeNormals: boolean,
 ): CurveCrawlerEvaluationFlag {
   const requestedPose = requested & MeshDirty.Pose;
-  if (writeNormals
-    && requestedPose !== MeshDirty.None
+  if (requestedPose !== MeshDirty.None
     && requestedPose !== MeshDirty.Pose) {
     throw new Error('Curve Crawler 的 Position 和 Normal 必须作为同一姿态成对请求。');
   }
-  if (!writeNormals && (requested & MeshDirty.Normal) !== 0) {
-    throw new Error('Curve Crawler Unlit 批次不能请求不存在的 Normal 流。');
-  }
   let flags = CurveCrawlerEvaluationFlag.None;
-  if ((writeNormals && requestedPose === MeshDirty.Pose)
-    || (!writeNormals && (requested & MeshDirty.Position) !== 0)) {
+  if (requestedPose === MeshDirty.Pose) {
     flags |= CurveCrawlerEvaluationFlag.Geometry;
   }
   if ((requested & MeshDirty.Color) !== 0) {
@@ -326,11 +202,10 @@ function createChangedFlags(
   requested: MeshDirty,
   writeGeometry: boolean,
   writeColors: boolean,
-  writeNormals: boolean,
 ): MeshDirty {
   let changed = MeshDirty.None;
   if (writeGeometry) {
-    changed |= writeNormals ? MeshDirty.Pose : MeshDirty.Position;
+    changed |= MeshDirty.Pose;
   }
   if (writeColors) {
     changed |= MeshDirty.Color;
@@ -346,11 +221,10 @@ function assertCurveCrawlerStreamCapacity(
   plan: CurveCrawlerMeshPlan,
   streams: VertexStreams,
   entityCount: number,
-  requireNormals: boolean,
 ): void {
   const vertexCount = plan.vertexCount * entityCount;
   if (streams.positions.length < vertexCount * 3
-    || (requireNormals && streams.normals.length < vertexCount * 3)
+    || streams.normals.length < vertexCount * 3
     || streams.colors.length < vertexCount * 4) {
     throw new Error('Curve Crawler 动态顶点流容量不足。');
   }

@@ -1,0 +1,323 @@
+CCEffect %{
+  techniques:
+  - name: opaque
+    passes:
+    - vert: curve-crawler-gpu-vs:vert
+      frag: curve-crawler-gpu-fs:frag
+      depthStencilState:
+        depthTest: true
+        depthWrite: true
+      rasterizerState:
+        cullMode: back
+      properties:
+        poseTexture:     { value: white }
+        poseTextureSize: { value: [23, 1, 0.0434782609, 1] }
+        lightDirection:  { value: [0.36, -0.42, 0.832826, 0] }
+        shadeBands:      { value: [0.58, 0.70, 0.82, 0.94] }
+}%
+
+CCProgram curve-crawler-gpu-vs %{
+  precision highp float;
+  precision highp sampler2D;
+
+  #include <builtin/uniforms/cc-global>
+  #include <legacy/local-batch>
+
+  in vec3 a_position;
+  in vec3 a_normal;
+  in vec2 a_texCoord;
+  in lowp vec4 a_color;
+
+  #pragma format(RGBA32F)
+  in vec4 a_deformation;
+  #pragma format(RGBA32F)
+  in vec4 a_deformationPivot;
+
+  out highp vec3 v_worldNormal;
+  out highp float v_semantic;
+  out highp vec2 v_colorEvents;
+  out lowp vec4 v_color;
+
+  uniform sampler2D poseTexture;
+  uniform CurveCrawlerGpuConstants {
+    vec4 poseTextureSize;
+    vec4 lightDirection;
+    vec4 shadeBands;
+  };
+
+  const float SEMANTIC_LEG = 0.0;
+  const float SEMANTIC_FOOT = 1.0;
+  const float SEMANTIC_ABDOMEN = 2.0;
+  const float SEMANTIC_THORAX = 3.0;
+  const float SEMANTIC_EYE = 4.0;
+  const float SEMANTIC_LIQUID = 5.0;
+  const float SEMANTIC_CRACK = 6.0;
+  const float SEMANTIC_EGG = 7.0;
+  const float SEMANTIC_SHARD = 8.0;
+
+  const float TEXEL_TRANSFORM = 0.0;
+  const float TEXEL_ANIMATION_PRIMARY = 1.0;
+  const float TEXEL_ANIMATION_SECONDARY = 2.0;
+  const float TEXEL_LIFECYCLE = 3.0;
+  const float TEXEL_EMERGENCE = 4.0;
+  const float TEXEL_EFFECTS = 5.0;
+  const float TEXEL_MORPHOLOGY = 6.0;
+  const float TEXEL_LEG_PHASE_FIRST = 7.0;
+  const float TEXEL_FRAGMENT_FIRST = 11.0;
+
+  vec4 readPose(float slot, float texel) {
+    vec2 uv = vec2(
+      (texel + 0.5) * poseTextureSize.z,
+      (slot + 0.5) * poseTextureSize.w
+    );
+    return texture(poseTexture, uv);
+  }
+
+  vec2 rotate2(vec2 value, float cosine, float sine) {
+    return vec2(
+      value.x * cosine - value.y * sine,
+      value.x * sine + value.y * cosine
+    );
+  }
+
+  void rotatePartZ(
+    inout vec3 position,
+    inout vec3 normal,
+    vec3 pivot,
+    float angle
+  ) {
+    float cosine = cos(angle);
+    float sine = sin(angle);
+    position.xy = pivot.xy + rotate2(position.xy - pivot.xy, cosine, sine);
+    normal.xy = rotate2(normal.xy, cosine, sine);
+  }
+
+  void scalePart(
+    inout vec3 position,
+    inout vec3 normal,
+    vec3 pivot,
+    vec3 scale
+  ) {
+    vec3 safeScale = max(scale, vec3(0.0001));
+    position = pivot + (position - pivot) * safeScale;
+    normal = normalize(normal / safeScale);
+  }
+
+  vec2 readLegPhase(float slot, float legIndex) {
+    float pair = floor(legIndex * 0.5);
+    vec4 packed = readPose(slot, TEXEL_LEG_PHASE_FIRST + pair);
+    return mod(legIndex, 2.0) < 0.5 ? packed.xy : packed.zw;
+  }
+
+  void deformLeg(
+    inout vec3 position,
+    inout vec3 normal,
+    vec3 pivot,
+    float slot,
+    float legIndex,
+    float weight,
+    vec4 animationPrimary,
+    vec4 animationSecondary,
+    vec4 lifecycle,
+    vec4 effects
+  ) {
+    vec2 phaseOffset = readLegPhase(slot, legIndex);
+    float phaseCosine = cos(animationPrimary.x);
+    float phaseSine = sin(animationPrimary.x);
+    float swing = phaseSine * phaseOffset.x + phaseCosine * phaseOffset.y;
+    float lift = max(0.0, phaseCosine * phaseOffset.x - phaseSine * phaseOffset.y);
+    float side = legIndex < 4.0 ? 1.0 : -1.0;
+    float innerSupport = side == sign(animationSecondary.y) ? 1.0 : 0.0;
+    float turnStrideScale = mix(1.28, 0.36, innerSupport);
+    float turnLiftScale = mix(1.12, 0.32, innerSupport);
+    float strideScale = mix(1.0, turnStrideScale, animationSecondary.x);
+    float liftScale = mix(1.0, turnLiftScale, animationSecondary.x);
+    float angle = swing * 0.18 * strideScale * weight;
+    rotatePartZ(position, normal, pivot, angle);
+    position.z += lift * effects.w * 0.11 * liftScale * weight;
+    position.y += side * animationPrimary.z * effects.w * 0.075 * weight;
+    if (mod(legIndex, 4.0) < 2.0) {
+      position.x += animationPrimary.w * effects.w * 0.11 * weight;
+    }
+    scalePart(position, normal, pivot, vec3(lifecycle.z));
+  }
+
+  void applyDeathFragment(
+    inout vec3 position,
+    inout vec3 normal,
+    vec3 pivot,
+    float slot,
+    float fragmentIndex,
+    float collapse,
+    out vec3 worldOffset
+  ) {
+    worldOffset = vec3(0.0);
+    if (fragmentIndex < 0.0) {
+      return;
+    }
+    vec4 fragment = readPose(slot, TEXEL_FRAGMENT_FIRST + fragmentIndex);
+    scalePart(position, normal, pivot, vec3(max(0.0001, 1.0 - collapse)));
+    rotatePartZ(position, normal, pivot, fragment.w);
+    worldOffset = fragment.xyz;
+  }
+
+  vec4 vert() {
+    float slot = a_texCoord.x;
+    float semantic = a_texCoord.y;
+    vec4 transform = readPose(slot, TEXEL_TRANSFORM);
+    vec4 animationPrimary = readPose(slot, TEXEL_ANIMATION_PRIMARY);
+    vec4 animationSecondary = readPose(slot, TEXEL_ANIMATION_SECONDARY);
+    vec4 lifecycle = readPose(slot, TEXEL_LIFECYCLE);
+    vec4 emergence = readPose(slot, TEXEL_EMERGENCE);
+    vec4 effects = readPose(slot, TEXEL_EFFECTS);
+    vec4 morphology = readPose(slot, TEXEL_MORPHOLOGY);
+    vec3 position = a_position;
+    vec3 normal = a_normal;
+    vec3 pivot = a_deformationPivot.xyz;
+    vec3 fragmentWorldOffset = vec3(0.0);
+
+    if (semantic == SEMANTIC_LEG || semantic == SEMANTIC_FOOT) {
+      deformLeg(
+        position,
+        normal,
+        pivot,
+        slot,
+        a_deformation.x,
+        a_deformation.y,
+        animationPrimary,
+        animationSecondary,
+        lifecycle,
+        effects
+      );
+      applyDeathFragment(
+        position,
+        normal,
+        pivot,
+        slot,
+        a_deformation.z,
+        lifecycle.w,
+        fragmentWorldOffset
+      );
+    } else if (semantic == SEMANTIC_ABDOMEN || semantic == SEMANTIC_THORAX) {
+      vec3 bodyScale = vec3(
+        (1.0 + animationPrimary.y) * lifecycle.y,
+        (1.0 - animationPrimary.y * 0.35 - animationPrimary.z * 0.08) * lifecycle.y,
+        (1.0 - animationPrimary.y * 0.35 - animationPrimary.z * 0.08) * lifecycle.y
+      );
+      scalePart(position, normal, pivot, bodyScale);
+      if (semantic == SEMANTIC_THORAX) {
+        position.x += morphology.x * 0.16 * animationPrimary.w;
+      }
+      applyDeathFragment(
+        position,
+        normal,
+        pivot,
+        slot,
+        a_deformation.z,
+        lifecycle.w,
+        fragmentWorldOffset
+      );
+    } else if (semantic == SEMANTIC_EYE) {
+      vec3 eyeScale = vec3(lifecycle.y, lifecycle.y, lifecycle.y * animationSecondary.z);
+      scalePart(position, normal, pivot, eyeScale);
+      position.x += morphology.x * 0.16 * animationPrimary.w;
+      applyDeathFragment(
+        position,
+        normal,
+        pivot,
+        slot,
+        a_deformation.z,
+        lifecycle.w,
+        fragmentWorldOffset
+      );
+    } else if (semantic == SEMANTIC_LIQUID) {
+      float liquidScale = max(0.0001, effects.y * (1.0 - effects.z));
+      scalePart(position, normal, pivot, vec3(liquidScale, liquidScale, 1.0));
+      position.y -= effects.z * morphology.y * 0.28;
+    } else if (semantic == SEMANTIC_CRACK) {
+      scalePart(
+        position,
+        normal,
+        pivot,
+        vec3(max(0.0001, emergence.x), max(0.0001, emergence.x), max(0.0001, emergence.y))
+      );
+    } else if (semantic == SEMANTIC_EGG) {
+      float shellScale = max(0.0001, emergence.z * (1.0 - effects.x));
+      scalePart(
+        position,
+        normal,
+        pivot,
+        vec3(shellScale, shellScale, shellScale * (1.0 + emergence.w * 0.2))
+      );
+    } else if (semantic == SEMANTIC_SHARD) {
+      float visibility = max(0.0001, sin(effects.x * 3.14159265));
+      scalePart(position, normal, pivot, vec3(visibility));
+      vec2 radial = normalize(pivot.xy + vec2(0.0001, 0.0));
+      position.xy += radial * (effects.x - 0.5) * morphology.y * 1.8;
+      position.z += (effects.x - 0.5) * morphology.y * 1.2;
+      rotatePartZ(position, normal, pivot, (a_deformation.w + 1.0) * effects.x * 0.31);
+    }
+
+    position.xy = rotate2(position.xy, transform.z, transform.w);
+    normal.xy = rotate2(normal.xy, transform.z, transform.w);
+    position.xy += transform.xy + fragmentWorldOffset.xy;
+    position.z += fragmentWorldOffset.z;
+
+    mat4 matWorld, matWorldIT;
+    CCGetWorldMatrixFull(matWorld, matWorldIT);
+    vec4 worldPosition = matWorld * vec4(position, 1.0);
+    v_worldNormal = normalize((matWorldIT * vec4(normal, 0.0)).xyz);
+    v_semantic = semantic;
+    v_colorEvents = vec2(animationSecondary.w, effects.z);
+    v_color = a_color;
+    return cc_matProj * cc_matView * worldPosition;
+  }
+}%
+
+CCProgram curve-crawler-gpu-fs %{
+  precision highp float;
+
+  #include <legacy/output-standard>
+
+  in highp vec3 v_worldNormal;
+  in highp float v_semantic;
+  in highp vec2 v_colorEvents;
+  in lowp vec4 v_color;
+
+  uniform CurveCrawlerGpuConstants {
+    vec4 poseTextureSize;
+    vec4 lightDirection;
+    vec4 shadeBands;
+  };
+
+  float quantizeShade(float diffuse) {
+    if (diffuse < 0.25) return shadeBands.x;
+    if (diffuse < 0.5) return shadeBands.y;
+    if (diffuse < 0.75) return shadeBands.z;
+    return shadeBands.w;
+  }
+
+  vec4 frag() {
+    vec3 color = SRGBToLinear(v_color.rgb);
+    float hitFlash = clamp(v_colorEvents.x, 0.0, 1.0);
+    float liquidDrain = clamp(v_colorEvents.y, 0.0, 1.0);
+    if (v_semantic <= 4.0) {
+      color = mix(color, SRGBToLinear(vec3(1.0, 0.0470588, 0.027451)), hitFlash);
+    } else if (v_semantic == 5.0) {
+      color = mix(
+        color,
+        SRGBToLinear(vec3(0.0313725, 0.117647, 0.0666667)),
+        liquidDrain
+      );
+    }
+
+    float diffuse = max(dot(normalize(v_worldNormal), normalize(lightDirection.xyz)), 0.0);
+    float shade = quantizeShade(diffuse);
+    if (v_semantic == 4.0) {
+      shade = max(shade, 0.9);
+    } else if (v_semantic == 5.0 || v_semantic == 6.0) {
+      shade = 1.0;
+    }
+    return CCFragOutput(vec4(color * shade, v_color.a));
+  }
+}%

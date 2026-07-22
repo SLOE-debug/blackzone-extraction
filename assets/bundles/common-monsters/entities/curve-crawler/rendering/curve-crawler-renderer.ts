@@ -2,18 +2,17 @@ import { type Material, Node } from 'cc';
 import { GeometryIndexFormat } from '../../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
 import { CompiledMeshBatchRenderer } from '../../../../../core/rendering/compiled-mesh-batch-renderer';
+import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
 import { curveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-compiler';
 import { curveCrawlerMeshEvaluator } from '../geometry/curve-crawler-mesh-evaluator';
 import { type CurveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-plan';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { CurveCrawlerRenderMode } from '../model/curve-crawler-render-mode';
 import {
   createCurveCrawlerBounds,
   type CurveCrawlerBounds,
   updateCurveCrawlerBounds,
 } from './curve-crawler-bounds';
 import { CurveCrawlerMaterials } from './curve-crawler-materials';
-import { CurveCrawlerColorSnapshot } from './curve-crawler-color-snapshot';
 import { type CurveCrawlerPopulationRendering } from './curve-crawler-population-rendering';
 
 /** Curve Crawler 使用的固定渲染层标识。 */
@@ -30,7 +29,6 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
     CurveCrawlerRenderLayer
   >;
   private readonly bounds: CurveCrawlerBounds;
-  private readonly colorSnapshot: CurveCrawlerColorSnapshot;
   /** 上一次已经提交给 Cocos 裁剪系统的六个模型空间边界分量。 */
   private previousMinX = 0;
   private previousMinY = 0;
@@ -48,9 +46,7 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
     this.bounds = createCurveCrawlerBounds(state);
     this.materials = new CurveCrawlerMaterials(
       surfaceMaterialTemplate,
-      CurveCrawlerRenderMode.Lit,
     );
-    this.colorSnapshot = new CurveCrawlerColorSnapshot(state);
     try {
       this.batches = new CompiledMeshBatchRenderer({
         parent,
@@ -74,7 +70,7 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
         ]),
       });
       this.captureBoundsState();
-      this.captureColorState();
+      this.state.renderChanges.clearAll();
     } catch (error: unknown) {
       this.materials.dispose();
       throw error;
@@ -92,10 +88,11 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
     if (boundsChanged) {
       dirty |= MeshDirty.Bounds;
     }
-    if (this.captureColorState()) {
+    if (this.state.renderChanges.hasAny(EntityRenderDirty.Color)) {
       dirty |= MeshDirty.Color;
     }
     this.batches.update(dirty, boundsChanged ? this.bounds : undefined);
+    this.state.renderChanges.clearAll();
   }
 
   /** 先释放动态网格，再释放其引用的材质。 */
@@ -107,11 +104,6 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
     this.batches.dispose();
     this.materials.dispose();
     this.disposed = true;
-  }
-
-  /** 比较并保存唯一影响顶点色的事件状态。 */
-  private captureColorState(): boolean {
-    return this.colorSnapshot.capture();
   }
 
   /** 比较并保存本地裁剪边界，避免静止展示实体每帧刷新 Renderer 几何状态。 */

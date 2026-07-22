@@ -7,36 +7,12 @@ import {
   type BattlefieldMonsterPerformanceRecorder,
   BattlefieldMonsterPerformanceStage,
 } from '../population/battlefield-monster-performance';
+import {
+  BattlefieldPerformanceEvent,
+  BattlefieldPerformanceStage,
+} from './battlefield-performance-contracts';
 
 const LOG_INTERVAL_MILLISECONDS = 2000;
-
-/** 战场每帧编排中需要独立观察的 CPU 阶段。 */
-export enum BattlefieldPerformanceStage {
-  Control,
-  Player,
-  Environment,
-  WorldSynchronization,
-  Weapon,
-  Monsters,
-  Status,
-  Treasures,
-  CameraAndInteraction,
-  Count,
-}
-
-/** 两秒诊断窗口内需要累计次数或数值的离散事件。 */
-export enum BattlefieldPerformanceEvent {
-  ChunkTransition,
-  ChunksAdded,
-  ChunksRemoved,
-  ChestOpened,
-  LootReleased,
-  EquipmentPicked,
-  PlayerDamage,
-  MonsterBatchGrowth,
-  MonsterBatchCapacityAdded,
-  Count,
-}
 
 /** 日志模块只读依赖的战场运行时统计门面。 */
 export interface BattlefieldPerformanceSources {
@@ -156,9 +132,8 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
   private slowestFrameVisibleMonsters = 0;
   private slowestFrameMonsterRenderCapacity = 0;
   private slowestFrameAliveMonsters = 0;
-  private monsterEntitiesEvaluatedTotal = 0;
-  private monsterPositionBytesUploadedTotal = 0;
-  private monsterPositionUploadCallsTotal = 0;
+  private monsterPoseBytesUploadedTotal = 0;
+  private monsterPoseUploadCallsTotal = 0;
   private previousConsoleOutputMilliseconds = 0;
   private diagnosticsEnabled = false;
 
@@ -266,23 +241,20 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     );
   }
 
-  /** 累计共享怪物批次的实体求值与 Position 局部上传工作量。 */
+  /** 累计共享怪物批次的 GPU 姿态纹理上传工作量。 */
   public recordMonsterRenderingWork(
-    evaluatedEntityCount: number,
-    positionUploadBytes: number,
-    positionUploadCalls: number,
+    poseUploadBytes: number,
+    poseUploadCalls: number,
   ): void {
     if (!this.diagnosticsEnabled) {
       return;
     }
-    if (!Number.isInteger(evaluatedEntityCount) || evaluatedEntityCount < 0
-      || !Number.isInteger(positionUploadBytes) || positionUploadBytes < 0
-      || !Number.isInteger(positionUploadCalls) || positionUploadCalls < 0) {
+    if (!Number.isInteger(poseUploadBytes) || poseUploadBytes < 0
+      || !Number.isInteger(poseUploadCalls) || poseUploadCalls < 0) {
       throw new Error('怪物渲染工作量计数必须是非负整数。');
     }
-    this.monsterEntitiesEvaluatedTotal += evaluatedEntityCount;
-    this.monsterPositionBytesUploadedTotal += positionUploadBytes;
-    this.monsterPositionUploadCallsTotal += positionUploadCalls;
+    this.monsterPoseBytesUploadedTotal += poseUploadBytes;
+    this.monsterPoseUploadCallsTotal += poseUploadCalls;
   }
 
   /** 累计窗口内一次事件或一份数值。 */
@@ -373,9 +345,8 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
       slowestFrameVisibleMonsters: this.slowestFrameVisibleMonsters,
       slowestFrameMonsterRenderCapacity: this.slowestFrameMonsterRenderCapacity,
       slowestFrameAliveMonsters: this.slowestFrameAliveMonsters,
-      monsterEntitiesEvaluatedTotal: this.monsterEntitiesEvaluatedTotal,
-      monsterPositionBytesUploadedTotal: this.monsterPositionBytesUploadedTotal,
-      monsterPositionUploadCallsTotal: this.monsterPositionUploadCallsTotal,
+      monsterPoseBytesUploadedTotal: this.monsterPoseBytesUploadedTotal,
+      monsterPoseUploadCallsTotal: this.monsterPoseUploadCallsTotal,
       eventNames: EVENT_NAMES,
       eventValues: this.eventValues,
       slowestFrameEvents: this.slowestFrameEvents,
@@ -432,8 +403,7 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     this.slowestFrameVisibleMonsters = 0;
     this.slowestFrameMonsterRenderCapacity = 0;
     this.slowestFrameAliveMonsters = 0;
-    this.monsterEntitiesEvaluatedTotal = 0;
-    this.monsterPositionBytesUploadedTotal = 0;
-    this.monsterPositionUploadCallsTotal = 0;
+    this.monsterPoseBytesUploadedTotal = 0;
+    this.monsterPoseUploadCallsTotal = 0;
   }
 }

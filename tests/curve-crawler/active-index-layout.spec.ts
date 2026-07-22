@@ -3,7 +3,7 @@ import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifec
 import { curveCrawlerMeshPlan } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-compiler';
 import { CurveCrawlerActiveIndexLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-active-index-layout';
 import { CurveCrawlerResidentLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-resident-layout';
-import { type CurveCrawlerVisibilityLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-visibility-layout';
+import { EntityVisibilitySet } from '../../assets/core/rendering/dynamic-entities/entity-visibility-set';
 import { createCurveCrawlerMeshTestState } from './mesh-test-fixture';
 
 describe('Curve Crawler 活动索引', () => {
@@ -92,9 +92,12 @@ function minimumIndex(indices: Uint32Array, count: number): number {
 
 function createVisibility(
   residents: CurveCrawlerResidentLayout,
-): CurveCrawlerVisibilityLayout {
-  return {
-    entityIndices: residents.entityIndices,
-    count: residents.count,
-  } as CurveCrawlerVisibilityLayout;
+): EntityVisibilitySet {
+  const visibility = new EntityVisibilitySet(residents.entityIndices.length);
+  visibility.begin();
+  for (let index = 0; index < residents.count; index++) {
+    visibility.include(residents.entityIndices[index] ?? 0);
+  }
+  visibility.end();
+  return visibility;
 }

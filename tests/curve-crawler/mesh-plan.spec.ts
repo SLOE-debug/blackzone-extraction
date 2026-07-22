@@ -10,14 +10,8 @@ import {
   curveCrawlerMeshEvaluator,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-evaluator';
 import {
-  CurveCrawlerPackedMeshUpdate,
-} from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-packed-mesh-update';
-import {
   CurveCrawlerMeshSemantic,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-plan';
-import {
-  shadeCurveCrawlerUnlitEntities,
-} from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-unlit-vertex-shading';
 import {
   CURVE_CRAWLER_SURFACE_TOPOLOGY,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-topology';
@@ -79,43 +73,6 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(Array.from(freshPlan.indices)).toEqual(Array.from(curveCrawlerMeshPlan.indices));
   });
 
-  it('共享 Unlit 路径把 CPU 法线烘成身体分档明暗并保持眼睛清晰', () => {
-    const state = createCurveCrawlerMeshTestState(1);
-    const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 1);
-    curveCrawlerMeshEvaluator.evaluate(
-      state,
-      curveCrawlerMeshPlan,
-      streams,
-      createEntityRange(0, 1, 1),
-      MeshDirty.All,
-    );
-    const baseColors = streams.colors.slice();
-
-    shadeCurveCrawlerUnlitEntities(streams, curveCrawlerMeshPlan, 0, 1);
-
-    const legStart = curveCrawlerMeshPlan.body.legVertexOffsets[0] ?? 0;
-    const legEnd = legStart + curveCrawlerMeshPlan.legTube.vertexCount;
-    const legRedLevels = new Set<number>();
-    for (let vertex = legStart; vertex < legEnd; vertex++) {
-      const colorOffset = vertex * 4;
-      const shadedRed = streams.colors[colorOffset] ?? 0;
-      const baseRed = baseColors[colorOffset] ?? 0;
-      legRedLevels.add(Number(shadedRed.toFixed(5)));
-      expect(shadedRed).toBeGreaterThanOrEqual(baseRed * 0.64 - 0.000001);
-      expect(shadedRed).toBeLessThanOrEqual(baseRed * 0.88 + 0.000001);
-      expect(streams.colors[vertex * 4 + 3]).toBe(1);
-    }
-    expect(legRedLevels.size).toBeGreaterThan(1);
-
-    const eyeColorOffset = curveCrawlerMeshPlan.eyes.vertexOffset * 4;
-    expect(streams.colors[eyeColorOffset] ?? 0).toBeLessThanOrEqual(
-      baseColors[eyeColorOffset] ?? 0,
-    );
-    expect(streams.colors[eyeColorOffset] ?? 0).toBeGreaterThan(
-      (baseColors[eyeColorOffset] ?? 0) * 0.8,
-    );
-  });
-
   it('步态作为 Pose 成对更新 Position 和 Normal，且不改 Color 或局部索引', () => {
     const state = createCurveCrawlerMeshTestState(2);
     const range = createEntityRange(0, 2, 2);
@@ -151,77 +108,6 @@ describe('Curve Crawler 编译式网格计划', () => {
     expect(Array.from(curveCrawlerMeshPlan.indices)).toEqual(indices);
     expect(Array.from(streams.positions)).not.toEqual(Array.from(originalPositions));
     expect(Array.from(streams.colors)).toEqual(Array.from(originalColors));
-  });
-
-  it('按驻留槽位清单把离散实体紧凑写入连续网格', () => {
-    const state = createCurveCrawlerMeshTestState(3);
-    const complete = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 3);
-    curveCrawlerMeshEvaluator.evaluate(
-      state,
-      curveCrawlerMeshPlan,
-      complete,
-      createEntityRange(0, 3, 3),
-      MeshDirty.All,
-    );
-
-    const packed = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 2);
-    const indices = Uint32Array.of(2, 0, 1);
-    expect(curveCrawlerMeshEvaluator.evaluatePacked(
-      state,
-      curveCrawlerMeshPlan,
-      packed,
-      indices,
-      2,
-      0,
-      MeshDirty.All,
-    )).toBe(MeshDirty.All);
-
-    const positionStride = curveCrawlerMeshPlan.vertexCount * 3;
-    const colorStride = curveCrawlerMeshPlan.vertexCount * 4;
-    expect(packed.positions.subarray(0, positionStride)).toEqual(
-      complete.positions.subarray(positionStride * 2, positionStride * 3),
-    );
-    expect(packed.positions.subarray(positionStride, positionStride * 2)).toEqual(
-      complete.positions.subarray(0, positionStride),
-    );
-    expect(packed.normals.subarray(0, positionStride)).toEqual(
-      complete.normals.subarray(positionStride * 2, positionStride * 3),
-    );
-    expect(packed.colors.subarray(0, colorStride)).toEqual(
-      complete.colors.subarray(colorStride * 2, colorStride * 3),
-    );
-  });
-
-  it('脏区求值只重写被调度实体并把颜色职责限制到单独槽位', () => {
-    const state = createCurveCrawlerMeshTestState(3);
-    const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 3);
-    streams.positions.fill(-99);
-    streams.normals.fill(-99);
-    streams.colors.fill(0.5);
-    state.data.animation.hitFlash[2] = 1;
-    const updates = Uint8Array.of(
-      CurveCrawlerPackedMeshUpdate.Position,
-      CurveCrawlerPackedMeshUpdate.None,
-      CurveCrawlerPackedMeshUpdate.Shaded,
-    );
-
-    expect(curveCrawlerMeshEvaluator.evaluateScheduledToEntitySlots(
-      state,
-      curveCrawlerMeshPlan,
-      streams,
-      Uint32Array.of(0, 1, 2),
-      updates,
-      3,
-      0,
-    )).toBe(MeshDirty.Position | MeshDirty.Color);
-
-    const positionStride = curveCrawlerMeshPlan.vertexCount * 3;
-    const colorStride = curveCrawlerMeshPlan.vertexCount * 4;
-    expect(streams.positions[0]).not.toBe(-99);
-    expect(Array.from(streams.positions.subarray(positionStride, positionStride * 2)))
-      .toEqual(Array.from(new Float32Array(positionStride).fill(-99)));
-    expect(streams.colors[0]).toBe(0.5);
-    expect(streams.colors[colorStride * 2]).not.toBe(0.5);
   });
 
   it('步态、眨眼、爆裂碎块和液体展开均直接求值为有限顶点', () => {

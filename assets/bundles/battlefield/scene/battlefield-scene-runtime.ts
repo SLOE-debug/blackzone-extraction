@@ -1,8 +1,7 @@
-import { error as logError, type Material, Node, type Scene } from 'cc';
+import { error as logError, type EffectAsset, type Material, Node, type Scene } from 'cc';
 import { BundleService } from '../../../core/bundles/bundle-service';
 import { type SceneRuntime } from '../../../core/contracts/scene-runtime';
 import { FeatureId, SceneId } from '../../../core/contracts/runtime-id';
-import { WeaponAction } from '../../../core/equipment/equipment';
 import { SceneService } from '../../../core/scenes/scene-service';
 import { ChunkRuntimeRegistry } from '../../../core/world/chunk-runtime-registry';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -11,28 +10,17 @@ import {
   VanguardPopulation,
   VanguardRenderMode,
 } from '../../../player/vanguard';
-import { BattlefieldPlayerAimController } from '../combat/battlefield-player-aim-controller';
 import { BattlefieldDebugControls } from '../debug/battlefield-debug-controls';
 import { BattlefieldDebugPanel } from '../debug/battlefield-debug-panel';
-import {
-  BattlefieldPerformanceEvent,
-  BattlefieldPerformanceLogger,
-  BattlefieldPerformanceStage,
-} from '../debug/battlefield-performance-logger';
+import { BattlefieldPerformanceLogger } from '../debug/battlefield-performance-logger';
 import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../equipment/catalog/battlefield-equipment-catalog';
 import { BattlefieldEquipmentPickupSystem } from '../equipment/population/battlefield-equipment-pickup-system';
-import {
-  type BattlefieldWeaponOwnerPose,
-  BattlefieldPlayerWeaponRuntime,
-} from '../equipment/population/battlefield-player-weapon-runtime';
+import { BattlefieldPlayerWeaponRuntime } from '../equipment/population/battlefield-player-weapon-runtime';
 import { BattlefieldSceneInteractionSystem } from '../interaction/population/battlefield-scene-interaction-system';
-import { BattlefieldInteractionAction } from '../interaction/model/battlefield-interaction';
 import { BATTLEFIELD_TREASURE_LOOT_TABLE } from '../loot/model/battlefield-treasure-loot-table';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import {
-  type MutableBattlefieldAimTarget,
-  type BattlefieldMonsterCombatTarget,
   BattlefieldMonsterPopulation,
 } from '../population/battlefield-monster-population';
 import { BattlefieldGroundRenderer } from '../rendering/battlefield-ground-renderer';
@@ -42,10 +30,7 @@ import {
   createBattlefieldCamera,
   type BattlefieldCameraRig,
 } from './battlefield-camera';
-import {
-  toVanguardWeaponAction,
-  toVanguardWeaponPose,
-} from './battlefield-vanguard-weapon-adapter';
+import { BattlefieldWorld } from '../world/battlefield-world';
 
 enum BattlefieldSceneState {
   Created,
@@ -53,31 +38,10 @@ enum BattlefieldSceneState {
   Disposed,
 }
 
-interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombatTarget {
-  x: number;
-  z: number;
-  collisionRadius: number;
-}
-
-interface MutableBattlefieldWeaponOwnerPose extends BattlefieldWeaponOwnerPose {
-  rootX: number;
-  rootY: number;
-  rootZ: number;
-  rotationX: number;
-  rotationY: number;
-  rotationZ: number;
-  rotationW: number;
-  forwardX: number;
-  forwardY: number;
-  forwardZ: number;
-  alive: boolean;
-}
-
 /** 战场场景门面，只编排环境、玩家、相机和怪物群体生命周期。 */
 export class BattlefieldSceneRuntime implements SceneRuntime {
   private readonly bundleService = new BundleService();
   private readonly sceneService = new SceneService(this.bundleService);
-  private readonly playerAim = new BattlefieldPlayerAimController();
   private readonly performanceLogger = new BattlefieldPerformanceLogger();
   private state = BattlefieldSceneState.Created;
   private runtimeRoot: Node | null = null;
@@ -92,40 +56,17 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private controlHud: BattlefieldControlHud | null = null;
   private interactionSystem: BattlefieldSceneInteractionSystem | null = null;
   private debugPanel: BattlefieldDebugPanel | null = null;
-  private readonly monsterCombatTarget: MutableBattlefieldMonsterCombatTarget = {
-    x: 0,
-    z: 0,
-    collisionRadius: 0,
-  };
-  private readonly weaponOwnerPose: MutableBattlefieldWeaponOwnerPose = {
-    rootX: 0,
-    rootY: 0,
-    rootZ: 0,
-    rotationX: 0,
-    rotationY: 0,
-    rotationZ: 0,
-    rotationW: 1,
-    forwardX: 0,
-    forwardY: 0,
-    forwardZ: 1,
-    alive: true,
-  };
-  private readonly weaponAimTarget: MutableBattlefieldAimTarget = {
-    x: 0,
-    y: 0,
-    z: 0,
-  };
-  private weaponFiringRequested = false;
-  private defeatPresented = false;
+  private world: BattlefieldWorld | null = null;
   private returningToLobby = false;
 
   constructor(
     private readonly sceneEntry: Node,
     private readonly scene: Scene,
     private readonly surfaceMaterialTemplate: Material,
+    private readonly curveCrawlerGpuEffect: EffectAsset,
   ) {}
 
-  /** 创建全部战场资源，并显式关闭不再参与 Unlit 渲染的光照状态。 */
+  /** 创建全部战场资源，并把批量蜘蛛绑定到已加载的 GPU 形变 Effect。 */
   public initialize(commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>): void {
     if (this.state !== BattlefieldSceneState.Created) {
       throw new Error('战场场景只能初始化一次。');
@@ -143,6 +84,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let controlHud: BattlefieldControlHud | null = null;
     let interactionSystem: BattlefieldSceneInteractionSystem | null = null;
     let debugPanel: BattlefieldDebugPanel | null = null;
+    let world: BattlefieldWorld | null = null;
     try {
       groundRenderer = new BattlefieldGroundRenderer(runtimeRoot);
       environment = new BattlefieldEnvironmentPopulation(runtimeRoot);
@@ -167,6 +109,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         runtimeRoot,
         this.surfaceMaterialTemplate,
         commonMonsters,
+        this.curveCrawlerGpuEffect,
         cameraRig.camera,
         player.positionX,
         player.positionZ,
@@ -226,6 +169,19 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         monsters,
         treasures,
       }));
+      world = new BattlefieldWorld(Object.freeze({
+        performance: this.performanceLogger,
+        player,
+        camera: cameraRig,
+        environment,
+        chunks: chunkRuntimes,
+        ground: groundRenderer,
+        weapon: playerWeapon,
+        monsters,
+        treasures,
+        controls: controlHud,
+        interaction: interactionSystem,
+      }));
     } catch (error: unknown) {
       debugPanel?.dispose();
       interactionSystem?.dispose();
@@ -255,139 +211,16 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.controlHud = controlHud;
     this.interactionSystem = interactionSystem;
     this.debugPanel = debugPanel;
+    this.world = world;
     this.state = BattlefieldSceneState.Initialized;
   }
 
-  /** 推进双摇杆输入、玩家移动瞄准、怪物群体和跟随相机。 */
+  /** 把一帧战场推进交给轻量 World 与 Scheduler。 */
   public update(deltaTime: number): void {
     if (this.state !== BattlefieldSceneState.Initialized) {
       return;
     }
-    const performanceLogger = this.performanceLogger;
-    performanceLogger.beginFrame();
-    let stageStarted = performanceLogger.beginStage();
-    this.controlHud?.update();
-    if (this.returningToLobby) {
-      performanceLogger.endStage(BattlefieldPerformanceStage.Control, stageStarted);
-      performanceLogger.endFrame(deltaTime);
-      return;
-    }
-    const interactionAction = this.interactionSystem?.consumeActionInput() ?? null;
-    if (interactionAction === BattlefieldInteractionAction.OpenContainer) {
-      performanceLogger.recordEvent(BattlefieldPerformanceEvent.ChestOpened);
-    } else if (interactionAction === BattlefieldInteractionAction.PickupEquipment) {
-      performanceLogger.recordEvent(BattlefieldPerformanceEvent.EquipmentPicked);
-    }
-    this.weaponFiringRequested = this.applyPlayerControlIntent();
-    performanceLogger.endStage(BattlefieldPerformanceStage.Control, stageStarted);
-
-    stageStarted = performanceLogger.beginStage();
-    this.player?.update(deltaTime);
-    performanceLogger.endStage(BattlefieldPerformanceStage.Player, stageStarted);
-
-    stageStarted = performanceLogger.beginStage();
-    if (this.player !== null && this.cameraRig !== null) {
-      this.cameraRig.setFollowTarget(
-        this.player.positionX,
-        this.player.positionY,
-        this.player.positionZ,
-      );
-    }
-    this.cameraRig?.update(deltaTime);
-    if (this.player !== null) {
-      this.interactionSystem?.synchronize(this.player.positionX, this.player.positionZ);
-    }
-    performanceLogger.endStage(
-      BattlefieldPerformanceStage.CameraAndInteraction,
-      stageStarted,
-    );
-
-    stageStarted = performanceLogger.beginStage();
-    if (this.player !== null) {
-      this.environment?.update(
-        this.player.positionX,
-        this.player.positionZ,
-      );
-      const chunkTransition = this.environment?.consumeChunkTransition() ?? null;
-      if (chunkTransition !== null && this.environment !== null) {
-        performanceLogger.recordEvent(BattlefieldPerformanceEvent.ChunkTransition);
-        performanceLogger.recordEvent(
-          BattlefieldPerformanceEvent.ChunksAdded,
-          chunkTransition.added.length,
-        );
-        performanceLogger.recordEvent(
-          BattlefieldPerformanceEvent.ChunksRemoved,
-          chunkTransition.removed.length,
-        );
-        this.chunkRuntimes?.synchronize(chunkTransition, this.environment);
-      }
-    }
-    performanceLogger.endStage(BattlefieldPerformanceStage.Environment, stageStarted);
-
-    stageStarted = performanceLogger.beginStage();
-    if (this.player !== null) {
-      this.groundRenderer?.updateCenter(this.player.positionX, this.player.positionZ);
-    }
-    performanceLogger.endStage(
-      BattlefieldPerformanceStage.WorldSynchronization,
-      stageStarted,
-    );
-
-    stageStarted = performanceLogger.beginStage();
-    if (this.player !== null && this.monsters !== null && this.playerWeapon !== null) {
-      const pose = this.weaponOwnerPose;
-      this.player.writeWeaponRigPose(pose);
-      pose.alive = this.player.isAlive;
-      this.playerWeapon.update(
-        deltaTime,
-        pose,
-        this.weaponFiringRequested ? this.weaponAimTarget : null,
-        this.monsters,
-      );
-    }
-    performanceLogger.endStage(BattlefieldPerformanceStage.Weapon, stageStarted);
-
-    stageStarted = performanceLogger.beginStage();
-    if (this.player !== null && this.monsters !== null) {
-      const target = this.monsterCombatTarget;
-      target.x = this.player.positionX;
-      target.z = this.player.positionZ;
-      target.collisionRadius = this.player.collisionRadius;
-      const attackDamage = this.monsters.update(
-        deltaTime,
-        this.player.isAlive ? target : null,
-        performanceLogger,
-      );
-      if (attackDamage > 0) {
-        performanceLogger.recordEvent(BattlefieldPerformanceEvent.PlayerDamage, attackDamage);
-        this.player.damage(attackDamage);
-      }
-    } else {
-      this.monsters?.update(deltaTime, null, performanceLogger);
-    }
-    performanceLogger.endStage(BattlefieldPerformanceStage.Monsters, stageStarted);
-
-    stageStarted = performanceLogger.beginStage();
-    if (this.player !== null) {
-      this.controlHud?.presentPlayerHealth(
-        this.player.health,
-        this.player.maximumHealth,
-      );
-      this.controlHud?.presentWeaponAmmunition(this.playerWeapon?.ammunitionStatus ?? null);
-    }
-    this.presentDefeatIfNeeded();
-    performanceLogger.endStage(BattlefieldPerformanceStage.Status, stageStarted);
-
-    stageStarted = performanceLogger.beginStage();
-    const releasedLootCount = this.treasures?.update(deltaTime) ?? 0;
-    if (releasedLootCount > 0) {
-      performanceLogger.recordEvent(
-        BattlefieldPerformanceEvent.LootReleased,
-        releasedLootCount,
-      );
-    }
-    performanceLogger.endStage(BattlefieldPerformanceStage.Treasures, stageStarted);
-    performanceLogger.endFrame(deltaTime);
+    this.world?.step(deltaTime, this.returningToLobby);
   }
 
   /** 释放战场程序化 Mesh、动态实体与场景节点。 */
@@ -422,42 +255,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.controlHud = null;
     this.interactionSystem = null;
     this.debugPanel = null;
-  }
-
-  /** 将屏幕摇杆映射为世界方向，并在右摇杆方向附近应用轻量怪物吸附。 */
-  private applyPlayerControlIntent(): boolean {
-    const player = this.player;
-    const monsters = this.monsters;
-    const cameraRig = this.cameraRig;
-    const controls = this.controlHud?.state;
-    if (player === null || monsters === null || cameraRig === null || controls === undefined) {
-      return false;
-    }
-    if (!player.isAlive) {
-      return false;
-    }
-    return this.playerAim.apply(
-      player,
-      monsters,
-      cameraRig,
-      controls,
-      toVanguardWeaponPose(this.playerWeapon?.weaponGrip ?? null),
-      toVanguardWeaponAction(this.playerWeapon?.weaponAction ?? WeaponAction.Ready),
-      this.playerWeapon?.weaponActionProgress ?? 0,
-      monsters.playerMovementSpeedMultiplier,
-      this.weaponAimTarget,
-    );
-  }
-
-  /** 首次观察到玩家生命归零时冻结交互并显示死亡弹窗。 */
-  private presentDefeatIfNeeded(): void {
-    if (this.defeatPresented || this.player?.isAlive !== false) {
-      return;
-    }
-    this.defeatPresented = true;
-    this.weaponFiringRequested = false;
-    this.interactionSystem?.suspend();
-    this.controlHud?.showDefeatDialog();
+    this.world = null;
   }
 
   private readonly handleReturnToLobbyRequested = (): void => {

@@ -179,7 +179,7 @@ function validateEvaluation(
   if (!Number.isInteger(vertexOffset)
     || vertexOffset < 0
     || streams.positions.length < (vertexOffset + plan.vertexCount) * 3
-    || streams.normals.length < (vertexOffset + plan.vertexCount) * 3
+    || (writeNormals && streams.normals.length < (vertexOffset + plan.vertexCount) * 3)
     || workspace.logicalPositions.length !== plan.logicalVertexCount * 3) {
     throw new Error('分面贝塞尔管体目标流或工作区容量无效。');
   }

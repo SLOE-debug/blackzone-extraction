@@ -4,6 +4,7 @@ import {
   CURVE_CRAWLER_HIT_FLASH_DURATION,
 } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
 
 /** 独立处理伤害结算、受击计时和红色闪烁。 */
 export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, number> {
@@ -13,8 +14,13 @@ export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, nu
 
     for (let index = 0; index < state.count; index++) {
       const hitTime = Math.max(0, (vitality.hitTime[index] ?? 0) - deltaTime);
+      const previousHitFlash = animation.hitFlash[index] ?? 0;
+      const hitFlash = getHitFlash(hitTime);
       vitality.hitTime[index] = hitTime;
-      animation.hitFlash[index] = getHitFlash(hitTime);
+      animation.hitFlash[index] = hitFlash;
+      if (previousHitFlash !== (animation.hitFlash[index] ?? 0)) {
+        state.renderChanges.mark(index, EntityRenderDirty.Color);
+      }
     }
   }
 

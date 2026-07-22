@@ -1,7 +1,7 @@
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { type CurveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-plan';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { type CurveCrawlerVisibilityLayout } from './curve-crawler-visibility-layout';
+import { type EntityVisibilitySet } from '../../../../../core/rendering/dynamic-entities/entity-visibility-set';
 
 const BODY_VISIBLE = 1 << 0;
 const CRACK_VISIBLE = 1 << 1;
@@ -13,7 +13,7 @@ const LIQUID_VISIBLE = 1 << 4;
 export interface CurveCrawlerActiveIndexSource {
   readonly renderIdentity: number;
   readonly state: CurveCrawlerState;
-  readonly visibility: CurveCrawlerVisibilityLayout;
+  readonly visibility: EntityVisibilitySet;
   readonly gpuSlotOffset: number;
 }
 

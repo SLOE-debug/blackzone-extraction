@@ -1,4 +1,4 @@
-import { type Camera, type Material, Node } from 'cc';
+import { type Camera, type EffectAsset, type Material, Node } from 'cc';
 import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -52,6 +52,7 @@ implements Disposable {
     parent: Node,
     surfaceMaterialTemplate: Material,
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
+    curveCrawlerGpuEffect: EffectAsset,
     camera: Camera,
     initialCenterX: number,
     initialCenterZ: number,
@@ -71,6 +72,7 @@ implements Disposable {
       this.renderBatch = commonMonsters.createCurveCrawlerBatch(
         renderRoot,
         surfaceMaterialTemplate,
+        curveCrawlerGpuEffect,
         camera,
       );
     } catch (error: unknown) {
@@ -226,9 +228,8 @@ implements Disposable {
     stageStarted = performance.beginMonsterStage();
     this.renderBatch.synchronize(deltaTime);
     performance.recordMonsterRenderingWork(
-      this.renderBatch.lastEvaluatedEntityCount,
-      this.renderBatch.lastPositionUploadBytes,
-      this.renderBatch.lastPositionUploadCalls,
+      this.renderBatch.lastPoseUploadBytes,
+      this.renderBatch.lastPoseUploadCalls,
     );
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.RenderingSynchronization,

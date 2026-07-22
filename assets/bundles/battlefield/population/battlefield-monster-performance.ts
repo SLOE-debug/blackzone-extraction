@@ -12,8 +12,7 @@ export interface BattlefieldMonsterPerformanceRecorder {
   endMonsterStage(stage: BattlefieldMonsterPerformanceStage, startedAt: number): void;
   recordMonsterBatchGrowth(previousCapacity: number, nextCapacity: number): void;
   recordMonsterRenderingWork(
-    evaluatedEntityCount: number,
-    positionUploadBytes: number,
-    positionUploadCalls: number,
+    poseUploadBytes: number,
+    poseUploadCalls: number,
   ): void;
 }

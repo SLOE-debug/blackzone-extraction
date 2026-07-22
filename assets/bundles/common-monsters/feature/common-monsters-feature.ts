@@ -1,4 +1,4 @@
-import { type Camera, type Material, Node } from 'cc';
+import { type Camera, type EffectAsset, type Material, Node } from 'cc';
 import { type MonsterObservationPopulation } from '../../../core/contracts/monster-observation';
 import { BundleId, FeatureId } from '../../../core/contracts/runtime-id';
 import { type FeaturePlugin } from '../../../core/features/feature-plugin';
@@ -15,6 +15,7 @@ import {
   VenomLobberPopulation,
   type VenomLobberPopulationOptions,
 } from '../entities/venom-lobber';
+import { CommonMonstersAssetService } from '../assets/common-monsters-asset-service';
 
 /** Common Monsters 怪物标识到创建参数的精确映射。 */
 export interface CommonMonsterOptionsMap {
@@ -50,8 +51,12 @@ export interface CommonMonstersFeature extends FeaturePlugin<FeatureId.CommonMon
   createCurveCrawlerBatch(
     parent: Node,
     surfaceMaterialTemplate: Material,
+    gpuEffect: EffectAsset,
     camera: Camera,
   ): CurveCrawlerPopulationBatch;
+
+  /** 加载共享战场批次使用的 GPU 形变 Effect。 */
+  loadCurveCrawlerGpuEffect(): Promise<EffectAsset>;
 
   /** 创建拥有抛物线毒弹、落点预警与催化酸池的 Venom Lobber 群体。 */
   createVenomLobber(
@@ -81,6 +86,7 @@ type CommonMonsterFactoryMap = {
 class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public readonly id = FeatureId.CommonMonsters;
   public readonly bundle = BundleId.CommonMonsters;
+  private readonly assets = new CommonMonstersAssetService();
 
   private readonly factories: CommonMonsterFactoryMap = Object.freeze({
     [CommonMonsterId.CurveCrawler]: (parent, options) => this.createCurveCrawler(
@@ -118,9 +124,19 @@ class CommonMonstersFeatureImplementation implements CommonMonstersFeature {
   public createCurveCrawlerBatch(
     parent: Node,
     surfaceMaterialTemplate: Material,
+    gpuEffect: EffectAsset,
     camera: Camera,
   ): CurveCrawlerPopulationBatch {
-    return new CurveCrawlerPopulationBatch(parent, surfaceMaterialTemplate, camera);
+    return new CurveCrawlerPopulationBatch(
+      parent,
+      surfaceMaterialTemplate,
+      gpuEffect,
+      camera,
+    );
+  }
+
+  public loadCurveCrawlerGpuEffect(): Promise<EffectAsset> {
+    return this.assets.loadCurveCrawlerGpuEffect();
   }
 
   public createVenomLobber(

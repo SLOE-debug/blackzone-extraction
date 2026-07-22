@@ -11,6 +11,7 @@ import {
 } from '../model/curve-crawler-life';
 import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
 
 /** 独立处理致死阶段和各碎块的确定性飞散轨迹。 */
 export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, number> {
@@ -31,6 +32,7 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
       if ((vitality.state[index] as MonsterLifecycleState)
         === MonsterLifecycleState.DeathComplete) {
         this.updateDeathComplete(state, index);
+        state.renderChanges.mark(index, EntityRenderDirty.Color);
         continue;
       }
 
@@ -44,6 +46,10 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
         default:
           throw new Error(`未知的 Curve Crawler 死亡阶段：${death.stage[index]}`);
       }
+      state.renderChanges.mark(
+        index,
+        EntityRenderDirty.Color,
+      );
     }
   }
 
@@ -64,6 +70,7 @@ export class CurveCrawlerDeathSystem implements EntitySystem<CurveCrawlerState, 
     motion.currentSpeed[entityId] = 0;
     animation.biteAmount[entityId] = 0;
     animation.bodyPulse[entityId] = 0;
+    state.renderChanges.mark(entityId, EntityRenderDirty.Color);
   }
 
   /** 推进具体死亡表现阶段，并在液化完成后提交通用死亡完成状态。 */

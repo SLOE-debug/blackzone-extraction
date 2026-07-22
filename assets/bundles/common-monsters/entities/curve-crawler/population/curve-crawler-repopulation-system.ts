@@ -21,6 +21,7 @@ import {
 } from '../model/curve-crawler-repopulation-options';
 import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
@@ -110,6 +111,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
       }
       transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Dormant);
       this.hideDormantSlot(index);
+      this.state.renderChanges.mark(index, EntityRenderDirty.Color);
     }
   }
 
@@ -196,6 +198,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     animation.liquidSpread[index] = 0;
     animation.liquidDrain[index] = 0;
     this.resetFragmentAnimation(index);
+    state.renderChanges.mark(index, EntityRenderDirty.Color);
   }
 
   /** 将被远距离回收的槽位立即收拢为不可见休眠几何。 */

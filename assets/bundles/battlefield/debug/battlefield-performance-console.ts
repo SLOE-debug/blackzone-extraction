@@ -48,9 +48,8 @@ export interface BattlefieldPerformanceConsoleReport {
   readonly slowestFrameVisibleMonsters: number;
   readonly slowestFrameMonsterRenderCapacity: number;
   readonly slowestFrameAliveMonsters: number;
-  readonly monsterEntitiesEvaluatedTotal: number;
-  readonly monsterPositionBytesUploadedTotal: number;
-  readonly monsterPositionUploadCallsTotal: number;
+  readonly monsterPoseBytesUploadedTotal: number;
+  readonly monsterPoseUploadCallsTotal: number;
   readonly eventNames: readonly string[];
   readonly eventValues: Float64Array;
   readonly slowestFrameEvents: Float64Array;
@@ -93,15 +92,11 @@ export function presentBattlefieldPerformanceReport(
     console.info('怪物群体细分（以下耗时已经包含在主表“怪物群体”中）');
     console.table(monsterRows);
     console.info(
-      `怪物渲染工作量(平均每帧): 求值 ${formatAverage(
-        report.monsterEntitiesEvaluatedTotal,
-        report.frameCount,
-      )} 只`
-      + ` | Position ${formatBytes(
-        report.monsterPositionBytesUploadedTotal / Math.max(report.frameCount, 1),
+      `怪物渲染工作量(平均每帧): GPU 姿态 ${formatBytes(
+        report.monsterPoseBytesUploadedTotal / Math.max(report.frameCount, 1),
       )}`
       + ` | 上传调用 ${formatAverage(
-        report.monsterPositionUploadCallsTotal,
+        report.monsterPoseUploadCallsTotal,
         report.frameCount,
       )}`,
     );

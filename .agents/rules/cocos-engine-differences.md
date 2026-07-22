@@ -67,6 +67,16 @@ node.lookAt(target, Vec3.UNIT_Z);
 - 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/3d/misc/create-mesh.ts` 验证：`createDynamicMesh()` 仅在 `geometry.normals` 非空时创建 `ATTR_NORMAL` 独立流。
 - 验证动态受光材质时，应旋转或移动真实灯光并检查高光与明暗随法线变化；只有顶点色变化而灯光不产生响应，优先检查 Normal 流是否创建和逐帧上传。
 
+### GPU 姿态纹理与自定义顶点流
+
+- Cocos Creator 3.8.8 的 `utils.MeshUtils.createDynamicMesh()` 支持 `customAttributes`；每个自定义 `gfx.Attribute` 会按声明顺序创建独立 Vertex Buffer Stream。Effect 中的输入名称和 `gfx.Attribute.name` 必须完全一致，格式也必须与 `gfx.Format` 一致。
+- Cocos Creator 3.8.8 的 Effect 导入器会同时校验 GLSL 1 目标；`flat in` 与 `flat out` 会触发 `EFX2402` 并导致整个 Effect 资源导入失败。低多边形网格应为每个面写入一致的重复顶点法线和语义值，并使用普通 varying 插值，禁止依赖 GLSL 3 才支持的 `flat` 限定符。
+- `Mesh.updateSubMesh()` 不会按自定义 Attribute Format 把 `Float32Array` 自动转码为 Half Float 或归一化整数，而是直接复制源数组的原始字节，并用“源字节数 ÷ Attribute stride”计算顶点数。因此传入 `Float32Array` 的 `vec4` 自定义流必须使用 `RGBA32F`；禁止只把格式改成 `RGBA16F` 或 `RGBA8` 来假装压缩，否则顶点计数和字节解释都会错误。
+- `Texture2D.reset()` 可以创建 `PixelFormat.RGBA32F` 原始浮点纹理，重置后必须调用 `uploadData()` 才会把 CPU 数据提交到 GPU。用于实体参数表时必须设置 `NEAREST` 和 `CLAMP_TO_EDGE`，避免相邻实体行被插值或越界采样。
+- 每实体参数纹理应让一个稳定 GPU Slot 对应一行，Vertex Shader 使用 Texel 中心坐标采样；不得用归一化实体序号猜测纹理行，也不得让可见性压缩改变姿态行身份。
+- 当前公开 `Texture2D.uploadData()` 适合整体提交复用的 `Float32Array`。若没有经过独立后端验证，不得假设它支持任意目标行偏移；本项目的 Curve Crawler 姿态纹理统一整体上传。
+- 该行为已通过 Cocos Creator 3.8.8 引擎源码 `cocos/3d/misc/create-mesh.ts`、`cocos/3d/assets/mesh.ts`、`cocos/primitive/define.ts`、`cocos/asset/assets/texture-2d.ts` 与 `simple-texture.ts` 验证。隔离验证应固定两行完全不同的变换参数，确认自定义 Slot 属性只采样自己的行，并在旋转姿态后确认 Position 与 Normal 同步变化。
+
 ## 运行时主动查询相机视锥
 
 - Cocos 会在渲染流程中按 `Model.worldBounds` 自动执行相机视锥裁剪，但裁剪粒度是整个 `MeshRenderer`；把跨越大量 Chunk 或实体的内容合成一个超大 Renderer 后，任意局部可见都会让整批进入提交列表。

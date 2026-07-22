@@ -8,11 +8,13 @@ import {
   randomRange,
 } from '../../../../../core/math/xorshift32';
 import { TAU } from '../../../../../core/math/scalar';
+import { EntityChangeJournal } from '../../../../../core/rendering/dynamic-entities/entity-change-journal';
+import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
 import { CurveCrawlerAction } from './curve-crawler-action';
 import { CURVE_CRAWLER_EMERGENCE_TIMING } from './curve-crawler-emergence';
 import { CurveCrawlerDeathStage, CURVE_CRAWLER_MAX_HEALTH } from './curve-crawler-life';
 import {
-  type NormalizedCurveCrawlerPopulationOptions,
+  type CurveCrawlerStateOptions,
 } from './curve-crawler-options';
 import {
   CURVE_CRAWLER_AUTONOMOUS_SPEED_SHARPNESS,
@@ -36,6 +38,7 @@ const FRAGMENT_GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 export class CurveCrawlerState {
   public readonly table: CurveCrawlerTable;
   public readonly data: CurveCrawlerData;
+  public readonly renderChanges: EntityChangeJournal;
   public readonly motionProfile: CurveCrawlerMotionProfile;
   public readonly movementBounds: Readonly<{
     centerX: number;
@@ -44,7 +47,7 @@ export class CurveCrawlerState {
     halfHeight: number;
   }>;
 
-  constructor(options: NormalizedCurveCrawlerPopulationOptions) {
+  constructor(options: CurveCrawlerStateOptions) {
     this.motionProfile = options.motionProfile;
     this.movementBounds = Object.freeze({
       centerX: options.spawnArea.centerX,
@@ -55,6 +58,7 @@ export class CurveCrawlerState {
     this.table = new EntityTable(CURVE_CRAWLER_SCHEMA, options.count);
     this.table.allocate(options.count);
     this.data = this.table.data;
+    this.renderChanges = new EntityChangeJournal(options.count, EntityRenderDirty.Color);
     initializeCurveCrawlerData(this, options);
   }
 
@@ -66,7 +70,7 @@ export class CurveCrawlerState {
 
 function initializeCurveCrawlerData(
   state: CurveCrawlerState,
-  options: NormalizedCurveCrawlerPopulationOptions,
+  options: CurveCrawlerStateOptions,
 ): void {
   const {
     identity,

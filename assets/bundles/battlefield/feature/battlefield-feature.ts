@@ -34,6 +34,8 @@ class BattlefieldFeatureImplementation implements BattlefieldFeature {
     reportProgress(createLoadingProgress(0.18, '战场分包加载完成'));
     reportProgress(createLoadingProgress(0.32, '正在加载基础怪物分包'));
     const commonMonsters = await this.featureLoader.load(FeatureId.CommonMonsters);
+    reportProgress(createLoadingProgress(0.58, '正在加载蜘蛛 GPU 形变 Effect'));
+    const curveCrawlerGpuEffect = await commonMonsters.loadCurveCrawlerGpuEffect();
     reportProgress(createLoadingProgress(0.76, '正在生成玩家附近的怪物'));
 
     const sceneEntry = new Node('battlefield-entry');
@@ -42,6 +44,7 @@ class BattlefieldFeatureImplementation implements BattlefieldFeature {
       sceneEntry,
       scene,
       surfaceMaterialTemplate,
+      curveCrawlerGpuEffect,
     );
     try {
       runtime.initialize(commonMonsters);
