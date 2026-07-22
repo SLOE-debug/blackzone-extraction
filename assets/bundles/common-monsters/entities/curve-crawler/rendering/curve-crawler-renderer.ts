@@ -95,6 +95,11 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
     this.state.renderChanges.clearAll();
   }
 
+  /** 独占展示渲染器没有战场相机裁剪，实体视为可见。 */
+  public isVisible(entityIndex: number): boolean {
+    return Number.isInteger(entityIndex) && entityIndex >= 0 && entityIndex < this.state.count;
+  }
+
   /** 先释放动态网格，再释放其引用的材质。 */
   public dispose(): void {
     if (this.disposed) {

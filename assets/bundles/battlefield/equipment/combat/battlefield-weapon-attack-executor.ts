@@ -1,5 +1,11 @@
 import { type WeaponEquipmentDefinition } from '../../../../core/equipment/equipment';
-import { type BattlefieldAimTarget } from '../../../population/battlefield-monster-population';
+import {
+  type BattlefieldAimTarget,
+} from '../../population/battlefield-monster-population';
+import {
+  BattlefieldPenetratingHitBuffer,
+  type BattlefieldPenetratingHitQuery,
+} from '../../population/battlefield-penetrating-hit';
 import { type WeaponEquipmentId } from '../catalog/equipment-id';
 import { type WeaponAmmunition } from '../model/weapon-ammunition';
 import {
@@ -24,6 +30,14 @@ export interface BattlefieldWeaponProjectileSink {
   ): void;
 }
 
+/** 射击求解只依赖怪物聚合层的贯穿命中门面。 */
+export interface BattlefieldWeaponHitscanTarget {
+  damageAlongSegment(
+    query: Readonly<BattlefieldPenetratingHitQuery>,
+    hits: BattlefieldPenetratingHitBuffer,
+  ): number;
+}
+
 /** 一次射击求解的判别结果。 */
 export enum BattlefieldWeaponAttackResult {
   Fired = 'fired',
@@ -32,6 +46,19 @@ export enum BattlefieldWeaponAttackResult {
 
 /** 根据枪口、目标和 Shot Pattern 完成一次无分配射击求解。 */
 export class BattlefieldWeaponAttackExecutor {
+  private readonly hits = new BattlefieldPenetratingHitBuffer(4);
+  private readonly hitQuery: BattlefieldPenetratingHitQuery = {
+    startX: 0,
+    startY: 0,
+    startZ: 0,
+    endX: 0,
+    endY: 0,
+    endZ: 0,
+    impactRadius: 0,
+    damage: 1,
+    maximumHitCount: 1,
+    damageRetention: 1,
+  };
   private readonly shotDirection: MutableBattlefieldProjectileDirection = {
     x: 0,
     y: 0,
@@ -49,6 +76,7 @@ export class BattlefieldWeaponAttackExecutor {
     muzzle: Readonly<BattlefieldWeaponMuzzlePose>,
     target: Readonly<BattlefieldAimTarget>,
     ammunition: WeaponAmmunition,
+    monsters: BattlefieldWeaponHitscanTarget,
     projectiles: BattlefieldWeaponProjectileSink,
   ): BattlefieldWeaponAttackResult {
     const direction = this.shotDirection;
@@ -74,6 +102,8 @@ export class BattlefieldWeaponAttackExecutor {
         projectileIndex,
         this.projectileDirection,
       );
+      this.writeHitQuery(definition, muzzle);
+      monsters.damageAlongSegment(this.hitQuery, this.hits);
       projectiles.spawn(
         muzzle.muzzleX,
         muzzle.muzzleY,
@@ -84,5 +114,29 @@ export class BattlefieldWeaponAttackExecutor {
       );
     }
     return BattlefieldWeaponAttackResult.Fired;
+  }
+
+  /** 复用同一查询对象，把枪口与当前弹丸方向转换为完整射程线段。 */
+  private writeHitQuery(
+    definition: Readonly<WeaponEquipmentDefinition<WeaponEquipmentId>>,
+    muzzle: Readonly<BattlefieldWeaponMuzzlePose>,
+  ): void {
+    const projectile = definition.projectile;
+    const query = this.hitQuery as {
+      startX: number; startY: number; startZ: number;
+      endX: number; endY: number; endZ: number;
+      impactRadius: number; damage: number;
+      maximumHitCount: number; damageRetention: number;
+    };
+    query.startX = muzzle.muzzleX;
+    query.startY = muzzle.muzzleY;
+    query.startZ = muzzle.muzzleZ;
+    query.endX = muzzle.muzzleX + this.projectileDirection.x * projectile.maximumRange;
+    query.endY = muzzle.muzzleY + this.projectileDirection.y * projectile.maximumRange;
+    query.endZ = muzzle.muzzleZ + this.projectileDirection.z * projectile.maximumRange;
+    query.impactRadius = projectile.impactRadius;
+    query.damage = definition.damage;
+    query.maximumHitCount = projectile.maximumHitCount;
+    query.damageRetention = projectile.damageRetention;
   }
 }

@@ -13,6 +13,8 @@ import {
   writeVenomChargeEffectSlot,
   writeVenomBombEffectSlot,
   writeVenomPoolEffectSlot,
+  writeVenomSpawnEffectSlot,
+  writeVenomDeathEffectSlot,
 } from '../geometry/venom-lobber-effect-geometry';
 import { type VenomBombSystem } from '../behavior/venom-bomb-system';
 import { VenomLobberAction } from '../model/venom-lobber-action';
@@ -51,7 +53,10 @@ export class VenomLobberEffectRenderer {
     private readonly combat: Readonly<VenomLobberCombatOptions>,
     material: Material,
   ) {
-    const slotCapacity = state.count + effects.bombs.capacity + effects.pools.capacity;
+    const slotCapacity = state.count
+      + effects.bombs.capacity
+      + effects.pools.capacity
+      + effects.deaths.capacity;
     this.geometry = createVenomEffectGeometry(slotCapacity);
     this.packedEffectKeys = new Int32Array(slotCapacity);
     this.packedEffectKeys.fill(-1);
@@ -82,6 +87,30 @@ export class VenomLobberEffectRenderer {
     let colorDirty = false;
     let topologyDirty = false;
     const { transform, morphology, vitality, behavior, combat, animation } = this.state.data;
+    for (let index = 0; index < this.state.count; index++) {
+      const stateTime = vitality.stateTime[index] ?? 0;
+      if ((vitality.state[index] as MonsterLifecycleState)
+        !== MonsterLifecycleState.Spawning || stateTime < 0) {
+        continue;
+      }
+      writeVenomSpawnEffectSlot(
+        this.geometry,
+        packedSlot,
+        transform.x[index] ?? 0,
+        transform.y[index] ?? 0,
+        (morphology.scale[index] ?? 1) * 3.4,
+        stateTime,
+        index,
+      );
+      if (this.capturePackedEffectKey(packedSlot, 0x30000 + index)) {
+        colorDirty = true;
+      }
+      topologyDirty = this.capturePackedTopology(
+        packedSlot,
+        VenomEffectTopology.Pool,
+      ) || topologyDirty;
+      packedSlot++;
+    }
     for (let index = 0; index < this.state.count; index++) {
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive
         || (behavior.action[index] as VenomLobberAction) !== VenomLobberAction.Cast
@@ -144,6 +173,21 @@ export class VenomLobberEffectRenderer {
       writeVenomPoolEffectSlot(this.geometry, packedSlot, pools, index);
       const poolKey = 0x20000 + index + ((pools.catalyzed[index] ?? 0) << 20);
       if (this.capturePackedEffectKey(packedSlot, poolKey)) {
+        colorDirty = true;
+      }
+      topologyDirty = this.capturePackedTopology(
+        packedSlot,
+        VenomEffectTopology.Pool,
+      ) || topologyDirty;
+      packedSlot++;
+    }
+    const deaths = this.effects.deaths;
+    for (let index = 0; index < deaths.capacity; index++) {
+      if ((deaths.active[index] ?? 0) === 0) {
+        continue;
+      }
+      writeVenomDeathEffectSlot(this.geometry, packedSlot, deaths, index);
+      if (this.capturePackedEffectKey(packedSlot, 0x40000 + index)) {
         colorDirty = true;
       }
       topologyDirty = this.capturePackedTopology(

@@ -1,6 +1,7 @@
 import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import { VenomBombState } from '../model/venom-bomb-state';
 import { VenomPoolState } from '../model/venom-pool-state';
+import { VenomDeathEffectState } from '../model/venom-death-effect-state';
 
 /**
  * 推进全部抛物线毒弹、目标预警和落地酸池，并聚合玩家受到的范围效果。
@@ -10,6 +11,7 @@ import { VenomPoolState } from '../model/venom-pool-state';
 export class VenomBombSystem {
   public readonly bombs: VenomBombState;
   public readonly pools: VenomPoolState;
+  public readonly deaths: VenomDeathEffectState;
   private pendingDamage = 0;
   private currentMovementMultiplier = 1;
 
@@ -19,6 +21,7 @@ export class VenomBombSystem {
   ) {
     this.bombs = new VenomBombState(populationCapacity * 2);
     this.pools = new VenomPoolState(populationCapacity * 2);
+    this.deaths = new VenomDeathEffectState(populationCapacity);
   }
 
   /** 把一次尾刺施法写入固定毒弹槽位。 */
@@ -51,6 +54,7 @@ export class VenomBombSystem {
   ): void {
     this.pendingDamage = 0;
     this.currentMovementMultiplier = 1;
+    this.deaths.update(deltaTime);
     this.updateBombs(deltaTime, targetActive, targetX, targetY, targetCollisionRadius);
     this.updatePools(deltaTime, targetActive, targetX, targetY, targetCollisionRadius);
   }

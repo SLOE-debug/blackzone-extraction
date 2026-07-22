@@ -22,7 +22,7 @@ export const AKM_PROTOTYPE = Object.freeze({
     description: '后坐沉重但单发强劲的 7.62×39 突击步枪',
     rarity: EquipmentRarity.Epic,
     weaponClass: WeaponClass.AssaultRifle,
-    damage: 27,
+    damage: 38,
     fireIntervalSeconds: 0.145,
     attackAnimationSeconds: 0.17,
     ammunition: Object.freeze({
@@ -37,6 +37,8 @@ export const AKM_PROTOTYPE = Object.freeze({
       speed: 35,
       maximumRange: 24,
       impactRadius: 0.11,
+      maximumHitCount: 4,
+      damageRetention: 0.78,
       visual: WeaponProjectileVisual.Bullet,
     }),
   }),

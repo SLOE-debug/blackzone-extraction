@@ -13,7 +13,10 @@ const MONSTER_LIFECYCLE_TRANSITIONS = Object.freeze({
     MonsterLifecycleState.Dormant,
   ]),
   [MonsterLifecycleState.Alive]: Object.freeze([
+    MonsterLifecycleState.Despawning,
     MonsterLifecycleState.Dying,
+  ]),
+  [MonsterLifecycleState.Despawning]: Object.freeze([
     MonsterLifecycleState.Dormant,
   ]),
   [MonsterLifecycleState.Dying]: Object.freeze([

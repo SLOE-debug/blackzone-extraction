@@ -55,6 +55,7 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
     state: entityField(Uint8Array, 1),
     stateTime: entityField(Float32Array, 1),
     hitTime: entityField(Float32Array, 1),
+    timeSinceHit: entityField(Float32Array, 1),
   },
   death: {
     stage: entityField(Uint8Array, 1),

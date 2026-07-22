@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isMonsterLifecycleResident,
   MonsterLifecycleState,
   type MonsterLifecycleSoA,
 } from '../../assets/core/contracts/monster-lifecycle';
@@ -63,6 +64,16 @@ describe('通用怪物生命周期', () => {
       0,
       MonsterLifecycleState.Alive,
     )).toThrow(/禁止/);
+  });
+
+  it('退场保持 Resident，演出完成后才能转入 Dormant', () => {
+    const target = new TestActivationTarget(1);
+    transitionMonsterLifecycle(target.lifecycle, 0, MonsterLifecycleState.Spawning);
+    transitionMonsterLifecycle(target.lifecycle, 0, MonsterLifecycleState.Alive);
+    transitionMonsterLifecycle(target.lifecycle, 0, MonsterLifecycleState.Despawning);
+    expect(isMonsterLifecycleResident(MonsterLifecycleState.Despawning)).toBe(true);
+    transitionMonsterLifecycle(target.lifecycle, 0, MonsterLifecycleState.Dormant);
+    expect(target.lifecycle.state[0]).toBe(MonsterLifecycleState.Dormant);
   });
 
   it('把同批激活槽位按固定间隔错峰送入出生状态', () => {

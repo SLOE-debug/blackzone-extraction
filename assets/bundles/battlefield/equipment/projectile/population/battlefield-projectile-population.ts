@@ -4,10 +4,6 @@ import {
   type WeaponProjectileDefinition,
 } from '../../../../../core/equipment/equipment';
 import {
-  type BattlefieldMonsterPopulation,
-  type MutableBattlefieldProjectileHit,
-} from '../../../population/battlefield-monster-population';
-import {
   BattlefieldProjectileState,
   calculateProjectileCapacity,
 } from '../model/battlefield-projectile-state';
@@ -15,24 +11,17 @@ import { BattlefieldProjectileRenderer } from '../rendering/battlefield-projecti
 
 const MAXIMUM_DELTA_TIME = 0.05;
 
-/** 管理单件武器全部在途子弹的预分配状态、碰撞与批渲染。 */
+/** 管理单件武器全部无碰撞曳光的预分配状态与批渲染。 */
 export class BattlefieldProjectilePopulation {
   private readonly state: BattlefieldProjectileState;
   private readonly renderer: BattlefieldProjectileRenderer;
   private readonly projectile: Readonly<WeaponProjectileDefinition>;
-  private readonly hitResult: MutableBattlefieldProjectileHit = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    z: 0,
-    segmentProgress: 0,
-  };
   private renderingDirty = false;
   private disposed = false;
 
   constructor(
     parent: Node,
-    private readonly weapon: Readonly<WeaponEquipmentDefinition>,
+    weapon: Readonly<WeaponEquipmentDefinition>,
   ) {
     this.projectile = weapon.projectile;
     this.state = new BattlefieldProjectileState(calculateProjectileCapacity(weapon));
@@ -59,8 +48,8 @@ export class BattlefieldProjectilePopulation {
     this.renderingDirty = true;
   }
 
-  /** 推进全部在途子弹，并把每段位移的首个命中路由给怪物群。 */
-  public update(deltaTime: number, monsters: BattlefieldMonsterPopulation): void {
+  /** 推进全部无碰撞曳光；伤害已经在开火帧由 Hitscan 完成。 */
+  public update(deltaTime: number): void {
     if (this.disposed) {
       return;
     }
@@ -91,20 +80,6 @@ export class BattlefieldProjectilePopulation {
       const endX = startX + (this.state.directionX[slot] ?? 0) * stepDistance;
       const endY = startY + (this.state.directionY[slot] ?? 0) * stepDistance;
       const endZ = startZ + (this.state.directionZ[slot] ?? 1) * stepDistance;
-      if (monsters.damageFirstAlongSegment(
-        startX,
-        startY,
-        startZ,
-        endX,
-        endY,
-        endZ,
-        projectile.impactRadius,
-        this.weapon.damage,
-        this.hitResult,
-      )) {
-        this.state.deactivate(slot);
-        continue;
-      }
       this.state.x[slot] = endX;
       this.state.y[slot] = endY;
       this.state.z[slot] = endZ;

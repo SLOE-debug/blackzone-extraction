@@ -3,6 +3,7 @@ export enum MonsterLifecycleState {
   Dormant,
   Spawning,
   Alive,
+  Despawning,
   Dying,
   DeathComplete,
 }
@@ -17,5 +18,6 @@ export interface MonsterLifecycleSoA {
 export function isMonsterLifecycleResident(state: MonsterLifecycleState): boolean {
   return state === MonsterLifecycleState.Spawning
     || state === MonsterLifecycleState.Alive
+    || state === MonsterLifecycleState.Despawning
     || state === MonsterLifecycleState.Dying;
 }

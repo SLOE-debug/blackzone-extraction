@@ -18,6 +18,7 @@ import {
   type MonsterObservationPopulation,
 } from '../../../../../core/contracts/monster-observation';
 import { type MonsterPopulation } from '../../../../../core/contracts/monster-population';
+import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { CurveCrawlerAnimationSystem } from '../animation/curve-crawler-animation-system';
 import { CurveCrawlerEmergenceSystem } from '../animation/curve-crawler-emergence-system';
 import { CurveCrawlerBehaviorSystem } from '../behavior/curve-crawler-behavior-system';
@@ -34,13 +35,14 @@ import { CurveCrawlerState } from '../model/curve-crawler-state';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { type CurveCrawlerRepopulationOptions } from '../model/curve-crawler-repopulation-options';
 import { CurveCrawlerMovementSystem } from '../movement/curve-crawler-movement-system';
-import { CurveCrawlerSeparationSystem } from '../movement/curve-crawler-separation-system';
 import {
   type CurveCrawlerPopulationRendering,
   type CurveCrawlerPopulationRenderingFactory,
 } from '../rendering/curve-crawler-population-rendering';
 import { type CurveCrawlerCommand, CurveCrawlerCommandType } from './curve-crawler-command';
+import { createCurveCrawlerCrowdPopulation } from './curve-crawler-crowd-population';
 import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
+import { CurveCrawlerDespawnSystem } from './curve-crawler-despawn-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
 import { CurveCrawlerProjectileHitSystem } from './curve-crawler-projectile-hit-system';
 import { CurveCrawlerRepopulationSystem } from './curve-crawler-repopulation-system';
@@ -61,11 +63,11 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
+  private readonly despawn = new CurveCrawlerDespawnSystem();
   private readonly behavior = new CurveCrawlerBehaviorSystem();
   private readonly combat: CurveCrawlerCombatSystem | null;
   private readonly observation = new CurveCrawlerObservationSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
-  private readonly separation: CurveCrawlerSeparationSystem;
   private readonly targeting = new CurveCrawlerTargeting();
   private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
   private readonly repopulation: CurveCrawlerRepopulationSystem;
@@ -96,7 +98,6 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
     const normalizedOptions = normalizeCurveCrawlerOptions(options, motionProfile);
     this.state = new CurveCrawlerState(normalizedOptions);
     this.repopulation = new CurveCrawlerRepopulationSystem(this.state);
-    this.separation = new CurveCrawlerSeparationSystem(this.state.count);
     if (motionProfile === CurveCrawlerMotionProfile.Autonomous) {
       if (!('combat' in options)) {
         throw new Error('自主 Curve Crawler 群体缺少战斗参数。');
@@ -124,11 +125,23 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   /** 同步玩家周边期望驻留数量，并回收超出半径的非死亡实体槽位。 */
   public maintainAround(options: Readonly<CurveCrawlerRepopulationOptions>): void {
     this.ensureActive();
-    this.repopulation.maintainAround(options);
+    this.repopulation.maintainAround(options, this.rendering);
   }
 
-  /** 按出生、受击、死亡、行为、战斗、移动、分离、动画、渲染的固定顺序推进一帧。 */
+  /** 暴露给战场世界统一空间约束的连续 SoA 视图。 */
+  public createCrowdPopulation(populationId: number): PlanarCrowdPopulation {
+    this.ensureActive();
+    return createCurveCrawlerCrowdPopulation(this.state, populationId);
+  }
+
+  /** 按出生、受击、死亡、行为、战斗、移动、动画、渲染的固定顺序推进一帧。 */
   public update(deltaTime: number): void {
+    this.simulate(deltaTime);
+    this.synchronizeRendering();
+  }
+
+  /** 推进领域模拟；跨种族分离由战场世界在全部群体移动后统一执行。 */
+  public simulate(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
       throw new Error('Curve Crawler 帧时间必须是有限数值。');
@@ -143,6 +156,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
     this.emergence.update(this.state, safeDeltaTime);
     this.hit.update(this.state, safeDeltaTime);
     this.death.update(this.state, safeDeltaTime);
+    this.despawn.update(this.state, safeDeltaTime);
     const intentDeltaTime = this.cadence.intentDeltaTime;
     if (intentDeltaTime > 0) {
       this.behavior.update(this.state, intentDeltaTime);
@@ -150,11 +164,12 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
       this.combat?.update(this.state, intentDeltaTime);
     }
     this.movement.update(this.state, safeDeltaTime);
-    const separationDeltaTime = this.cadence.separationDeltaTime;
-    if (separationDeltaTime > 0) {
-      this.separation.update(this.state, separationDeltaTime);
-    }
     this.animation.update(this.state, safeDeltaTime);
+  }
+
+  /** 在共享 Crowd 修正位置后提交本群体最新渲染状态。 */
+  public synchronizeRendering(): void {
+    this.ensureActive();
     this.rendering.update();
   }
 
@@ -210,6 +225,16 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
     return this.targeting.findBest(this.state, query, result);
   }
 
+  /** 对共享宽相位给出的实体执行单槽位瞄准窄相位。 */
+  public findPlanarTarget(
+    entityIndex: number,
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean {
+    this.ensureActive();
+    return this.targeting.findEntity(this.state, entityIndex, query, result);
+  }
+
   /** 在群体局部平面中查找一段子弹位移最先接触的存活实体。 */
   public findFirstPlanarHit(
     query: Readonly<PlanarMonsterHitQuery>,
@@ -217,6 +242,16 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   ): boolean {
     this.ensureActive();
     return this.projectileHit.findFirst(this.state, query, result);
+  }
+
+  /** 只对共享宽相位给出的实体执行精确窄相位查询。 */
+  public findPlanarHit(
+    entityIndex: number,
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean {
+    this.ensureActive();
+    return this.projectileHit.findEntity(this.state, entityIndex, query, result);
   }
 
   /** 把场景目标同步给自主战斗系统。 */

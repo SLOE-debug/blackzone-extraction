@@ -5,6 +5,7 @@ export interface VenomLobberRepopulationOptions {
   readonly spawnInnerRadius: number;
   readonly spawnOuterRadius: number;
   readonly recycleRadius: number;
+  readonly hardRecycleRadius: number;
   readonly desiredPopulationCount: number;
 }
 
@@ -18,9 +19,11 @@ export function validateVenomLobberRepopulationOptions(
     || !Number.isFinite(options.spawnInnerRadius)
     || !Number.isFinite(options.spawnOuterRadius)
     || !Number.isFinite(options.recycleRadius)
+    || !Number.isFinite(options.hardRecycleRadius)
     || options.spawnInnerRadius <= 0
     || options.spawnOuterRadius <= options.spawnInnerRadius
     || options.recycleRadius <= options.spawnOuterRadius
+    || options.hardRecycleRadius <= options.recycleRadius
     || !Number.isInteger(options.desiredPopulationCount)
     || options.desiredPopulationCount < 0
     || options.desiredPopulationCount > capacity) {

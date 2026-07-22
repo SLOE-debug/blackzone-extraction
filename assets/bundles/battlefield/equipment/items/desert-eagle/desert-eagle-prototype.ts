@@ -24,7 +24,7 @@ export const DESERT_EAGLE_PROTOTYPE = Object.freeze({
     description: '稳定轻便的蓝色制式半自动手枪',
     rarity: EquipmentRarity.Rare,
     weaponClass: WeaponClass.Handgun,
-    damage: 32,
+    damage: 34,
     fireIntervalSeconds: 0.32,
     attackAnimationSeconds: 0.22,
     ammunition: Object.freeze({
@@ -41,6 +41,8 @@ export const DESERT_EAGLE_PROTOTYPE = Object.freeze({
       speed: 31,
       maximumRange: 20,
       impactRadius: 0.12,
+      maximumHitCount: 1,
+      damageRetention: 1,
       visual: WeaponProjectileVisual.Bullet,
     }),
   }),

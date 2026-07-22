@@ -12,10 +12,13 @@ import {
   VENOM_WARNING_CIRCLE_VERTEX_COUNT,
   writeVenomChargeEffectSlot,
   writeVenomBombEffectSlot,
+  writeVenomPoolEffectSlot,
 } from '../../assets/bundles/common-monsters/entities/venom-lobber/geometry/venom-lobber-effect-geometry';
+import { VENOM_POOL_OUTER_SEGMENTS } from '../../assets/bundles/common-monsters/entities/venom-lobber/geometry/venom-pool-geometry';
 import { VENOM_LOBBER_MODEL_GEOMETRY } from '../../assets/bundles/common-monsters/entities/venom-lobber/geometry/venom-lobber-model-geometry';
 import { VenomLobberAction } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-action';
 import { VenomBombState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-bomb-state';
+import { VenomPoolState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-pool-state';
 import { type VenomLobberCombatOptions } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-combat-options';
 import { VenomLobberState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-state';
 
@@ -127,6 +130,29 @@ describe('Venom Lobber 技能与程序化模型', () => {
     );
   });
 
+  it('毒池使用 18 段统一中心色与整套催化色板，不再交替绘制扇区', () => {
+    expect(VENOM_POOL_OUTER_SEGMENTS).toBe(18);
+    const pools = new VenomPoolState(1);
+    pools.spawn(0, 0, 3, 5, false);
+    pools.elapsed[0] = 1;
+    const geometry = createVenomEffectGeometry(1);
+    writeVenomPoolEffectSlot(geometry, 0, pools, 0);
+    const poolVertexOffset = VENOM_BOMB_EFFECT_VERTEX_COUNT
+      + VENOM_WARNING_CIRCLE_VERTEX_COUNT;
+    for (let segment = 0; segment < VENOM_POOL_OUTER_SEGMENTS; segment++) {
+      const colorOffset = (poolVertexOffset + segment * 3) * 4;
+      expect(geometry.colors[colorOffset]).toBeCloseTo(0x12 / 255, 5);
+      expect(geometry.colors[colorOffset + 1]).toBeCloseTo(0x38 / 255, 5);
+      expect(geometry.colors[colorOffset + 2]).toBeCloseTo(0x2a / 255, 5);
+    }
+
+    pools.catalyzed[0] = 1;
+    writeVenomPoolEffectSlot(geometry, 0, pools, 0);
+    expect(geometry.colors[poolVertexOffset * 4]).toBeCloseTo(0x35 / 255, 5);
+    expect(geometry.colors[poolVertexOffset * 4 + 1]).toBeCloseTo(0x45 / 255, 5);
+    expect(geometry.colors[poolVertexOffset * 4 + 2]).toBeCloseTo(0x1d / 255, 5);
+  });
+
   it('玩家进入尾兽近身范围时会扑击并结算一次近战伤害', () => {
     const state = new VenomLobberState({
       count: 1,
@@ -136,6 +162,7 @@ describe('Venom Lobber 技能与程序化模型', () => {
       surfaceMaterialTemplate: {} as never,
     });
     state.data.vitality.state[0] = MonsterLifecycleState.Alive;
+    state.data.combat.attackLock[0] = 0;
     state.data.combat.meleeCooldown[0] = 0;
     const combat = new VenomLobberCombatSystem(1, COMBAT);
     combat.synchronizeTarget({ x: 3, y: 0, collisionRadius: 0.4 });

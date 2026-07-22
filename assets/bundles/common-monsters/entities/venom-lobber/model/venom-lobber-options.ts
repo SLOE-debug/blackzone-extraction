@@ -1,4 +1,4 @@
-import { type Material } from 'cc';
+import { type Camera, type Material } from 'cc';
 import { type VenomLobberCombatOptions } from './venom-lobber-combat-options';
 
 /** Venom Lobber 固定容量群体使用的初始二维区域。 */
@@ -16,6 +16,7 @@ export interface VenomLobberPopulationOptions {
   readonly spawnArea: Readonly<VenomLobberSpawnArea>;
   readonly seed: number;
   readonly surfaceMaterialTemplate: Material;
+  readonly camera: Camera;
   readonly combat: Readonly<VenomLobberCombatOptions>;
 }
 

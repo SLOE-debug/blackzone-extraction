@@ -29,6 +29,8 @@ export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
     state: entityField(Uint8Array, 1),
     stateTime: entityField(Float32Array, 1),
     hitTime: entityField(Float32Array, 1),
+    timeSinceHit: entityField(Float32Array, 1),
+    deathEffectSpawned: entityField(Uint8Array, 1),
   },
   behavior: {
     action: entityField(Uint8Array, 1),
@@ -43,6 +45,7 @@ export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
     meleeTime: entityField(Float32Array, 1),
     meleeCooldown: entityField(Float32Array, 1),
     meleeHitApplied: entityField(Uint8Array, 1),
+    attackLock: entityField(Float32Array, 1),
   },
   intent: {
     targetSpeed: entityField(Float32Array, 1),

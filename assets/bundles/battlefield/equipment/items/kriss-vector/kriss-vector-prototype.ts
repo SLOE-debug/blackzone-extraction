@@ -22,7 +22,7 @@ export const KRISS_VECTOR_PROTOTYPE = Object.freeze({
     description: '高射速、低枪管轴的传奇 .45 ACP 冲锋枪',
     rarity: EquipmentRarity.Legendary,
     weaponClass: WeaponClass.SubmachineGun,
-    damage: 13,
+    damage: 17,
     fireIntervalSeconds: 0.072,
     attackAnimationSeconds: 0.105,
     ammunition: Object.freeze({
@@ -37,6 +37,8 @@ export const KRISS_VECTOR_PROTOTYPE = Object.freeze({
       speed: 29,
       maximumRange: 18,
       impactRadius: 0.105,
+      maximumHitCount: 2,
+      damageRetention: 0.62,
       visual: WeaponProjectileVisual.Bullet,
     }),
   }),

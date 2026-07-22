@@ -13,6 +13,7 @@ import {
   type PlanarTargetQuery,
 } from '../../../../../core/contracts/planar-target';
 import { type Node } from 'cc';
+import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { VenomLobberAnimationSystem } from '../animation/venom-lobber-animation-system';
 import { VenomLobberCombatSystem } from '../behavior/venom-lobber-combat-system';
 import { normalizeVenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
@@ -25,6 +26,7 @@ import { VenomLobberState } from '../model/venom-lobber-state';
 import { VenomLobberMovementSystem } from '../movement/venom-lobber-movement-system';
 import { VenomLobberRenderer } from '../rendering/venom-lobber-renderer';
 import { VenomLobberLifeSystem } from './venom-lobber-life-system';
+import { createVenomLobberCrowdPopulation } from './venom-lobber-crowd-population';
 import { VenomLobberProjectileHitSystem } from './venom-lobber-projectile-hit-system';
 import { VenomLobberRepopulationSystem } from './venom-lobber-repopulation-system';
 import { VenomLobberTargeting } from './venom-lobber-targeting';
@@ -36,7 +38,7 @@ const MAXIMUM_DELTA_TIME = 0.05;
 export class VenomLobberPopulation
 implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly state: VenomLobberState;
-  private readonly life = new VenomLobberLifeSystem();
+  private readonly life: VenomLobberLifeSystem;
   private readonly combat: VenomLobberCombatSystem;
   private readonly movement = new VenomLobberMovementSystem();
   private readonly animation = new VenomLobberAnimationSystem();
@@ -51,12 +53,14 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     const combatOptions = normalizeVenomLobberCombatOptions(options.combat);
     this.state = new VenomLobberState(normalized);
     this.combat = new VenomLobberCombatSystem(this.state.count, combatOptions);
+    this.life = new VenomLobberLifeSystem(this.combat.effects);
     this.repopulation = new VenomLobberRepopulationSystem(this.state);
     this.renderer = new VenomLobberRenderer(
       parent,
       this.state,
       this.combat.effects,
       combatOptions,
+      options.camera,
     );
   }
 
@@ -79,11 +83,23 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
 
   public maintainAround(options: Readonly<VenomLobberRepopulationOptions>): void {
     this.ensureActive();
-    this.repopulation.maintainAround(options);
+    this.repopulation.maintainAround(options, this.renderer);
+  }
+
+  /** 暴露给战场世界统一空间约束的重型 SoA 视图。 */
+  public createCrowdPopulation(populationId: number): PlanarCrowdPopulation {
+    this.ensureActive();
+    return createVenomLobberCrowdPopulation(this.state, populationId);
   }
 
   /** 按生命、施法、移动、姿态和渲染的固定顺序推进一帧。 */
   public update(deltaTime: number): void {
+    this.simulate(deltaTime);
+    this.synchronizeRendering();
+  }
+
+  /** 推进领域模拟，位置约束由战场世界随后统一处理。 */
+  public simulate(deltaTime: number): void {
     this.ensureActive();
     if (!Number.isFinite(deltaTime)) {
       throw new Error('Venom Lobber 帧时间必须是有限数值。');
@@ -93,6 +109,11 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     this.combat.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
+  }
+
+  /** 在共享 Crowd 修正位置后上传最终姿态。 */
+  public synchronizeRendering(): void {
+    this.ensureActive();
     this.renderer.update();
   }
 
@@ -104,12 +125,32 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     return this.targeting.findBest(this.state, query, result);
   }
 
+  /** 对共享宽相位给出的实体执行单槽位瞄准窄相位。 */
+  public findPlanarTarget(
+    entityIndex: number,
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean {
+    this.ensureActive();
+    return this.targeting.findEntity(this.state, entityIndex, query, result);
+  }
+
   public findFirstPlanarHit(
     query: Readonly<PlanarMonsterHitQuery>,
     result: MutablePlanarMonsterHitResult,
   ): boolean {
     this.ensureActive();
     return this.projectileHit.findFirst(this.state, query, result);
+  }
+
+  /** 只对共享宽相位给出的实体执行精确窄相位查询。 */
+  public findPlanarHit(
+    entityIndex: number,
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean {
+    this.ensureActive();
+    return this.projectileHit.findEntity(this.state, entityIndex, query, result);
   }
 
   public damage(entityId: number, amount: number): void {

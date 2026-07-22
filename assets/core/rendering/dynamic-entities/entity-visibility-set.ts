@@ -85,4 +85,14 @@ export class EntityVisibilitySet {
     return (this.changedEntities[entityIndex] ?? 0) !== 0;
   }
 
+  /** 返回稳定槽位在最近一次完成的收集中是否可见。 */
+  public has(entityIndex: number): boolean {
+    if (!Number.isInteger(entityIndex)
+      || entityIndex < 0
+      || entityIndex >= this.visibleEntities.length) {
+      throw new Error('实体可见集合查询槽位越界。');
+    }
+    return (this.visibleEntities[entityIndex] ?? 0) !== 0;
+  }
+
 }

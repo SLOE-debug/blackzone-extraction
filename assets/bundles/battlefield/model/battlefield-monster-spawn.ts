@@ -8,6 +8,7 @@ export const BATTLEFIELD_MONSTER_SPAWN = Object.freeze({
   spawnInnerRadius: 14,
   spawnOuterRadius: 24,
   recycleRadius: 42,
+  hardRecycleRadius: 68,
   modelScale: 0.14,
   seed: 0x4b1ac7,
   groundOffsetY: 0.05,

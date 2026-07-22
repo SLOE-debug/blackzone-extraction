@@ -24,7 +24,7 @@ export const PUMP_SHOTGUN_PROTOTYPE = Object.freeze({
     description: '近距离爆发强劲的管式弹仓霰弹枪',
     rarity: EquipmentRarity.Rare,
     weaponClass: WeaponClass.Shotgun,
-    damage: 20,
+    damage: 22,
     fireIntervalSeconds: 0.88,
     attackAnimationSeconds: 0.68,
     ammunition: Object.freeze({
@@ -44,6 +44,8 @@ export const PUMP_SHOTGUN_PROTOTYPE = Object.freeze({
       speed: 26,
       maximumRange: 14,
       impactRadius: 0.09,
+      maximumHitCount: 2,
+      damageRetention: 0.58,
       visual: WeaponProjectileVisual.BuckshotPellet,
     }),
   }),

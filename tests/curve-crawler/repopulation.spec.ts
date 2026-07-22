@@ -17,15 +17,17 @@ const SWARM_OPTIONS = Object.freeze({
   spawnInnerRadius: 18,
   spawnOuterRadius: 32,
   recycleRadius: 49,
+  hardRecycleRadius: 70,
   desiredPopulationCount: 8,
 });
+const OUTSIDE_FRUSTUM = Object.freeze({ isVisible: () => false });
 
 describe('Curve Crawler 玩家周边尸潮回收', () => {
   it('只激活当前波次需要的槽位并逐只错峰进入出生状态', () => {
     const state = createState();
     const repopulation = new CurveCrawlerRepopulationSystem(state);
 
-    repopulation.maintainAround(SWARM_OPTIONS);
+    repopulation.maintainAround(SWARM_OPTIONS, OUTSIDE_FRUSTUM);
 
     expect(repopulation.countAlive()).toBe(0);
     for (let index = 0; index < state.count; index++) {
@@ -52,16 +54,16 @@ describe('Curve Crawler 玩家周边尸潮回收', () => {
     const repopulation = new CurveCrawlerRepopulationSystem(state);
     const hit = new CurveCrawlerHitSystem();
     const death = new CurveCrawlerDeathSystem();
-    repopulation.maintainAround(SWARM_OPTIONS);
+    repopulation.maintainAround(SWARM_OPTIONS, OUTSIDE_FRUSTUM);
     completeActivatedSlots(state, SWARM_OPTIONS.desiredPopulationCount);
     for (let index = 0; index < 5; index++) {
       expect(hit.damage(state, index, 100)).toBe(true);
       death.start(state, index);
     }
 
-    repopulation.maintainAround(SWARM_OPTIONS);
+    repopulation.maintainAround(SWARM_OPTIONS, OUTSIDE_FRUSTUM);
     death.update(state, CURVE_CRAWLER_BURST_DURATION * 0.5);
-    repopulation.maintainAround(SWARM_OPTIONS);
+    repopulation.maintainAround(SWARM_OPTIONS, OUTSIDE_FRUSTUM);
 
     for (let index = 0; index < 5; index++) {
       expect(state.data.vitality.state[index]).toBe(MonsterLifecycleState.Dying);
@@ -77,7 +79,7 @@ describe('Curve Crawler 玩家周边尸潮回收', () => {
     const hit = new CurveCrawlerHitSystem();
     const death = new CurveCrawlerDeathSystem();
     const options = Object.freeze({ ...SWARM_OPTIONS, desiredPopulationCount: 2 });
-    repopulation.maintainAround(options);
+    repopulation.maintainAround(options, OUTSIDE_FRUSTUM);
     completeActivatedSlots(state, options.desiredPopulationCount);
     expect(hit.damage(state, 0, 100)).toBe(true);
     death.start(state, 0);
@@ -85,7 +87,7 @@ describe('Curve Crawler 玩家周边尸潮回收', () => {
     death.update(state, CURVE_CRAWLER_LIQUID_DURATION);
     expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.DeathComplete);
 
-    repopulation.maintainAround(options);
+    repopulation.maintainAround(options, OUTSIDE_FRUSTUM);
 
     expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Spawning);
     expect(state.data.animation.emergenceBodyScale[0]).toBe(0);
@@ -99,16 +101,16 @@ describe('Curve Crawler 玩家周边尸潮回收', () => {
     const hit = new CurveCrawlerHitSystem();
     const death = new CurveCrawlerDeathSystem();
     const options = Object.freeze({ ...SWARM_OPTIONS, desiredPopulationCount: 2 });
-    repopulation.maintainAround(options);
+    repopulation.maintainAround(options, OUTSIDE_FRUSTUM);
     completeActivatedSlots(state, options.desiredPopulationCount);
     state.data.transform.x[0] = options.centerX + options.recycleRadius + 10;
     state.data.transform.x[1] = options.centerX + options.recycleRadius + 10;
     expect(hit.damage(state, 1, 100)).toBe(true);
     death.start(state, 1);
 
-    repopulation.maintainAround(options);
+    repopulation.maintainAround(options, OUTSIDE_FRUSTUM);
 
-    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Spawning);
+    expect(state.data.vitality.state[0]).toBe(MonsterLifecycleState.Despawning);
     expect(state.data.vitality.state[1]).toBe(MonsterLifecycleState.Dying);
   });
 });

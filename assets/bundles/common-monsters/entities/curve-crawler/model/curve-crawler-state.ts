@@ -167,6 +167,7 @@ function initializeCurveCrawlerData(
         ))
       : 0;
     vitality.hitTime[index] = 0;
+    vitality.timeSinceHit[index] = 1;
     death.stage[index] = CurveCrawlerDeathStage.Bursting;
     death.stageTime[index] = 0;
 

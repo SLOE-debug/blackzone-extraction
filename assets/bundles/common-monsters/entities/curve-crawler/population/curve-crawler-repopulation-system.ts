@@ -58,9 +58,12 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
   }
 
   /** 回收远离玩家的非死亡实体，并把空闲槽位补到当前期望驻留数量。 */
-  public maintainAround(options: Readonly<CurveCrawlerRepopulationOptions>): void {
+  public maintainAround(
+    options: Readonly<CurveCrawlerRepopulationOptions>,
+    visibility: Readonly<{ isVisible(entityIndex: number): boolean }>,
+  ): void {
     validateCurveCrawlerRepopulationOptions(options, this.state.count);
-    this.recycleDistantResidents(options);
+    this.recycleDistantResidents(options, visibility);
     this.activation.synchronize(
       this,
       options,
@@ -95,22 +98,29 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
   /** 只回收远距离的出生或存活实体，绝不截断正在进行的死亡表现。 */
   private recycleDistantResidents(
     options: Readonly<CurveCrawlerRepopulationOptions>,
+    visibility: Readonly<{ isVisible(entityIndex: number): boolean }>,
   ): void {
-    const { transform, vitality } = this.state.data;
+    const { transform, vitality, combat } = this.state.data;
     const recycleDistanceSquared = options.recycleRadius * options.recycleRadius;
+    const hardDistanceSquared = options.hardRecycleRadius * options.hardRecycleRadius;
     for (let index = 0; index < this.state.count; index++) {
       const lifecycleState = vitality.state[index] as MonsterLifecycleState;
-      if (lifecycleState !== MonsterLifecycleState.Spawning
-        && lifecycleState !== MonsterLifecycleState.Alive) {
+      if (lifecycleState !== MonsterLifecycleState.Alive) {
         continue;
       }
       const deltaX = (transform.x[index] ?? 0) - options.centerX;
       const deltaY = (transform.y[index] ?? 0) - options.centerY;
-      if (deltaX * deltaX + deltaY * deltaY <= recycleDistanceSquared) {
+      const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+      const hardRecycle = distanceSquared > hardDistanceSquared;
+      const softRecycle = distanceSquared > recycleDistanceSquared
+        && !visibility.isVisible(index)
+        && (vitality.timeSinceHit[index] ?? 0) >= 1
+        && (combat.attackTime[index] ?? 0) <= 0;
+      if (!hardRecycle && !softRecycle) {
         continue;
       }
-      transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Dormant);
-      this.hideDormantSlot(index);
+      transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Despawning);
+      combat.engaged[index] = 0;
       this.state.renderChanges.mark(index, EntityRenderDirty.Color);
     }
   }
@@ -157,6 +167,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     );
     vitality.health[index] = CURVE_CRAWLER_MAX_HEALTH;
     vitality.hitTime[index] = 0;
+    vitality.timeSinceHit[index] = 1;
     death.stage[index] = CurveCrawlerDeathStage.Bursting;
     death.stageTime[index] = 0;
     behavior.action[index] = CurveCrawlerAction.Crawl;
@@ -199,24 +210,6 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     animation.liquidDrain[index] = 0;
     this.resetFragmentAnimation(index);
     state.renderChanges.mark(index, EntityRenderDirty.Color);
-  }
-
-  /** 将被远距离回收的槽位立即收拢为不可见休眠几何。 */
-  private hideDormantSlot(index: number): void {
-    const { animation, motion, intent } = this.state.data;
-    motion.currentSpeed[index] = 0;
-    intent.targetSpeed[index] = 0;
-    animation.crackSpread[index] = 0;
-    animation.crackVisibility[index] = 0;
-    animation.eggScale[index] = 0;
-    animation.eggBulge[index] = 0;
-    animation.eggBurst[index] = 0;
-    animation.emergenceBodyScale[index] = 0;
-    animation.emergenceLegScale[index] = 0;
-    animation.surfaceCollapse[index] = 1;
-    animation.liquidSpread[index] = 0;
-    animation.liquidDrain[index] = 0;
-    this.resetFragmentAnimation(index);
   }
 
   private resetFragmentAnimation(index: number): void {

@@ -17,6 +17,7 @@ export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, nu
       const previousHitFlash = animation.hitFlash[index] ?? 0;
       const hitFlash = getHitFlash(hitTime);
       vitality.hitTime[index] = hitTime;
+      vitality.timeSinceHit[index] = (vitality.timeSinceHit[index] ?? 0) + deltaTime;
       animation.hitFlash[index] = hitFlash;
       if (previousHitFlash !== (animation.hitFlash[index] ?? 0)) {
         state.renderChanges.mark(index, EntityRenderDirty.Color);
@@ -49,6 +50,7 @@ export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, nu
     const remainingHealth = Math.max(0, (vitality.health[entityId] ?? 0) - amount);
     vitality.health[entityId] = remainingHealth;
     vitality.hitTime[entityId] = CURVE_CRAWLER_HIT_FLASH_DURATION;
+    vitality.timeSinceHit[entityId] = 0;
     return remainingHealth <= 0;
   }
 }

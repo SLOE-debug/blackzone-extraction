@@ -63,11 +63,16 @@ export class VenomLobberCombatSystem {
         0,
         (combat.meleeCooldown[index] ?? 0) - deltaTime,
       );
+      combat.attackLock[index] = Math.max(0, (combat.attackLock[index] ?? 0) - deltaTime);
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         this.disengage(state, index);
         continue;
       }
       if (!this.targetActive) {
+        this.roam(state, index, deltaTime);
+        continue;
+      }
+      if ((combat.attackLock[index] ?? 0) > 0) {
         this.roam(state, index, deltaTime);
         continue;
       }

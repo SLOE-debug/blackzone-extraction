@@ -4,6 +4,8 @@ import { type CurveCrawlerState } from '../model/curve-crawler-state';
 export interface CurveCrawlerPopulationRendering {
   /** 标记或立即提交当前群体的最新姿态。 */
   update(): void;
+  /** 返回稳定实体在最近一次视锥同步中是否可见。 */
+  isVisible(entityIndex: number): boolean;
   /** 解除该群体占用的渲染资源或共享批次区段。 */
   dispose(): void;
 }

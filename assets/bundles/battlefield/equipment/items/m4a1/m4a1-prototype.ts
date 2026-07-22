@@ -22,7 +22,7 @@ export const M4A1_PROTOTYPE = Object.freeze({
     description: '稳定均衡的 5.56×45 NATO 制式突击步枪',
     rarity: EquipmentRarity.Rare,
     weaponClass: WeaponClass.AssaultRifle,
-    damage: 19,
+    damage: 26,
     fireIntervalSeconds: 0.105,
     attackAnimationSeconds: 0.13,
     ammunition: Object.freeze({
@@ -37,6 +37,8 @@ export const M4A1_PROTOTYPE = Object.freeze({
       speed: 38,
       maximumRange: 25,
       impactRadius: 0.095,
+      maximumHitCount: 3,
+      damageRetention: 0.72,
       visual: WeaponProjectileVisual.Bullet,
     }),
   }),

@@ -292,6 +292,10 @@ class CurveCrawlerSharedRenderHandle implements CurveCrawlerPopulationRendering 
     // 共享 GPU 渲染器在统一同步点读取 SoA 姿态参数。
   }
 
+  public isVisible(entityIndex: number): boolean {
+    return this.entry.visibility.has(entityIndex);
+  }
+
   public dispose(): void {
     this.owner.unregister(this.entry);
   }

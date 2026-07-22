@@ -8,6 +8,7 @@ export const BATTLEFIELD_VENOM_LOBBER_CONFIG = Object.freeze({
   spawnInnerRadius: 18,
   spawnOuterRadius: 28,
   recycleRadius: 46,
+  hardRecycleRadius: 76,
   seed: 0x76e04b,
   combat: Object.freeze({
     detectionRadius: 42,

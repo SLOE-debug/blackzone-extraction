@@ -67,6 +67,46 @@ export class CurveCrawlerTargeting {
     );
     return true;
   }
+
+  /** 只评估共享空间索引给出的单一实体。 */
+  public findEntity(
+    state: CurveCrawlerState,
+    entityIndex: number,
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean {
+    validateQuery(query);
+    if (!Number.isSafeInteger(entityIndex) || entityIndex < 0 || entityIndex >= state.count) {
+      throw new Error('Curve Crawler 瞄准实体索引越界。');
+    }
+    const { identity, transform, morphology, vitality, animation } = state.data;
+    if ((vitality.state[entityIndex] as MonsterLifecycleState)
+      !== MonsterLifecycleState.Alive) {
+      return false;
+    }
+    const deltaX = (transform.x[entityIndex] ?? 0) - query.originX;
+    const deltaY = (transform.y[entityIndex] ?? 0) - query.originY;
+    const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+    if (distanceSquared <= DIRECTION_EPSILON * DIRECTION_EPSILON
+      || distanceSquared > query.maximumDistance * query.maximumDistance) {
+      return false;
+    }
+    const alignment = (deltaX * query.directionX + deltaY * query.directionY)
+      / Math.sqrt(distanceSquared);
+    if (alignment < query.minimumAlignment) {
+      return false;
+    }
+    result.entityId = identity.id[entityIndex] ?? entityIndex;
+    result.x = transform.x[entityIndex] ?? 0;
+    result.y = transform.y[entityIndex] ?? 0;
+    result.elevation = calculateCurveCrawlerAimElevation(
+      morphology.bodyWidth[entityIndex] ?? 0,
+      animation.bodyPulse[entityIndex] ?? 0,
+      animation.crouchAmount[entityIndex] ?? 0,
+      animation.biteAmount[entityIndex] ?? 0,
+    );
+    return true;
+  }
 }
 
 /** 验证目标查询的方向、距离和点积阈值。 */

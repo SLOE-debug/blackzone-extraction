@@ -1,4 +1,4 @@
-import { Color, Node } from 'cc';
+import { type Camera, Color, Node } from 'cc';
 import { UnlitMaterialFactory } from '../../../../../core/rendering/unlit-material-factory';
 import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import { type VenomLobberState } from '../model/venom-lobber-state';
@@ -21,6 +21,7 @@ export class VenomLobberRenderer {
     state: VenomLobberState,
     abilityEffects: VenomBombSystem,
     combat: Readonly<VenomLobberCombatOptions>,
+    camera: Camera,
   ) {
     let body: VenomLobberBodyRenderer | null = null;
     let effects: VenomLobberEffectRenderer | null = null;
@@ -30,6 +31,7 @@ export class VenomLobberRenderer {
         state,
         combat,
         this.material,
+        camera,
       );
       effects = new VenomLobberEffectRenderer(
         parent,
@@ -59,6 +61,10 @@ export class VenomLobberRenderer {
   public update(): void {
     this.body.update();
     this.effects.update();
+  }
+
+  public isVisible(entityIndex: number): boolean {
+    return this.body.isVisible(entityIndex);
   }
 
   public dispose(): void {

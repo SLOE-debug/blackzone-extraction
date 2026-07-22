@@ -126,6 +126,72 @@ export class CurveCrawlerProjectileHitSystem {
     result.segmentProgress = bestProgress;
     return true;
   }
+
+  /** 对共享空间索引给出的单一实体执行精确旋转盒检测。 */
+  public findEntity(
+    state: CurveCrawlerState,
+    entityIndex: number,
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean {
+    validateQuery(query);
+    if (!Number.isSafeInteger(entityIndex)
+      || entityIndex < 0
+      || entityIndex >= state.count) {
+      throw new Error('Curve Crawler 命中实体索引越界。');
+    }
+    const { identity, transform, morphology, vitality, animation } = state.data;
+    if ((vitality.state[entityIndex] as MonsterLifecycleState)
+      !== MonsterLifecycleState.Alive) {
+      return false;
+    }
+    const segmentX = query.endX - query.startX;
+    const segmentY = query.endY - query.startY;
+    const segmentElevation = query.endElevation - query.startElevation;
+    const centerX = transform.x[entityIndex] ?? 0;
+    const centerY = transform.y[entityIndex] ?? 0;
+    const headingCosine = transform.headingCosine[entityIndex] ?? 1;
+    const headingSine = transform.headingSine[entityIndex] ?? 0;
+    const bodyLength = morphology.bodyLength[entityIndex] ?? 0;
+    const bodyWidth = morphology.bodyWidth[entityIndex] ?? 0;
+    const legLength = morphology.legLength[entityIndex] ?? 0;
+    const legWidth = morphology.legWidth[entityIndex] ?? 0;
+    const bodyPulse = animation.bodyPulse[entityIndex] ?? 0;
+    const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
+    const biteAmount = animation.biteAmount[entityIndex] ?? 0;
+    const turnAmount = animation.turnAmount[entityIndex] ?? 0;
+    const centerElevation = calculateCurveCrawlerAimElevation(
+      bodyWidth, bodyPulse, crouchAmount, biteAmount,
+    );
+    const relativeStartX = query.startX - centerX;
+    const relativeStartY = query.startY - centerY;
+    const progress = findFirstOrientedBoxContact(
+      relativeStartX * headingCosine + relativeStartY * headingSine,
+      -relativeStartX * headingSine + relativeStartY * headingCosine,
+      query.startElevation - centerElevation,
+      segmentX * headingCosine + segmentY * headingSine,
+      -segmentX * headingSine + segmentY * headingCosine,
+      segmentElevation,
+      Math.max(calculateCurveCrawlerForwardHitHalfExtent(
+        bodyLength, legLength, legWidth, bodyPulse, crouchAmount, biteAmount, turnAmount,
+      ) + query.impactRadius, SEGMENT_EPSILON),
+      Math.max(calculateCurveCrawlerLateralHitHalfExtent(
+        bodyWidth, legLength, legWidth, bodyPulse, crouchAmount, biteAmount,
+      ) + query.impactRadius, SEGMENT_EPSILON),
+      Math.max(calculateCurveCrawlerVerticalHitHalfExtent(
+        bodyWidth, legLength, legWidth, bodyPulse, crouchAmount, biteAmount, turnAmount,
+      ) + query.impactRadius, SEGMENT_EPSILON),
+    );
+    if (progress === null) {
+      return false;
+    }
+    result.entityId = identity.id[entityIndex] ?? entityIndex;
+    result.x = centerX;
+    result.y = centerY;
+    result.elevation = centerElevation;
+    result.segmentProgress = progress;
+    return true;
+  }
 }
 
 /** 拒绝退化线段和负命中半径，避免投影计算产生无效数值。 */

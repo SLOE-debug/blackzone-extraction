@@ -84,6 +84,7 @@ describe('玩家武器运行时模型', () => {
       { muzzleX: 1, muzzleY: 2, muzzleZ: 3 },
       { x: 4, y: 2.5, z: 11 },
       ammunition,
+      { damageAlongSegment: () => 0 },
       {
         spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
           directions.push(directionX, directionY, directionZ);

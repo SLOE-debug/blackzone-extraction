@@ -18,13 +18,13 @@ import {
 import { mixRandomSeed } from '../../assets/core/math/xorshift32';
 
 describe('战场装备库', () => {
-  it('以蓝色普通手枪定义登记沙漠之鹰并降低单发伤害', () => {
+  it('以蓝色稀有手枪定义登记沙漠之鹰及其单发伤害', () => {
     const weapon = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
     expect(weapon.displayName).toBe('沙漠之鹰');
     expect(weapon.category).toBe(EquipmentCategory.Weapon);
     expect(weapon.rarity).toBe(EquipmentRarity.Rare);
     expect(weapon.weaponClass).toBe(WeaponClass.Handgun);
-    expect(weapon.damage).toBe(32);
+    expect(weapon.damage).toBe(34);
     expect(weapon.ammunition.mode).toBe(WeaponAmmunitionMode.Magazine);
     expect(weapon.shotPattern.type).toBe(WeaponShotPatternType.Single);
     expect(weapon.projectile.speed).toBeGreaterThan(0);

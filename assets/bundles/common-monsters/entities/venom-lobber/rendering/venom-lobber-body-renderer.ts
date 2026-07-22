@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { type Camera, type Material, Node } from 'cc';
 import {
   isMonsterLifecycleResident,
   MonsterLifecycleState,
@@ -15,10 +15,12 @@ import { VenomLobberAction } from '../model/venom-lobber-action';
 import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import {
   VENOM_LOBBER_DEATH_SECONDS,
+  VENOM_LOBBER_DESPAWN_SECONDS,
   VENOM_LOBBER_SPAWN_SECONDS,
 } from '../model/venom-lobber-lifecycle';
 import { type VenomLobberState } from '../model/venom-lobber-state';
 import { VENOM_LOBBER_TAIL_PIVOT_FORWARD } from '../model/venom-lobber-tail-socket';
+import { VenomLobberVisibilityLayout } from './venom-lobber-visibility-layout';
 
 const BODY_OPTIONS = Object.freeze({ castShadows: false, receiveShadows: false });
 const BODY_BOUNDS = Object.freeze({
@@ -46,22 +48,24 @@ export class VenomLobberBodyRenderer {
   private readonly packedEntityIds: Int32Array;
   private readonly previousHitFlash: Float32Array;
   private readonly previousSacPulse: Float32Array;
+  private readonly visibility: VenomLobberVisibilityLayout;
   private frameColorDirty = false;
   private residentCount = 0;
   private disposed = false;
 
   constructor(
-    parent: Node,
+    private readonly parent: Node,
     private readonly state: VenomLobberState,
     private readonly combatOptions: Readonly<VenomLobberCombatOptions>,
     material: Material,
+    private readonly camera: Camera,
   ) {
     this.packedEntityIds = new Int32Array(state.count);
     this.packedEntityIds.fill(-1);
     this.previousHitFlash = new Float32Array(state.count);
     this.previousSacPulse = new Float32Array(state.count);
+    this.visibility = new VenomLobberVisibilityLayout(state.count);
     this.geometry = createBodyGeometry(state.count);
-    this.writeGeometry();
     try {
       this.batch.initialize(
         parent,
@@ -81,6 +85,10 @@ export class VenomLobberBodyRenderer {
 
   public get activeEntityCount(): number {
     return this.residentCount;
+  }
+
+  public isVisible(entityIndex: number): boolean {
+    return this.visibility.entities.has(entityIndex);
   }
 
   /** 原地紧凑重写全部具有可渲染生命周期的实体。 */
@@ -113,12 +121,24 @@ export class VenomLobberBodyRenderer {
   }
 
   private writeGeometry(): number {
+    const renderCamera = this.camera.camera;
+    renderCamera.update(true);
+    const worldScale = this.parent.worldScale;
+    this.visibility.synchronize(
+      this.state,
+      this.parent.worldMatrix,
+      Math.max(Math.abs(worldScale.x), Math.abs(worldScale.y), Math.abs(worldScale.z)),
+      renderCamera.frustum,
+    );
     this.frameColorDirty = false;
     let packedIndex = 0;
     const { vitality, animation } = this.state.data;
     for (let entityIndex = 0; entityIndex < this.state.count; entityIndex++) {
       const lifecycle = vitality.state[entityIndex] as MonsterLifecycleState;
       if (!isMonsterLifecycleResident(lifecycle)) {
+        continue;
+      }
+      if (!this.visibility.entities.has(entityIndex)) {
         continue;
       }
       const hitFlash = animation.hitFlash[entityIndex] ?? 0;
@@ -160,6 +180,9 @@ export class VenomLobberBodyRenderer {
     const deathProgress = lifecycle === MonsterLifecycleState.Dying
       ? smoothStep(clamp01(stateTime / VENOM_LOBBER_DEATH_SECONDS))
       : 0;
+    const despawnProgress = lifecycle === MonsterLifecycleState.Despawning
+      ? smoothStep(clamp01(stateTime / VENOM_LOBBER_DESPAWN_SECONDS))
+      : 0;
     const spawnEase = smoothStep(spawnProgress);
     const animationDirection = ((identity.appearanceSeed[entityIndex] ?? 0) & 1) === 0
       ? 1
@@ -184,12 +207,10 @@ export class VenomLobberBodyRenderer {
     this.prepareTailRotations(tailAngle);
     this.prepareLegRotations(gaitPhase);
 
-    const legSpread = lifecycle === MonsterLifecycleState.Spawning
-      ? 0.18 + spawnEase * 0.82
-      : 1 - deathProgress * 0.62;
     const spawnTilt = (1 - spawnEase) * -0.64;
     const spawnTwist = Math.sin(spawnProgress * Math.PI) * animationDirection * 0.22;
-    const deathRoll = animationDirection * deathProgress * 1.24;
+    const deathLean = smoothStep(clamp01((stateTime - 0.18) / 0.5));
+    const deathRoll = animationDirection * deathLean * 0.610865238;
     const spawnTiltCosine = Math.cos(spawnTilt);
     const spawnTiltSine = Math.sin(spawnTilt);
     const spawnTwistCosine = Math.cos(spawnTwist);
@@ -203,7 +224,8 @@ export class VenomLobberBodyRenderer {
     const rootY = transform.y[entityIndex] ?? 0;
     const bodyBob = (animation.bodyBob[entityIndex] ?? 0) - meleeStrike * 0.16;
     const spawnLift = (spawnEase - 1) * 8.6;
-    const deathSink = -deathProgress * 0.42;
+    const deathSink = -smoothStep(clamp01((stateTime - 1.08) / 0.77)) * 1.8
+      - despawnProgress * 2.4;
     const hitFlash = animation.hitFlash[entityIndex] ?? 0;
     const venomPulse = animation.sacPulse[entityIndex] ?? 0;
     const targetVertexBase = packedIndex * source.vertexCount;
@@ -228,7 +250,17 @@ export class VenomLobberBodyRenderer {
       const legGroup = model.legGroups[vertex] ?? 0;
       if (legGroup > 0) {
         const groupIndex = legGroup - 1;
-        localY *= legSpread;
+        const longitudinalGroup = groupIndex % 3;
+        const spawnLeg = smoothStep(clamp01(
+          (stateTime - (0.32 + (2 - longitudinalGroup) * 0.08)) / 0.34,
+        ));
+        const deathLeg = smoothStep(clamp01(
+          (stateTime - (0.18 + (2 - longitudinalGroup) * 0.08)) / 0.34,
+        ));
+        const lifecycleSpread = lifecycle === MonsterLifecycleState.Spawning
+          ? 0.14 + spawnLeg * 0.86
+          : 1 - deathLeg * 0.7 - despawnProgress * 0.72;
+        localY *= Math.max(0.12, lifecycleSpread);
         localX += (this.legCosines[groupIndex] ?? 0) * speedRatio * 0.18;
         localZ += Math.max(0, this.legSines[groupIndex] ?? 0) * speedRatio * 0.28;
       }
@@ -238,6 +270,13 @@ export class VenomLobberBodyRenderer {
         localX += strikeWeight * meleeStrike * 1.38;
         localY *= 1 - strikeWeight * meleeStrike * 0.08;
         localZ -= strikeWeight * meleeStrike * 0.48;
+      }
+
+      const venomWeight = model.venomWeights[vertex] ?? 0;
+      const implosion = smoothStep(clamp01((stateTime - 0.68) / 0.4));
+      if (lifecycle === MonsterLifecycleState.Dying && venomWeight > 0) {
+        localY *= 1 - venomWeight * implosion * 0.42;
+        localZ *= 1 - venomWeight * implosion * 0.34;
       }
 
       const tiltedX = localX * spawnTiltCosine - localZ * spawnTiltSine;
@@ -252,7 +291,11 @@ export class VenomLobberBodyRenderer {
       const scaledY = posedY * scale;
       const worldX = rootX + scaledX * headingCosine - scaledY * headingSine;
       const worldY = rootY + scaledX * headingSine + scaledY * headingCosine;
-      let worldZ = (posedZ + bodyBob + spawnLift + deathSink) * scale;
+      const tailLead = tailBone > 0
+        ? tailBone / Math.max(1, model.tailBoneCount - 1)
+        : 0;
+      const vertexSpawnLift = spawnLift * (1 - tailLead * 0.76);
+      let worldZ = (posedZ + bodyBob + vertexSpawnLift + deathSink) * scale;
       if (lifecycle !== MonsterLifecycleState.Spawning) {
         worldZ = Math.max(0.025, worldZ);
       }
@@ -265,7 +308,6 @@ export class VenomLobberBodyRenderer {
       if (writeColors) {
         const sourceColorOffset = vertex * 4;
         const targetColorOffset = targetVertex * 4;
-        const venomWeight = model.venomWeights[vertex] ?? 0;
         const pulse = 1 + venomWeight * venomPulse * 0.42;
         const red = (source.colors[sourceColorOffset] ?? 0) * pulse;
         const green = (source.colors[sourceColorOffset + 1] ?? 0) * pulse;

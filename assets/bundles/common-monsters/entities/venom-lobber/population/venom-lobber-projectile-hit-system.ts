@@ -54,6 +54,49 @@ export class VenomLobberProjectileHitSystem {
     result.segmentProgress = bestProgress;
     return true;
   }
+
+  /** 对共享空间索引给出的单一实体执行精确椭球检测。 */
+  public findEntity(
+    state: VenomLobberState,
+    entityIndex: number,
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean {
+    validateQuery(query);
+    if (!Number.isSafeInteger(entityIndex)
+      || entityIndex < 0
+      || entityIndex >= state.count) {
+      throw new Error('Venom Lobber 命中实体索引越界。');
+    }
+    const { identity, transform, morphology, vitality } = state.data;
+    if ((vitality.state[entityIndex] as MonsterLifecycleState)
+      !== MonsterLifecycleState.Alive) {
+      return false;
+    }
+    const scale = morphology.scale[entityIndex] ?? 1;
+    const centerX = transform.x[entityIndex] ?? 0;
+    const centerY = transform.y[entityIndex] ?? 0;
+    const centerZ = 2.55 * scale;
+    const horizontalRadius = 3.65 * scale + query.impactRadius;
+    const verticalRadius = 2.35 * scale + query.impactRadius;
+    const progress = findEllipsoidContact(
+      (query.startX - centerX) / horizontalRadius,
+      (query.startY - centerY) / horizontalRadius,
+      (query.startElevation - centerZ) / verticalRadius,
+      (query.endX - query.startX) / horizontalRadius,
+      (query.endY - query.startY) / horizontalRadius,
+      (query.endElevation - query.startElevation) / verticalRadius,
+    );
+    if (progress === null) {
+      return false;
+    }
+    result.entityId = identity.id[entityIndex] ?? entityIndex;
+    result.x = centerX;
+    result.y = centerY;
+    result.elevation = centerZ;
+    result.segmentProgress = progress;
+    return true;
+  }
 }
 
 function findEllipsoidContact(

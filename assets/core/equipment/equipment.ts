@@ -101,11 +101,13 @@ export interface PelletConeWeaponShotPattern {
 /** 武器一次攻击使用的强类型弹体分布。 */
 export type WeaponShotPattern = SingleWeaponShotPattern | PelletConeWeaponShotPattern;
 
-/** 实体子弹的速度、射程与命中半径。 */
+/** Hitscan 射程、贯穿参数与无碰撞曳光表现。 */
 export interface WeaponProjectileDefinition {
   readonly speed: number;
   readonly maximumRange: number;
   readonly impactRadius: number;
+  readonly maximumHitCount: number;
+  readonly damageRetention: number;
   readonly visual: WeaponProjectileVisual;
 }
 

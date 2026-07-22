@@ -9,6 +9,7 @@ import {
 import { transitionMonsterLifecycle } from '../../../../../core/monsters/monster-lifecycle-state-machine';
 import { randomRange } from '../../../../../core/math/xorshift32';
 import { VenomLobberAction } from '../model/venom-lobber-action';
+import { VENOM_LOBBER_INITIAL_ATTACK_LOCK_SECONDS } from '../model/venom-lobber-lifecycle';
 import {
   type VenomLobberRepopulationOptions,
   validateVenomLobberRepopulationOptions,
@@ -69,6 +70,8 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     );
     vitality.health[entityIndex] = VENOM_LOBBER_MAX_HEALTH;
     vitality.hitTime[entityIndex] = 0;
+    vitality.timeSinceHit[entityIndex] = 1;
+    vitality.deathEffectSpawned[entityIndex] = 0;
     behavior.action[entityIndex] = VenomLobberAction.Roam;
     behavior.actionTime[entityIndex] = 0;
     behavior.nextTurnTime[entityIndex] = randomRange(
@@ -86,6 +89,7 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
       3.8,
     );
     combat.projectileReleased[entityIndex] = 0;
+    combat.attackLock[entityIndex] = VENOM_LOBBER_INITIAL_ATTACK_LOCK_SECONDS;
     intent.targetSpeed[entityIndex] = 0;
     intent.turnRate[entityIndex] = 2.8;
     motion.currentSpeed[entityIndex] = 0;
@@ -96,9 +100,12 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
   }
 
   /** 回收远处实体，并把当前驻留数补到波次目标。 */
-  public maintainAround(options: Readonly<VenomLobberRepopulationOptions>): void {
+  public maintainAround(
+    options: Readonly<VenomLobberRepopulationOptions>,
+    visibility: Readonly<{ isVisible(entityIndex: number): boolean }>,
+  ): void {
     validateVenomLobberRepopulationOptions(options, this.state.count);
-    this.recycleDistant(options);
+    this.recycleDistant(options, visibility);
     this.activation.synchronize(
       this,
       options,
@@ -129,21 +136,32 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     return false;
   }
 
-  private recycleDistant(options: Readonly<VenomLobberRepopulationOptions>): void {
+  private recycleDistant(
+    options: Readonly<VenomLobberRepopulationOptions>,
+    visibility: Readonly<{ isVisible(entityIndex: number): boolean }>,
+  ): void {
     const { transform, vitality, motion, intent, combat } = this.state.data;
     const maximumDistanceSquared = options.recycleRadius * options.recycleRadius;
+    const hardDistanceSquared = options.hardRecycleRadius * options.hardRecycleRadius;
     for (let index = 0; index < this.state.count; index++) {
       const lifecycle = vitality.state[index] as MonsterLifecycleState;
-      if (lifecycle !== MonsterLifecycleState.Alive
-        && lifecycle !== MonsterLifecycleState.Spawning) {
+      if (lifecycle !== MonsterLifecycleState.Alive) {
         continue;
       }
       const deltaX = (transform.x[index] ?? 0) - options.centerX;
       const deltaY = (transform.y[index] ?? 0) - options.centerY;
-      if (deltaX * deltaX + deltaY * deltaY <= maximumDistanceSquared) {
+      const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+      const hardRecycle = distanceSquared > hardDistanceSquared;
+      const attacking = (combat.castTime[index] ?? 0) > 0
+        || (combat.meleeTime[index] ?? 0) > 0;
+      const softRecycle = distanceSquared > maximumDistanceSquared
+        && !visibility.isVisible(index)
+        && (vitality.timeSinceHit[index] ?? 0) >= 1
+        && !attacking;
+      if (!hardRecycle && !softRecycle) {
         continue;
       }
-      transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Dormant);
+      transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Despawning);
       motion.currentSpeed[index] = 0;
       intent.targetSpeed[index] = 0;
       combat.engaged[index] = 0;

@@ -205,6 +205,7 @@ export class BattlefieldPlayerWeaponRuntime {
         this.muzzlePose,
         fireTarget,
         ammunition,
+        monsters,
         this.projectiles,
       );
       if (attackResult === BattlefieldWeaponAttackResult.Fired) {
@@ -222,7 +223,7 @@ export class BattlefieldPlayerWeaponRuntime {
       owner.rotationZ,
       owner.rotationW,
     );
-    this.projectiles?.update(safeDeltaTime, monsters);
+    this.projectiles?.update(safeDeltaTime);
   }
 
   public dispose(): void {

@@ -4,6 +4,7 @@ import { mixRandomSeed, randomRange } from '../../../../../core/math/xorshift32'
 import { TAU } from '../../../../../core/math/scalar';
 import { VenomLobberAction } from './venom-lobber-action';
 import { type NormalizedVenomLobberOptions } from './venom-lobber-options';
+import { VENOM_LOBBER_INITIAL_ATTACK_LOCK_SECONDS } from './venom-lobber-lifecycle';
 import {
   VENOM_LOBBER_SCHEMA,
   type VenomLobberData,
@@ -54,6 +55,8 @@ function initializeState(
       : MonsterLifecycleState.Dormant;
     vitality.stateTime[index] = index < options.initialPopulationCount ? -index * 0.22 : 0;
     vitality.hitTime[index] = 0;
+    vitality.timeSinceHit[index] = 1;
+    vitality.deathEffectSpawned[index] = 0;
     behavior.action[index] = VenomLobberAction.Roam;
     behavior.actionTime[index] = 0;
     behavior.nextTurnTime[index] = randomRange(identity.randomState, index, 0.8, 3.2);
@@ -64,6 +67,7 @@ function initializeState(
     combat.meleeTime[index] = 0;
     combat.meleeCooldown[index] = randomRange(identity.randomState, index, 0.2, 1.1);
     combat.meleeHitApplied[index] = 0;
+    combat.attackLock[index] = VENOM_LOBBER_INITIAL_ATTACK_LOCK_SECONDS;
     intent.targetSpeed[index] = 0;
     intent.turnRate[index] = 2.6;
     motion.currentSpeed[index] = 0;

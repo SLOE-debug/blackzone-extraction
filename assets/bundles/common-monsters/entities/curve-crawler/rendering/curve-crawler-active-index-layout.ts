@@ -158,6 +158,9 @@ function resolveTopologyMask(
   if (lifecycle === MonsterLifecycleState.Alive) {
     return BODY_VISIBLE;
   }
+  if (lifecycle === MonsterLifecycleState.Despawning) {
+    return BODY_VISIBLE | CRACK_VISIBLE;
+  }
   if (lifecycle === MonsterLifecycleState.Dying) {
     return BODY_VISIBLE | LIQUID_VISIBLE;
   }

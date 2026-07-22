@@ -22,6 +22,7 @@ import {
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
+import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
 
 const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 19;
 const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(24 / 180 * Math.PI);
@@ -33,6 +34,19 @@ PlanarMonsterHitPopulation {
   readonly aliveCount: number;
   maintainAround(options: Readonly<BattlefieldMonsterRepopulationOptions>): void;
   update(deltaTime: number): void;
+  simulate(deltaTime: number): void;
+  synchronizeRendering(): void;
+  createCrowdPopulation(populationId: number): PlanarCrowdPopulation;
+  findPlanarTarget(
+    entityIndex: number,
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean;
+  findPlanarHit(
+    entityIndex: number,
+    query: Readonly<PlanarMonsterHitQuery>,
+    result: MutablePlanarMonsterHitResult,
+  ): boolean;
   dispose(): void;
 }
 
@@ -42,6 +56,7 @@ interface BattlefieldMonsterRepopulationOptions {
   spawnInnerRadius: number;
   spawnOuterRadius: number;
   recycleRadius: number;
+  hardRecycleRadius: number;
   desiredPopulationCount: number;
 }
 
@@ -72,6 +87,8 @@ interface MutablePlanarMonsterHitQuery extends PlanarMonsterHitQuery {
 
 /** 保持一个地图随机怪物群的独立模拟，并接入战场共享怪物渲染批次。 */
 export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
+  public readonly populationId: number;
+  public readonly crowdPopulation: PlanarCrowdPopulation;
   private readonly population: BattlefieldMonsterRuntime;
   private readonly localTargetQuery: MutablePlanarTargetQuery = {
     originX: 0,
@@ -115,6 +132,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     spawnInnerRadius: 1,
     spawnOuterRadius: 2,
     recycleRadius: 3,
+    hardRecycleRadius: 4,
     desiredPopulationCount: 0,
   };
   private disposed = false;
@@ -129,6 +147,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     spawnSeed: number,
     worldDiameter: number,
     initialPopulationCount: number,
+    populationId: number,
   ) {
     if (!Number.isInteger(initialPopulationCount)
       || initialPopulationCount < 0
@@ -145,6 +164,8 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
       initialPopulationCount,
     );
     this.population = assembly.population;
+    this.populationId = populationId;
+    this.crowdPopulation = this.population.createCrowdPopulation(populationId);
   }
 
   /** 当前地图群体的怪物数量。 */
@@ -188,8 +209,15 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
       this.population.synchronizeCombatTarget(this.localCombatTarget);
       this.combatTargetActive = true;
     }
-    this.population.update(deltaTime);
+    this.population.simulate(deltaTime);
     return this.population.consumeAttackDamage();
+  }
+
+  /** 在世界级 Crowd 求解结束后提交最终姿态。 */
+  public synchronizeRendering(): void {
+    if (!this.disposed) {
+      this.population.synchronizeRendering();
+    }
   }
 
   /** 把战场世界方向转换到本群体局部平面并执行轻量辅助瞄准。 */
@@ -228,8 +256,42 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     );
   }
 
+  /** 只对共享空间索引给出的单一实体执行瞄准窄相位。 */
+  public writeAimTargetForEntity(
+    entityIndex: number,
+    originX: number,
+    originZ: number,
+    directionX: number,
+    directionZ: number,
+    automatic: boolean,
+    result: MutableBattlefieldAimTarget,
+  ): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    const config = BATTLEFIELD_MONSTER_SPAWN;
+    const query = this.localTargetQuery;
+    query.originX = originX / config.modelScale;
+    query.originY = -originZ / config.modelScale;
+    query.directionX = directionX;
+    query.directionY = -directionZ;
+    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE / config.modelScale;
+    query.minimumAlignment = automatic
+      ? AUTO_LOCK_MINIMUM_ALIGNMENT
+      : AIM_ASSIST_MINIMUM_ALIGNMENT;
+    if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
+      return false;
+    }
+    result.x = this.localTargetResult.x * config.modelScale;
+    result.y = config.groundOffsetY
+      + this.localTargetResult.elevation * config.modelScale;
+    result.z = -this.localTargetResult.y * config.modelScale;
+    return true;
+  }
+
   /** 查询一段世界空间子弹位移最先接触的本群怪物。 */
-  public writeProjectileHit(
+  public writeProjectileHitForEntity(
+    entityIndex: number,
     startX: number,
     startY: number,
     startZ: number,
@@ -252,7 +314,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     query.endY = -endZ * inverseScale;
     query.endElevation = (endY - config.groundOffsetY) * inverseScale;
     query.impactRadius = impactRadius * inverseScale;
-    if (!this.population.findFirstPlanarHit(query, this.localHitResult)) {
+    if (!this.population.findPlanarHit(entityIndex, query, this.localHitResult)) {
       return false;
     }
     result.entityId = this.localHitResult.entityId;
@@ -338,6 +400,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     this.repopulationOptions.spawnInnerRadius = config.spawnInnerRadius * inverseScale;
     this.repopulationOptions.spawnOuterRadius = config.spawnOuterRadius * inverseScale;
     this.repopulationOptions.recycleRadius = config.recycleRadius * inverseScale;
+    this.repopulationOptions.hardRecycleRadius = config.hardRecycleRadius * inverseScale;
     this.repopulationOptions.desiredPopulationCount = desiredPopulationCount;
   }
 }

@@ -2,24 +2,23 @@ import {
   type MutableBattlefieldAimTarget,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
+import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
 
 /** 战场聚合瞄准与子弹系统依赖的怪物群最小门面。 */
 export interface BattlefieldMonsterTargetGroup {
-  writeAimTarget(
+  readonly populationId: number;
+  readonly crowdPopulation: PlanarCrowdPopulation;
+  writeAimTargetForEntity(
+    entityIndex: number,
     originX: number,
     originZ: number,
     directionX: number,
     directionZ: number,
+    automatic: boolean,
     result: MutableBattlefieldAimTarget,
   ): boolean;
-  writeAutoTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean;
-  writeProjectileHit(
+  writeProjectileHitForEntity(
+    entityIndex: number,
     startX: number,
     startY: number,
     startZ: number,

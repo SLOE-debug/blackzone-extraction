@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { type Camera, type Material, Node } from 'cc';
 import {
   type MutablePlanarMonsterHitResult,
   type PlanarMonsterHitQuery,
@@ -18,6 +18,7 @@ import {
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
+import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
 
 const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 26;
 const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(25 / 180 * Math.PI);
@@ -54,11 +55,14 @@ interface MutableVenomRepopulationOptions {
   spawnInnerRadius: number;
   spawnOuterRadius: number;
   recycleRadius: number;
+  hardRecycleRadius: number;
   desiredPopulationCount: number;
 }
 
 /** 把 Venom Lobber 的局部 ECS 群体适配到战场世界坐标与伤害协议。 */
 export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGroup {
+  public readonly populationId: number;
+  public readonly crowdPopulation: PlanarCrowdPopulation;
   private readonly population: ReturnType<
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createVenomLobber']
   >;
@@ -103,6 +107,7 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     spawnInnerRadius: 1,
     spawnOuterRadius: 2,
     recycleRadius: 3,
+    hardRecycleRadius: 4,
     desiredPopulationCount: 0,
   };
   private combatTargetActive = false;
@@ -114,6 +119,8 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
     initialCenterX: number,
     initialCenterZ: number,
+    populationId: number,
+    camera: Camera,
   ) {
     const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
     const config = BATTLEFIELD_VENOM_LOBBER_CONFIG;
@@ -129,6 +136,7 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
       }),
       seed: config.seed,
       surfaceMaterialTemplate,
+      camera,
       combat: Object.freeze({
         detectionRadius: combat.detectionRadius * inverseScale,
         disengageRadius: combat.disengageRadius * inverseScale,
@@ -159,6 +167,8 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
         catalystDurationMultiplier: combat.catalystDurationMultiplier,
       }),
     });
+    this.populationId = populationId;
+    this.crowdPopulation = this.population.createCrowdPopulation(populationId);
   }
 
   public get count(): number {
@@ -188,6 +198,7 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     this.repopulation.spawnInnerRadius = config.spawnInnerRadius * inverseScale;
     this.repopulation.spawnOuterRadius = config.spawnOuterRadius * inverseScale;
     this.repopulation.recycleRadius = config.recycleRadius * inverseScale;
+    this.repopulation.hardRecycleRadius = config.hardRecycleRadius * inverseScale;
     this.repopulation.desiredPopulationCount = desiredCount;
     this.population.maintainAround(this.repopulation);
   }
@@ -209,8 +220,15 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
       this.population.synchronizeCombatTarget(this.localCombatTarget);
       this.combatTargetActive = true;
     }
-    this.population.update(deltaTime);
+    this.population.simulate(deltaTime);
     return this.population.consumeAttackDamage();
+  }
+
+  /** 在世界级 Crowd 求解结束后提交最终姿态。 */
+  public synchronizeRendering(): void {
+    if (!this.disposed) {
+      this.population.synchronizeRendering();
+    }
   }
 
   public writeAimTarget(
@@ -237,7 +255,41 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     );
   }
 
-  public writeProjectileHit(
+  /** 只对共享空间索引给出的单一实体执行瞄准窄相位。 */
+  public writeAimTargetForEntity(
+    entityIndex: number,
+    originX: number,
+    originZ: number,
+    directionX: number,
+    directionZ: number,
+    automatic: boolean,
+    result: MutableBattlefieldAimTarget,
+  ): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    const query = this.localTargetQuery;
+    query.originX = originX / scale;
+    query.originY = -originZ / scale;
+    query.directionX = directionX;
+    query.directionY = -directionZ;
+    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE / scale;
+    query.minimumAlignment = automatic
+      ? AUTO_LOCK_MINIMUM_ALIGNMENT
+      : AIM_ASSIST_MINIMUM_ALIGNMENT;
+    if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
+      return false;
+    }
+    result.x = this.localTargetResult.x * scale;
+    result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
+      + this.localTargetResult.elevation * scale;
+    result.z = -this.localTargetResult.y * scale;
+    return true;
+  }
+
+  public writeProjectileHitForEntity(
+    entityIndex: number,
     startX: number,
     startY: number,
     startZ: number,
@@ -259,7 +311,7 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     query.endY = -endZ * inverseScale;
     query.endElevation = (endY - BATTLEFIELD_MONSTER_SPAWN.groundOffsetY) * inverseScale;
     query.impactRadius = impactRadius * inverseScale;
-    if (!this.population.findFirstPlanarHit(query, this.localHitResult)) {
+    if (!this.population.findPlanarHit(entityIndex, query, this.localHitResult)) {
       return false;
     }
     result.entityId = this.localHitResult.entityId;

@@ -1,19 +1,23 @@
 import { UnlitColorBufferGeometry } from '../../../../../core/geometry/buffer-geometry';
 import { type VenomBombState } from '../model/venom-bomb-state';
 import { type VenomPoolState } from '../model/venom-pool-state';
+import { type VenomDeathEffectState } from '../model/venom-death-effect-state';
+import {
+  VENOM_POOL_VERTEX_COUNT,
+  writeVenomPoolGeometry,
+  writeVenomDeathResidueGeometry,
+  writeVenomSpawnResidueGeometry,
+} from './venom-pool-geometry';
 
 const BOMB_VERTEX_COUNT = 24;
 export const VENOM_WARNING_CIRCLE_SEGMENTS = 32;
 const MARKER_SEGMENTS = VENOM_WARNING_CIRCLE_SEGMENTS;
 const MARKER_VERTEX_COUNT = MARKER_SEGMENTS * 6;
-const POOL_RAYS = 14;
-const POOL_VERTEX_COUNT = POOL_RAYS * 3;
+const POOL_VERTEX_COUNT = VENOM_POOL_VERTEX_COUNT;
 const PROJECTILE_RADIUS = 1.85;
 const CHARGE_MAXIMUM_RADIUS = 2.05;
 const MARKER_COSINES = createUnitCircle(MARKER_SEGMENTS, true);
 const MARKER_SINES = createUnitCircle(MARKER_SEGMENTS, false);
-const POOL_COSINES = createUnitCircle(POOL_RAYS, true);
-const POOL_SINES = createUnitCircle(POOL_RAYS, false);
 const BOMB_TRIANGLE_VERTEX_IDS = Uint8Array.of(
   0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 2,
   1, 3, 2, 1, 4, 3, 1, 5, 4, 1, 2, 5,
@@ -164,7 +168,7 @@ export function writeVenomPoolEffectSlot(
   const y = pools.y[poolIndex] ?? 0;
   const baseVertex = slotIndex * VENOM_EFFECT_SLOT_VERTEX_COUNT;
   collapseSection(geometry, baseVertex, BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT, x, y, 0.06);
-  writePool(
+  writeVenomPoolGeometry(
     geometry,
     baseVertex + BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT,
     x,
@@ -174,6 +178,52 @@ export function writeVenomPoolEffectSlot(
     pools.duration[poolIndex] ?? 1,
     (pools.catalyzed[poolIndex] ?? 0) !== 0,
     poolIndex,
+  );
+}
+
+/** 使用池拓扑写入出生前置暗斑与三条裂纹。 */
+export function writeVenomSpawnEffectSlot(
+  geometry: UnlitColorBufferGeometry,
+  slotIndex: number,
+  x: number,
+  y: number,
+  radius: number,
+  elapsed: number,
+  seed: number,
+): void {
+  const baseVertex = slotIndex * VENOM_EFFECT_SLOT_VERTEX_COUNT;
+  collapseSection(geometry, baseVertex, BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT, x, y, 0.06);
+  writeVenomSpawnResidueGeometry(
+    geometry,
+    baseVertex + BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT,
+    x,
+    y,
+    radius,
+    Math.max(0, elapsed),
+    seed,
+  );
+}
+
+/** 使用池拓扑写入五枚无伤害飞溅和延迟消退残迹。 */
+export function writeVenomDeathEffectSlot(
+  geometry: UnlitColorBufferGeometry,
+  slotIndex: number,
+  deaths: VenomDeathEffectState,
+  deathIndex: number,
+): void {
+  const x = deaths.x[deathIndex] ?? 0;
+  const y = deaths.y[deathIndex] ?? 0;
+  const baseVertex = slotIndex * VENOM_EFFECT_SLOT_VERTEX_COUNT;
+  collapseSection(geometry, baseVertex, BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT, x, y, 0.06);
+  writeVenomDeathResidueGeometry(
+    geometry,
+    baseVertex + BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT,
+    x,
+    y,
+    deaths.heading[deathIndex] ?? 0,
+    deaths.scale[deathIndex] ?? 1,
+    deaths.elapsed[deathIndex] ?? 0,
+    deaths.duration[deathIndex] ?? 1,
   );
 }
 
@@ -252,61 +302,6 @@ function writeMarker(
       0.08, 1, 0.14, 1,
     );
     cursor += 6;
-  }
-}
-
-function writePool(
-  geometry: UnlitColorBufferGeometry,
-  vertexOffset: number,
-  x: number,
-  y: number,
-  radius: number,
-  elapsed: number,
-  duration: number,
-  catalyzed: boolean,
-  seed: number,
-): void {
-  const lifeProgress = Math.max(0, Math.min(elapsed / Math.max(duration, 0.001), 1));
-  const grow = Math.min(1, elapsed * 3.5);
-  const drain = Math.min(1, (1 - lifeProgress) * 4);
-  const visibleRadius = radius * grow * drain;
-  let cursor = vertexOffset;
-  for (let ray = 0; ray < POOL_RAYS; ray++) {
-    const variationA = 0.78 + ((ray * 5 + seed * 3) % 7) * 0.055;
-    const nextRay = (ray + 1) % POOL_RAYS;
-    const variationB = 0.78 + ((nextRay * 5 + seed * 3) % 7) * 0.055;
-    const cosineA = POOL_COSINES[ray] ?? 1;
-    const sineA = POOL_SINES[ray] ?? 0;
-    const cosineB = POOL_COSINES[nextRay] ?? 1;
-    const sineB = POOL_SINES[nextRay] ?? 0;
-    const even = ray % 2 === 0;
-    const red = catalyzed ? even ? 0.62 : 0.22 : even ? 0.18 : 0.08;
-    const green = catalyzed ? even ? 1 : 0.78 : even ? 0.58 : 0.35;
-    const blue = catalyzed ? even ? 0.06 : 0.025 : even ? 0.03 : 0.02;
-    writeVertexCoordinates(geometry, cursor, x, y, 0.065, red, green, blue, 1);
-    writeVertexCoordinates(
-      geometry,
-      cursor + 1,
-      x + cosineA * visibleRadius * variationA,
-      y + sineA * visibleRadius * variationA,
-      0.068,
-      red,
-      green,
-      blue,
-      1,
-    );
-    writeVertexCoordinates(
-      geometry,
-      cursor + 2,
-      x + cosineB * visibleRadius * variationB,
-      y + sineB * visibleRadius * variationB,
-      0.068,
-      red,
-      green,
-      blue,
-      1,
-    );
-    cursor += 3;
   }
 }
 

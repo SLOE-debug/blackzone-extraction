@@ -2,6 +2,7 @@ import { type Camera, type EffectAsset, type Material, Node } from 'cc';
 import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
+import { PlanarCrowdSeparationSystem } from '../../../core/monsters/crowd/planar-crowd-separation-system';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobber-config';
 import { calculateBattlefieldMonsterTargetCount } from '../model/battlefield-monster-wave-schedule';
@@ -12,6 +13,10 @@ import {
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
+import {
+  BattlefieldPenetratingHitBuffer,
+  type BattlefieldPenetratingHitQuery,
+} from './battlefield-penetrating-hit';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
@@ -21,6 +26,9 @@ import {
 const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
 const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
 const MAXIMUM_WAVE_DELTA_TIME = 0.05;
+const SWARM_POPULATION_ID = 0;
+const VENOM_POPULATION_ID = 1;
+const DEBUG_POPULATION_ID = 2;
 
 export type {
   BattlefieldAimTarget,
@@ -41,7 +49,8 @@ implements Disposable {
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
   >;
   private readonly groups: BattlefieldMonsterGroup[] = [];
-  private readonly targets = new BattlefieldMonsterTargetRegistry();
+  private readonly crowd = new PlanarCrowdSeparationSystem();
+  private readonly targets = new BattlefieldMonsterTargetRegistry(this.crowd);
   private readonly venomGroup: BattlefieldVenomLobberGroup;
   private swarm: BattlefieldMonsterGroup | null = null;
   private debugGroup: BattlefieldMonsterGroup | null = null;
@@ -89,14 +98,22 @@ implements Disposable {
         commonMonsters,
         initialCenterX,
         initialCenterZ,
+        VENOM_POPULATION_ID,
+        camera,
       );
+      this.crowd.register(venomGroup.crowdPopulation);
       this.targets.register(venomGroup);
     } catch (error: unknown) {
+      if (venomGroup !== null) {
+        this.targets.unregister(venomGroup);
+        this.crowd.unregister(venomGroup.populationId);
+      }
       venomGroup?.dispose();
       while (this.groups.length > 0) {
         const group = this.groups.pop();
         if (group !== undefined) {
           this.targets.unregister(group);
+          this.crowd.unregister(group.populationId);
           group.dispose();
         }
       }
@@ -158,6 +175,7 @@ implements Disposable {
     }
     if (this.debugGroup !== null) {
       this.targets.unregister(this.debugGroup);
+      this.crowd.unregister(this.debugGroup.populationId);
       removeMonsterGroup(this.groups, this.debugGroup);
       this.debugGroup.dispose();
     }
@@ -169,8 +187,10 @@ implements Disposable {
       DEBUG_CURVE_CRAWLER_SEED,
       DEBUG_CURVE_CRAWLER_WORLD_DIAMETER,
       1,
+      DEBUG_POPULATION_ID,
     );
     this.groups.push(group);
+    this.crowd.register(group.crowdPopulation);
     this.targets.register(group);
     this.debugGroup = group;
   }
@@ -219,6 +239,11 @@ implements Disposable {
       damage += group.update(deltaTime, target);
     }
     damage += this.venomGroup.update(deltaTime, target);
+    this.crowd.solve(Math.max(0, Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME)));
+    for (const group of this.groups) {
+      group.synchronizeRendering();
+    }
+    this.venomGroup.synchronizeRendering();
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.Simulation,
       stageStarted,
@@ -256,8 +281,10 @@ implements Disposable {
       config.seed,
       config.spawnOuterRadius * 2,
       0,
+      SWARM_POPULATION_ID,
     );
     this.groups.push(group);
+    this.crowd.register(group.crowdPopulation);
     this.targets.register(group);
     this.swarm = group;
   }
@@ -304,32 +331,15 @@ implements Disposable {
     );
   }
 
-  /** 查找一段世界子弹位移最先接触的怪物，并只对该实体施加一次伤害。 */
-  public damageFirstAlongSegment(
-    startX: number,
-    startY: number,
-    startZ: number,
-    endX: number,
-    endY: number,
-    endZ: number,
-    impactRadius: number,
-    damage: number,
-    result: MutableBattlefieldProjectileHit,
-  ): boolean {
+  /** 使用共享空间索引执行一次有序、去重的贯穿 Hitscan 伤害结算。 */
+  public damageAlongSegment(
+    query: Readonly<BattlefieldPenetratingHitQuery>,
+    hits: BattlefieldPenetratingHitBuffer,
+  ): number {
     if (this.disposed) {
-      return false;
+      return 0;
     }
-    return this.targets.damageFirstAlongSegment(
-      startX,
-      startY,
-      startZ,
-      endX,
-      endY,
-      endZ,
-      impactRadius,
-      damage,
-      result,
-    );
+    return this.targets.damageAlongSegment(query, hits);
   }
 
   /** 释放尸潮状态、共享渲染批次和调试实体。 */
@@ -339,11 +349,13 @@ implements Disposable {
     }
     this.disposed = true;
     this.targets.unregister(this.venomGroup);
+    this.crowd.unregister(this.venomGroup.populationId);
     this.venomGroup.dispose();
     while (this.groups.length > 0) {
       const group = this.groups.pop();
       if (group !== undefined) {
         this.targets.unregister(group);
+        this.crowd.unregister(group.populationId);
         group.dispose();
       }
     }

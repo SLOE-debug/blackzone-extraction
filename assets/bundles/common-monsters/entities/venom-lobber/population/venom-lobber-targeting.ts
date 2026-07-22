@@ -57,6 +57,41 @@ export class VenomLobberTargeting {
     result.elevation = 2.65 * scale;
     return true;
   }
+
+  /** 只评估共享空间索引给出的单一实体。 */
+  public findEntity(
+    state: VenomLobberState,
+    entityIndex: number,
+    query: Readonly<PlanarTargetQuery>,
+    result: MutablePlanarTargetResult,
+  ): boolean {
+    validateQuery(query);
+    if (!Number.isSafeInteger(entityIndex) || entityIndex < 0 || entityIndex >= state.count) {
+      throw new Error('Venom Lobber 瞄准实体索引越界。');
+    }
+    const { identity, transform, morphology, vitality } = state.data;
+    if ((vitality.state[entityIndex] as MonsterLifecycleState)
+      !== MonsterLifecycleState.Alive) {
+      return false;
+    }
+    const deltaX = (transform.x[entityIndex] ?? 0) - query.originX;
+    const deltaY = (transform.y[entityIndex] ?? 0) - query.originY;
+    const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+    if (distanceSquared <= DIRECTION_EPSILON * DIRECTION_EPSILON
+      || distanceSquared > query.maximumDistance * query.maximumDistance) {
+      return false;
+    }
+    const alignment = (deltaX * query.directionX + deltaY * query.directionY)
+      / Math.sqrt(distanceSquared);
+    if (alignment < query.minimumAlignment) {
+      return false;
+    }
+    result.entityId = identity.id[entityIndex] ?? entityIndex;
+    result.x = transform.x[entityIndex] ?? 0;
+    result.y = transform.y[entityIndex] ?? 0;
+    result.elevation = 2.65 * (morphology.scale[entityIndex] ?? 1);
+    return true;
+  }
 }
 
 function validateQuery(query: Readonly<PlanarTargetQuery>): void {
