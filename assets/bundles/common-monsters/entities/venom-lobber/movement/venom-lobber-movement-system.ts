@@ -8,6 +8,8 @@ export class VenomLobberMovementSystem implements EntitySystem<VenomLobberState,
   public update(state: VenomLobberState, deltaTime: number): void {
     const { transform, vitality, intent, motion } = state.data;
     for (let index = 0; index < state.count; index++) {
+      transform.previousX[index] = transform.x[index] ?? 0;
+      transform.previousY[index] = transform.y[index] ?? 0;
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         motion.currentSpeed[index] = 0;
         continue;

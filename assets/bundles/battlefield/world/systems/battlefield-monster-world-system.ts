@@ -1,15 +1,14 @@
 import { WorldPhase } from '../../../../core/world/world-phase';
 import {
-  BattlefieldPerformanceEvent,
   BattlefieldPerformanceStage,
 } from '../../debug/battlefield-performance-contracts';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
-/** 在武器伤害结算后推进怪物群体并回写玩家受击。 */
+/** 在 Simulation 阶段推进怪物人口、行为、移动与动画状态。 */
 export class BattlefieldMonsterWorldSystem extends BattlefieldWorldSystem {
-  public readonly phase = WorldPhase.Combat;
-  public readonly order = 10;
+  public readonly phase = WorldPhase.Simulation;
+  public readonly order = 0;
   protected readonly performanceStage = BattlefieldPerformanceStage.Monsters;
 
   protected execute(world: BattlefieldWorld, deltaTime: number): void {
@@ -18,15 +17,10 @@ export class BattlefieldMonsterWorldSystem extends BattlefieldWorldSystem {
     target.x = player.positionX;
     target.z = player.positionZ;
     target.collisionRadius = player.collisionRadius;
-    const attackDamage = monsters.update(
+    world.pendingMonsterAttackDamage = monsters.simulate(
       deltaTime,
       player.isAlive ? target : null,
       performance,
     );
-    if (attackDamage <= 0) {
-      return;
-    }
-    performance.recordEvent(BattlefieldPerformanceEvent.PlayerDamage, attackDamage);
-    player.damage(attackDamage);
   }
 }

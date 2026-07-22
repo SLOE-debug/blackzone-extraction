@@ -37,7 +37,7 @@ export const AKM_PROTOTYPE = Object.freeze({
       speed: 35,
       maximumRange: 24,
       impactRadius: 0.11,
-      maximumHitCount: 4,
+      penetrationEnergy: 4,
       damageRetention: 0.78,
       visual: WeaponProjectileVisual.Bullet,
     }),

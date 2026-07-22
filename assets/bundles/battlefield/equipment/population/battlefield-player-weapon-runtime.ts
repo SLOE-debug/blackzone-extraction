@@ -16,7 +16,6 @@ import {
 } from '../catalog/equipment-id';
 import {
   type BattlefieldAimTarget,
-  type BattlefieldMonsterPopulation,
 } from '../../population/battlefield-monster-population';
 import { BattlefieldWeaponActionState } from '../combat/battlefield-weapon-action-state';
 import {
@@ -35,7 +34,10 @@ import {
   type MutableWeaponAmmunitionStatus,
   type WeaponAmmunitionStatus,
 } from '../model/weapon-ammunition-status';
-import { BattlefieldProjectilePopulation } from '../projectile/population/battlefield-projectile-population';
+import {
+  BattlefieldProjectilePopulation,
+  type BattlefieldProjectileCollisionTarget,
+} from '../projectile/population/battlefield-projectile-population';
 import { createHeldWeaponMaterial } from '../rendering/held-weapon-material';
 import { HeldWeaponRenderer } from '../rendering/held-weapon-renderer';
 
@@ -171,12 +173,11 @@ export class BattlefieldPlayerWeaponRuntime {
     }
   }
 
-  /** 同步手持姿态、推进在途弹体，并对锁定目标触发射击。 */
-  public update(
+  /** 推进武器动作、同步手持姿态，并在允许时只生成新弹丸。 */
+  public updateFiring(
     deltaTime: number,
     owner: Readonly<BattlefieldWeaponOwnerPose>,
     fireTarget: Readonly<BattlefieldAimTarget> | null,
-    monsters: BattlefieldMonsterPopulation,
   ): void {
     this.ensureActive();
     validateOwnerPose(owner);
@@ -205,7 +206,6 @@ export class BattlefieldPlayerWeaponRuntime {
         this.muzzlePose,
         fireTarget,
         ammunition,
-        monsters,
         this.projectiles,
       );
       if (attackResult === BattlefieldWeaponAttackResult.Fired) {
@@ -223,7 +223,30 @@ export class BattlefieldPlayerWeaponRuntime {
       owner.rotationZ,
       owner.rotationW,
     );
-    this.projectiles?.update(safeDeltaTime);
+  }
+
+  /** 在 Simulation 阶段推进全部在途弹丸。 */
+  public integrateProjectiles(deltaTime: number): void {
+    this.ensureActive();
+    this.projectiles?.integrate(deltaTime);
+  }
+
+  /** 在 Combat 阶段对本帧弹丸位移执行连续碰撞。 */
+  public collideProjectiles(targets: BattlefieldProjectileCollisionTarget): void {
+    this.ensureActive();
+    this.projectiles?.collide(targets);
+  }
+
+  /** 在 PostSimulation 阶段统一结算弹丸命中。 */
+  public resolveProjectileImpacts(targets: BattlefieldProjectileCollisionTarget): void {
+    this.ensureActive();
+    this.projectiles?.resolveImpacts(targets);
+  }
+
+  /** 在 RenderPreparation 阶段上传实体弹丸最终位置。 */
+  public synchronizeProjectileRendering(): void {
+    this.ensureActive();
+    this.projectiles?.synchronizeRendering();
   }
 
   public dispose(): void {

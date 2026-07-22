@@ -34,6 +34,8 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
     appearanceSeed: entityField(Uint32Array, 1),
   },
   transform: {
+    previousX: entityField(Float32Array, 1),
+    previousY: entityField(Float32Array, 1),
     x: entityField(Float32Array, 1),
     y: entityField(Float32Array, 1),
     heading: entityField(Float32Array, 1),

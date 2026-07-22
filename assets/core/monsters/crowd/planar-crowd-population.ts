@@ -3,6 +3,8 @@ export interface PlanarCrowdPopulation {
   readonly populationId: number;
   readonly count: number;
   readonly lifecycle: Uint8Array;
+  readonly previousX: Float32Array;
+  readonly previousY: Float32Array;
   readonly x: Float32Array;
   readonly y: Float32Array;
   readonly radius: Float32Array;
@@ -16,6 +18,8 @@ export function validatePlanarCrowdPopulation(
   if (!Number.isSafeInteger(population.populationId) || population.populationId < 0
     || !Number.isSafeInteger(population.count) || population.count <= 0
     || population.lifecycle.length !== population.count
+    || population.previousX.length !== population.count
+    || population.previousY.length !== population.count
     || population.x.length !== population.count
     || population.y.length !== population.count
     || population.radius.length !== population.count

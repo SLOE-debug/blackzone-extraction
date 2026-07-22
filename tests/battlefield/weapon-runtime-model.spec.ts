@@ -84,7 +84,6 @@ describe('玩家武器运行时模型', () => {
       { muzzleX: 1, muzzleY: 2, muzzleZ: 3 },
       { x: 4, y: 2.5, z: 11 },
       ammunition,
-      { damageAlongSegment: () => 0 },
       {
         spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
           directions.push(directionX, directionY, directionZ);
@@ -181,7 +180,11 @@ describe('玩家武器运行时模型', () => {
   it('按射速与飞行时间推导子弹槽位并原地复用', () => {
     const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
     const capacity = calculateProjectileCapacity(definition);
-    const state = new BattlefieldProjectileState(capacity);
+    const state = new BattlefieldProjectileState(
+      capacity,
+      definition.projectile.penetrationEnergy,
+      definition.projectile.maximumRange,
+    );
 
     expect(capacity).toBe(
       Math.ceil(
@@ -271,7 +274,7 @@ describe('玩家武器运行时模型', () => {
   it('弹体网格沿三维飞行方向俯仰，不再保持固定世界 Y', () => {
     const direction = { x: 0, y: 0, z: 0 };
     writeBattlefieldProjectileDirection(0, 2.5, 0, 0, 1, 8, direction);
-    const state = new BattlefieldProjectileState(1);
+    const state = new BattlefieldProjectileState(1, 1, 10);
     state.spawn(0, 2.5, 0, direction.x, direction.y, direction.z);
     const positions = new Float32Array(
       BATTLEFIELD_PROJECTILE_TOPOLOGY.verticesPerProjectile * 3,

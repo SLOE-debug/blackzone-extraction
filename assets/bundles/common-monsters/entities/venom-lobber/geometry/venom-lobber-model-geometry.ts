@@ -8,11 +8,15 @@ import {
   StaticFacetedMeshSink,
 } from '../../../../../core/geometry/faceted/static-faceted-mesh-sink';
 import { type StaticSurfaceBufferGeometry } from '../../../../../core/geometry/buffer-geometry';
+import {
+  VENOM_LOBBER_LEG_PATHS,
+  VENOM_LOBBER_LEG_RADIAL_SEGMENTS,
+} from '../model/venom-lobber-leg-rig';
+import { createVenomLobberLegVertexBindings } from './venom-lobber-leg-bindings';
 
 const TAU = Math.PI * 2;
 const BODY_SEGMENTS = 8;
 const BODY_RINGS = 4;
-const LIMB_SEGMENTS = 6;
 const TAIL_BONE_COUNT = 8;
 
 const PALETTE = Object.freeze({
@@ -42,7 +46,9 @@ export interface VenomLobberModelGeometry {
   readonly tailWeights: Float32Array;
   readonly tailBones: Uint8Array;
   readonly venomWeights: Float32Array;
-  readonly legGroups: Uint8Array;
+  readonly legIds: Uint8Array;
+  readonly legSegmentIds: Uint8Array;
+  readonly legSegmentWeights: Float32Array;
   readonly strikeWeights: Float32Array;
   readonly tailBoneCount: number;
 }
@@ -76,7 +82,11 @@ export function createVenomLobberModelGeometry(): VenomLobberModelGeometry {
   const tailWeights = new Float32Array(geometry.vertexCount);
   const tailBones = new Uint8Array(geometry.vertexCount);
   const venomWeights = new Float32Array(geometry.vertexCount);
-  const legGroups = new Uint8Array(geometry.vertexCount);
+  const legBindings = createVenomLobberLegVertexBindings(
+    geometry.vertexCount,
+    legStart,
+    legEnd,
+  );
   const strikeWeights = new Float32Array(geometry.vertexCount);
   for (let vertex = tailStart; vertex < tailEnd; vertex++) {
     const x = geometry.positions[vertex * 3] ?? -2.2;
@@ -91,13 +101,6 @@ export function createVenomLobberModelGeometry(): VenomLobberModelGeometry {
     tailBones[vertex] = bone;
     tailWeights[vertex] = bone / (TAIL_BONE_COUNT - 1);
   }
-  for (let vertex = legStart; vertex < legEnd; vertex++) {
-    const positionOffset = vertex * 3;
-    const x = geometry.positions[positionOffset] ?? 0;
-    const y = geometry.positions[positionOffset + 1] ?? 0;
-    const longitudinalGroup = x > 1.45 ? 0 : x > -1.2 ? 1 : 2;
-    legGroups[vertex] = 1 + longitudinalGroup + (y < 0 ? 3 : 0);
-  }
   for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
     const x = geometry.positions[vertex * 3] ?? 0;
     strikeWeights[vertex] = Math.max(0, Math.min(1, (x - 1.15) / 3.8));
@@ -107,29 +110,26 @@ export function createVenomLobberModelGeometry(): VenomLobberModelGeometry {
     tailWeights,
     tailBones,
     venomWeights,
-    legGroups,
+    legIds: legBindings.legIds,
+    legSegmentIds: legBindings.segmentIds,
+    legSegmentWeights: legBindings.segmentWeights,
     strikeWeights,
     tailBoneCount: TAIL_BONE_COUNT,
   });
 }
 
 function appendLegs(sink: StaticFacetedMeshSink): void {
-  const leftPaths = Object.freeze([
-    path([[2.7, 1.1, 1.8, 0.45], [3.1, 2.7, 1.35, 0.38], [2.45, 4.35, 0.55, 0.3], [2.8, 5.15, 0.16, 0.2]]),
-    path([[0.75, 1.55, 1.65, 0.52], [0.65, 3.25, 1.18, 0.42], [-0.15, 5.0, 0.48, 0.31], [0.12, 5.72, 0.14, 0.2]]),
-    path([[-1.55, 1.45, 1.72, 0.5], [-2.25, 3.0, 1.24, 0.41], [-3.5, 4.48, 0.44, 0.3], [-3.55, 5.25, 0.13, 0.19]]),
-  ]);
-  const rightPaths = Object.freeze([
-    path([[2.85, -1.02, 1.75, 0.44], [3.38, -2.65, 1.3, 0.37], [2.9, -4.42, 0.5, 0.3], [3.16, -5.18, 0.15, 0.19]]),
-    path([[0.55, -1.52, 1.62, 0.51], [0.2, -3.3, 1.12, 0.42], [-0.82, -4.9, 0.45, 0.31], [-0.72, -5.76, 0.14, 0.2]]),
-    path([[-1.7, -1.34, 1.7, 0.49], [-2.55, -2.82, 1.18, 0.4], [-3.95, -4.12, 0.42, 0.29], [-4.08, -4.98, 0.13, 0.18]]),
-  ]);
   let pathIndex = 0;
-  for (const rings of leftPaths) {
-    appendIrregularPathTube(sink, rings, LIMB_SEGMENTS, pathIndex++, PALETTE.joint, PALETTE.shellLight);
-  }
-  for (const rings of rightPaths) {
-    appendIrregularPathTube(sink, rings, LIMB_SEGMENTS, pathIndex++, PALETTE.joint, PALETTE.shell);
+  for (const values of VENOM_LOBBER_LEG_PATHS) {
+    appendIrregularPathTube(
+      sink,
+      path(values),
+      VENOM_LOBBER_LEG_RADIAL_SEGMENTS,
+      pathIndex,
+      PALETTE.joint,
+      pathIndex < 3 ? PALETTE.shellLight : PALETTE.shell,
+    );
+    pathIndex++;
   }
 }
 

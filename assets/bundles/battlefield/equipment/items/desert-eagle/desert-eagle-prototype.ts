@@ -41,7 +41,7 @@ export const DESERT_EAGLE_PROTOTYPE = Object.freeze({
       speed: 31,
       maximumRange: 20,
       impactRadius: 0.12,
-      maximumHitCount: 1,
+      penetrationEnergy: 1,
       damageRetention: 1,
       visual: WeaponProjectileVisual.Bullet,
     }),

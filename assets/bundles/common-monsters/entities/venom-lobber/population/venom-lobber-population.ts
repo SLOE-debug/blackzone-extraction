@@ -15,6 +15,7 @@ import {
 import { type Node } from 'cc';
 import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { VenomLobberAnimationSystem } from '../animation/venom-lobber-animation-system';
+import { VenomLobberLegAnimationSystem } from '../animation/venom-lobber-leg-animation-system';
 import { VenomLobberCombatSystem } from '../behavior/venom-lobber-combat-system';
 import { normalizeVenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import {
@@ -42,6 +43,7 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
   private readonly combat: VenomLobberCombatSystem;
   private readonly movement = new VenomLobberMovementSystem();
   private readonly animation = new VenomLobberAnimationSystem();
+  private readonly legAnimation = new VenomLobberLegAnimationSystem();
   private readonly repopulation: VenomLobberRepopulationSystem;
   private readonly targeting = new VenomLobberTargeting();
   private readonly projectileHit = new VenomLobberProjectileHitSystem();
@@ -108,6 +110,7 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     this.life.update(this.state, safeDeltaTime);
     this.combat.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
+    this.legAnimation.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
   }
 
@@ -115,6 +118,12 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
   public synchronizeRendering(): void {
     this.ensureActive();
     this.renderer.update();
+  }
+
+  /** Crowd 改写根位置后用同一脚掌锚点重新求解腿链，消除支撑脚单帧滑动。 */
+  public synchronizePostCrowdPose(): void {
+    this.ensureActive();
+    this.legAnimation.update(this.state, 0);
   }
 
   public findBestPlanarTarget(

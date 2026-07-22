@@ -9,10 +9,17 @@ import { BattlefieldControlWorldSystem } from './systems/battlefield-control-wor
 import { BattlefieldEnvironmentWorldSystem } from './systems/battlefield-environment-world-system';
 import { BattlefieldGroundWorldSystem } from './systems/battlefield-ground-world-system';
 import { BattlefieldMonsterWorldSystem } from './systems/battlefield-monster-world-system';
+import { BattlefieldMonsterAttackWorldSystem } from './systems/battlefield-monster-attack-world-system';
+import { BattlefieldMonsterRenderingWorldSystem } from './systems/battlefield-monster-rendering-world-system';
+import { BattlefieldMonsterSpatialIndexWorldSystem } from './systems/battlefield-monster-spatial-index-world-system';
 import { BattlefieldPlayerWorldSystem } from './systems/battlefield-player-world-system';
 import { BattlefieldStatusWorldSystem } from './systems/battlefield-status-world-system';
 import { BattlefieldTreasureWorldSystem } from './systems/battlefield-treasure-world-system';
 import { BattlefieldWeaponWorldSystem } from './systems/battlefield-weapon-world-system';
+import { BattlefieldProjectileCollisionWorldSystem } from './systems/battlefield-projectile-collision-world-system';
+import { BattlefieldProjectileDamageWorldSystem } from './systems/battlefield-projectile-damage-world-system';
+import { BattlefieldProjectileIntegrationWorldSystem } from './systems/battlefield-projectile-integration-world-system';
+import { BattlefieldProjectileRenderingWorldSystem } from './systems/battlefield-projectile-rendering-world-system';
 
 interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombatTarget {
   x: number;
@@ -61,16 +68,24 @@ export class BattlefieldWorld {
   };
   public readonly weaponAimTarget: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
   public weaponFiringRequested = false;
+  public pendingMonsterAttackDamage = 0;
   private defeatPresented = false;
 
   constructor(public readonly resources: Readonly<BattlefieldWorldResources>) {
     this.scheduler.register(new BattlefieldControlWorldSystem());
     this.scheduler.register(new BattlefieldPlayerWorldSystem());
     this.scheduler.register(new BattlefieldCameraWorldSystem());
+    this.scheduler.register(new BattlefieldMonsterWorldSystem());
+    this.scheduler.register(new BattlefieldProjectileIntegrationWorldSystem());
     this.scheduler.register(new BattlefieldEnvironmentWorldSystem());
     this.scheduler.register(new BattlefieldGroundWorldSystem());
+    this.scheduler.register(new BattlefieldMonsterSpatialIndexWorldSystem());
+    this.scheduler.register(new BattlefieldProjectileCollisionWorldSystem());
     this.scheduler.register(new BattlefieldWeaponWorldSystem());
-    this.scheduler.register(new BattlefieldMonsterWorldSystem());
+    this.scheduler.register(new BattlefieldMonsterAttackWorldSystem());
+    this.scheduler.register(new BattlefieldProjectileDamageWorldSystem());
+    this.scheduler.register(new BattlefieldMonsterRenderingWorldSystem());
+    this.scheduler.register(new BattlefieldProjectileRenderingWorldSystem());
     this.scheduler.register(new BattlefieldStatusWorldSystem());
     this.scheduler.register(new BattlefieldTreasureWorldSystem());
     this.scheduler.seal();

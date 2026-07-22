@@ -7,16 +7,13 @@ import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobber-config';
 import { calculateBattlefieldMonsterTargetCount } from '../model/battlefield-monster-wave-schedule';
 import {
+  type BattlefieldProjectileSweepQuery,
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
-import {
-  BattlefieldPenetratingHitBuffer,
-  type BattlefieldPenetratingHitQuery,
-} from './battlefield-penetrating-hit';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
@@ -195,8 +192,8 @@ implements Disposable {
     this.debugGroup = group;
   }
 
-  /** 推进全部活动地图群体并汇总本帧伤害。 */
-  public update(
+  /** 推进人口维护与领域模拟；空间索引和渲染由后续 World 阶段处理。 */
+  public simulate(
     deltaTime: number,
     target: Readonly<BattlefieldMonsterCombatTarget> | null,
     performance: BattlefieldMonsterPerformanceRecorder,
@@ -239,18 +236,47 @@ implements Disposable {
       damage += group.update(deltaTime, target);
     }
     damage += this.venomGroup.update(deltaTime, target);
-    this.crowd.solve(Math.max(0, Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME)));
-    for (const group of this.groups) {
-      group.synchronizeRendering();
-    }
-    this.venomGroup.synchronizeRendering();
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.Simulation,
       stageStarted,
     );
 
+    return damage;
+  }
+
+  /** 在全部怪物移动完成后统一求解 Crowd，并留下最新共享空间索引。 */
+  public rebuildSpatialIndex(deltaTime: number): void {
+    if (this.disposed) {
+      return;
+    }
+    if (!Number.isFinite(deltaTime)) {
+      throw new Error('怪物空间索引帧时间必须是有限数值。');
+    }
+    const safeDeltaTime = Math.max(0, Math.min(deltaTime, MAXIMUM_WAVE_DELTA_TIME));
+    if (safeDeltaTime === 0) {
+      this.crowd.rebuild();
+      this.venomGroup.synchronizePostCrowdPose();
+      return;
+    }
+    this.crowd.solve(safeDeltaTime);
+    this.venomGroup.synchronizePostCrowdPose();
+  }
+
+  /** 在战斗与伤害结算后整理并上传全部怪物可见状态。 */
+  public synchronizeRendering(
+    deltaTime: number,
+    performance: BattlefieldMonsterPerformanceRecorder,
+  ): void {
+    if (this.disposed) {
+      return;
+    }
+    for (const group of this.groups) {
+      group.synchronizeRendering();
+    }
+    this.venomGroup.synchronizeRendering();
+
     const previousCapacity = this.renderBatch.renderCapacity;
-    stageStarted = performance.beginMonsterStage();
+    const stageStarted = performance.beginMonsterStage();
     this.renderBatch.synchronize(deltaTime);
     performance.recordMonsterRenderingWork(
       this.renderBatch.lastPoseUploadBytes,
@@ -264,7 +290,6 @@ implements Disposable {
     if (nextCapacity > previousCapacity) {
       performance.recordMonsterBatchGrowth(previousCapacity, nextCapacity);
     }
-    return damage;
   }
 
   /** 在加载阶段创建唯一固定容量群体，槽位保持休眠直到波次激活。 */
@@ -331,15 +356,33 @@ implements Disposable {
     );
   }
 
-  /** 使用共享空间索引执行一次有序、去重的贯穿 Hitscan 伤害结算。 */
-  public damageAlongSegment(
-    query: Readonly<BattlefieldPenetratingHitQuery>,
-    hits: BattlefieldPenetratingHitBuffer,
-  ): number {
+  /** 查询实体弹丸本帧真实位移最先接触且尚未命中过的怪物。 */
+  public findFirstProjectileHit(
+    query: Readonly<BattlefieldProjectileSweepQuery>,
+    ignoredPopulationIds: Uint32Array,
+    ignoredEntityIds: Uint32Array,
+    ignoredOffset: number,
+    ignoredCount: number,
+    result: MutableBattlefieldProjectileHit,
+  ): boolean {
     if (this.disposed) {
-      return 0;
+      return false;
     }
-    return this.targets.damageAlongSegment(query, hits);
+    return this.targets.findFirstProjectileHit(
+      query,
+      ignoredPopulationIds,
+      ignoredEntityIds,
+      ignoredOffset,
+      ignoredCount,
+      result,
+    );
+  }
+
+  /** 把 PostSimulation 中的弹丸伤害路由到稳定群体与实体。 */
+  public damageMonster(populationId: number, entityId: number, amount: number): void {
+    if (!this.disposed) {
+      this.targets.damageMonster(populationId, entityId, amount);
+    }
   }
 
   /** 释放尸潮状态、共享渲染批次和调试实体。 */

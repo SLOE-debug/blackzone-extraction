@@ -37,7 +37,7 @@ export const M4A1_PROTOTYPE = Object.freeze({
       speed: 38,
       maximumRange: 25,
       impactRadius: 0.095,
-      maximumHitCount: 3,
+      penetrationEnergy: 3,
       damageRetention: 0.72,
       visual: WeaponProjectileVisual.Bullet,
     }),

@@ -44,7 +44,7 @@ export const PUMP_SHOTGUN_PROTOTYPE = Object.freeze({
       speed: 26,
       maximumRange: 14,
       impactRadius: 0.09,
-      maximumHitCount: 2,
+      penetrationEnergy: 2,
       damageRetention: 0.58,
       visual: WeaponProjectileVisual.BuckshotPellet,
     }),

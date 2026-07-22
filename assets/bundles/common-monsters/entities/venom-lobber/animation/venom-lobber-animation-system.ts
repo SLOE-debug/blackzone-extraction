@@ -1,13 +1,19 @@
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
-import { TAU } from '../../../../../core/math/scalar';
 import { VenomLobberAction } from '../model/venom-lobber-action';
 import { type VenomLobberState } from '../model/venom-lobber-state';
+import { type VenomLobberData } from '../model/venom-lobber-schema';
 import {
   VENOM_LOBBER_DEATH_SECONDS,
   VENOM_LOBBER_DESPAWN_SECONDS,
   VENOM_LOBBER_SPAWN_SECONDS,
 } from '../model/venom-lobber-lifecycle';
+import {
+  calculateVenomLobberSpawnLandingBob,
+  calculateVenomLobberSpawnRootElevation,
+  calculateVenomLobberSpawnRootForward,
+  calculateVenomLobberSpawnRootPitch,
+} from './venom-lobber-spawn-pose';
 
 /** 从动作、速度和施法时间派生身体起伏、尾刺蓄力与毒囊脉冲。 */
 export class VenomLobberAnimationSystem implements EntitySystem<VenomLobberState, number> {
@@ -18,16 +24,20 @@ export class VenomLobberAnimationSystem implements EntitySystem<VenomLobberState
       if (lifecycle === MonsterLifecycleState.Spawning) {
         const stateTime = vitality.stateTime[index] ?? 0;
         const progress = clamp01(stateTime / VENOM_LOBBER_SPAWN_SECONDS);
-        animation.tailCharge[index] = 1 - smoothStep(progress);
-        const landingPulse = stateTime >= 1.05
-          ? Math.sin(clamp01((stateTime - 1.05) / 0.55) * Math.PI) * 0.58
+        writeSpawnRootPose(animation, index, stateTime);
+        animation.tailCharge[index] = 1 - smoothStep(clamp01((stateTime - 0.12) / 0.78));
+        const landingPulse = stateTime >= 1.35
+          ? Math.sin(clamp01((stateTime - 1.35) / 0.25) * Math.PI) * 0.58
           : 0;
-        animation.sacPulse[index] = stateTime < 0.32
+        animation.sacPulse[index] = stateTime < 0.25
           ? 0.08 + Math.sin(progress * Math.PI * 4) * 0.04
           : landingPulse;
-        animation.bodyBob[index] = 0;
+        animation.bodyBob[index] = calculateVenomLobberSpawnLandingBob(stateTime);
         continue;
       }
+      animation.spawnRootForward[index] = 0;
+      animation.spawnRootElevation[index] = 0;
+      animation.spawnRootPitch[index] = 0;
       if (lifecycle === MonsterLifecycleState.Dying) {
         const stateTime = vitality.stateTime[index] ?? 0;
         const progress = clamp01(stateTime / VENOM_LOBBER_DEATH_SECONDS);
@@ -53,9 +63,7 @@ export class VenomLobberAnimationSystem implements EntitySystem<VenomLobberState
         continue;
       }
       const speed = Math.abs(motion.currentSpeed[index] ?? 0);
-      const phase = ((animation.gaitPhase[index] ?? 0) + deltaTime * (1.4 + speed * 0.32))
-        % TAU;
-      animation.gaitPhase[index] = phase;
+      const phase = animation.gaitPhase[index] ?? 0;
       animation.bodyBob[index] = Math.sin(phase * 2) * Math.min(0.28, speed * 0.025);
       const action = behavior.action[index] as VenomLobberAction;
       const releaseTime = Math.max((behavior.actionTime[index] ?? 1) * 0.68, 0.01);
@@ -70,6 +78,16 @@ export class VenomLobberAnimationSystem implements EntitySystem<VenomLobberState
       animation.sacPulse[index] = 0.18 + (animation.tailCharge[index] ?? 0) * 0.82;
     }
   }
+}
+
+function writeSpawnRootPose(
+  animation: VenomLobberData['animation'],
+  index: number,
+  stateTime: number,
+): void {
+  animation.spawnRootForward[index] = calculateVenomLobberSpawnRootForward(stateTime);
+  animation.spawnRootElevation[index] = calculateVenomLobberSpawnRootElevation(stateTime);
+  animation.spawnRootPitch[index] = calculateVenomLobberSpawnRootPitch(stateTime);
 }
 
 function clamp01(value: number): number {

@@ -4,6 +4,10 @@ import {
   type EntityData,
 } from '../../../../../core/entities/entity-schema';
 import { type EntityTable } from '../../../../../core/entities/entity-table';
+import {
+  VENOM_LOBBER_LEG_COUNT,
+  VENOM_LOBBER_LEG_JOINT_COMPONENT_COUNT,
+} from './venom-lobber-leg-rig';
 
 /** Venom Lobber 的固定 SoA 组件 Schema。 */
 export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
@@ -13,6 +17,8 @@ export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
     appearanceSeed: entityField(Uint32Array, 1),
   },
   transform: {
+    previousX: entityField(Float32Array, 1),
+    previousY: entityField(Float32Array, 1),
     x: entityField(Float32Array, 1),
     y: entityField(Float32Array, 1),
     heading: entityField(Float32Array, 1),
@@ -60,6 +66,20 @@ export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
     tailCharge: entityField(Float32Array, 1),
     sacPulse: entityField(Float32Array, 1),
     hitFlash: entityField(Float32Array, 1),
+    spawnRootForward: entityField(Float32Array, 1),
+    spawnRootElevation: entityField(Float32Array, 1),
+    spawnRootPitch: entityField(Float32Array, 1),
+    legPoseInitialized: entityField(Uint8Array, 1),
+    footAnchorX: entityField(Float32Array, VENOM_LOBBER_LEG_COUNT),
+    footAnchorY: entityField(Float32Array, VENOM_LOBBER_LEG_COUNT),
+    swingStartX: entityField(Float32Array, VENOM_LOBBER_LEG_COUNT),
+    swingStartY: entityField(Float32Array, VENOM_LOBBER_LEG_COUNT),
+    swingTargetX: entityField(Float32Array, VENOM_LOBBER_LEG_COUNT),
+    swingTargetY: entityField(Float32Array, VENOM_LOBBER_LEG_COUNT),
+    legSwinging: entityField(Uint8Array, VENOM_LOBBER_LEG_COUNT),
+    legJointX: entityField(Float32Array, VENOM_LOBBER_LEG_JOINT_COMPONENT_COUNT),
+    legJointY: entityField(Float32Array, VENOM_LOBBER_LEG_JOINT_COMPONENT_COUNT),
+    legJointZ: entityField(Float32Array, VENOM_LOBBER_LEG_JOINT_COMPONENT_COUNT),
   },
 } as const);
 

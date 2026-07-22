@@ -11,12 +11,12 @@ import {
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../../core/rendering/dynamic-mesh-batch';
 import { VENOM_LOBBER_MODEL_GEOMETRY } from '../geometry/venom-lobber-model-geometry';
+import { VenomLobberLegGeometryDeformer } from '../geometry/venom-lobber-leg-geometry-deformer';
 import { VenomLobberAction } from '../model/venom-lobber-action';
 import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import {
   VENOM_LOBBER_DEATH_SECONDS,
   VENOM_LOBBER_DESPAWN_SECONDS,
-  VENOM_LOBBER_SPAWN_SECONDS,
 } from '../model/venom-lobber-lifecycle';
 import { type VenomLobberState } from '../model/venom-lobber-state';
 import { VENOM_LOBBER_TAIL_PIVOT_FORWARD } from '../model/venom-lobber-tail-socket';
@@ -31,7 +31,6 @@ const BODY_BOUNDS = Object.freeze({
   maxY: 1_000_000,
   maxZ: 512,
 });
-const LEG_GROUP_COUNT = 6;
 
 /** 把全部可见 Venom Lobber 紧凑写入一个动态 MeshRenderer。 */
 export class VenomLobberBodyRenderer {
@@ -43,8 +42,7 @@ export class VenomLobberBodyRenderer {
   private readonly tailSines = new Float32Array(
     VENOM_LOBBER_MODEL_GEOMETRY.tailBoneCount,
   );
-  private readonly legCosines = new Float32Array(LEG_GROUP_COUNT);
-  private readonly legSines = new Float32Array(LEG_GROUP_COUNT);
+  private readonly legDeformer = new VenomLobberLegGeometryDeformer();
   private readonly packedEntityIds: Int32Array;
   private readonly previousHitFlash: Float32Array;
   private readonly previousSacPulse: Float32Array;
@@ -159,7 +157,7 @@ export class VenomLobberBodyRenderer {
   /**
    * 应用钻地展开、六足步态、卷尾蓄力、近战扑击和死亡侧翻。
    *
-   * 尾节和足组的三角函数按实体预计算，顶点热循环只执行数组读取与乘加。
+   * 尾节旋转与腿段刚性变换按实体预计算，顶点热循环只执行数组读取与乘加。
    */
   private writeEntity(
     entityIndex: number,
@@ -171,19 +169,15 @@ export class VenomLobberBodyRenderer {
     const source = model.geometry;
     const data = this.state.data;
     const { identity, transform, morphology, vitality } = data;
-    const { behavior, combat, motion, animation } = data;
+    const { behavior, combat, animation } = data;
     const scale = morphology.scale[entityIndex] ?? 1;
     const stateTime = vitality.stateTime[entityIndex] ?? 0;
-    const spawnProgress = lifecycle === MonsterLifecycleState.Spawning
-      ? clamp01(stateTime / VENOM_LOBBER_SPAWN_SECONDS)
-      : 1;
     const deathProgress = lifecycle === MonsterLifecycleState.Dying
       ? smoothStep(clamp01(stateTime / VENOM_LOBBER_DEATH_SECONDS))
       : 0;
     const despawnProgress = lifecycle === MonsterLifecycleState.Despawning
       ? smoothStep(clamp01(stateTime / VENOM_LOBBER_DESPAWN_SECONDS))
       : 0;
-    const spawnEase = smoothStep(spawnProgress);
     const animationDirection = ((identity.appearanceSeed[entityIndex] ?? 0) & 1) === 0
       ? 1
       : -1;
@@ -195,26 +189,18 @@ export class VenomLobberBodyRenderer {
       this.combatOptions,
     );
     const gaitPhase = animation.gaitPhase[entityIndex] ?? 0;
-    const speedRatio = Math.min(
-      1,
-      Math.abs(motion.currentSpeed[entityIndex] ?? 0)
-        / Math.max(morphology.cruiseSpeed[entityIndex] ?? 1, 0.01),
-    );
     const tailAngle = Math.sin(gaitPhase * 0.72) * 0.14
       + (animation.tailCharge[entityIndex] ?? 0) * 0.82
       + animationDirection * Math.sin(deathProgress * Math.PI) * 0.92
       - animationDirection * deathProgress * 0.34;
     this.prepareTailRotations(tailAngle);
-    this.prepareLegRotations(gaitPhase);
+    this.legDeformer.prepare(this.state, entityIndex);
 
-    const spawnTilt = (1 - spawnEase) * -0.64;
-    const spawnTwist = Math.sin(spawnProgress * Math.PI) * animationDirection * 0.22;
+    const spawnPitch = animation.spawnRootPitch[entityIndex] ?? 0;
     const deathLean = smoothStep(clamp01((stateTime - 0.18) / 0.5));
     const deathRoll = animationDirection * deathLean * 0.610865238;
-    const spawnTiltCosine = Math.cos(spawnTilt);
-    const spawnTiltSine = Math.sin(spawnTilt);
-    const spawnTwistCosine = Math.cos(spawnTwist);
-    const spawnTwistSine = Math.sin(spawnTwist);
+    const spawnPitchCosine = Math.cos(spawnPitch);
+    const spawnPitchSine = Math.sin(spawnPitch);
     const deathRollCosine = Math.cos(deathRoll);
     const deathRollSine = Math.sin(deathRoll);
     const heading = transform.heading[entityIndex] ?? 0;
@@ -223,7 +209,8 @@ export class VenomLobberBodyRenderer {
     const rootX = transform.x[entityIndex] ?? 0;
     const rootY = transform.y[entityIndex] ?? 0;
     const bodyBob = (animation.bodyBob[entityIndex] ?? 0) - meleeStrike * 0.16;
-    const spawnLift = (spawnEase - 1) * 8.6;
+    const spawnRootForward = animation.spawnRootForward[entityIndex] ?? 0;
+    const spawnRootElevation = animation.spawnRootElevation[entityIndex] ?? 0;
     const deathSink = -smoothStep(clamp01((stateTime - 1.08) / 0.77)) * 1.8
       - despawnProgress * 2.4;
     const hitFlash = animation.hitFlash[entityIndex] ?? 0;
@@ -247,22 +234,18 @@ export class VenomLobberBodyRenderer {
         localY = relativeX * sine + localY * cosine;
       }
 
-      const legGroup = model.legGroups[vertex] ?? 0;
-      if (legGroup > 0) {
-        const groupIndex = legGroup - 1;
-        const longitudinalGroup = groupIndex % 3;
-        const spawnLeg = smoothStep(clamp01(
-          (stateTime - (0.32 + (2 - longitudinalGroup) * 0.08)) / 0.34,
-        ));
-        const deathLeg = smoothStep(clamp01(
-          (stateTime - (0.18 + (2 - longitudinalGroup) * 0.08)) / 0.34,
-        ));
-        const lifecycleSpread = lifecycle === MonsterLifecycleState.Spawning
-          ? 0.14 + spawnLeg * 0.86
-          : 1 - deathLeg * 0.7 - despawnProgress * 0.72;
-        localY *= Math.max(0.12, lifecycleSpread);
-        localX += (this.legCosines[groupIndex] ?? 0) * speedRatio * 0.18;
-        localZ += Math.max(0, this.legSines[groupIndex] ?? 0) * speedRatio * 0.28;
+      const legId = model.legIds[vertex] ?? 0;
+      if (legId > 0) {
+        this.legDeformer.transform(
+          localX,
+          localY,
+          localZ,
+          legId,
+          model.legSegmentIds[vertex] ?? 0,
+        );
+        localX = this.legDeformer.x;
+        localY = this.legDeformer.y;
+        localZ = this.legDeformer.z;
       }
 
       const strikeWeight = model.strikeWeights[vertex] ?? 0;
@@ -279,23 +262,19 @@ export class VenomLobberBodyRenderer {
         localZ *= 1 - venomWeight * implosion * 0.34;
       }
 
-      const tiltedX = localX * spawnTiltCosine - localZ * spawnTiltSine;
-      let posedZ = localX * spawnTiltSine + localZ * spawnTiltCosine;
-      const twistedX = tiltedX * spawnTwistCosine - localY * spawnTwistSine;
-      let posedY = tiltedX * spawnTwistSine + localY * spawnTwistCosine;
+      const pitchedX = localX * spawnPitchCosine - localZ * spawnPitchSine;
+      let posedZ = localX * spawnPitchSine + localZ * spawnPitchCosine;
+      const posedX = pitchedX + spawnRootForward;
+      let posedY = localY;
       const rolledY = posedY * deathRollCosine - posedZ * deathRollSine;
       posedZ = posedY * deathRollSine + posedZ * deathRollCosine;
       posedY = rolledY;
 
-      const scaledX = twistedX * scale;
+      const scaledX = posedX * scale;
       const scaledY = posedY * scale;
       const worldX = rootX + scaledX * headingCosine - scaledY * headingSine;
       const worldY = rootY + scaledX * headingSine + scaledY * headingCosine;
-      const tailLead = tailBone > 0
-        ? tailBone / Math.max(1, model.tailBoneCount - 1)
-        : 0;
-      const vertexSpawnLift = spawnLift * (1 - tailLead * 0.76);
-      let worldZ = (posedZ + bodyBob + vertexSpawnLift + deathSink) * scale;
+      let worldZ = (posedZ + bodyBob + spawnRootElevation + deathSink) * scale;
       if (lifecycle !== MonsterLifecycleState.Spawning) {
         worldZ = Math.max(0.025, worldZ);
       }
@@ -329,15 +308,6 @@ export class VenomLobberBodyRenderer {
     }
   }
 
-  private prepareLegRotations(gaitPhase: number): void {
-    for (let group = 0; group < LEG_GROUP_COUNT; group++) {
-      const longitudinalGroup = group % 3;
-      const sideOffset = group >= 3 ? Math.PI : 0;
-      const angle = gaitPhase + longitudinalGroup * Math.PI * 2 / 3 + sideOffset;
-      this.legCosines[group] = Math.cos(angle);
-      this.legSines[group] = Math.sin(angle);
-    }
-  }
 }
 
 function createBodyGeometry(capacity: number): UnlitColorBufferGeometry {

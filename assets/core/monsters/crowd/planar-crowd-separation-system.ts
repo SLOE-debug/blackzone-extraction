@@ -44,6 +44,7 @@ export class PlanarCrowdSeparationSystem {
   private bucketMask = 0;
   private activeCount = 0;
   private maximumRadius = 0;
+  private maximumFrameDisplacement = 0;
 
   constructor(
     private readonly options: Readonly<PlanarCrowdSeparationOptions>
@@ -80,6 +81,7 @@ export class PlanarCrowdSeparationSystem {
     this.nextInBucket.fill(-1);
     this.activeCount = 0;
     this.maximumRadius = 0;
+    this.maximumFrameDisplacement = 0;
     const inverseCellSize = 1 / this.options.cellSize;
     for (let populationIndex = 0; populationIndex < this.populations.length; populationIndex++) {
       const population = this.populations[populationIndex];
@@ -102,6 +104,13 @@ export class PlanarCrowdSeparationSystem {
         this.nextInBucket[slot] = this.bucketHeads[bucket] ?? -1;
         this.bucketHeads[bucket] = slot;
         this.maximumRadius = Math.max(this.maximumRadius, population.radius[entityIndex] ?? 0);
+        this.maximumFrameDisplacement = Math.max(
+          this.maximumFrameDisplacement,
+          Math.hypot(
+            (population.x[entityIndex] ?? 0) - (population.previousX[entityIndex] ?? 0),
+            (population.y[entityIndex] ?? 0) - (population.previousY[entityIndex] ?? 0),
+          ),
+        );
       }
     }
   }
@@ -128,7 +137,7 @@ export class PlanarCrowdSeparationSystem {
     this.rebuild();
   }
 
-  /** 用线段平面包围盒遍历一次共享空间索引，写出潜在命中实体。 */
+  /** 用 Supercover DDA 遍历线段实际经过的网格及碰撞半径邻域。 */
   public collectSegmentCandidates(
     startX: number,
     startY: number,
@@ -142,26 +151,51 @@ export class PlanarCrowdSeparationSystem {
       throw new Error('Crowd 线段候选查询参数无效。');
     }
     result.reset();
-    const padding = queryRadius + this.maximumRadius;
-    const inverseCellSize = 1 / this.options.cellSize;
-    const minimumCellX = Math.floor((Math.min(startX, endX) - padding) * inverseCellSize);
-    const maximumCellX = Math.floor((Math.max(startX, endX) + padding) * inverseCellSize);
-    const minimumCellY = Math.floor((Math.min(startY, endY) - padding) * inverseCellSize);
-    const maximumCellY = Math.floor((Math.max(startY, endY) + padding) * inverseCellSize);
-    for (let cellY = minimumCellY; cellY <= maximumCellY; cellY++) {
-      for (let cellX = minimumCellX; cellX <= maximumCellX; cellX++) {
-        let slot = this.bucketHeads[this.hashCell(cellX, cellY)] ?? -1;
-        while (slot >= 0) {
-          const next = this.nextInBucket[slot] ?? -1;
-          if ((this.cellX[slot] ?? 0) === cellX && (this.cellY[slot] ?? 0) === cellY) {
-            const population = this.populations[this.populationIndices[slot] ?? 0];
-            if (population !== undefined) {
-              result.include(population.populationId, this.entityIndices[slot] ?? 0);
-            }
-          }
-          slot = next;
-        }
+    const padding = queryRadius + this.maximumRadius + this.maximumFrameDisplacement;
+    const cellSize = this.options.cellSize;
+    const inverseCellSize = 1 / cellSize;
+    const neighborRange = Math.ceil(padding * inverseCellSize);
+    let cellX = Math.floor(startX * inverseCellSize);
+    let cellY = Math.floor(startY * inverseCellSize);
+    const endCellX = Math.floor(endX * inverseCellSize);
+    const endCellY = Math.floor(endY * inverseCellSize);
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const stepX = deltaX > 0 ? 1 : deltaX < 0 ? -1 : 0;
+    const stepY = deltaY > 0 ? 1 : deltaY < 0 ? -1 : 0;
+    const nextBoundaryX = stepX > 0 ? (cellX + 1) * cellSize : cellX * cellSize;
+    const nextBoundaryY = stepY > 0 ? (cellY + 1) * cellSize : cellY * cellSize;
+    let nextProgressX = stepX === 0
+      ? Number.POSITIVE_INFINITY
+      : (nextBoundaryX - startX) / deltaX;
+    let nextProgressY = stepY === 0
+      ? Number.POSITIVE_INFINITY
+      : (nextBoundaryY - startY) / deltaY;
+    const progressDeltaX = stepX === 0
+      ? Number.POSITIVE_INFINITY
+      : cellSize / Math.abs(deltaX);
+    const progressDeltaY = stepY === 0
+      ? Number.POSITIVE_INFINITY
+      : cellSize / Math.abs(deltaY);
+
+    this.collectCellNeighborhood(cellX, cellY, neighborRange, result);
+    while (cellX !== endCellX || cellY !== endCellY) {
+      if (nextProgressX < nextProgressY) {
+        cellX += stepX;
+        nextProgressX += progressDeltaX;
+      } else if (nextProgressY < nextProgressX) {
+        cellY += stepY;
+        nextProgressY += progressDeltaY;
+      } else {
+        // 穿过网格角时先覆盖两个正交邻格，再进入对角格，避免边界漏判。
+        this.collectCellNeighborhood(cellX + stepX, cellY, neighborRange, result);
+        this.collectCellNeighborhood(cellX, cellY + stepY, neighborRange, result);
+        cellX += stepX;
+        cellY += stepY;
+        nextProgressX += progressDeltaX;
+        nextProgressY += progressDeltaY;
       }
+      this.collectCellNeighborhood(cellX, cellY, neighborRange, result);
     }
     return result.count;
   }
@@ -231,6 +265,32 @@ export class PlanarCrowdSeparationSystem {
             }
             second = next;
           }
+        }
+      }
+    }
+  }
+
+  /** 把一个 DDA 主 Cell 周围的扩张邻域写入固定候选缓冲。 */
+  private collectCellNeighborhood(
+    centerCellX: number,
+    centerCellY: number,
+    neighborRange: number,
+    result: PlanarCrowdCandidateBuffer,
+  ): void {
+    for (let offsetY = -neighborRange; offsetY <= neighborRange; offsetY++) {
+      const cellY = centerCellY + offsetY;
+      for (let offsetX = -neighborRange; offsetX <= neighborRange; offsetX++) {
+        const cellX = centerCellX + offsetX;
+        let slot = this.bucketHeads[this.hashCell(cellX, cellY)] ?? -1;
+        while (slot >= 0) {
+          const next = this.nextInBucket[slot] ?? -1;
+          if ((this.cellX[slot] ?? 0) === cellX && (this.cellY[slot] ?? 0) === cellY) {
+            const population = this.populations[this.populationIndices[slot] ?? 0];
+            if (population !== undefined) {
+              result.include(population.populationId, this.entityIndices[slot] ?? 0);
+            }
+          }
+          slot = next;
         }
       }
     }

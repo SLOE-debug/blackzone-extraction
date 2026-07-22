@@ -2,11 +2,7 @@ import { PlanarCrowdCandidateBuffer } from '../../../core/monsters/crowd/planar-
 import { type PlanarCrowdSeparationSystem } from '../../../core/monsters/crowd/planar-crowd-separation-system';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
-  BattlefieldPenetratingHitBuffer,
-  type BattlefieldPenetratingHitQuery,
-  validateBattlefieldPenetratingHitQuery,
-} from './battlefield-penetrating-hit';
-import {
+  type BattlefieldProjectileSweepQuery,
   type MutableBattlefieldAimTarget,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
@@ -21,6 +17,7 @@ export class BattlefieldMonsterTargetRegistry {
   private readonly candidates = new PlanarCrowdCandidateBuffer(MAXIMUM_CROWD_CANDIDATES);
   private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
   private readonly hitCandidate: MutableBattlefieldProjectileHit = {
+    populationId: 0,
     entityId: -1,
     x: 0,
     y: 0,
@@ -94,13 +91,16 @@ export class BattlefieldMonsterTargetRegistry {
     return found;
   }
 
-  /** 一次遍历共享空间索引，按进度排序去重后依次结算衰减伤害。 */
-  public damageAlongSegment(
-    query: Readonly<BattlefieldPenetratingHitQuery>,
-    hits: BattlefieldPenetratingHitBuffer,
-  ): number {
-    validateBattlefieldPenetratingHitQuery(query, hits.capacity);
-    hits.reset();
+  /** 在实体弹丸本帧扫掠路径中返回未命中过的最早目标。 */
+  public findFirstProjectileHit(
+    query: Readonly<BattlefieldProjectileSweepQuery>,
+    ignoredPopulationIds: Uint32Array,
+    ignoredEntityIds: Uint32Array,
+    ignoredOffset: number,
+    ignoredCount: number,
+    result: MutableBattlefieldProjectileHit,
+  ): boolean {
+    validateSweepQuery(query, ignoredPopulationIds, ignoredEntityIds, ignoredOffset, ignoredCount);
     const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
     this.crowd.collectSegmentCandidates(
       query.startX * inverseScale,
@@ -110,6 +110,8 @@ export class BattlefieldMonsterTargetRegistry {
       query.impactRadius * inverseScale,
       this.candidates,
     );
+    let found = false;
+    let bestProgress = Number.POSITIVE_INFINITY;
     for (let index = 0; index < this.candidates.count; index++) {
       const populationId = this.candidates.populationIds[index] ?? 0;
       const group = this.findGroup(populationId);
@@ -126,25 +128,35 @@ export class BattlefieldMonsterTargetRegistry {
       )) {
         continue;
       }
-      hits.include(
+      const entityId = this.hitCandidate.entityId;
+      if (isIgnored(
         populationId,
-        this.hitCandidate.entityId,
-        this.hitCandidate.x,
-        this.hitCandidate.y,
-        this.hitCandidate.z,
-        this.hitCandidate.segmentProgress,
-      );
+        entityId,
+        ignoredPopulationIds,
+        ignoredEntityIds,
+        ignoredOffset,
+        ignoredCount,
+      ) || this.hitCandidate.segmentProgress >= bestProgress) {
+        continue;
+      }
+      result.populationId = populationId;
+      result.entityId = entityId;
+      result.x = this.hitCandidate.x;
+      result.y = this.hitCandidate.y;
+      result.z = this.hitCandidate.z;
+      result.segmentProgress = this.hitCandidate.segmentProgress;
+      bestProgress = this.hitCandidate.segmentProgress;
+      found = true;
     }
-    const hitCount = Math.min(hits.count, query.maximumHitCount);
-    let retainedDamage = query.damage;
-    for (let index = 0; index < hitCount; index++) {
-      this.findGroup(hits.populationIds[index] ?? 0)?.damageMonster(
-        hits.entityIds[index] ?? 0,
-        retainedDamage,
-      );
-      retainedDamage *= query.damageRetention;
+    return found;
+  }
+
+  /** 按稳定群体标识路由延迟伤害。 */
+  public damageMonster(populationId: number, entityId: number, amount: number): void {
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new Error('实体弹丸伤害必须是有限正数。');
     }
-    return hitCount;
+    this.findGroup(populationId)?.damageMonster(entityId, amount);
   }
 
   private findGroup(populationId: number): BattlefieldMonsterTargetGroup | null {
@@ -154,5 +166,41 @@ export class BattlefieldMonsterTargetRegistry {
       }
     }
     return null;
+  }
+}
+
+function isIgnored(
+  populationId: number,
+  entityId: number,
+  ignoredPopulationIds: Uint32Array,
+  ignoredEntityIds: Uint32Array,
+  ignoredOffset: number,
+  ignoredCount: number,
+): boolean {
+  for (let index = 0; index < ignoredCount; index++) {
+    const offset = ignoredOffset + index;
+    if ((ignoredPopulationIds[offset] ?? 0) === populationId
+      && (ignoredEntityIds[offset] ?? 0) === entityId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function validateSweepQuery(
+  query: Readonly<BattlefieldProjectileSweepQuery>,
+  ignoredPopulationIds: Uint32Array,
+  ignoredEntityIds: Uint32Array,
+  ignoredOffset: number,
+  ignoredCount: number,
+): void {
+  if (![query.startX, query.startY, query.startZ, query.endX, query.endY, query.endZ,
+    query.impactRadius].every(Number.isFinite)
+    || query.impactRadius < 0
+    || !Number.isSafeInteger(ignoredOffset) || ignoredOffset < 0
+    || !Number.isSafeInteger(ignoredCount) || ignoredCount < 0
+    || ignoredOffset + ignoredCount > ignoredPopulationIds.length
+    || ignoredOffset + ignoredCount > ignoredEntityIds.length) {
+    throw new Error('实体弹丸扫掠查询或命中历史范围无效。');
   }
 }

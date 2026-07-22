@@ -147,6 +147,8 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     ));
     transform.x[index] = options.centerX + Math.cos(angle) * radius;
     transform.y[index] = options.centerY + Math.sin(angle) * radius;
+    transform.previousX[index] = transform.x[index] ?? 0;
+    transform.previousY[index] = transform.y[index] ?? 0;
     const heading = angle + Math.PI;
     transform.heading[index] = heading;
     transform.headingCosine[index] = Math.cos(heading);

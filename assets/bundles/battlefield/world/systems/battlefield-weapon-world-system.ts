@@ -3,22 +3,21 @@ import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
-/** 同步玩家武器姿态、开火和弹体。 */
+/** 在 Combat 阶段同步玩家武器姿态并只生成新弹丸。 */
 export class BattlefieldWeaponWorldSystem extends BattlefieldWorldSystem {
   public readonly phase = WorldPhase.Combat;
-  public readonly order = 0;
+  public readonly order = 10;
   protected readonly performanceStage = BattlefieldPerformanceStage.Weapon;
 
   protected execute(world: BattlefieldWorld, deltaTime: number): void {
-    const { player, weapon, monsters } = world.resources;
+    const { player, weapon } = world.resources;
     const pose = world.weaponOwnerPose;
     player.writeWeaponRigPose(pose);
     pose.alive = player.isAlive;
-    weapon.update(
+    weapon.updateFiring(
       deltaTime,
       pose,
       world.weaponFiringRequested ? world.weaponAimTarget : null,
-      monsters,
     );
   }
 }

@@ -231,6 +231,13 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     }
   }
 
+  /** 在共享 Crowd 改写位置后重新以世界脚点求解六足姿态。 */
+  public synchronizePostCrowdPose(): void {
+    if (!this.disposed) {
+      this.population.synchronizePostCrowdPose();
+    }
+  }
+
   public writeAimTarget(
     originX: number,
     originZ: number,

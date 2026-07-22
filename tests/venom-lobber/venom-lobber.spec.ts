@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
+import {
+  calculateVenomLobberSpawnRootElevation,
+  calculateVenomLobberSpawnRootPitch,
+} from '../../assets/bundles/common-monsters/entities/venom-lobber/animation/venom-lobber-spawn-pose';
 import { VenomLobberCombatSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/behavior/venom-lobber-combat-system';
 import { VenomBombSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/behavior/venom-bomb-system';
 import {
@@ -59,7 +63,9 @@ describe('Venom Lobber 技能与程序化模型', () => {
     expect(model.geometry.vertexCount).toBeLessThan(8000);
     expect(Array.from(model.tailWeights).some((value) => value > 0.9)).toBe(true);
     expect(Array.from(model.venomWeights).some((value) => value === 1)).toBe(true);
-    expect(Array.from(model.legGroups).some((value) => value === 6)).toBe(true);
+    expect(Array.from(model.legIds).some((value) => value === 6)).toBe(true);
+    expect(Array.from(model.legSegmentIds).some((value) => value === 3)).toBe(true);
+    expect(Array.from(model.legSegmentWeights).some((value) => value === 1)).toBe(true);
     expect(Array.from(model.strikeWeights).some((value) => value > 0.9)).toBe(true);
     for (let offset = 0; offset < model.geometry.normals.length; offset += 3) {
       expect(Math.hypot(
@@ -67,6 +73,17 @@ describe('Venom Lobber 技能与程序化模型', () => {
         model.geometry.normals[offset + 1] ?? 0,
         model.geometry.normals[offset + 2] ?? 0,
       )).toBeCloseTo(1, 5);
+    }
+  });
+
+  it('出生 Root 从地下曲线上升且全程前倾不超过十度', () => {
+    expect(calculateVenomLobberSpawnRootElevation(-0.1)).toBe(-12);
+    expect(calculateVenomLobberSpawnRootElevation(0.25)).toBeCloseTo(-7.45, 6);
+    expect(calculateVenomLobberSpawnRootElevation(1.35)).toBeCloseTo(0, 6);
+    for (let step = 0; step <= 20; step++) {
+      const stateTime = step / 20 * 1.6;
+      expect(Math.abs(calculateVenomLobberSpawnRootPitch(stateTime)))
+        .toBeLessThanOrEqual(Math.PI / 18 + 0.000001);
     }
   });
 

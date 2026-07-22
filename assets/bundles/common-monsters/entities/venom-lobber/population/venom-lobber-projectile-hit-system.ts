@@ -3,59 +3,45 @@ import {
   type MutablePlanarMonsterHitResult,
   type PlanarMonsterHitQuery,
 } from '../../../../../core/contracts/monster-hit';
+import {
+  findSweptSphereBoxContact,
+  findSweptSphereCapsuleContact,
+} from '../../../../../core/geometry/swept-volume-collision';
 import { type VenomLobberState } from '../model/venom-lobber-state';
 
 const SEGMENT_EPSILON = 0.000001;
 
-/** 使用覆盖躯干、头部与毒囊的保守椭球执行首个子弹命中查询。 */
+/** 使用前甲壳、腹部与双毒囊复合体执行实体弹丸连续碰撞。 */
 export class VenomLobberProjectileHitSystem {
+  private readonly candidate: MutablePlanarMonsterHitResult = {
+    entityId: -1,
+    x: 0,
+    y: 0,
+    elevation: 0,
+    segmentProgress: 0,
+  };
+
   public findFirst(
     state: VenomLobberState,
     query: Readonly<PlanarMonsterHitQuery>,
     result: MutablePlanarMonsterHitResult,
   ): boolean {
     validateQuery(query);
-    const segmentX = query.endX - query.startX;
-    const segmentY = query.endY - query.startY;
-    const segmentZ = query.endElevation - query.startElevation;
-    const { identity, transform, morphology, vitality } = state.data;
-    let bestIndex = -1;
+    let found = false;
     let bestProgress = Number.POSITIVE_INFINITY;
     for (let index = 0; index < state.count; index++) {
-      if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
+      if (!this.findEntity(state, index, query, this.candidate)
+        || this.candidate.segmentProgress >= bestProgress) {
         continue;
       }
-      const scale = morphology.scale[index] ?? 1;
-      const centerX = transform.x[index] ?? 0;
-      const centerY = transform.y[index] ?? 0;
-      const centerZ = 2.55 * scale;
-      const horizontalRadius = 3.65 * scale + query.impactRadius;
-      const verticalRadius = 2.35 * scale + query.impactRadius;
-      const progress = findEllipsoidContact(
-        (query.startX - centerX) / horizontalRadius,
-        (query.startY - centerY) / horizontalRadius,
-        (query.startElevation - centerZ) / verticalRadius,
-        segmentX / horizontalRadius,
-        segmentY / horizontalRadius,
-        segmentZ / verticalRadius,
-      );
-      if (progress !== null && progress < bestProgress) {
-        bestProgress = progress;
-        bestIndex = index;
-      }
+      copyHit(this.candidate, result);
+      bestProgress = this.candidate.segmentProgress;
+      found = true;
     }
-    if (bestIndex < 0) {
-      return false;
-    }
-    result.entityId = identity.id[bestIndex] ?? bestIndex;
-    result.x = transform.x[bestIndex] ?? 0;
-    result.y = transform.y[bestIndex] ?? 0;
-    result.elevation = 2.55 * (morphology.scale[bestIndex] ?? 1);
-    result.segmentProgress = bestProgress;
-    return true;
+    return found;
   }
 
-  /** 对共享空间索引给出的单一实体执行精确椭球检测。 */
+  /** 对单一 Venom Lobber 求移动目标相对空间中的最早 TOI。 */
   public findEntity(
     state: VenomLobberState,
     entityIndex: number,
@@ -63,9 +49,7 @@ export class VenomLobberProjectileHitSystem {
     result: MutablePlanarMonsterHitResult,
   ): boolean {
     validateQuery(query);
-    if (!Number.isSafeInteger(entityIndex)
-      || entityIndex < 0
-      || entityIndex >= state.count) {
+    if (!Number.isSafeInteger(entityIndex) || entityIndex < 0 || entityIndex >= state.count) {
       throw new Error('Venom Lobber 命中实体索引越界。');
     }
     const { identity, transform, morphology, vitality } = state.data;
@@ -73,54 +57,52 @@ export class VenomLobberProjectileHitSystem {
       !== MonsterLifecycleState.Alive) {
       return false;
     }
+    const previousX = transform.previousX[entityIndex] ?? transform.x[entityIndex] ?? 0;
+    const previousY = transform.previousY[entityIndex] ?? transform.y[entityIndex] ?? 0;
+    const currentX = transform.x[entityIndex] ?? 0;
+    const currentY = transform.y[entityIndex] ?? 0;
+    const heading = transform.heading[entityIndex] ?? 0;
+    const headingCosine = Math.cos(heading);
+    const headingSine = Math.sin(heading);
     const scale = morphology.scale[entityIndex] ?? 1;
-    const centerX = transform.x[entityIndex] ?? 0;
-    const centerY = transform.y[entityIndex] ?? 0;
-    const centerZ = 2.55 * scale;
-    const horizontalRadius = 3.65 * scale + query.impactRadius;
-    const verticalRadius = 2.35 * scale + query.impactRadius;
-    const progress = findEllipsoidContact(
-      (query.startX - centerX) / horizontalRadius,
-      (query.startY - centerY) / horizontalRadius,
-      (query.startElevation - centerZ) / verticalRadius,
-      (query.endX - query.startX) / horizontalRadius,
-      (query.endY - query.startY) / horizontalRadius,
-      (query.endElevation - query.startElevation) / verticalRadius,
+    const startRelativeX = (query.startX - previousX) / scale;
+    const startRelativeY = (query.startY - previousY) / scale;
+    const endRelativeX = (query.endX - currentX) / scale;
+    const endRelativeY = (query.endY - currentY) / scale;
+    const startForward = startRelativeX * headingCosine + startRelativeY * headingSine;
+    const startLateral = -startRelativeX * headingSine + startRelativeY * headingCosine;
+    const endForward = endRelativeX * headingCosine + endRelativeY * headingSine;
+    const endLateral = -endRelativeX * headingSine + endRelativeY * headingCosine;
+    const startElevation = query.startElevation / scale;
+    const endElevation = query.endElevation / scale;
+    const radius = query.impactRadius / scale;
+    let progress = findSweptSphereBoxContact(
+      startForward - 2.15, startLateral, startElevation - 2.25,
+      endForward - 2.15, endLateral, endElevation - 2.25,
+      2.75, 1.72, 1.48, radius,
     );
+    progress = minimumContact(progress, findSweptSphereBoxContact(
+      startForward + 0.75, startLateral, startElevation - 2.35,
+      endForward + 0.75, endLateral, endElevation - 2.35,
+      2.65, 2.05, 1.62, radius,
+    ));
+    progress = minimumContact(progress, findSweptSphereCapsuleContact(
+      startForward, startLateral, startElevation,
+      endForward, endLateral, endElevation,
+      -3.78, -0.75, 3.85,
+      -3.72, 0.82, 3.92,
+      0.82 + radius,
+    ));
     if (progress === null) {
       return false;
     }
     result.entityId = identity.id[entityIndex] ?? entityIndex;
-    result.x = centerX;
-    result.y = centerY;
-    result.elevation = centerZ;
+    result.x = currentX;
+    result.y = currentY;
+    result.elevation = 2.55 * scale;
     result.segmentProgress = progress;
     return true;
   }
-}
-
-function findEllipsoidContact(
-  startX: number,
-  startY: number,
-  startZ: number,
-  deltaX: number,
-  deltaY: number,
-  deltaZ: number,
-): number | null {
-  const a = deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ;
-  const b = 2 * (startX * deltaX + startY * deltaY + startZ * deltaZ);
-  const c = startX * startX + startY * startY + startZ * startZ - 1;
-  const discriminant = b * b - 4 * a * c;
-  if (a <= SEGMENT_EPSILON || discriminant < 0) {
-    return null;
-  }
-  const squareRoot = Math.sqrt(discriminant);
-  const near = (-b - squareRoot) / (2 * a);
-  const far = (-b + squareRoot) / (2 * a);
-  if (near >= 0 && near <= 1) {
-    return near;
-  }
-  return far >= 0 && far <= 1 ? far : null;
 }
 
 function validateQuery(query: Readonly<PlanarMonsterHitQuery>): void {
@@ -132,12 +114,30 @@ function validateQuery(query: Readonly<PlanarMonsterHitQuery>): void {
     || !Number.isFinite(query.endElevation)
     || !Number.isFinite(query.impactRadius)
     || query.impactRadius < 0) {
-    throw new Error('Venom Lobber 子弹命中查询参数无效。');
+    throw new Error('Venom Lobber 实体弹丸查询参数无效。');
   }
   const deltaX = query.endX - query.startX;
   const deltaY = query.endY - query.startY;
   const deltaZ = query.endElevation - query.startElevation;
   if (deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ <= SEGMENT_EPSILON) {
-    throw new Error('Venom Lobber 子弹命中线段不能退化。');
+    throw new Error('Venom Lobber 实体弹丸查询不能使用退化线段。');
   }
+}
+
+function minimumContact(first: number | null, second: number | null): number | null {
+  if (first === null) {
+    return second;
+  }
+  return second === null ? first : Math.min(first, second);
+}
+
+function copyHit(
+  source: Readonly<MutablePlanarMonsterHitResult>,
+  target: MutablePlanarMonsterHitResult,
+): void {
+  target.entityId = source.entityId;
+  target.x = source.x;
+  target.y = source.y;
+  target.elevation = source.elevation;
+  target.segmentProgress = source.segmentProgress;
 }

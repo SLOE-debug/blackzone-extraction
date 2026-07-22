@@ -21,8 +21,14 @@ export class PlanarCrowdCandidateBuffer {
     this.candidateCount = 0;
   }
 
-  /** 追加一个只会由空间索引访问一次的稳定候选。 */
+  /** 追加稳定候选；DDA 扩张邻域重复访问同一实体时原地去重。 */
   public include(populationId: number, entityIndex: number): void {
+    for (let index = 0; index < this.candidateCount; index++) {
+      if ((this.populationIds[index] ?? 0) === populationId
+        && (this.entityIndices[index] ?? 0) === entityIndex) {
+        return;
+      }
+    }
     if (this.candidateCount >= this.capacity) {
       throw new Error('Crowd 候选缓冲容量不足。');
     }

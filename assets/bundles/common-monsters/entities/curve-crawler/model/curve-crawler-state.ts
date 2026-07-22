@@ -107,6 +107,8 @@ function initializeCurveCrawlerData(
     transform.y[index] = options.spawnArea.centerY - options.spawnArea.height * 0.5
       + (row + 0.5) * cellHeight
       + randomRange(layoutState, 0, -cellHeight * 0.28, cellHeight * 0.28);
+    transform.previousX[index] = transform.x[index] ?? 0;
+    transform.previousY[index] = transform.y[index] ?? 0;
 
     const observationDisplay = options.motionProfile
       === CurveCrawlerMotionProfile.ObservationDisplay;

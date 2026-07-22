@@ -37,7 +37,7 @@ export const KRISS_VECTOR_PROTOTYPE = Object.freeze({
       speed: 29,
       maximumRange: 18,
       impactRadius: 0.105,
-      maximumHitCount: 2,
+      penetrationEnergy: 2,
       damageRetention: 0.62,
       visual: WeaponProjectileVisual.Bullet,
     }),

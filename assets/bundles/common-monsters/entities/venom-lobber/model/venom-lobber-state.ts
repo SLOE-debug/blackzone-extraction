@@ -42,6 +42,8 @@ function initializeState(
     identity.appearanceSeed[index] = mixRandomSeed(options.seed ^ 0x6c8e9cf, index);
     transform.x[index] = options.spawnArea.centerX;
     transform.y[index] = options.spawnArea.centerY;
+    transform.previousX[index] = transform.x[index] ?? 0;
+    transform.previousY[index] = transform.y[index] ?? 0;
     const heading = randomRange(identity.randomState, index, -Math.PI, Math.PI);
     transform.heading[index] = heading;
     transform.targetHeading[index] = heading;
@@ -76,5 +78,9 @@ function initializeState(
     animation.tailCharge[index] = 0;
     animation.sacPulse[index] = 0;
     animation.hitFlash[index] = 0;
+    animation.spawnRootForward[index] = 0;
+    animation.spawnRootElevation[index] = 0;
+    animation.spawnRootPitch[index] = 0;
+    animation.legPoseInitialized[index] = 0;
   }
 }

@@ -51,6 +51,22 @@ describe('统一平面 Crowd', () => {
     expect(candidates.count).toBe(1);
     expect(candidates.populationIds[0]).toBe(2);
   });
+
+  it('Supercover DDA 穿过网格角并扩张邻域时仍只返回一次实体', () => {
+    const population = createPopulation(7, 0, 1);
+    const system = new PlanarCrowdSeparationSystem({
+      cellSize: 4,
+      solverIterations: 1,
+      stiffness: 1,
+      maximumCorrectionSpeed: 10,
+    });
+    system.register(population);
+    system.rebuild();
+    const candidates = new PlanarCrowdCandidateBuffer(1);
+    system.collectSegmentCandidates(-8, -8, 8, 8, 0.1, candidates);
+    expect(candidates.count).toBe(1);
+    expect(candidates.populationIds[0]).toBe(7);
+  });
 });
 
 function createPopulation(
@@ -62,6 +78,8 @@ function createPopulation(
     populationId,
     count: 1,
     lifecycle: Uint8Array.of(MonsterLifecycleState.Alive),
+    previousX: Float32Array.of(x),
+    previousY: Float32Array.of(0),
     x: Float32Array.of(x),
     y: Float32Array.of(0),
     radius: Float32Array.of(1),

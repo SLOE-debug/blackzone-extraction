@@ -60,6 +60,8 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     ));
     transform.x[entityIndex] = options.centerX + Math.cos(angle) * radius;
     transform.y[entityIndex] = options.centerY + Math.sin(angle) * radius;
+    transform.previousX[entityIndex] = transform.x[entityIndex] ?? 0;
+    transform.previousY[entityIndex] = transform.y[entityIndex] ?? 0;
     transform.heading[entityIndex] = angle + Math.PI;
     transform.targetHeading[entityIndex] = angle + Math.PI;
     transitionMonsterLifecycle(

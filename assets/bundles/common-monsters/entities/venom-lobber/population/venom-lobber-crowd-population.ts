@@ -18,6 +18,8 @@ export function createVenomLobberCrowdPopulation(
     populationId,
     count: state.count,
     lifecycle: state.data.vitality.state,
+    previousX: state.data.transform.previousX,
+    previousY: state.data.transform.previousY,
     x: state.data.transform.x,
     y: state.data.transform.y,
     radius,
