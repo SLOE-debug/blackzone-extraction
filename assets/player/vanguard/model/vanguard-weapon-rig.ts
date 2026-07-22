@@ -4,7 +4,6 @@ import { VanguardWeaponPose } from './vanguard-weapon-pose';
 export enum VanguardWeaponRigSocket {
   MainGrip,
   SupportGrip,
-  Muzzle,
 }
 
 export interface VanguardWeaponRigPoint {
@@ -25,7 +24,7 @@ const ORIGIN = point(0, 0, 0);
 const UNARMED_RIG = profile({
   pose: VanguardWeaponPose.Unarmed,
   readyPitch: 0,
-  sockets: sockets(ORIGIN, ORIGIN, ORIGIN),
+  sockets: sockets(ORIGIN, ORIGIN),
 });
 
 const HANDGUN_RIG = profile({
@@ -34,24 +33,22 @@ const HANDGUN_RIG = profile({
   sockets: sockets(
     ORIGIN,
     point(-0.18, 0.02, 0.16),
-    point(0, 0.1028, 0.3484),
   ),
 });
 
-const SHOTGUN_RIG = profile({
-  pose: VanguardWeaponPose.Shotgun,
+const LONG_GUN_RIG = profile({
+  pose: VanguardWeaponPose.LongGun,
   readyPitch: 0.025,
   sockets: sockets(
     ORIGIN,
     point(-0.57, 0.03, 0.52),
-    point(0, 0.118, 0.998),
   ),
 });
 
 const VANGUARD_WEAPON_RIGS = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_RIG,
   [VanguardWeaponPose.Handgun]: HANDGUN_RIG,
-  [VanguardWeaponPose.Shotgun]: SHOTGUN_RIG,
+  [VanguardWeaponPose.LongGun]: LONG_GUN_RIG,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponRigProfile>>>);
 
 /** 返回由武器姿态枚举登记的刚性挂点配置。 */
@@ -64,12 +61,10 @@ export function getVanguardWeaponRigProfile(
 function sockets(
   mainGrip: Readonly<VanguardWeaponRigPoint>,
   supportGrip: Readonly<VanguardWeaponRigPoint>,
-  muzzle: Readonly<VanguardWeaponRigPoint>,
 ): Readonly<Record<VanguardWeaponRigSocket, Readonly<VanguardWeaponRigPoint>>> {
   return Object.freeze({
     [VanguardWeaponRigSocket.MainGrip]: mainGrip,
     [VanguardWeaponRigSocket.SupportGrip]: supportGrip,
-    [VanguardWeaponRigSocket.Muzzle]: muzzle,
   });
 }
 

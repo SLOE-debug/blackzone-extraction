@@ -6,6 +6,7 @@ import {
   CURVE_CRAWLER_LIQUID_RAY_COUNT,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 
 /**
  * 创建只包含编译式 MeshEvaluator 所需字段的最小 SoA 测试状态。
@@ -21,6 +22,9 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
     values.fill(value);
     return values;
   };
+  const headings = new Float32Array(
+    Array.from({ length: entityCount }, (_, index) => index * 0.4),
+  );
   const data = {
     identity: {
       appearanceSeed: new Uint32Array(
@@ -30,7 +34,9 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
     transform: {
       x: new Float32Array(Array.from({ length: entityCount }, (_, index) => 10 + index * 20)),
       y: new Float32Array(Array.from({ length: entityCount }, (_, index) => -6 - index * 8)),
-      heading: new Float32Array(Array.from({ length: entityCount }, (_, index) => index * 0.4)),
+      heading: headings,
+      headingCosine: new Float32Array(Array.from(headings, Math.cos)),
+      headingSine: new Float32Array(Array.from(headings, Math.sin)),
     },
     morphology: {
       bodyLength: filled(entityCount, 6.2),
@@ -39,6 +45,10 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       legWidth: filled(entityCount, 0.74),
       eyeRadius: filled(entityCount, 0.5),
       liquidRadiusScales: filled(liquidRayCount, 1),
+    },
+    vitality: {
+      state: new Uint8Array(entityCount).fill(MonsterLifecycleState.Alive),
+      stateTime: new Float32Array(entityCount),
     },
     animation: {
       phase: new Float32Array(Array.from({ length: entityCount }, (_, index) => index * 0.6)),
@@ -63,7 +73,8 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       fragmentOffsetY: filled(fragmentCount, 0),
       fragmentOffsetZ: filled(fragmentCount, 0),
       fragmentRotation: filled(fragmentCount, 0),
-      legPhaseOffsets: filled(legCount, 0),
+      legPhaseCosines: filled(legCount, 1),
+      legPhaseSines: filled(legCount, 0),
     },
   };
   return { count: entityCount, data } as unknown as CurveCrawlerState;

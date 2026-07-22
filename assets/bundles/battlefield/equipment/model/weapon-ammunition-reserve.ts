@@ -3,8 +3,11 @@ import { AmmunitionType } from '../../../../core/equipment/equipment';
 /** 玩家在武器弹仓之外持有的有限备用弹药库存。 */
 export class WeaponAmmunitionReserve {
   private readonly rounds: Record<AmmunitionType, number> = {
-    [AmmunitionType.HandgunRound]: 0,
-    [AmmunitionType.ShotgunShell]: 0,
+    [AmmunitionType.FiftyActionExpress]: 0,
+    [AmmunitionType.TwelveGauge]: 0,
+    [AmmunitionType.FortyFiveAcp]: 0,
+    [AmmunitionType.FiveFiveSixNato]: 0,
+    [AmmunitionType.SevenSixTwoByThirtyNine]: 0,
   };
 
   /** 查询一种口径当前尚未装入武器的弹药数量。 */

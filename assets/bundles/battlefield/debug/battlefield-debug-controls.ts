@@ -13,6 +13,13 @@ export interface BattlefieldDebugMonsterSpawner {
 export interface BattlefieldDebugSnapshot {
   readonly orbitCameraEnabled: boolean;
   readonly followCameraPitchDegrees: number;
+  readonly performanceDiagnosticsEnabled: boolean;
+}
+
+/** 调试面板只依赖的性能采样开关。 */
+export interface BattlefieldDebugPerformanceDiagnostics {
+  readonly enabled: boolean;
+  setEnabled(enabled: boolean): void;
 }
 
 /** 把 Debug 面板修改映射到战场相机与观察动作。 */
@@ -21,6 +28,7 @@ export class BattlefieldDebugControls {
     private readonly cameraRig: BattlefieldCameraRig,
     private readonly player: BattlefieldDebugPlayerAnchor,
     private readonly monsters: BattlefieldDebugMonsterSpawner,
+    private readonly diagnostics: BattlefieldDebugPerformanceDiagnostics,
   ) {}
 
   /** 获取面板全部控件的当前值。 */
@@ -28,6 +36,7 @@ export class BattlefieldDebugControls {
     return Object.freeze({
       orbitCameraEnabled: this.cameraRig.orbitEnabled,
       followCameraPitchDegrees: this.cameraRig.followPitchDegrees,
+      performanceDiagnosticsEnabled: this.diagnostics.enabled,
     });
   }
 
@@ -45,5 +54,10 @@ export class BattlefieldDebugControls {
   public spawnCurveCrawlerAhead(): void {
     const spawn = createBattlefieldDebugSpiderSpawnPosition(this.player);
     this.monsters.spawnDebugCurveCrawler(spawn.x, spawn.z);
+  }
+
+  /** 显式启停高精度分阶段计时和控制台报告。 */
+  public setPerformanceDiagnosticsEnabled(value: boolean): void {
+    this.diagnostics.setEnabled(value);
   }
 }

@@ -3,24 +3,26 @@ import {
   EquipmentCategory,
   EquipmentRarity,
 } from '../../../../../core/equipment/equipment';
-import { HANDGUN_AMMUNITION_GEOMETRY } from './handgun-ammunition-geometry';
+import {
+  FIFTY_ACTION_EXPRESS_AMMUNITION_GEOMETRY,
+} from './handgun-ammunition-geometry';
 import {
   type BattlefieldAmmunitionPrototype,
 } from '../../catalog/battlefield-equipment-prototype';
 import { EquipmentId } from '../../catalog/equipment-id';
 
-/** 手枪弹药在战场中的完整玩法与可视原型。 */
-export const HANDGUN_AMMUNITION_PROTOTYPE = Object.freeze({
-  id: EquipmentId.HandgunAmmunition,
+/** .50 Action Express 弹药在战场中的完整玩法与可视原型。 */
+export const FIFTY_ACTION_EXPRESS_AMMUNITION_PROTOTYPE = Object.freeze({
+  id: EquipmentId.FiftyActionExpressAmmunition,
   definition: Object.freeze({
-    id: EquipmentId.HandgunAmmunition,
+    id: EquipmentId.FiftyActionExpressAmmunition,
     category: EquipmentCategory.Ammunition,
-    displayName: '手枪弹药',
-    description: '十八发制式手枪备用弹',
+    displayName: '.50 AE',
+    description: '三十二发大威力 .50 Action Express 备用弹',
     rarity: EquipmentRarity.Common,
-    ammunitionType: AmmunitionType.HandgunRound,
-    rounds: 18,
+    ammunitionType: AmmunitionType.FiftyActionExpress,
+    rounds: 32,
   }),
-  geometry: HANDGUN_AMMUNITION_GEOMETRY,
+  geometry: FIFTY_ACTION_EXPRESS_AMMUNITION_GEOMETRY,
   dropped: Object.freeze({ scale: 0.48 }),
-}) satisfies BattlefieldAmmunitionPrototype<EquipmentId.HandgunAmmunition>;
+}) satisfies BattlefieldAmmunitionPrototype<EquipmentId.FiftyActionExpressAmmunition>;

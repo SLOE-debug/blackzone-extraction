@@ -199,8 +199,9 @@ implements EntitySystem<CurveCrawlerState, number> {
       }
       let correctionX = this.correctionX[index] ?? 0;
       let correctionY = this.correctionY[index] ?? 0;
-      const correctionLength = Math.hypot(correctionX, correctionY);
-      if (correctionLength > maximumCorrection) {
+      const correctionLengthSquared = correctionX * correctionX + correctionY * correctionY;
+      if (correctionLengthSquared > maximumCorrection * maximumCorrection) {
+        const correctionLength = Math.sqrt(correctionLengthSquared);
         const correctionScale = maximumCorrection / correctionLength;
         correctionX *= correctionScale;
         correctionY *= correctionScale;

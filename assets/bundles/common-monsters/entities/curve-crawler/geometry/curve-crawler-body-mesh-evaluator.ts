@@ -1,8 +1,12 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
-import { evaluateFacetedEllipsoid } from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
+import { PlanarVisibilityDetail } from '../../../../../core/contracts/planar-circle-visibility';
+import {
+  evaluateFacetedEllipsoidRotated,
+} from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
 import {
   createFacetedCubicTubeWorkspace,
   evaluateFacetedCubicTube,
+  evaluatePlanarFacetedCubicTube,
   type FacetedCubicTubeWorkspace,
   type MutableFacetedCubicTubeControlPoints,
 } from '../../../../../core/geometry/faceted/faceted-cubic-tube-evaluator';
@@ -14,6 +18,7 @@ import {
   CurveCrawlerFragmentIndex,
 } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
+import { isCurveCrawlerLegVisible } from '../model/curve-crawler-detail-level';
 import { type CurveCrawlerMeshPlan } from './curve-crawler-mesh-plan';
 
 const LEG_FORWARD_FANS = new Float32Array([0.72, 0.25, -0.25, -0.72]);
@@ -25,7 +30,8 @@ const LEG_FORWARD_FANS = new Float32Array([0.72, 0.25, -0.25, -0.72]);
  */
 export interface MutableCurveCrawlerLegScratch extends MutableFacetedCubicTubeControlPoints {
   footRadius: number;
-  footRotation: number;
+  footRotationCosine: number;
+  footRotationSine: number;
   /** 八条腿顺序复用的逻辑截面顶点缓存。 */
   readonly tubeWorkspace: FacetedCubicTubeWorkspace;
 }
@@ -50,7 +56,8 @@ export function createCurveCrawlerLegScratch(
     startRadius: 0,
     endRadius: 0,
     footRadius: 0,
-    footRotation: 0,
+    footRotationCosine: 1,
+    footRotationSine: 0,
     tubeWorkspace: createFacetedCubicTubeWorkspace(tubePlan),
   };
 }
@@ -66,6 +73,7 @@ export function createCurveCrawlerLegScratch(
  * @param streams 当前批次可写顶点流。
  * @param writePositions 是否允许改写位置流。
  * @param writeNormals 是否允许改写法线流。
+ * @param detail 当前实体的距离细节档位。
  * @param legScratch 由调用方长期复用的腿部控制点缓存。
  */
 export function evaluateCurveCrawlerBodyMesh(
@@ -77,14 +85,14 @@ export function evaluateCurveCrawlerBodyMesh(
   streams: VertexStreams,
   writePositions: boolean,
   writeNormals: boolean,
+  detail: PlanarVisibilityDetail,
   legScratch: MutableCurveCrawlerLegScratch,
 ): void {
   const { transform, morphology, animation } = state.data;
   const originX = transform.x[entityIndex] ?? 0;
   const originY = transform.y[entityIndex] ?? 0;
-  const heading = transform.heading[entityIndex] ?? 0;
-  const headingCosine = Math.cos(heading);
-  const headingSine = Math.sin(heading);
+  const headingCosine = transform.headingCosine[entityIndex] ?? 1;
+  const headingSine = transform.headingSine[entityIndex] ?? 0;
   const bodyPulse = animation.bodyPulse[entityIndex] ?? 0;
   const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
   const emergenceBodyScale = Math.max(animation.emergenceBodyScale[entityIndex] ?? 1, 0.0001);
@@ -101,19 +109,31 @@ export function evaluateCurveCrawlerBodyMesh(
   const legWidth = (morphology.legWidth[entityIndex] ?? 0) * emergenceLegScale;
   const fragmentOffset = entityIndex * CURVE_CRAWLER_FRAGMENT_COUNT;
   const phase = animation.phase[entityIndex] ?? 0;
+  const phaseCosine = Math.cos(phase);
+  const phaseSine = Math.sin(phase);
   const turnAmount = animation.turnAmount[entityIndex] ?? 0;
   const turnDirection = animation.turnDirection[entityIndex] ?? 1;
   const biteAmount = animation.biteAmount[entityIndex] ?? 0;
   const legPhaseOffset = entityIndex * CURVE_CRAWLER_LEG_COUNT;
+  const evaluateTube = detail === PlanarVisibilityDetail.Full
+    ? evaluateFacetedCubicTube
+    : evaluatePlanarFacetedCubicTube;
 
   for (let leg = 0; leg < CURVE_CRAWLER_LEG_COUNT; leg++) {
+    if (!isCurveCrawlerLegVisible(detail, leg)) {
+      continue;
+    }
     const side = leg < CURVE_CRAWLER_LEG_COUNT * 0.5 ? 1 : -1;
     const pair = leg % (CURVE_CRAWLER_LEG_COUNT * 0.5);
     const rootAlongBody = bodyLength * (0.42 - pair * 0.28);
     const forwardFan = (LEG_FORWARD_FANS[pair] ?? 0) * legLength;
-    const gaitAngle = phase + (animation.legPhaseOffsets[legPhaseOffset + leg] ?? 0);
-    const swing = Math.sin(gaitAngle);
-    const baseLift = Math.max(0, Math.cos(gaitAngle));
+    const phaseOffsetCosine = animation.legPhaseCosines[legPhaseOffset + leg] ?? 1;
+    const phaseOffsetSine = animation.legPhaseSines[legPhaseOffset + leg] ?? 0;
+    const swing = phaseSine * phaseOffsetCosine + phaseCosine * phaseOffsetSine;
+    const baseLift = Math.max(
+      0,
+      phaseCosine * phaseOffsetCosine - phaseSine * phaseOffsetSine,
+    );
     const innerSupportLeg = side === turnDirection;
     const turnStrideScale = innerSupportLeg ? 0.36 : 1.28;
     const turnLiftScale = innerSupportLeg ? 0.32 : 1.12;
@@ -148,21 +168,31 @@ export function evaluateCurveCrawlerBodyMesh(
 
     const fragmentIndex = fragmentOffset + leg;
     const fragmentRotation = animation.fragmentRotation[fragmentIndex] ?? 0;
+    let fragmentCosine = 1;
+    let fragmentSine = 0;
+    if (fragmentRotation !== 0) {
+      fragmentCosine = Math.cos(fragmentRotation);
+      fragmentSine = Math.sin(fragmentRotation);
+    }
     if (fragmentRotation !== 0 || fragmentScale < 0.9999) {
-      const rotationCosine = Math.cos(fragmentRotation);
-      const rotationSine = Math.sin(fragmentRotation);
       const relativeP1x = p1x - p0x;
       const relativeP1y = p1y - p0y;
-      p1x = p0x + (relativeP1x * rotationCosine - relativeP1y * rotationSine) * fragmentScale;
-      p1y = p0y + (relativeP1x * rotationSine + relativeP1y * rotationCosine) * fragmentScale;
+      p1x = p0x + (relativeP1x * fragmentCosine - relativeP1y * fragmentSine)
+        * fragmentScale;
+      p1y = p0y + (relativeP1x * fragmentSine + relativeP1y * fragmentCosine)
+        * fragmentScale;
       const relativeP2x = p2x - p0x;
       const relativeP2y = p2y - p0y;
-      p2x = p0x + (relativeP2x * rotationCosine - relativeP2y * rotationSine) * fragmentScale;
-      p2y = p0y + (relativeP2x * rotationSine + relativeP2y * rotationCosine) * fragmentScale;
+      p2x = p0x + (relativeP2x * fragmentCosine - relativeP2y * fragmentSine)
+        * fragmentScale;
+      p2y = p0y + (relativeP2x * fragmentSine + relativeP2y * fragmentCosine)
+        * fragmentScale;
       const relativeP3x = p3x - p0x;
       const relativeP3y = p3y - p0y;
-      p3x = p0x + (relativeP3x * rotationCosine - relativeP3y * rotationSine) * fragmentScale;
-      p3y = p0y + (relativeP3x * rotationSine + relativeP3y * rotationCosine) * fragmentScale;
+      p3x = p0x + (relativeP3x * fragmentCosine - relativeP3y * fragmentSine)
+        * fragmentScale;
+      p3y = p0y + (relativeP3x * fragmentSine + relativeP3y * fragmentCosine)
+        * fragmentScale;
       p1z = p0z + (p1z - p0z) * fragmentScale;
       p2z = p0z + (p2z - p0z) * fragmentScale;
       p3z = p0z + (p3z - p0z) * fragmentScale;
@@ -186,9 +216,17 @@ export function evaluateCurveCrawlerBodyMesh(
     legScratch.startRadius = startRadius;
     legScratch.endRadius = endRadius;
     legScratch.footRadius = footRadius;
-    legScratch.footRotation = heading + fragmentRotation;
+    if (fragmentRotation === 0) {
+      legScratch.footRotationCosine = headingCosine;
+      legScratch.footRotationSine = headingSine;
+    } else {
+      legScratch.footRotationCosine = headingCosine * fragmentCosine
+        - headingSine * fragmentSine;
+      legScratch.footRotationSine = headingSine * fragmentCosine
+        + headingCosine * fragmentSine;
+    }
 
-    evaluateFacetedCubicTube(
+    evaluateTube(
       plan.legTube,
       streams,
       entityVertexOffset + (plan.body.legVertexOffsets[leg] ?? 0),
@@ -197,29 +235,50 @@ export function evaluateCurveCrawlerBodyMesh(
       writePositions,
       writeNormals,
     );
-    evaluateFacetedEllipsoid(
-      plan.footEllipsoid,
-      streams,
-      entityVertexOffset + (plan.body.footVertexOffsets[leg] ?? 0),
-      legScratch.p3x,
-      legScratch.p3y,
-      legScratch.p3z,
-      footRadius * 1.1,
-      footRadius,
-      footRadius,
-      legScratch.footRotation,
-      writePositions,
-      writeNormals,
-    );
+    if (detail === PlanarVisibilityDetail.Full) {
+      evaluateFacetedEllipsoidRotated(
+        plan.footEllipsoid,
+        streams,
+        entityVertexOffset + (plan.body.footVertexOffsets[leg] ?? 0),
+        legScratch.p3x,
+        legScratch.p3y,
+        legScratch.p3z,
+        footRadius * 1.1,
+        footRadius,
+        footRadius,
+        legScratch.footRotationCosine,
+        legScratch.footRotationSine,
+        writePositions,
+        writeNormals,
+      );
+    }
   }
 
   const abdomenFragment = fragmentOffset + CurveCrawlerFragmentIndex.Abdomen;
   const thoraxFragment = fragmentOffset + CurveCrawlerFragmentIndex.Thorax;
+  const abdomenRotation = animation.fragmentRotation[abdomenFragment] ?? 0;
+  const thoraxRotation = animation.fragmentRotation[thoraxFragment] ?? 0;
+  let abdomenRotationCosine = headingCosine;
+  let abdomenRotationSine = headingSine;
+  if (abdomenRotation !== 0) {
+    const fragmentCosine = Math.cos(abdomenRotation);
+    const fragmentSine = Math.sin(abdomenRotation);
+    abdomenRotationCosine = headingCosine * fragmentCosine - headingSine * fragmentSine;
+    abdomenRotationSine = headingSine * fragmentCosine + headingCosine * fragmentSine;
+  }
+  let thoraxRotationCosine = headingCosine;
+  let thoraxRotationSine = headingSine;
+  if (thoraxRotation !== 0) {
+    const fragmentCosine = Math.cos(thoraxRotation);
+    const fragmentSine = Math.sin(thoraxRotation);
+    thoraxRotationCosine = headingCosine * fragmentCosine - headingSine * fragmentSine;
+    thoraxRotationSine = headingSine * fragmentCosine + headingCosine * fragmentSine;
+  }
   const bodyShape = CURVE_CRAWLER_BODY_SHAPE;
   const abdomenRadiusZ = bodyWidth * bodyShape.abdomenHeightRadiusScale;
   const thoraxRadiusZ = bodyWidth * bodyShape.thoraxHeightRadiusScale;
   const biteForwardOffset = bodyLength * 0.16 * biteAmount;
-  evaluateFacetedEllipsoid(
+  evaluateFacetedEllipsoidRotated(
     plan.bodyEllipsoid,
     streams,
     entityVertexOffset + plan.body.abdomenVertexOffset,
@@ -234,11 +293,12 @@ export function evaluateCurveCrawlerBodyMesh(
     Math.max(bodyLength * 0.48 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.52 * fragmentScale, 0.0001),
     Math.max(abdomenRadiusZ * fragmentScale, 0.0001),
-    heading + (animation.fragmentRotation[abdomenFragment] ?? 0),
+    abdomenRotationCosine,
+    abdomenRotationSine,
     writePositions,
     writeNormals,
   );
-  evaluateFacetedEllipsoid(
+  evaluateFacetedEllipsoidRotated(
     plan.bodyEllipsoid,
     streams,
     entityVertexOffset + plan.body.thoraxVertexOffset,
@@ -255,7 +315,8 @@ export function evaluateCurveCrawlerBodyMesh(
     Math.max(bodyLength * 0.3 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.42 * fragmentScale, 0.0001),
     Math.max(thoraxRadiusZ * fragmentScale, 0.0001),
-    heading + (animation.fragmentRotation[thoraxFragment] ?? 0),
+    thoraxRotationCosine,
+    thoraxRotationSine,
     writePositions,
     writeNormals,
   );

@@ -1,11 +1,23 @@
 import { EquipmentCategory } from '../../../../core/equipment/equipment';
 import { DESERT_EAGLE_PROTOTYPE } from '../items/desert-eagle/desert-eagle-prototype';
+import { AKM_PROTOTYPE } from '../items/akm/akm-prototype';
 import {
-  HANDGUN_AMMUNITION_PROTOTYPE,
+  FIVE_FIVE_SIX_NATO_AMMUNITION_PROTOTYPE,
+} from '../items/five-five-six-nato-ammunition/five-five-six-nato-ammunition-prototype';
+import {
+  FORTY_FIVE_ACP_AMMUNITION_PROTOTYPE,
+} from '../items/forty-five-acp-ammunition/forty-five-acp-ammunition-prototype';
+import {
+  FIFTY_ACTION_EXPRESS_AMMUNITION_PROTOTYPE,
 } from '../items/handgun-ammunition/handgun-ammunition-prototype';
 import { PUMP_SHOTGUN_PROTOTYPE } from '../items/pump-shotgun/pump-shotgun-prototype';
+import { KRISS_VECTOR_PROTOTYPE } from '../items/kriss-vector/kriss-vector-prototype';
+import { M4A1_PROTOTYPE } from '../items/m4a1/m4a1-prototype';
 import {
-  SHOTGUN_AMMUNITION_PROTOTYPE,
+  SEVEN_SIX_TWO_AMMUNITION_PROTOTYPE,
+} from '../items/seven-six-two-ammunition/seven-six-two-ammunition-prototype';
+import {
+  TWELVE_GAUGE_AMMUNITION_PROTOTYPE,
 } from '../items/shotgun-ammunition/shotgun-ammunition-prototype';
 import {
   type BattlefieldEquipmentDefinitionById,
@@ -24,8 +36,14 @@ import {
 const BATTLEFIELD_EQUIPMENT_PROTOTYPES: BattlefieldEquipmentPrototypeById = Object.freeze({
   [EquipmentId.DesertEagle]: DESERT_EAGLE_PROTOTYPE,
   [EquipmentId.PumpShotgun]: PUMP_SHOTGUN_PROTOTYPE,
-  [EquipmentId.HandgunAmmunition]: HANDGUN_AMMUNITION_PROTOTYPE,
-  [EquipmentId.ShotgunAmmunition]: SHOTGUN_AMMUNITION_PROTOTYPE,
+  [EquipmentId.KrissVector]: KRISS_VECTOR_PROTOTYPE,
+  [EquipmentId.M4A1]: M4A1_PROTOTYPE,
+  [EquipmentId.Akm]: AKM_PROTOTYPE,
+  [EquipmentId.FiftyActionExpressAmmunition]: FIFTY_ACTION_EXPRESS_AMMUNITION_PROTOTYPE,
+  [EquipmentId.TwelveGaugeAmmunition]: TWELVE_GAUGE_AMMUNITION_PROTOTYPE,
+  [EquipmentId.FortyFiveAcpAmmunition]: FORTY_FIVE_ACP_AMMUNITION_PROTOTYPE,
+  [EquipmentId.FiveFiveSixNatoAmmunition]: FIVE_FIVE_SIX_NATO_AMMUNITION_PROTOTYPE,
+  [EquipmentId.SevenSixTwoAmmunition]: SEVEN_SIX_TWO_AMMUNITION_PROTOTYPE,
 });
 
 /** 返回指定装备拥有定义、几何和展示配置的完整原型。 */

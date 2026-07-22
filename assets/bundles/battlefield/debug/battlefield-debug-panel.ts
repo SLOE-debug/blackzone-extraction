@@ -30,6 +30,13 @@ export class BattlefieldDebugPanel {
         controls.setFollowCameraPitchDegrees(value);
       },
     );
+    panel.addBoolean(
+      '性能诊断日志',
+      snapshot.performanceDiagnosticsEnabled,
+      (value) => {
+        controls.setPerformanceDiagnosticsEnabled(value);
+      },
+    );
     panel.addButton('在玩家正前方生成蜘蛛', () => {
       controls.spawnCurveCrawlerAhead();
     });

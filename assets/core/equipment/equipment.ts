@@ -16,6 +16,8 @@ export enum EquipmentRarity {
 export enum WeaponClass {
   Handgun = 'handgun',
   Shotgun = 'shotgun',
+  SubmachineGun = 'submachine-gun',
+  AssaultRifle = 'assault-rifle',
 }
 
 /** 武器向任意角色动画层声明的中立握持方式。 */
@@ -33,8 +35,11 @@ export enum WeaponAction {
 
 /** 武器弹仓与世界弹药拾取物之间共享的弹药口径标识。 */
 export enum AmmunitionType {
-  HandgunRound = 'handgun-round',
-  ShotgunShell = 'shotgun-shell',
+  FiftyActionExpress = '50-action-express',
+  TwelveGauge = '12-gauge',
+  FortyFiveAcp = '45-acp',
+  FiveFiveSixNato = '5.56x45-nato',
+  SevenSixTwoByThirtyNine = '7.62x39',
 }
 
 /** 投射物渲染器能够选择的领域化外观。 */
@@ -55,6 +60,8 @@ export interface MagazineWeaponAmmunitionDefinition {
   readonly ammunitionType: AmmunitionType;
   readonly capacity: number;
   readonly reloadSeconds: number;
+  /** 玩家首次获得该枪型时写入共享口径库存的备用弹量。 */
+  readonly initialReserveRounds: number;
 }
 
 /** 管式弹仓逐发装填时使用的容量与单发装填节奏。 */
@@ -63,6 +70,8 @@ export interface TubeMagazineWeaponAmmunitionDefinition {
   readonly ammunitionType: AmmunitionType;
   readonly capacity: number;
   readonly shellReloadSeconds: number;
+  /** 玩家首次获得该枪型时写入共享口径库存的备用弹量。 */
+  readonly initialReserveRounds: number;
 }
 
 /** 武器定义能够声明的完整弹药规则联合。 */

@@ -14,3 +14,9 @@ export {
   type CurveCrawlerPopulationOptions,
   type CurveCrawlerRepopulationOptions,
 } from './entities/curve-crawler';
+export {
+  VenomLobberPopulation,
+  type VenomLobberCombatOptions,
+  type VenomLobberPopulationOptions,
+  type VenomLobberRepopulationOptions,
+} from './entities/venom-lobber';

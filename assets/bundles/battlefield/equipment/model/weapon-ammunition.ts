@@ -10,6 +10,7 @@ import { WeaponAmmunitionReserve } from './weapon-ammunition-reserve';
 /** 武器射击系统依赖的有限弹药消耗与装填策略。 */
 export interface WeaponAmmunition {
   readonly ammunitionType: AmmunitionType;
+  readonly capacity: number;
   readonly roundsRemaining: number;
   readonly reserveRounds: number;
   readonly empty: boolean;
@@ -40,6 +41,10 @@ class MagazineWeaponAmmunition implements WeaponAmmunition {
 
   public get ammunitionType(): AmmunitionType {
     return this.definition.ammunitionType;
+  }
+
+  public get capacity(): number {
+    return this.definition.capacity;
   }
 
   public get roundsRemaining(): number {
@@ -115,6 +120,10 @@ class TubeMagazineWeaponAmmunition implements WeaponAmmunition {
 
   public get ammunitionType(): AmmunitionType {
     return this.definition.ammunitionType;
+  }
+
+  public get capacity(): number {
+    return this.definition.capacity;
   }
 
   public get roundsRemaining(): number {
@@ -198,6 +207,8 @@ function validateMagazineDefinition(
 ): void {
   if (!Number.isSafeInteger(definition.capacity)
     || definition.capacity <= 0
+    || !Number.isSafeInteger(definition.initialReserveRounds)
+    || definition.initialReserveRounds < 0
     || !Number.isFinite(definition.reloadSeconds)
     || definition.reloadSeconds <= 0) {
     throw new Error('弹匣容量与换弹时长必须是有限正数。');
@@ -209,6 +220,8 @@ function validateTubeMagazineDefinition(
 ): void {
   if (!Number.isSafeInteger(definition.capacity)
     || definition.capacity <= 0
+    || !Number.isSafeInteger(definition.initialReserveRounds)
+    || definition.initialReserveRounds < 0
     || !Number.isFinite(definition.shellReloadSeconds)
     || definition.shellReloadSeconds <= 0) {
     throw new Error('管式弹仓容量与单发装填时长必须是有限正数。');

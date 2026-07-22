@@ -67,9 +67,6 @@ interface MutableBattlefieldWeaponOwnerPose extends BattlefieldWeaponOwnerPose {
   rotationY: number;
   rotationZ: number;
   rotationW: number;
-  muzzleX: number;
-  muzzleY: number;
-  muzzleZ: number;
   forwardX: number;
   forwardY: number;
   forwardZ: number;
@@ -108,9 +105,6 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     rotationY: 0,
     rotationZ: 0,
     rotationW: 1,
-    muzzleX: 0,
-    muzzleY: 0,
-    muzzleZ: 0,
     forwardX: 0,
     forwardY: 0,
     forwardZ: 1,
@@ -197,6 +191,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         this.handleReturnToLobbyRequested,
       );
       controlHud.presentPlayerHealth(player.health, player.maximumHealth);
+      controlHud.presentWeaponAmmunition(playerWeapon.ammunitionStatus);
       const equipmentPickup = new BattlefieldEquipmentPickupSystem(
         treasures,
         playerWeapon,
@@ -216,7 +211,12 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       this.scene.globals.skin.enabled = false;
 
       debugPanel = new BattlefieldDebugPanel(
-        new BattlefieldDebugControls(cameraRig, player, monsters),
+        new BattlefieldDebugControls(
+          cameraRig,
+          player,
+          monsters,
+          this.performanceLogger,
+        ),
       );
       this.performanceLogger.bindSources(Object.freeze({
         player,
@@ -373,6 +373,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         this.player.health,
         this.player.maximumHealth,
       );
+      this.controlHud?.presentWeaponAmmunition(this.playerWeapon?.ammunitionStatus ?? null);
     }
     this.presentDefeatIfNeeded();
     performanceLogger.endStage(BattlefieldPerformanceStage.Status, stageStarted);
@@ -443,6 +444,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       toVanguardWeaponPose(this.playerWeapon?.weaponGrip ?? null),
       toVanguardWeaponAction(this.playerWeapon?.weaponAction ?? WeaponAction.Ready),
       this.playerWeapon?.weaponActionProgress ?? 0,
+      monsters.playerMovementSpeedMultiplier,
       this.weaponAimTarget,
     );
   }

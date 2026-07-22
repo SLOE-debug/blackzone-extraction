@@ -89,10 +89,19 @@ export interface CurveCrawlerEmergenceMeshPlan {
   readonly indexCount: number;
   /** 地裂区域相对出生区域的首顶点偏移。 */
   readonly crackVertexOffset: number;
+  /** 地裂区域相对出生索引区的首索引与数量。 */
+  readonly crackIndexOffset: number;
+  readonly crackIndexCount: number;
   /** 分面蛋壳相对出生区域的首顶点偏移。 */
   readonly eggVertexOffset: number;
   /** 分面蛋壳独立三角顶点数量。 */
   readonly eggVertexCount: number;
+  /** 蛋壳区域相对出生索引区的首索引与数量。 */
+  readonly eggIndexOffset: number;
+  readonly eggIndexCount: number;
+  /** 碎片区域相对出生索引区的首索引与数量。 */
+  readonly shardIndexOffset: number;
+  readonly shardIndexCount: number;
   /** 分面蛋壳每个独立顶点的单位方向。 */
   readonly eggUnitDirections: Float32Array;
   /** 分面蛋壳独立顶点对应的原始采样点，用于保持接缝扰动一致。 */

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEntityRange } from '../../assets/core/entities/entity-range';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
+import { PlanarVisibilityDetail } from '../../assets/core/contracts/planar-circle-visibility';
 import { MeshDirty } from '../../assets/core/mesh/mesh-dirty';
 import {
   compileCurveCrawlerMeshPlan,
@@ -8,6 +10,9 @@ import {
 import {
   curveCrawlerMeshEvaluator,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-evaluator';
+import {
+  CurveCrawlerPackedMeshUpdate,
+} from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-packed-mesh-update';
 import {
   CurveCrawlerMeshSemantic,
 } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-plan';
@@ -127,7 +132,11 @@ describe('Curve Crawler 编译式网格计划', () => {
     )).toBe(MeshDirty.All);
     expect(Array.from(streams.positions).every(Number.isFinite)).toBe(true);
     expect(Array.from(streams.normals).every(Number.isFinite)).toBe(true);
-    expectUnitNormals(streams.normals);
+    expectUnitNormals(
+      streams.normals,
+      0,
+      curveCrawlerMeshPlan.liquid.vertexOffset,
+    );
 
     const originalPositions = streams.positions.slice();
     const originalColors = streams.colors.slice();
@@ -163,6 +172,7 @@ describe('Curve Crawler 编译式网格计划', () => {
       curveCrawlerMeshPlan,
       packed,
       indices,
+      new Uint8Array(3).fill(PlanarVisibilityDetail.Full),
       2,
       0,
       MeshDirty.All,
@@ -184,6 +194,39 @@ describe('Curve Crawler 编译式网格计划', () => {
     );
   });
 
+  it('错峰求值只重写被调度实体并把颜色职责限制到单独槽位', () => {
+    const state = createCurveCrawlerMeshTestState(3);
+    const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, 3);
+    streams.positions.fill(-99);
+    streams.normals.fill(-99);
+    streams.colors.fill(0.5);
+    state.data.animation.hitFlash[2] = 1;
+    const updates = Uint8Array.of(
+      CurveCrawlerPackedMeshUpdate.Position,
+      CurveCrawlerPackedMeshUpdate.None,
+      CurveCrawlerPackedMeshUpdate.Shaded,
+    );
+
+    expect(curveCrawlerMeshEvaluator.evaluatePackedScheduled(
+      state,
+      curveCrawlerMeshPlan,
+      streams,
+      Uint32Array.of(0, 1, 2),
+      new Uint8Array(3).fill(PlanarVisibilityDetail.Full),
+      updates,
+      3,
+      0,
+    )).toBe(MeshDirty.Position | MeshDirty.Color);
+
+    const positionStride = curveCrawlerMeshPlan.vertexCount * 3;
+    const colorStride = curveCrawlerMeshPlan.vertexCount * 4;
+    expect(streams.positions[0]).not.toBe(-99);
+    expect(Array.from(streams.positions.subarray(positionStride, positionStride * 2)))
+      .toEqual(Array.from(new Float32Array(positionStride).fill(-99)));
+    expect(streams.colors[0]).toBe(0.5);
+    expect(streams.colors[colorStride * 2]).not.toBe(0.5);
+  });
+
   it('步态、眨眼、爆裂碎块和液体展开均直接求值为有限顶点', () => {
     const state = createCurveCrawlerMeshTestState(1);
     const range = createEntityRange(0, 1, 1);
@@ -198,6 +241,7 @@ describe('Curve Crawler 编译式网格计划', () => {
     state.data.animation.surfaceCollapse[0] = 0.56;
     state.data.animation.liquidSpread[0] = 0.82;
     state.data.animation.liquidDrain[0] = 0.28;
+    state.data.vitality.state[0] = MonsterLifecycleState.Dying;
     for (let fragment = 0; fragment < 12; fragment++) {
       state.data.animation.fragmentOffsetX[fragment] = fragment * 0.07 - 0.25;
       state.data.animation.fragmentOffsetY[fragment] = 0.19 - fragment * 0.04;
@@ -214,7 +258,11 @@ describe('Curve Crawler 编译式网格计划', () => {
     )).toBe(MeshDirty.Pose);
     expect(Array.from(streams.positions).every(Number.isFinite)).toBe(true);
     expect(Array.from(streams.normals).every(Number.isFinite)).toBe(true);
-    expectUnitNormals(streams.normals);
+    expectUnitNormals(
+      streams.normals,
+      0,
+      curveCrawlerMeshPlan.emergence.vertexOffset,
+    );
     expect(Math.max(...streams.positions)).toBeGreaterThan(1);
   });
 
@@ -281,6 +329,7 @@ describe('Curve Crawler 编译式网格计划', () => {
     const streams = createCurveCrawlerMeshTestStreams(curveCrawlerMeshPlan, range.count);
     state.data.animation.surfaceCollapse[0] = 1;
     state.data.animation.liquidSpread[0] = 1;
+    state.data.vitality.state[0] = MonsterLifecycleState.Dying;
     const indices = Array.from(curveCrawlerMeshPlan.indices);
 
     curveCrawlerMeshEvaluator.evaluate(
@@ -304,8 +353,12 @@ describe('Curve Crawler 编译式网格计划', () => {
 });
 
 /** 断言全部法线都是有限单位向量。 */
-function expectUnitNormals(normals: Float32Array): void {
-  for (let offset = 0; offset < normals.length; offset += 3) {
+function expectUnitNormals(
+  normals: Float32Array,
+  startVertex = 0,
+  endVertex = normals.length / 3,
+): void {
+  for (let offset = startVertex * 3; offset < endVertex * 3; offset += 3) {
     expect(Math.hypot(
       normals[offset] ?? 0,
       normals[offset + 1] ?? 0,

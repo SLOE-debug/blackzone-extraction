@@ -23,6 +23,8 @@ import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
 import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
 import { BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
+import { type WeaponAmmunitionStatus } from '../equipment/model/weapon-ammunition-status';
+import { BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
   [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
@@ -57,6 +59,7 @@ export class BattlefieldControlHud {
   private readonly aimJoystick: VirtualJoystick;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
   private readonly playerStatus: BattlefieldPlayerStatusHud;
+  private readonly weaponStatus: BattlefieldWeaponStatusHud;
   private readonly defeatDialog: BattlefieldDefeatDialog;
   private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
   private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
@@ -98,6 +101,7 @@ export class BattlefieldControlHud {
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
     let equipmentLabel: BattlefieldEquipmentLabelHud | null = null;
     let playerStatus: BattlefieldPlayerStatusHud | null = null;
+    let weaponStatus: BattlefieldWeaponStatusHud | null = null;
     let defeatDialog: BattlefieldDefeatDialog | null = null;
     try {
       gameplayGraphics = new BattlefieldGameplayGraphics(this.canvas.node);
@@ -118,6 +122,7 @@ export class BattlefieldControlHud {
         equipmentLibrary,
       );
       playerStatus = new BattlefieldPlayerStatusHud(this.canvas.node);
+      weaponStatus = new BattlefieldWeaponStatusHud(this.canvas.node);
       defeatDialog = new BattlefieldDefeatDialog(
         this.canvas.node,
         onReturnToLobbyRequested,
@@ -128,12 +133,14 @@ export class BattlefieldControlHud {
       this.cameraOrbitInput = cameraOrbitInput;
       this.equipmentLabel = equipmentLabel;
       this.playerStatus = playerStatus;
+      this.weaponStatus = weaponStatus;
       this.defeatDialog = defeatDialog;
       this.synchronizeLayout();
       this.synchronizeGameplayGraphics();
       this.canvas.node.active = false;
     } catch (error: unknown) {
       defeatDialog?.dispose();
+      weaponStatus?.dispose();
       playerStatus?.dispose();
       equipmentLabel?.dispose();
       cameraOrbitInput?.dispose();
@@ -201,6 +208,12 @@ export class BattlefieldControlHud {
     this.synchronizeGameplayGraphics();
   }
 
+  /** 同步右上角当前枪械、口径、弹匣和备用弹药。 */
+  public presentWeaponAmmunition(status: Readonly<WeaponAmmunitionStatus> | null): void {
+    this.weaponStatus.present(status);
+    this.synchronizeGameplayGraphics();
+  }
+
   /** 显示死亡弹窗，并清除仍残留的场景交互提示。 */
   public showDefeatDialog(): void {
     if (this.disposed) {
@@ -229,6 +242,7 @@ export class BattlefieldControlHud {
     this.cameraOrbitInput.dispose();
     this.defeatDialog.dispose();
     this.playerStatus.dispose();
+    this.weaponStatus.dispose();
     this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
@@ -268,11 +282,12 @@ export class BattlefieldControlHud {
     this.movementJoystick.setPosition(leftX, centerY);
     this.aimJoystick.setPosition(rightX, centerY);
     this.playerStatus.synchronizeLayout(width, height);
+    this.weaponStatus.synchronizeLayout(width, height);
     this.layoutWidth = width;
     this.layoutHeight = height;
   }
 
-  /** 把三个常驻图形源同步到唯一 Graphics 组件。 */
+  /** 把双摇杆、生命条和弹药板同步到唯一 Graphics 组件。 */
   private synchronizeGameplayGraphics(): void {
     this.gameplayGraphics.synchronize(
       this.canvas.transform.width,
@@ -280,6 +295,7 @@ export class BattlefieldControlHud {
       this.movementJoystick,
       this.aimJoystick,
       this.playerStatus,
+      this.weaponStatus,
     );
   }
 

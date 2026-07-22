@@ -7,8 +7,14 @@ export interface CompiledCurveCrawlerEmergenceMesh {
   readonly indexCount: number;
   readonly indices: Uint16Array;
   readonly crackVertexOffset: number;
+  readonly crackIndexOffset: number;
+  readonly crackIndexCount: number;
   readonly eggVertexOffset: number;
   readonly eggVertexCount: number;
+  readonly eggIndexOffset: number;
+  readonly eggIndexCount: number;
+  readonly shardIndexOffset: number;
+  readonly shardIndexCount: number;
   readonly eggUnitDirections: Float32Array;
   readonly eggSourceVertexIds: Uint16Array;
   readonly shardVertexOffsets: Uint16Array;
@@ -26,10 +32,13 @@ export function compileCurveCrawlerEmergenceMesh(
   const topology = CURVE_CRAWLER_EMERGENCE_TOPOLOGY;
   const crackVertexCount = topology.crackRayCount * topology.crackSegmentCount * 6;
   const crackVertexOffset = 0;
+  const crackIndexOffset = 0;
   const eggVertexOffset = crackVertexCount;
   const eggVertexCount = eggSource.indexCount;
   const shardVertexOffsets = new Uint16Array(topology.eggShardCount);
   const shardRegionOffset = eggVertexOffset + eggVertexCount;
+  const shardIndexOffset = shardRegionOffset;
+  const shardIndexCount = topology.eggShardCount * topology.eggShardFaceVertexCount;
   for (let shard = 0; shard < topology.eggShardCount; shard++) {
     shardVertexOffsets[shard] = shardRegionOffset + shard * topology.eggShardFaceVertexCount;
   }
@@ -61,8 +70,14 @@ export function compileCurveCrawlerEmergenceMesh(
     indexCount: indices.length,
     indices,
     crackVertexOffset,
+    crackIndexOffset,
+    crackIndexCount: crackVertexCount,
     eggVertexOffset,
     eggVertexCount,
+    eggIndexOffset: eggVertexOffset,
+    eggIndexCount: eggVertexCount,
+    shardIndexOffset,
+    shardIndexCount,
     eggUnitDirections,
     eggSourceVertexIds,
     shardVertexOffsets,

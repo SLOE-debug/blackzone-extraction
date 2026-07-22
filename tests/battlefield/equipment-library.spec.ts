@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AmmunitionType,
   EquipmentCategory,
   EquipmentRarity,
   WeaponAmmunitionMode,
@@ -43,31 +44,46 @@ describe('战场装备库', () => {
     expect(weapon.projectile.visual).toBeDefined();
   });
 
-  it('装备协议完整登记两种武器与两种对应弹药', () => {
+  it('装备协议完整登记五种武器与五种对应口径弹药', () => {
     expect(Object.values(EquipmentId)).toEqual([
       EquipmentId.DesertEagle,
       EquipmentId.PumpShotgun,
-      EquipmentId.HandgunAmmunition,
-      EquipmentId.ShotgunAmmunition,
+      EquipmentId.KrissVector,
+      EquipmentId.M4A1,
+      EquipmentId.Akm,
+      EquipmentId.FiftyActionExpressAmmunition,
+      EquipmentId.TwelveGaugeAmmunition,
+      EquipmentId.FortyFiveAcpAmmunition,
+      EquipmentId.FiveFiveSixNatoAmmunition,
+      EquipmentId.SevenSixTwoAmmunition,
     ]);
   });
 
-  it('宝箱必出一把武器，并按概率附带一至两份对应口径弹药', () => {
+  it('宝箱必出一把武器，并固定附带两至三份对应口径弹药', () => {
     const observedCounts = new Set<number>();
     const observedEquipment = new Set<EquipmentId>();
-    for (let seed = 1; seed <= 128; seed++) {
+    const ammunitionByWeapon = new Map<EquipmentId, EquipmentId>([
+      [EquipmentId.DesertEagle, EquipmentId.FiftyActionExpressAmmunition],
+      [EquipmentId.PumpShotgun, EquipmentId.TwelveGaugeAmmunition],
+      [EquipmentId.KrissVector, EquipmentId.FortyFiveAcpAmmunition],
+      [EquipmentId.M4A1, EquipmentId.FiveFiveSixNatoAmmunition],
+      [EquipmentId.Akm, EquipmentId.SevenSixTwoAmmunition],
+    ]);
+    for (let seed = 1; seed <= 512; seed++) {
       const randomState = Uint32Array.of(mixRandomSeed(0x72b8e1, seed));
       const drops = BATTLEFIELD_TREASURE_LOOT_TABLE.roll(randomState, 0);
       observedCounts.add(drops.length);
-      expect(drops.length).toBeGreaterThanOrEqual(1);
-      expect(drops.length).toBeLessThanOrEqual(3);
+      expect(drops.length).toBeGreaterThanOrEqual(3);
+      expect(drops.length).toBeLessThanOrEqual(4);
       expect([
         EquipmentId.DesertEagle,
         EquipmentId.PumpShotgun,
+        EquipmentId.KrissVector,
+        EquipmentId.M4A1,
+        EquipmentId.Akm,
       ]).toContain(drops[0]);
-      const expectedAmmunition = drops[0] === EquipmentId.DesertEagle
-        ? EquipmentId.HandgunAmmunition
-        : EquipmentId.ShotgunAmmunition;
+      const expectedAmmunition = ammunitionByWeapon.get(drops[0] ?? EquipmentId.DesertEagle);
+      expect(expectedAmmunition).toBeDefined();
       for (const ammunitionId of drops.slice(1)) {
         expect(ammunitionId).toBe(expectedAmmunition);
       }
@@ -76,13 +92,33 @@ describe('战场装备库', () => {
         expect(Object.values(EquipmentId)).toContain(id);
       }
     }
-    expect(Array.from(observedCounts).sort()).toEqual([1, 2, 3]);
+    expect(Array.from(observedCounts).sort()).toEqual([3, 4]);
     expect(observedEquipment).toEqual(new Set([
       EquipmentId.DesertEagle,
       EquipmentId.PumpShotgun,
-      EquipmentId.HandgunAmmunition,
-      EquipmentId.ShotgunAmmunition,
+      EquipmentId.KrissVector,
+      EquipmentId.M4A1,
+      EquipmentId.Akm,
+      EquipmentId.FiftyActionExpressAmmunition,
+      EquipmentId.TwelveGaugeAmmunition,
+      EquipmentId.FortyFiveAcpAmmunition,
+      EquipmentId.FiveFiveSixNatoAmmunition,
+      EquipmentId.SevenSixTwoAmmunition,
     ]));
+  });
+
+  it('冲锋枪与两种突击步枪使用独立英文枪名和通用现实口径', () => {
+    const vector = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.KrissVector);
+    const m4a1 = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.M4A1);
+    const akm = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.Akm);
+
+    expect(vector.displayName).toBe('KRISS Vector');
+    expect(vector.weaponClass).toBe(WeaponClass.SubmachineGun);
+    expect(vector.ammunition.ammunitionType).toBe(AmmunitionType.FortyFiveAcp);
+    expect(m4a1.displayName).toBe('M4A1');
+    expect(m4a1.ammunition.ammunitionType).toBe(AmmunitionType.FiveFiveSixNato);
+    expect(akm.displayName).toBe('AKM');
+    expect(akm.ammunition.ammunitionType).toBe(AmmunitionType.SevenSixTwoByThirtyNine);
   });
 
   it('全部武器和弹药拾取物均由非空程序化分面拓扑和单位法线构成', () => {

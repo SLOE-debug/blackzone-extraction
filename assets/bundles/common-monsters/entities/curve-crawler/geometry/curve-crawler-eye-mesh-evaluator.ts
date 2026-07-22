@@ -1,5 +1,7 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
-import { evaluateFacetedEllipsoid } from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
+import {
+  evaluateFacetedEllipsoidRotated,
+} from '../../../../../core/geometry/faceted/faceted-ellipsoid-evaluator';
 import {
   CURVE_CRAWLER_FRAGMENT_COUNT,
   CurveCrawlerFragmentIndex,
@@ -32,9 +34,8 @@ export function evaluateCurveCrawlerEyeMesh(
   const { transform, morphology, animation } = state.data;
   const originX = transform.x[entityIndex] ?? 0;
   const originY = transform.y[entityIndex] ?? 0;
-  const heading = transform.heading[entityIndex] ?? 0;
-  const headingCosine = Math.cos(heading);
-  const headingSine = Math.sin(heading);
+  const headingCosine = transform.headingCosine[entityIndex] ?? 1;
+  const headingSine = transform.headingSine[entityIndex] ?? 0;
   const emergenceBodyScale = Math.max(animation.emergenceBodyScale[entityIndex] ?? 1, 0.0001);
   const bodyLength = (morphology.bodyLength[entityIndex] ?? 0) * emergenceBodyScale;
   const bodyWidth = (morphology.bodyWidth[entityIndex] ?? 0) * emergenceBodyScale;
@@ -61,7 +62,6 @@ export function evaluateCurveCrawlerEyeMesh(
     entityVertexOffset,
     originX,
     originY,
-    heading,
     headingCosine,
     headingSine,
     forward,
@@ -84,7 +84,6 @@ export function evaluateCurveCrawlerEyeMesh(
     entityVertexOffset,
     originX,
     originY,
-    heading,
     headingCosine,
     headingSine,
     forward,
@@ -110,7 +109,6 @@ function evaluateEye(
   entityVertexOffset: number,
   originX: number,
   originY: number,
-  heading: number,
   headingCosine: number,
   headingSine: number,
   forward: number,
@@ -126,7 +124,16 @@ function evaluateEye(
   const fragmentIndex = fragmentOffset + fragmentKind;
   const { animation } = state.data;
   const localY = side * sideOffset;
-  evaluateFacetedEllipsoid(
+  const fragmentRotation = animation.fragmentRotation[fragmentIndex] ?? 0;
+  let rotationCosine = headingCosine;
+  let rotationSine = headingSine;
+  if (fragmentRotation !== 0) {
+    const fragmentCosine = Math.cos(fragmentRotation);
+    const fragmentSine = Math.sin(fragmentRotation);
+    rotationCosine = headingCosine * fragmentCosine - headingSine * fragmentSine;
+    rotationSine = headingSine * fragmentCosine + headingCosine * fragmentSine;
+  }
+  evaluateFacetedEllipsoidRotated(
     plan.eyeEllipsoid,
     streams,
     entityVertexOffset + localVertexOffset,
@@ -138,7 +145,8 @@ function evaluateEye(
     radiusX,
     radiusY,
     radiusZ,
-    heading + (animation.fragmentRotation[fragmentIndex] ?? 0),
+    rotationCosine,
+    rotationSine,
     writePositions,
     writeNormals,
   );

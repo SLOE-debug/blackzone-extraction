@@ -1,4 +1,5 @@
 import { type VertexStreams } from '../../../../../core/mesh/vertex-streams';
+import { CurveCrawlerPackedMeshUpdate } from '../geometry/curve-crawler-packed-mesh-update';
 import {
   CurveCrawlerMeshSemantic,
   type CurveCrawlerMeshPlan,
@@ -58,6 +59,28 @@ export function shadeCurveCrawlerUnlitEntities(
     streams.colors[colorOffset] *= shade;
     streams.colors[colorOffset + 1] *= shade;
     streams.colors[colorOffset + 2] *= shade;
+  }
+}
+
+/** 只为本帧真正重算颜色的紧凑实体烘焙分面明暗。 */
+export function shadeScheduledCurveCrawlerUnlitEntities(
+  streams: VertexStreams,
+  plan: CurveCrawlerMeshPlan,
+  firstEntity: number,
+  entityCount: number,
+  updates: Uint8Array,
+): void {
+  if (!Number.isInteger(entityCount)
+    || entityCount < 0
+    || entityCount > updates.length) {
+    throw new Error('Curve Crawler 错峰顶点着色范围无效。');
+  }
+  for (let entity = 0; entity < entityCount; entity++) {
+    if ((updates[entity] as CurveCrawlerPackedMeshUpdate)
+      !== CurveCrawlerPackedMeshUpdate.Shaded) {
+      continue;
+    }
+    shadeCurveCrawlerUnlitEntities(streams, plan, firstEntity + entity, 1);
   }
 }
 

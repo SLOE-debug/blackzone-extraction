@@ -58,8 +58,14 @@ export class BattlefieldPlayerAimController {
     weaponPose: VanguardWeaponPose,
     weaponAction: VanguardWeaponAction,
     weaponActionProgress: number,
+    movementSpeedMultiplier: number,
     fireTarget: MutableBattlefieldAimTarget,
   ): boolean {
+    if (!Number.isFinite(movementSpeedMultiplier)
+      || movementSpeedMultiplier <= 0
+      || movementSpeedMultiplier > 1) {
+      throw new Error('玩家怪物效果移动乘数必须位于零到一之间。');
+    }
     const weaponEquipped = weaponPose !== VanguardWeaponPose.Unarmed;
     cameraRig.queueOrbitRotation(controls.cameraOrbitDeltaX);
     cameraRig.writeWorldPlanarDirection(
@@ -68,8 +74,8 @@ export class BattlefieldPlayerAimController {
       this.movementDirection,
     );
     const intent = this.intent;
-    intent.moveX = this.movementDirection.x;
-    intent.moveZ = this.movementDirection.z;
+    intent.moveX = this.movementDirection.x * movementSpeedMultiplier;
+    intent.moveZ = this.movementDirection.z * movementSpeedMultiplier;
 
     if (controls.aiming) {
       cameraRig.writeWorldPlanarDirection(

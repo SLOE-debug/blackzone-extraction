@@ -7,7 +7,7 @@ import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weap
 
 const VANGUARD_POSE_BY_GRIP = Object.freeze({
   [WeaponGrip.Handgun]: VanguardWeaponPose.Handgun,
-  [WeaponGrip.LongGun]: VanguardWeaponPose.Shotgun,
+  [WeaponGrip.LongGun]: VanguardWeaponPose.LongGun,
 }) satisfies Readonly<Record<WeaponGrip, VanguardWeaponPose>>;
 
 const VANGUARD_ACTION_BY_WEAPON_ACTION = Object.freeze({

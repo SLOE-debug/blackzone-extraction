@@ -48,9 +48,12 @@ export class DynamicMeshBatch {
   private positionBuffer: gfx.Buffer | null = null;
   private normalBuffer: gfx.Buffer | null = null;
   private colorBuffer: gfx.Buffer | null = null;
+  private indexBuffer: gfx.Buffer | null = null;
   private positionSource: ArrayBuffer | null = null;
   private normalSource: ArrayBuffer | null = null;
   private colorSource: ArrayBuffer | null = null;
+  private indexSource: ArrayBuffer | null = null;
+  private indexComponentByteLength = 0;
   private maximumVertexCount = 0;
   private maximumIndexCount = 0;
   private activeIndexCount = 0;
@@ -78,6 +81,12 @@ export class DynamicMeshBatch {
     const positions = geometry.getPositionView();
     const colors = geometry.getColorView();
     const indices = geometry.getIndexView();
+    if (!(indices.buffer instanceof ArrayBuffer)) {
+      throw new Error('动态索引流必须由 ArrayBuffer 支持。');
+    }
+    if (indices.byteOffset !== 0 || indices.byteLength !== indices.buffer.byteLength) {
+      throw new Error('动态索引流必须完整覆盖其底层 ArrayBuffer。');
+    }
     if (!(positions.buffer instanceof ArrayBuffer)) {
       throw new Error('动态位置流必须由 ArrayBuffer 支持。');
     }
@@ -129,8 +138,11 @@ export class DynamicMeshBatch {
       ? undefined
       : renderingSubMesh?.vertexBuffers[normalBufferIndex];
     const colorBuffer = renderingSubMesh?.vertexBuffers[colorBufferIndex];
+    const indexBuffer = renderingSubMesh?.indexBuffer;
     if (vertexBuffer === undefined
       || colorBuffer === undefined
+      || indexBuffer === undefined
+      || indexBuffer === null
       || (normals !== null && normalBuffer === undefined)) {
       mesh.destroy();
       throw new Error('动态网格没有可更新的位置、法线或颜色顶点缓冲。');
@@ -155,9 +167,12 @@ export class DynamicMeshBatch {
     this.positionBuffer = vertexBuffer;
     this.normalBuffer = normalBuffer ?? null;
     this.colorBuffer = colorBuffer;
+    this.indexBuffer = indexBuffer;
     this.positionSource = positions.buffer;
     this.normalSource = normalSource;
     this.colorSource = colors.buffer;
+    this.indexSource = indices.buffer;
+    this.indexComponentByteLength = indices.BYTES_PER_ELEMENT;
     this.maximumVertexCount = geometry.vertexCount;
     this.maximumIndexCount = geometry.indexCount;
     this.activeIndexCount = geometry.indexCount;
@@ -259,6 +274,32 @@ export class DynamicMeshBatch {
     this.activeIndexCount = indexCount;
   }
 
+  /**
+   * 从 CPU 索引流开头上传当前紧凑拓扑，并同步实际绘制范围。
+   *
+   * Cocos 公开 Buffer API 不支持目标偏移，因此调用方必须把活动索引压在前缀区间。
+   */
+  public uploadIndices(activeIndexCount: number): void {
+    if (this.state !== DynamicMeshBatchState.Initialized
+      || this.indexBuffer === null
+      || this.indexSource === null
+      || this.indexComponentByteLength <= 0) {
+      throw new Error('动态网格索引缓冲尚未初始化或已经释放。');
+    }
+    if (!Number.isInteger(activeIndexCount)
+      || activeIndexCount < 0
+      || activeIndexCount > this.maximumIndexCount) {
+      throw new Error('动态网格活动索引数必须位于已分配容量内。');
+    }
+    if (activeIndexCount > 0) {
+      this.indexBuffer.update(
+        this.indexSource,
+        activeIndexCount * this.indexComponentByteLength,
+      );
+    }
+    this.setActiveIndexCount(activeIndexCount);
+  }
+
   /** 在没有活动实体时停用批次节点，从提交列表中完全移除该 Draw Call。 */
   public setVisible(visible: boolean): void {
     if (this.state !== DynamicMeshBatchState.Initialized || this.node === null) {
@@ -289,9 +330,12 @@ export class DynamicMeshBatch {
     this.positionBuffer = null;
     this.normalBuffer = null;
     this.colorBuffer = null;
+    this.indexBuffer = null;
     this.positionSource = null;
     this.normalSource = null;
     this.colorSource = null;
+    this.indexSource = null;
+    this.indexComponentByteLength = 0;
     this.maximumVertexCount = 0;
     this.maximumIndexCount = 0;
     this.activeIndexCount = 0;

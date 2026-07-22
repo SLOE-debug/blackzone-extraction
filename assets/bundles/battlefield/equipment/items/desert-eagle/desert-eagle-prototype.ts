@@ -29,9 +29,10 @@ export const DESERT_EAGLE_PROTOTYPE = Object.freeze({
     attackAnimationSeconds: 0.22,
     ammunition: Object.freeze({
       mode: WeaponAmmunitionMode.Magazine,
-      ammunitionType: AmmunitionType.HandgunRound,
+      ammunitionType: AmmunitionType.FiftyActionExpress,
       capacity: 8,
       reloadSeconds: 1.08,
+      initialReserveRounds: 48,
     }),
     shotPattern: Object.freeze({
       type: WeaponShotPatternType.Single,
@@ -51,6 +52,9 @@ export const DESERT_EAGLE_PROTOTYPE = Object.freeze({
     originRightOffset: 0,
     originHeightOffset: 0.07,
     originForwardOffset: 0.09,
+    muzzleRightOffset: 0,
+    muzzleHeightOffset: 0.103,
+    muzzleForwardOffset: 0.35,
     rotationXDegrees: 0,
     rotationYDegrees: -90,
     rotationZDegrees: 0,

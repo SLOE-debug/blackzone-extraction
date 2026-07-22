@@ -137,6 +137,8 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     transform.y[index] = options.centerY + Math.sin(angle) * radius;
     const heading = angle + Math.PI;
     transform.heading[index] = heading;
+    transform.headingCosine[index] = Math.cos(heading);
+    transform.headingSine[index] = Math.sin(heading);
     transform.targetHeading[index] = heading;
 
     const staggerJitter = randomRange(

@@ -4,15 +4,10 @@ import {
 } from '../model/vanguard-bone';
 import { type VanguardState } from '../model/vanguard-state';
 import { type MutableVanguardWeaponRigPose } from '../model/vanguard-weapon-rig-pose';
-import {
-  getVanguardWeaponRigProfile,
-  VanguardWeaponRigSocket,
-} from '../model/vanguard-weapon-rig';
-import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
 
 const EPSILON = 0.000001;
 
-/** 从 WeaponAimRoot 最终 FK 矩阵写出武器运行时唯一权威姿态。 */
+/** 从 WeaponAimRoot 最终 FK 矩阵写出武器运行时的权威根姿态。 */
 export function writeVanguardWeaponRigPose(
   state: VanguardState,
   entityIndex: number,
@@ -34,21 +29,6 @@ export function writeVanguardWeaponRigPose(
   result.forwardX = (matrices[offset + 6] ?? 0) / scale;
   result.forwardY = (matrices[offset + 7] ?? 0) / scale;
   result.forwardZ = (matrices[offset + 8] ?? 1) / scale;
-  const weaponPose = state.data.animation.weaponPose[entityIndex] as VanguardWeaponPose;
-  const muzzle = getVanguardWeaponRigProfile(weaponPose)
-    .sockets[VanguardWeaponRigSocket.Muzzle];
-  result.muzzleX = result.rootX
-    + (matrices[offset] ?? 0) * muzzle.x
-    + (matrices[offset + 3] ?? 0) * muzzle.y
-    + (matrices[offset + 6] ?? 0) * muzzle.z;
-  result.muzzleY = result.rootY
-    + (matrices[offset + 1] ?? 0) * muzzle.x
-    + (matrices[offset + 4] ?? 0) * muzzle.y
-    + (matrices[offset + 7] ?? 0) * muzzle.z;
-  result.muzzleZ = result.rootZ
-    + (matrices[offset + 2] ?? 0) * muzzle.x
-    + (matrices[offset + 5] ?? 0) * muzzle.y
-    + (matrices[offset + 8] ?? 0) * muzzle.z;
   writeBasisQuaternion(
     result,
     (matrices[offset] ?? 1) / scale,

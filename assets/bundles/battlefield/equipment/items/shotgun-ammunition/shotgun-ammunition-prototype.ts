@@ -3,24 +3,24 @@ import {
   EquipmentCategory,
   EquipmentRarity,
 } from '../../../../../core/equipment/equipment';
-import { SHOTGUN_AMMUNITION_GEOMETRY } from './shotgun-ammunition-geometry';
+import { TWELVE_GAUGE_AMMUNITION_GEOMETRY } from './shotgun-ammunition-geometry';
 import {
   type BattlefieldAmmunitionPrototype,
 } from '../../catalog/battlefield-equipment-prototype';
 import { EquipmentId } from '../../catalog/equipment-id';
 
-/** 霰弹枪弹药在战场中的完整玩法与可视原型。 */
-export const SHOTGUN_AMMUNITION_PROTOTYPE = Object.freeze({
-  id: EquipmentId.ShotgunAmmunition,
+/** 12 Gauge 霰弹在战场中的完整玩法与可视原型。 */
+export const TWELVE_GAUGE_AMMUNITION_PROTOTYPE = Object.freeze({
+  id: EquipmentId.TwelveGaugeAmmunition,
   definition: Object.freeze({
-    id: EquipmentId.ShotgunAmmunition,
+    id: EquipmentId.TwelveGaugeAmmunition,
     category: EquipmentCategory.Ammunition,
-    displayName: '霰弹枪弹药',
-    description: '八发十二号霰弹枪备用弹',
+    displayName: '12 Gauge',
+    description: '二十四发十二号霰弹枪备用弹',
     rarity: EquipmentRarity.Common,
-    ammunitionType: AmmunitionType.ShotgunShell,
-    rounds: 8,
+    ammunitionType: AmmunitionType.TwelveGauge,
+    rounds: 24,
   }),
-  geometry: SHOTGUN_AMMUNITION_GEOMETRY,
+  geometry: TWELVE_GAUGE_AMMUNITION_GEOMETRY,
   dropped: Object.freeze({ scale: 0.52 }),
-}) satisfies BattlefieldAmmunitionPrototype<EquipmentId.ShotgunAmmunition>;
+}) satisfies BattlefieldAmmunitionPrototype<EquipmentId.TwelveGaugeAmmunition>;

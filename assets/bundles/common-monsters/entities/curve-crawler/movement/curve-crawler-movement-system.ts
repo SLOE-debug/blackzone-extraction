@@ -31,13 +31,17 @@ export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerStat
         intent.turnRate[index] ?? 2.3,
         deltaTime,
       );
+      const headingCosine = Math.cos(heading);
+      const headingSine = Math.sin(heading);
       motion.currentSpeed[index] = currentSpeed;
       transform.heading[index] = heading;
+      transform.headingCosine[index] = headingCosine;
+      transform.headingSine[index] = headingSine;
       if (state.motionProfile === CurveCrawlerMotionProfile.ObservationDisplay) {
         continue;
       }
-      transform.x[index] = (transform.x[index] ?? 0) + Math.cos(heading) * currentSpeed * deltaTime;
-      transform.y[index] = (transform.y[index] ?? 0) + Math.sin(heading) * currentSpeed * deltaTime;
+      transform.x[index] = (transform.x[index] ?? 0) + headingCosine * currentSpeed * deltaTime;
+      transform.y[index] = (transform.y[index] ?? 0) + headingSine * currentSpeed * deltaTime;
     }
   }
 }

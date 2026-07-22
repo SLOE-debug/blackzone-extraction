@@ -46,7 +46,7 @@ export function validateVanguardControlIntent(
   }
   if (!Number.isInteger(intent.weaponPose)
     || intent.weaponPose < VanguardWeaponPose.Unarmed
-    || intent.weaponPose > VanguardWeaponPose.Shotgun
+    || intent.weaponPose > VanguardWeaponPose.LongGun
     || !Number.isInteger(intent.weaponAction)
     || intent.weaponAction < VanguardWeaponAction.Ready
     || intent.weaponAction > VanguardWeaponAction.Reload

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { PlanarVisibilityDetail } from '../../assets/core/contracts/planar-circle-visibility';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { type CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerResidentLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-resident-layout';
 
 const ALWAYS_VISIBLE = Object.freeze({
   isCircleVisible: (): boolean => true,
+  resolveDetail: (): PlanarVisibilityDetail => PlanarVisibilityDetail.Full,
 });
 
 describe('CurveCrawlerResidentLayout', () => {
@@ -54,6 +56,7 @@ describe('CurveCrawlerResidentLayout', () => {
     state.data.transform.x[2] = 8;
     const layout = new CurveCrawlerResidentLayout(state.count, {
       isCircleVisible: (centerX): boolean => centerX > 0 && centerX < 5,
+      resolveDetail: (): PlanarVisibilityDetail => PlanarVisibilityDetail.Reduced,
     });
 
     expect(layout.synchronize(state)).toBe(true);
@@ -76,6 +79,7 @@ function createState(states: readonly MonsterLifecycleState[]): CurveCrawlerStat
       },
       vitality: {
         state: Uint8Array.from(states),
+        stateTime: new Float32Array(states.length),
       },
     },
   } as unknown as CurveCrawlerState;
