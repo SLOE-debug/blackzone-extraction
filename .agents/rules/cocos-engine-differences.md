@@ -70,7 +70,8 @@ node.lookAt(target, Vec3.UNIT_Z);
 ### GPU 姿态纹理与自定义顶点流
 
 - Cocos Creator 3.8.8 的 `utils.MeshUtils.createDynamicMesh()` 支持 `customAttributes`；每个自定义 `gfx.Attribute` 会按声明顺序创建独立 Vertex Buffer Stream。Effect 中的输入名称和 `gfx.Attribute.name` 必须完全一致，格式也必须与 `gfx.Format` 一致。
-- Cocos Creator 3.8.8 的 Effect 导入器会同时校验 GLSL 1 目标；`flat in` 与 `flat out` 会触发 `EFX2402` 并导致整个 Effect 资源导入失败。低多边形网格应为每个面写入一致的重复顶点法线和语义值，并使用普通 varying 插值，禁止依赖 GLSL 3 才支持的 `flat` 限定符。
+- Cocos Creator 3.8.8 的 Effect 导入器会同时校验 GLSL 1 目标；GLSL ES 1.00 规范第 3.7 节列出的未来保留字同样不能用作变量名或限定符。例如 `flat in/out` 和局部变量名 `packed` 都会触发 `EFX2402`，并导致整个 Effect 资源导入失败。低多边形网格应为每个面写入一致的重复顶点法线和语义值，并使用普通 varying 插值；自定义标识符必须经过完整保留字集合校验，禁止只修复当前报出的单个词。
+- Effect 使用 `<legacy/local-batch>` 和 `CCGetWorldMatrixFull()` 时，导入器会校验 `USE_INSTANCING=1` 变体；顶点程序必须同时引入 `<legacy/decode-base>`、`<legacy/input>` 或 `<legacy/input-standard>` 中的一种，让该变体获得 `a_matWorld0/1/2` 声明。只手写 Position、Normal 与 UV 输入会让实例化变体以 `EFX2406` 失败，即使运行时并未启用实例化也无法导入资源。隔离验证应检查展开日志中 `USE_INSTANCING=1` 变体成功编译，而不是只观察默认材质宏。
 - `Mesh.updateSubMesh()` 不会按自定义 Attribute Format 把 `Float32Array` 自动转码为 Half Float 或归一化整数，而是直接复制源数组的原始字节，并用“源字节数 ÷ Attribute stride”计算顶点数。因此传入 `Float32Array` 的 `vec4` 自定义流必须使用 `RGBA32F`；禁止只把格式改成 `RGBA16F` 或 `RGBA8` 来假装压缩，否则顶点计数和字节解释都会错误。
 - `Texture2D.reset()` 可以创建 `PixelFormat.RGBA32F` 原始浮点纹理，重置后必须调用 `uploadData()` 才会把 CPU 数据提交到 GPU。用于实体参数表时必须设置 `NEAREST` 和 `CLAMP_TO_EDGE`，避免相邻实体行被插值或越界采样。
 - 每实体参数纹理应让一个稳定 GPU Slot 对应一行，Vertex Shader 使用 Texel 中心坐标采样；不得用归一化实体序号猜测纹理行，也不得让可见性压缩改变姿态行身份。

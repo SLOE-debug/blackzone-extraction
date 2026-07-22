@@ -12,6 +12,20 @@ import {
 import { CurveCrawlerGpuVertexAttribute } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/gpu/curve-crawler-gpu-vertex-layout';
 import { createCurveCrawlerMeshTestState } from './mesh-test-fixture';
 
+const GLSL_ES_100_FUTURE_RESERVED_KEYWORDS = new Set([
+  'asm',
+  'class', 'union', 'enum', 'typedef', 'template', 'this', 'packed',
+  'goto', 'switch', 'default',
+  'inline', 'noinline', 'volatile', 'public', 'static', 'extern', 'external',
+  'interface', 'flat',
+  'long', 'short', 'double', 'half', 'fixed', 'unsigned', 'superp',
+  'input', 'output',
+  'hvec2', 'hvec3', 'hvec4', 'dvec2', 'dvec3', 'dvec4', 'fvec2', 'fvec3', 'fvec4',
+  'sampler1D', 'sampler3D', 'sampler1DShadow', 'sampler2DShadow',
+  'sampler2DRect', 'sampler3DRect', 'sampler2DRectShadow',
+  'sizeof', 'cast', 'namespace', 'using',
+]);
+
 describe('Curve Crawler GPU 形变数据', () => {
   it('Effect 与 TypeScript 姿态 Texel 宽度及 Position/Normal 同源契约一致', () => {
     const effect = readFileSync(new URL(
@@ -21,12 +35,13 @@ describe('Curve Crawler GPU 形变数据', () => {
     expect(effect).toContain(
       `poseTextureSize: { value: [${CURVE_CRAWLER_GPU_POSE_TEXEL_COUNT},`,
     );
-    expect(effect).toContain('in vec3 a_normal;');
+    expect(effect).toContain('#include <legacy/decode-base>');
+    expect(effect).toContain('vec3 normal = a_normal;');
     expect(effect).toContain(`in vec4 ${CurveCrawlerGpuVertexAttribute.Deformation};`);
     expect(effect).toContain(`in vec4 ${CurveCrawlerGpuVertexAttribute.DeformationPivot};`);
     expect(effect).toContain('v_worldNormal = normalize');
     expect(effect).toContain('texture(poseTexture, uv)');
-    expect(effect).not.toMatch(/\bflat\s+(?:in|out)\b/);
+    expect(findReservedShaderIdentifiers(effect)).toEqual([]);
   });
 
   it('把每实体 SoA 姿态压入固定 RGBA32F Texel 行', () => {
@@ -106,4 +121,14 @@ function readTexel(
   const offset = (gpuSlot * CURVE_CRAWLER_GPU_POSE_TEXEL_COUNT + texel)
     * CURVE_CRAWLER_GPU_POSE_COMPONENT_COUNT;
   return Array.from(source.subarray(offset, offset + CURVE_CRAWLER_GPU_POSE_COMPONENT_COUNT));
+}
+
+/** 返回会让 Cocos GLSL 1 目标导入失败的用户标识符。 */
+function findReservedShaderIdentifiers(effect: string): string[] {
+  const sourceWithoutIncludePaths = effect.replace(/^\s*#include\s+<[^>]+>\s*$/gm, '');
+  const identifiers = sourceWithoutIncludePaths.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/g) ?? [];
+  return Array.from(new Set(identifiers.filter((identifier) =>
+    GLSL_ES_100_FUTURE_RESERVED_KEYWORDS.has(identifier)
+    || identifier.includes('__')
+    || identifier.startsWith('gl_'))));
 }

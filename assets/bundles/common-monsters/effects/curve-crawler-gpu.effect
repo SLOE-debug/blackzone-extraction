@@ -21,11 +21,9 @@ CCProgram curve-crawler-gpu-vs %{
   precision highp sampler2D;
 
   #include <builtin/uniforms/cc-global>
+  #include <legacy/decode-base>
   #include <legacy/local-batch>
 
-  in vec3 a_position;
-  in vec3 a_normal;
-  in vec2 a_texCoord;
   in lowp vec4 a_color;
 
   #pragma format(RGBA32F)
@@ -105,8 +103,8 @@ CCProgram curve-crawler-gpu-vs %{
 
   vec2 readLegPhase(float slot, float legIndex) {
     float pair = floor(legIndex * 0.5);
-    vec4 packed = readPose(slot, TEXEL_LEG_PHASE_FIRST + pair);
-    return mod(legIndex, 2.0) < 0.5 ? packed.xy : packed.zw;
+    vec4 phaseTexel = readPose(slot, TEXEL_LEG_PHASE_FIRST + pair);
+    return mod(legIndex, 2.0) < 0.5 ? phaseTexel.xy : phaseTexel.zw;
   }
 
   void deformLeg(
