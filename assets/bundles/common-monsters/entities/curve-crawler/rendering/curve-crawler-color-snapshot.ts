@@ -8,68 +8,41 @@ import {
 export class CurveCrawlerColorSnapshot {
   private readonly hitFlashes: Float32Array;
   private readonly liquidDrains: Float32Array;
-  private readonly changedEntities: Uint8Array;
-  private initialized = false;
+  private readonly initializedEntities: Uint8Array;
 
   constructor(private readonly state: CurveCrawlerState) {
     this.hitFlashes = new Float32Array(state.count);
     this.liquidDrains = new Float32Array(state.count);
-    this.changedEntities = new Uint8Array(state.count);
+    this.initializedEntities = new Uint8Array(state.count);
   }
 
-  /** 返回指定源实体在本帧采样中是否跨过了一个可见颜色档位。 */
-  public didEntityChange(entityIndex: number): boolean {
-    return (this.changedEntities[entityIndex] ?? 0) !== 0;
-  }
-
-  /** 保存当前颜色输入，并返回其是否相对上次采样发生变化。 */
-  public capture(): boolean {
-    const { hitFlash, liquidDrain } = this.state.data.animation;
-    this.changedEntities.fill(0);
-    let changed = !this.initialized;
-    for (let index = 0; index < this.state.count; index++) {
-      const nextHitFlash = quantizeCurveCrawlerHitFlash(hitFlash[index] ?? 0);
-      const nextLiquidDrain = quantizeCurveCrawlerLiquidDrain(liquidDrain[index] ?? 0);
-      if (this.hitFlashes[index] !== nextHitFlash
-        || this.liquidDrains[index] !== nextLiquidDrain) {
-        changed = true;
-        this.changedEntities[index] = 1;
-      }
-      this.hitFlashes[index] = nextHitFlash;
-      this.liquidDrains[index] = nextLiquidDrain;
+  /** 比较并保存一个实体当前颜色量化输入。 */
+  public captureEntityChange(entityIndex: number): boolean {
+    if (!Number.isInteger(entityIndex)
+      || entityIndex < 0
+      || entityIndex >= this.state.count) {
+      throw new Error('Curve Crawler 颜色快照实体槽位越界。');
     }
-    this.initialized = true;
+    const { hitFlash, liquidDrain } = this.state.data.animation;
+    const nextHitFlash = quantizeCurveCrawlerHitFlash(hitFlash[entityIndex] ?? 0);
+    const nextLiquidDrain = quantizeCurveCrawlerLiquidDrain(
+      liquidDrain[entityIndex] ?? 0,
+    );
+    const changed = (this.initializedEntities[entityIndex] ?? 0) === 0
+      || this.hitFlashes[entityIndex] !== nextHitFlash
+      || this.liquidDrains[entityIndex] !== nextLiquidDrain;
+    this.hitFlashes[entityIndex] = nextHitFlash;
+    this.liquidDrains[entityIndex] = nextLiquidDrain;
+    this.initializedEntities[entityIndex] = 1;
     return changed;
   }
 
-  /** 只比较紧凑渲染布局中的真实驻留槽位。 */
-  public captureResident(entityIndices: Uint32Array, entityCount: number): boolean {
-    if (!Number.isInteger(entityCount)
-      || entityCount < 0
-      || entityCount > entityIndices.length) {
-      throw new Error('Curve Crawler 颜色快照的驻留范围无效。');
+  /** 保存独占渲染器使用的完整群体颜色输入快照。 */
+  public capture(): boolean {
+    let changed = false;
+    for (let entityIndex = 0; entityIndex < this.state.count; entityIndex++) {
+      changed = this.captureEntityChange(entityIndex) || changed;
     }
-    const { hitFlash, liquidDrain } = this.state.data.animation;
-    this.changedEntities.fill(0);
-    let changed = !this.initialized;
-    for (let packedIndex = 0; packedIndex < entityCount; packedIndex++) {
-      const entityIndex = entityIndices[packedIndex];
-      if (entityIndex === undefined || entityIndex >= this.state.count) {
-        throw new Error('Curve Crawler 颜色快照包含越界实体槽位。');
-      }
-      const nextHitFlash = quantizeCurveCrawlerHitFlash(hitFlash[entityIndex] ?? 0);
-      const nextLiquidDrain = quantizeCurveCrawlerLiquidDrain(
-        liquidDrain[entityIndex] ?? 0,
-      );
-      if (this.hitFlashes[entityIndex] !== nextHitFlash
-        || this.liquidDrains[entityIndex] !== nextLiquidDrain) {
-        changed = true;
-        this.changedEntities[entityIndex] = 1;
-      }
-      this.hitFlashes[entityIndex] = nextHitFlash;
-      this.liquidDrains[entityIndex] = nextLiquidDrain;
-    }
-    this.initialized = true;
     return changed;
   }
 }

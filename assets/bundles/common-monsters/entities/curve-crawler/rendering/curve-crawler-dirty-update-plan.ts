@@ -1,7 +1,9 @@
 import { CurveCrawlerPackedMeshUpdate } from '../geometry/curve-crawler-packed-mesh-update';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { type CurveCrawlerColorSnapshot } from './curve-crawler-color-snapshot';
-import { type CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
+import { type CurveCrawlerPoseSnapshot } from './curve-crawler-pose-snapshot';
+import { type CurveCrawlerRenderCadence } from './curve-crawler-render-cadence';
+import { type CurveCrawlerVisibilityLayout } from './curve-crawler-visibility-layout';
 
 /**
  * 为共享动态网格生成单实体更新命令。
@@ -21,20 +23,31 @@ export class CurveCrawlerDirtyUpdatePlan {
   /** 为当前紧凑布局写入无更新、位置更新或带颜色更新三种命令。 */
   public schedule(
     state: CurveCrawlerState,
-    residents: CurveCrawlerResidentLayout,
+    visibility: CurveCrawlerVisibilityLayout,
+    gpuSlotOffset: number,
+    cadence: CurveCrawlerRenderCadence,
+    poses: CurveCrawlerPoseSnapshot,
     colors: CurveCrawlerColorSnapshot,
-    poseDirty: boolean,
     force: boolean,
   ): void {
-    for (let packedIndex = 0; packedIndex < residents.count; packedIndex++) {
-      const entityIndex = residents.entityIndices[packedIndex];
+    for (let packedIndex = 0; packedIndex < visibility.count; packedIndex++) {
+      const entityIndex = visibility.entityIndices[packedIndex];
       if (entityIndex === undefined || entityIndex >= state.count) {
         throw new Error('Curve Crawler 脏区计划包含越界实体。');
       }
-      if (force || colors.didEntityChange(entityIndex)) {
+      const visibilityChanged = visibility.didEntityChange(entityIndex);
+      if (!force
+        && !visibilityChanged
+        && !cadence.isSlotDue(gpuSlotOffset + entityIndex)) {
+        this.updates[packedIndex] = CurveCrawlerPackedMeshUpdate.None;
+        continue;
+      }
+      const poseChanged = poses.captureEntityChange(state, entityIndex);
+      const colorChanged = colors.captureEntityChange(entityIndex);
+      if (force || visibilityChanged || colorChanged) {
         this.updates[packedIndex] = CurveCrawlerPackedMeshUpdate.Shaded;
       } else {
-        this.updates[packedIndex] = poseDirty
+        this.updates[packedIndex] = poseChanged
           ? CurveCrawlerPackedMeshUpdate.Position
           : CurveCrawlerPackedMeshUpdate.None;
       }

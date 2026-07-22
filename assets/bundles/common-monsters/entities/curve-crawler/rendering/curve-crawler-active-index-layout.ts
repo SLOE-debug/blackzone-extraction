@@ -1,7 +1,7 @@
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { type CurveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-plan';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
-import { type CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
+import { type CurveCrawlerVisibilityLayout } from './curve-crawler-visibility-layout';
 
 const BODY_VISIBLE = 1 << 0;
 const CRACK_VISIBLE = 1 << 1;
@@ -13,7 +13,8 @@ const LIQUID_VISIBLE = 1 << 4;
 export interface CurveCrawlerActiveIndexSource {
   readonly renderIdentity: number;
   readonly state: CurveCrawlerState;
-  readonly residents: CurveCrawlerResidentLayout;
+  readonly visibility: CurveCrawlerVisibilityLayout;
+  readonly gpuSlotOffset: number;
 }
 
 /**
@@ -24,6 +25,7 @@ export interface CurveCrawlerActiveIndexSource {
 export class CurveCrawlerActiveIndexLayout {
   private entryIds = new Uint32Array(0);
   private entityIds = new Uint32Array(0);
+  private gpuSlots = new Uint32Array(0);
   private topologyMasks = new Uint8Array(0);
   private trackedEntityCount = 0;
   private currentIndexCount = 0;
@@ -50,6 +52,7 @@ export class CurveCrawlerActiveIndexLayout {
     if (this.entryIds.length < entityCapacity) {
       this.entryIds = new Uint32Array(entityCapacity);
       this.entityIds = new Uint32Array(entityCapacity);
+      this.gpuSlots = new Uint32Array(entityCapacity);
       this.topologyMasks = new Uint8Array(entityCapacity);
       force = true;
     }
@@ -57,9 +60,9 @@ export class CurveCrawlerActiveIndexLayout {
     let packedEntity = 0;
     let changed = force;
     for (const source of sources) {
-      const residents = source.residents;
-      for (let packedIndex = 0; packedIndex < residents.count; packedIndex++) {
-        const entityIndex = residents.entityIndices[packedIndex];
+      const visibility = source.visibility;
+      for (let packedIndex = 0; packedIndex < visibility.count; packedIndex++) {
+        const entityIndex = visibility.entityIndices[packedIndex];
         if (entityIndex === undefined || entityIndex >= source.state.count) {
           throw new Error('Curve Crawler 活动索引包含越界实体。');
         }
@@ -67,13 +70,16 @@ export class CurveCrawlerActiveIndexLayout {
           source.state,
           entityIndex,
         );
+        const gpuSlot = source.gpuSlotOffset + entityIndex;
         if ((this.entryIds[packedEntity] ?? 0) !== source.renderIdentity
           || (this.entityIds[packedEntity] ?? 0) !== entityIndex
+          || (this.gpuSlots[packedEntity] ?? 0) !== gpuSlot
           || (this.topologyMasks[packedEntity] ?? 0) !== mask) {
           changed = true;
         }
         this.entryIds[packedEntity] = source.renderIdentity;
         this.entityIds[packedEntity] = entityIndex;
+        this.gpuSlots[packedEntity] = gpuSlot;
         this.topologyMasks[packedEntity] = mask;
         packedEntity++;
       }
@@ -88,7 +94,7 @@ export class CurveCrawlerActiveIndexLayout {
 
     let targetIndexOffset = 0;
     for (let entity = 0; entity < packedEntity; entity++) {
-      const vertexOffset = entity * this.plan.vertexCount;
+      const vertexOffset = (this.gpuSlots[entity] ?? 0) * this.plan.vertexCount;
       const mask = this.topologyMasks[entity] ?? 0;
       if ((mask & BODY_VISIBLE) !== 0) {
         targetIndexOffset = appendBodyIndices(

@@ -5,10 +5,13 @@ export interface BattlefieldPerformanceSnapshot {
   activeChunks: number;
   environmentEntities: number;
   environmentBatches: number;
+  environmentGeometryBytesAllocated: number;
+  environmentBuilderReplacements: number;
   environmentSynchronizing: boolean;
   groundSynchronizing: boolean;
   monsterSlots: number;
   aliveMonsters: number;
+  residentMonsters: number;
   visibleMonsters: number;
   monsterRenderCapacity: number;
   activeChests: number;
@@ -45,6 +48,9 @@ export interface BattlefieldPerformanceConsoleReport {
   readonly slowestFrameVisibleMonsters: number;
   readonly slowestFrameMonsterRenderCapacity: number;
   readonly slowestFrameAliveMonsters: number;
+  readonly monsterEntitiesEvaluatedTotal: number;
+  readonly monsterPositionBytesUploadedTotal: number;
+  readonly monsterPositionUploadCallsTotal: number;
   readonly eventNames: readonly string[];
   readonly eventValues: Float64Array;
   readonly slowestFrameEvents: Float64Array;
@@ -86,6 +92,19 @@ export function presentBattlefieldPerformanceReport(
     console.table(rows);
     console.info('怪物群体细分（以下耗时已经包含在主表“怪物群体”中）');
     console.table(monsterRows);
+    console.info(
+      `怪物渲染工作量(平均每帧): 求值 ${formatAverage(
+        report.monsterEntitiesEvaluatedTotal,
+        report.frameCount,
+      )} 只`
+      + ` | Position ${formatBytes(
+        report.monsterPositionBytesUploadedTotal / Math.max(report.frameCount, 1),
+      )}`
+      + ` | 上传调用 ${formatAverage(
+        report.monsterPositionUploadCallsTotal,
+        report.frameCount,
+      )}`,
+    );
     console.info(
       `窗口事件: ${formatEvents(report.eventNames, report.eventValues)}`
       + ` | 最慢 update 帧事件: ${formatEvents(
@@ -182,7 +201,10 @@ function formatScale(snapshot: Readonly<BattlefieldPerformanceSnapshot>): string
   return `规模: 玩家(${format(snapshot.playerX, 1)}, ${format(snapshot.playerZ, 1)})`
     + ` | Chunk ${snapshot.activeChunks}`
     + ` | 环境实体 ${snapshot.environmentEntities}/批次${snapshot.environmentBatches}`
-    + ` | 怪物 可见${snapshot.visibleMonsters}/存活${snapshot.aliveMonsters}`
+    + `/最近分配${formatBytes(snapshot.environmentGeometryBytesAllocated)}`
+    + `/构建替换${snapshot.environmentBuilderReplacements}`
+    + ` | 怪物 驻留${snapshot.residentMonsters}/视锥可见${snapshot.visibleMonsters}`
+    + `/存活${snapshot.aliveMonsters}`
     + `/批次容量${snapshot.monsterRenderCapacity}/槽位${snapshot.monsterSlots}`
     + ` | 宝箱 ${snapshot.activeChests}(已开${snapshot.openedChests})`
     + ` | 掉落 ${snapshot.droppedEquipment}`
@@ -205,6 +227,20 @@ function formatOptional(value: number | undefined): string {
 
 function formatCompact(value: number): string {
   return Number.isInteger(value) ? value.toString() : format(value, 1);
+}
+
+function formatAverage(total: number, count: number): string {
+  return format(count > 0 ? total / count : 0, 1);
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) {
+    return 'n/a';
+  }
+  if (value >= 1024 * 1024) {
+    return `${format(value / (1024 * 1024), 2)} MiB`;
+  }
+  return `${format(value / 1024, 1)} KiB`;
 }
 
 function formatInteger(value: number): string {

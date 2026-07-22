@@ -3,6 +3,7 @@ import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifec
 import { curveCrawlerMeshPlan } from '../../assets/bundles/common-monsters/entities/curve-crawler/geometry/curve-crawler-mesh-compiler';
 import { CurveCrawlerActiveIndexLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-active-index-layout';
 import { CurveCrawlerResidentLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-resident-layout';
+import { type CurveCrawlerVisibilityLayout } from '../../assets/bundles/common-monsters/entities/curve-crawler/rendering/curve-crawler-visibility-layout';
 import { createCurveCrawlerMeshTestState } from './mesh-test-fixture';
 
 describe('Curve Crawler 活动索引', () => {
@@ -14,13 +15,16 @@ describe('Curve Crawler 活动索引', () => {
     state.data.transform.x[2] = 2;
     const residents = new CurveCrawlerResidentLayout(state.count);
     residents.synchronize(state);
+    const visibility = createVisibility(residents);
 
     const layout = new CurveCrawlerActiveIndexLayout(curveCrawlerMeshPlan);
-    const indices = new Uint32Array(curveCrawlerMeshPlan.indexCount * state.count);
+    const gpuSlotOffset = 2;
+    const capacity = gpuSlotOffset + state.count;
+    const indices = new Uint32Array(curveCrawlerMeshPlan.indexCount * capacity);
     expect(layout.synchronize(
-      [{ renderIdentity: 1, state, residents }],
+      [{ renderIdentity: 1, state, visibility, gpuSlotOffset }],
       indices,
-      state.count,
+      capacity,
       true,
     )).toBe(true);
     const expected = (
@@ -28,12 +32,15 @@ describe('Curve Crawler 活动索引', () => {
     ) * state.count;
     expect(layout.indexCount).toBe(expected);
     expect(maximumIndex(indices, layout.indexCount)).toBeLessThan(
-      curveCrawlerMeshPlan.vertexCount * state.count,
+      curveCrawlerMeshPlan.vertexCount * capacity,
+    );
+    expect(minimumIndex(indices, layout.indexCount)).toBeGreaterThanOrEqual(
+      curveCrawlerMeshPlan.vertexCount * gpuSlotOffset,
     );
     expect(layout.synchronize(
-      [{ renderIdentity: 1, state, residents }],
+      [{ renderIdentity: 1, state, visibility, gpuSlotOffset }],
       indices,
-      state.count,
+      capacity,
       false,
     )).toBe(false);
 
@@ -44,9 +51,12 @@ describe('Curve Crawler 活动索引', () => {
     state.data.vitality.state[0] = MonsterLifecycleState.Alive;
     const residents = new CurveCrawlerResidentLayout(state.count);
     residents.synchronize(state);
+    const visibility = createVisibility(residents);
     const layout = new CurveCrawlerActiveIndexLayout(curveCrawlerMeshPlan);
     const indices = new Uint32Array(curveCrawlerMeshPlan.indexCount);
-    layout.synchronize([{ renderIdentity: 7, state, residents }], indices, 1, true);
+    layout.synchronize([
+      { renderIdentity: 7, state, visibility, gpuSlotOffset: 0 },
+    ], indices, 1, true);
     const aliveIndexCount = layout.indexCount;
     expect(aliveIndexCount).toBe(
       curveCrawlerMeshPlan.body.indexCount + curveCrawlerMeshPlan.eyes.indexCount,
@@ -55,7 +65,7 @@ describe('Curve Crawler 活动索引', () => {
     state.data.vitality.state[0] = MonsterLifecycleState.Dying;
     residents.synchronize(state);
     expect(layout.synchronize(
-      [{ renderIdentity: 7, state, residents }],
+      [{ renderIdentity: 7, state, visibility, gpuSlotOffset: 0 }],
       indices,
       1,
       false,
@@ -70,4 +80,21 @@ function maximumIndex(indices: Uint32Array, count: number): number {
     maximum = Math.max(maximum, indices[index] ?? 0);
   }
   return maximum;
+}
+
+function minimumIndex(indices: Uint32Array, count: number): number {
+  let minimum = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < count; index++) {
+    minimum = Math.min(minimum, indices[index] ?? 0);
+  }
+  return minimum;
+}
+
+function createVisibility(
+  residents: CurveCrawlerResidentLayout,
+): CurveCrawlerVisibilityLayout {
+  return {
+    entityIndices: residents.entityIndices,
+    count: residents.count,
+  } as CurveCrawlerVisibilityLayout;
 }

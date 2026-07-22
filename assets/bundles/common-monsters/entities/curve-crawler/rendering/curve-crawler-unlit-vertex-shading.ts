@@ -66,7 +66,8 @@ export function shadeCurveCrawlerUnlitEntities(
 export function shadeScheduledCurveCrawlerUnlitEntities(
   streams: VertexStreams,
   plan: CurveCrawlerMeshPlan,
-  firstEntity: number,
+  gpuSlotOffset: number,
+  entityIndices: Uint32Array,
   entityCount: number,
   updates: Uint8Array,
 ): void {
@@ -80,7 +81,11 @@ export function shadeScheduledCurveCrawlerUnlitEntities(
       !== CurveCrawlerPackedMeshUpdate.Shaded) {
       continue;
     }
-    shadeCurveCrawlerUnlitEntities(streams, plan, firstEntity + entity, 1);
+    const entityIndex = entityIndices[entity];
+    if (entityIndex === undefined) {
+      throw new Error('Curve Crawler 脏区顶点着色缺少实体槽位。');
+    }
+    shadeCurveCrawlerUnlitEntities(streams, plan, gpuSlotOffset + entityIndex, 1);
   }
 }
 

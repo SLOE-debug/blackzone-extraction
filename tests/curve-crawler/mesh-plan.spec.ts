@@ -205,7 +205,7 @@ describe('Curve Crawler 编译式网格计划', () => {
       CurveCrawlerPackedMeshUpdate.Shaded,
     );
 
-    expect(curveCrawlerMeshEvaluator.evaluatePackedScheduled(
+    expect(curveCrawlerMeshEvaluator.evaluateScheduledToEntitySlots(
       state,
       curveCrawlerMeshPlan,
       streams,

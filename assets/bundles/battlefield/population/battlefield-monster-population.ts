@@ -1,4 +1,4 @@
-import { type Material, Node } from 'cc';
+import { type Camera, type Material, Node } from 'cc';
 import { type Disposable } from '../../../core/contracts/disposable';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -52,6 +52,7 @@ implements Disposable {
     parent: Node,
     surfaceMaterialTemplate: Material,
     commonMonsters: RegisteredFeaturePlugin<FeatureId.CommonMonsters>,
+    camera: Camera,
     initialCenterX: number,
     initialCenterZ: number,
   ) {
@@ -70,6 +71,7 @@ implements Disposable {
       this.renderBatch = commonMonsters.createCurveCrawlerBatch(
         renderRoot,
         surfaceMaterialTemplate,
+        camera,
       );
     } catch (error: unknown) {
       renderRoot.destroy();
@@ -125,6 +127,11 @@ implements Disposable {
   /** 当前具有可渲染生命周期并实际进入动态网格的怪物数量。 */
   public get visibleCount(): number {
     return this.renderBatch.visibleEntityCount + this.venomGroup.visibleCount;
+  }
+
+  /** 当前具有渲染生命周期的全部怪物数量，不受镜头可见性影响。 */
+  public get residentCount(): number {
+    return this.renderBatch.residentCount + this.venomGroup.visibleCount;
   }
 
   /** 当前共享动态网格已经分配的实体容量。 */
@@ -217,7 +224,12 @@ implements Disposable {
 
     const previousCapacity = this.renderBatch.renderCapacity;
     stageStarted = performance.beginMonsterStage();
-    this.renderBatch.synchronize();
+    this.renderBatch.synchronize(deltaTime);
+    performance.recordMonsterRenderingWork(
+      this.renderBatch.lastEvaluatedEntityCount,
+      this.renderBatch.lastPositionUploadBytes,
+      this.renderBatch.lastPositionUploadCalls,
+    );
     performance.endMonsterStage(
       BattlefieldMonsterPerformanceStage.RenderingSynchronization,
       stageStarted,

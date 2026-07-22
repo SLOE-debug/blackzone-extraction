@@ -149,27 +149,27 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
    * Position 命令不计算 CPU 法线与颜色；Shaded 命令只重算发生颜色档位变化的
    * 实体，供调用方随后烘焙该实体的分面明暗。
    */
-  public evaluatePackedScheduled(
+  public evaluateScheduledToEntitySlots(
     state: CurveCrawlerState,
     plan: CurveCrawlerMeshPlan,
     streams: VertexStreams,
     entityIndices: Uint32Array,
     updates: Uint8Array,
     entityCount: number,
-    targetEntityOffset: number,
+    targetEntitySlotOffset: number,
   ): MeshDirty {
     if (!Number.isInteger(entityCount)
       || entityCount < 0
       || entityCount > entityIndices.length
       || entityCount > updates.length
-      || !Number.isInteger(targetEntityOffset)
-      || targetEntityOffset < 0) {
-      throw new Error('Curve Crawler 脏区紧凑求值范围无效。');
+      || !Number.isInteger(targetEntitySlotOffset)
+      || targetEntitySlotOffset < 0) {
+      throw new Error('Curve Crawler 脏区固定槽位求值范围无效。');
     }
     assertCurveCrawlerStreamCapacity(
       plan,
       streams,
-      targetEntityOffset + entityCount,
+      targetEntitySlotOffset + state.count,
       true,
     );
     let changed = MeshDirty.None;
@@ -190,7 +190,7 @@ implements MeshEvaluator<CurveCrawlerState, CurveCrawlerMeshPlan> {
         plan,
         streams,
         entityIndex,
-        (targetEntityOffset + packedIndex) * plan.vertexCount,
+        (targetEntitySlotOffset + entityIndex) * plan.vertexCount,
         true,
         shaded,
         shaded,

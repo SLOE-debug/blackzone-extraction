@@ -167,6 +167,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         runtimeRoot,
         this.surfaceMaterialTemplate,
         commonMonsters,
+        cameraRig.camera,
         player.positionX,
         player.positionZ,
       );

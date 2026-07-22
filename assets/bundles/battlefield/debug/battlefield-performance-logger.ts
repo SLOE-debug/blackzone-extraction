@@ -45,12 +45,15 @@ export interface BattlefieldPerformanceSources {
   readonly environment: Readonly<{
     activeEntityCount: number;
     renderBatchCount: number;
+    geometryBytesAllocated: number;
+    builderReplacementCount: number;
     renderingSynchronizing: boolean;
   }>;
   readonly ground: Readonly<{ synchronizing: boolean }>;
   readonly monsters: Readonly<{
     count: number;
     aliveCount: number;
+    residentCount: number;
     visibleCount: number;
     renderCapacity: number;
   }>;
@@ -128,10 +131,13 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     activeChunks: 0,
     environmentEntities: 0,
     environmentBatches: 0,
+    environmentGeometryBytesAllocated: 0,
+    environmentBuilderReplacements: 0,
     environmentSynchronizing: false,
     groundSynchronizing: false,
     monsterSlots: 0,
     aliveMonsters: 0,
+    residentMonsters: 0,
     visibleMonsters: 0,
     monsterRenderCapacity: 0,
     activeChests: 0,
@@ -150,6 +156,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
   private slowestFrameVisibleMonsters = 0;
   private slowestFrameMonsterRenderCapacity = 0;
   private slowestFrameAliveMonsters = 0;
+  private monsterEntitiesEvaluatedTotal = 0;
+  private monsterPositionBytesUploadedTotal = 0;
+  private monsterPositionUploadCallsTotal = 0;
   private previousConsoleOutputMilliseconds = 0;
   private diagnosticsEnabled = false;
 
@@ -257,6 +266,25 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     );
   }
 
+  /** 累计共享怪物批次的实体求值与 Position 局部上传工作量。 */
+  public recordMonsterRenderingWork(
+    evaluatedEntityCount: number,
+    positionUploadBytes: number,
+    positionUploadCalls: number,
+  ): void {
+    if (!this.diagnosticsEnabled) {
+      return;
+    }
+    if (!Number.isInteger(evaluatedEntityCount) || evaluatedEntityCount < 0
+      || !Number.isInteger(positionUploadBytes) || positionUploadBytes < 0
+      || !Number.isInteger(positionUploadCalls) || positionUploadCalls < 0) {
+      throw new Error('怪物渲染工作量计数必须是非负整数。');
+    }
+    this.monsterEntitiesEvaluatedTotal += evaluatedEntityCount;
+    this.monsterPositionBytesUploadedTotal += positionUploadBytes;
+    this.monsterPositionUploadCallsTotal += positionUploadCalls;
+  }
+
   /** 累计窗口内一次事件或一份数值。 */
   public recordEvent(event: BattlefieldPerformanceEvent, value = 1): void {
     if (!this.diagnosticsEnabled) {
@@ -345,6 +373,9 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
       slowestFrameVisibleMonsters: this.slowestFrameVisibleMonsters,
       slowestFrameMonsterRenderCapacity: this.slowestFrameMonsterRenderCapacity,
       slowestFrameAliveMonsters: this.slowestFrameAliveMonsters,
+      monsterEntitiesEvaluatedTotal: this.monsterEntitiesEvaluatedTotal,
+      monsterPositionBytesUploadedTotal: this.monsterPositionBytesUploadedTotal,
+      monsterPositionUploadCallsTotal: this.monsterPositionUploadCallsTotal,
       eventNames: EVENT_NAMES,
       eventValues: this.eventValues,
       slowestFrameEvents: this.slowestFrameEvents,
@@ -365,10 +396,13 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     snapshot.activeChunks = sources.chunks.activeScopeCount;
     snapshot.environmentEntities = sources.environment.activeEntityCount;
     snapshot.environmentBatches = sources.environment.renderBatchCount;
+    snapshot.environmentGeometryBytesAllocated = sources.environment.geometryBytesAllocated;
+    snapshot.environmentBuilderReplacements = sources.environment.builderReplacementCount;
     snapshot.environmentSynchronizing = sources.environment.renderingSynchronizing;
     snapshot.groundSynchronizing = sources.ground.synchronizing;
     snapshot.monsterSlots = sources.monsters.count;
     snapshot.aliveMonsters = sources.monsters.aliveCount;
+    snapshot.residentMonsters = sources.monsters.residentCount;
     snapshot.visibleMonsters = sources.monsters.visibleCount;
     snapshot.monsterRenderCapacity = sources.monsters.renderCapacity;
     snapshot.activeChests = sources.treasures.activeChestCount;
@@ -398,5 +432,8 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     this.slowestFrameVisibleMonsters = 0;
     this.slowestFrameMonsterRenderCapacity = 0;
     this.slowestFrameAliveMonsters = 0;
+    this.monsterEntitiesEvaluatedTotal = 0;
+    this.monsterPositionBytesUploadedTotal = 0;
+    this.monsterPositionUploadCallsTotal = 0;
   }
 }

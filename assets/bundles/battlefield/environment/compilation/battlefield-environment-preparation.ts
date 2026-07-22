@@ -9,7 +9,7 @@ export interface PreparedBattlefieldEnvironment {
 }
 
 /**
- * 显式编译环境局部原型和统一大网格拓扑。
+ * 显式编译环境局部原型和各 Chunk 复用的固定拓扑。
  *
  * 调用方负责保存返回值；Chunk 更新只重写实例顶点流，不得重新执行 prepare。
  */

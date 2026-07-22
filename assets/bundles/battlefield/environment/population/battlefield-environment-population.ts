@@ -53,9 +53,19 @@ export class BattlefieldEnvironmentPopulation {
     return this.renderer.synchronizing;
   }
 
-  /** 当前环境窗口实际占用的渲染批次数量，稳定上限为一。 */
+  /** 当前环境窗口已经完成初始化的持久化 Chunk 批次数量。 */
   public get renderBatchCount(): number {
     return this.renderer.activeBatchCount;
+  }
+
+  /** 最近一次窗口变化仅为新增 Chunk 分配的几何字节数。 */
+  public get geometryBytesAllocated(): number {
+    return this.renderer.geometryBytesAllocated;
+  }
+
+  /** 最近一次窗口变化取消并替换的未完成 Chunk 构建器数量。 */
+  public get builderReplacementCount(): number {
+    return this.renderer.builderReplacementCount;
   }
 
   constructor(parent: Node) {
@@ -97,7 +107,7 @@ export class BattlefieldEnvironmentPopulation {
     return this.placement.isAreaClearOf(prototypes, x, z, clearanceRadius);
   }
 
-  /** 玩家跨越 Chunk 边界时重用实体槽位、重建空间索引并请求统一 GPU 批次。 */
+  /** 玩家跨越 Chunk 边界时重用实体槽位、重建空间索引并更新新增 Chunk 槽位。 */
   public update(playerX: number, playerZ: number): void {
     this.ensureActive();
     const nextChunkX = worldCoordinateToEnvironmentChunk(playerX);
