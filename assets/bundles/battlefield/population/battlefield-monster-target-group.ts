@@ -14,7 +14,6 @@ export interface BattlefieldMonsterTargetGroup {
     originZ: number,
     directionX: number,
     directionZ: number,
-    automatic: boolean,
     result: MutableBattlefieldAimTarget,
   ): boolean;
   writeProjectileHitForEntity(

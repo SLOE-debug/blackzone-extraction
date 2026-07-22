@@ -6,7 +6,7 @@ import { type BattlefieldTreasurePopulation } from '../../treasure-chest/populat
 import { type BattlefieldControlHud } from '../../ui/battlefield-control-hud';
 import { BattlefieldInteractionResolver } from './battlefield-interaction-resolver';
 
-/** 连接场景交互解析、右摇杆动作图案和装备世界标签。 */
+/** 连接场景交互解析、独立操作按钮和装备世界标签。 */
 export class BattlefieldSceneInteractionSystem {
   private readonly resolver = new BattlefieldInteractionResolver();
   private readonly equipmentInspection: MutableDroppedEquipmentInspection = {

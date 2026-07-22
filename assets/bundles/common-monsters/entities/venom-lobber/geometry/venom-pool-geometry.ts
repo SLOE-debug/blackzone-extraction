@@ -111,91 +111,34 @@ export function writeVenomPoolGeometry(
   );
 }
 
-/** 写入出生前 0.12 秒暗斑扩张与随后 0.2 秒三条裂纹展开。 */
-export function writeVenomSpawnResidueGeometry(
-  geometry: UnlitColorBufferGeometry,
-  vertexOffset: number,
-  x: number,
-  y: number,
-  radius: number,
-  elapsed: number,
-  seed: number,
-): void {
-  const stainProgress = smoothStep(Math.min(1, elapsed / 0.12));
-  const settleProgress = smoothStep(Math.max(0, Math.min(1, (elapsed - 1.05) / 0.55)));
-  const veinProgress = smoothStep(Math.max(0, Math.min(1, (elapsed - 0.12) / 0.2)))
-    * (1 - settleProgress);
-  const visibleRadius = radius * (0.08 + stainProgress * 0.92) * (1 - settleProgress * 0.78);
-  let cursor = writeSurface(
-    geometry,
-    vertexOffset,
-    x,
-    y,
-    visibleRadius,
-    0.52,
-    NORMAL_PALETTE,
-    seed,
-  );
-  cursor = writeVeins(
-    geometry,
-    cursor,
-    x,
-    y,
-    visibleRadius * veinProgress,
-    elapsed,
-    0.56 * veinProgress,
-    NORMAL_PALETTE,
-    seed,
-  );
-  while (cursor < vertexOffset + VENOM_POOL_VERTEX_COUNT) {
-    writeVertex(geometry, cursor++, x, y, 0.065, NORMAL_PALETTE.center, 0);
-  }
-}
-
-/** 写入五枚分面飞溅与主体消失后额外保留的无伤害暗色残迹。 */
+/** 写入身体脚印范围内的小型暗色残迹，并在保留期从边缘向中心收缩。 */
 export function writeVenomDeathResidueGeometry(
   geometry: UnlitColorBufferGeometry,
   vertexOffset: number,
   x: number,
   y: number,
-  heading: number,
   scale: number,
   elapsed: number,
   duration: number,
 ): void {
+  const residueSeconds = 1;
+  const overlapSeconds = Math.max(0, duration - residueSeconds);
   const remaining = Math.max(0, duration - elapsed);
-  const fade = smoothStep(Math.min(1, remaining / 1.2));
-  const retireScale = remaining < 1.2 ? smoothStep(remaining / 1.2) : 1;
-  const stainProgress = smoothStep(Math.max(0, Math.min(1, (elapsed - 0.68) / 0.4)));
+  const retireScale = elapsed <= overlapSeconds
+    ? 1
+    : smoothStep(Math.min(1, remaining / residueSeconds));
   let cursor = writeSurface(
     geometry,
     vertexOffset,
     x,
     y,
-    scale * (0.12 + stainProgress * 2.18) * retireScale,
-    fade * 0.62,
+    scale * 1.9 * retireScale,
+    retireScale * 0.58,
     DEATH_PALETTE,
     29,
   );
-  for (let droplet = 0; droplet < 5; droplet++) {
-    const angle = heading + droplet * 1.256637061 + 0.23;
-    const dropletProgress = Math.max(0, Math.min(1, (elapsed - 0.68) / 0.4));
-    const travel = scale * (1.4 + droplet * 0.31) * dropletProgress;
-    const lift = Math.sin(dropletProgress * Math.PI)
-      * scale * (1.5 + droplet * 0.17);
-    cursor = writeTetrahedron(
-      geometry,
-      cursor,
-      x + Math.cos(angle) * travel,
-      y + Math.sin(angle) * travel,
-      0.07 + lift,
-      scale * (0.11 + droplet * 0.012) * fade * (dropletProgress > 0 ? 1 : 0),
-      DEATH_PALETTE.bubble,
-      fade,
-    );
-  }
   while (cursor < vertexOffset + VENOM_POOL_VERTEX_COUNT) {
-    writeVertex(geometry, cursor++, x, y, 0.062, DEATH_PALETTE.center, fade * 0.4);
+    writeVertex(geometry, cursor++, x, y, 0.062, DEATH_PALETTE.center, 0);
   }
 }
 

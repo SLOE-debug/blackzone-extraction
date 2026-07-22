@@ -13,7 +13,7 @@ import {
   writeVenomChargeEffectSlot,
   writeVenomBombEffectSlot,
   writeVenomPoolEffectSlot,
-  writeVenomSpawnEffectSlot,
+  writeVenomCocoonEffectSlot,
   writeVenomDeathEffectSlot,
 } from '../geometry/venom-lobber-effect-geometry';
 import { type VenomBombSystem } from '../behavior/venom-bomb-system';
@@ -88,23 +88,26 @@ export class VenomLobberEffectRenderer {
     let topologyDirty = false;
     const { transform, morphology, vitality, behavior, combat, animation } = this.state.data;
     for (let index = 0; index < this.state.count; index++) {
-      const stateTime = vitality.stateTime[index] ?? 0;
       if ((vitality.state[index] as MonsterLifecycleState)
-        !== MonsterLifecycleState.Spawning || stateTime < 0) {
+        !== MonsterLifecycleState.Spawning
+        || (animation.cocoonOpen[index] ?? -1) < 0) {
         continue;
       }
-      writeVenomSpawnEffectSlot(
+      writeVenomCocoonEffectSlot(
         this.geometry,
         packedSlot,
         transform.x[index] ?? 0,
         transform.y[index] ?? 0,
         (morphology.scale[index] ?? 1) * 3.4,
-        stateTime,
+        animation.cocoonOpen[index] ?? 0,
+        animation.lifecycleLegProgress[index] ?? 0,
         index,
       );
       if (this.capturePackedEffectKey(packedSlot, 0x30000 + index)) {
         colorDirty = true;
       }
+      // 毒茧开裂会持续改写土包、裂纹和碎片颜色，不能只上传位置流。
+      colorDirty = true;
       topologyDirty = this.capturePackedTopology(
         packedSlot,
         VenomEffectTopology.Pool,
@@ -190,6 +193,8 @@ export class VenomLobberEffectRenderer {
       if (this.capturePackedEffectKey(packedSlot, 0x40000 + index)) {
         colorDirty = true;
       }
+      // 暗色残迹在收缩期同步衰减亮度。
+      colorDirty = true;
       topologyDirty = this.capturePackedTopology(
         packedSlot,
         VenomEffectTopology.Pool,

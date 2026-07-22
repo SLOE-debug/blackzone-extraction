@@ -23,10 +23,9 @@ import {
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
+import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
 
-const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 19;
-const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(24 / 180 * Math.PI);
-const AUTO_LOCK_MINIMUM_ALIGNMENT = Math.cos(68 / 180 * Math.PI);
+const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(BATTLEFIELD_AIM_ASSIST.maximumAngleRadians);
 
 interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation,
 PlanarMonsterHitPopulation {
@@ -95,7 +94,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     originY: 0,
     directionX: 0,
     directionY: 1,
-    maximumDistance: AIM_ASSIST_MAXIMUM_WORLD_DISTANCE,
+    maximumDistance: BATTLEFIELD_AIM_ASSIST.maximumDistance,
     minimumAlignment: AIM_ASSIST_MINIMUM_ALIGNMENT,
   };
   private readonly localTargetResult: MutablePlanarTargetResult = {
@@ -238,24 +237,6 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     );
   }
 
-  /** 在玩家移动朝向的宽锥体内执行自动锁定。 */
-  public writeAutoTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    return this.writeTarget(
-      originX,
-      originZ,
-      directionX,
-      directionZ,
-      AUTO_LOCK_MINIMUM_ALIGNMENT,
-      result,
-    );
-  }
-
   /** 只对共享空间索引给出的单一实体执行瞄准窄相位。 */
   public writeAimTargetForEntity(
     entityIndex: number,
@@ -263,7 +244,6 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     originZ: number,
     directionX: number,
     directionZ: number,
-    automatic: boolean,
     result: MutableBattlefieldAimTarget,
   ): boolean {
     if (this.disposed) {
@@ -275,10 +255,8 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     query.originY = -originZ / config.modelScale;
     query.directionX = directionX;
     query.directionY = -directionZ;
-    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE / config.modelScale;
-    query.minimumAlignment = automatic
-      ? AUTO_LOCK_MINIMUM_ALIGNMENT
-      : AIM_ASSIST_MINIMUM_ALIGNMENT;
+    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance / config.modelScale;
+    query.minimumAlignment = AIM_ASSIST_MINIMUM_ALIGNMENT;
     if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
       return false;
     }
@@ -353,7 +331,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     query.originY = -originZ * inverseScale;
     query.directionX = directionX;
     query.directionY = -directionZ;
-    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE * inverseScale;
+    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance * inverseScale;
     query.minimumAlignment = minimumAlignment;
     if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
       return false;

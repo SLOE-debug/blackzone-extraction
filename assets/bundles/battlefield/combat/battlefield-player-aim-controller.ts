@@ -1,9 +1,7 @@
-import type {
-  VanguardControlIntent,
-  VanguardPopulation,
-} from '../../../player/vanguard';
-import { VanguardWeaponPose } from '../../../player/vanguard';
-import { VanguardWeaponAction } from '../../../player/vanguard';
+import { type VanguardControlIntent } from '../../../player/vanguard/model/vanguard-control-intent';
+import { VanguardWeaponAction } from '../../../player/vanguard/model/vanguard-weapon-action';
+import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weapon-pose';
+import { type VanguardPopulation } from '../../../player/vanguard/population/vanguard-population';
 import {
   type BattlefieldMonsterPopulation,
   type MutableBattlefieldAimTarget,
@@ -11,7 +9,10 @@ import {
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
 import { type MutableBattlefieldPlanarDirection } from '../scene/battlefield-camera-direction';
 import { type BattlefieldScreenControlState } from '../ui/battlefield-control-hud';
-import { shouldFireAtLockedTarget } from './battlefield-fire-intent';
+import {
+  BATTLEFIELD_AIM_ASSIST,
+  writeSoftAimDirection,
+} from './battlefield-aim-assist';
 
 const DIRECTION_EPSILON = 0.0001;
 const PLAYER_WEAPON_AIM_HEIGHT = 2.35;
@@ -28,7 +29,7 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   weaponActionProgress: number;
 }
 
-/** 把屏幕双摇杆映射为玩家朝向，并协调手动瞄准与自动锁敌。 */
+/** 把左摇杆映射为移动，并把右摇杆独立映射为瞄准和持续射击。 */
 export class BattlefieldPlayerAimController {
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
   private readonly aimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
@@ -48,7 +49,7 @@ export class BattlefieldPlayerAimController {
   /**
    * 写入玩家控制意图。
    *
-   * @returns 本帧是否应持续触发自动射击；有武器、锁定目标并完成转向后才会返回真。
+   * @returns 本帧右摇杆是否请求持续射击；不要求必须存在辅助目标。
    */
   public apply(
     player: VanguardPopulation,
@@ -77,83 +78,73 @@ export class BattlefieldPlayerAimController {
     intent.moveX = this.movementDirection.x * movementSpeedMultiplier;
     intent.moveZ = this.movementDirection.z * movementSpeedMultiplier;
 
-    if (controls.aiming) {
-      cameraRig.writeWorldPlanarDirection(
-        controls.aimX,
-        controls.aimY,
-        this.aimDirection,
-      );
-    } else {
-      this.writeAutomaticLockDirection(player.heading);
-    }
-
-    const targetFound = controls.aiming
-      ? monsters.resolveAimTarget(
-        player.positionX,
-        player.positionZ,
-        this.aimDirection.x,
-        this.aimDirection.z,
-        this.aimTarget,
-      )
-      : weaponEquipped && monsters.resolveAutoTarget(
-        player.positionX,
-        player.positionZ,
-        this.aimDirection.x,
-        this.aimDirection.z,
-        this.aimTarget,
-      );
-    if (targetFound) {
-      this.writeDirectionToTarget(player.positionX, player.positionZ);
-    }
-    intent.aimX = this.aimDirection.x;
-    intent.aimZ = this.aimDirection.z;
-    intent.aimPitch = targetFound
-      ? this.writePitchToTarget(player.positionX, player.positionY, player.positionZ)
-      : 0;
-    intent.aiming = controls.aiming || targetFound;
     intent.weaponPose = weaponPose;
     intent.weaponAction = weaponAction;
     intent.weaponActionProgress = weaponActionProgress;
-    player.setControlIntent(intent);
-    const facingX = Math.sin(player.heading);
-    const facingZ = Math.cos(player.heading);
-    const firingApproved = weaponEquipped && shouldFireAtLockedTarget(
-      targetFound,
-      facingX,
-      facingZ,
+    if (!controls.aiming || !weaponEquipped) {
+      intent.aiming = false;
+      intent.aimPitch = 0;
+      player.setControlIntent(intent);
+      return false;
+    }
+
+    cameraRig.writeWorldPlanarDirection(
+      controls.aimX,
+      controls.aimY,
+      this.aimDirection,
+    );
+    const targetFound = monsters.resolveAimTarget(
+      player.positionX,
+      player.positionZ,
       this.aimDirection.x,
       this.aimDirection.z,
+      this.aimTarget,
     );
-    if (firingApproved) {
+    if (targetFound) {
+      this.applySoftAimCorrection(player.positionX, player.positionZ);
       fireTarget.x = this.aimTarget.x;
       fireTarget.y = this.aimTarget.y;
       fireTarget.z = this.aimTarget.z;
+      intent.aimPitch = this.writePitchToTarget(
+        player.positionX,
+        player.positionY,
+        player.positionZ,
+      );
+    } else {
+      this.writeFreeAimTarget(player, fireTarget);
+      intent.aimPitch = 0;
     }
-    return firingApproved;
+    intent.aimX = this.aimDirection.x;
+    intent.aimZ = this.aimDirection.z;
+    intent.aiming = true;
+    player.setControlIntent(intent);
+    return true;
   }
 
-  /** 左摇杆有输入时以移动方向锁敌，否则沿玩家当前真实朝向继续搜索。 */
-  private writeAutomaticLockDirection(heading: number): void {
-    const movementLength = Math.hypot(
-      this.movementDirection.x,
-      this.movementDirection.z,
-    );
-    if (movementLength > DIRECTION_EPSILON) {
-      const inverseLength = 1 / movementLength;
-      this.aimDirection.x = this.movementDirection.x * inverseLength;
-      this.aimDirection.z = this.movementDirection.z * inverseLength;
-      return;
-    }
-    this.aimDirection.x = Math.sin(heading);
-    this.aimDirection.z = Math.cos(heading);
-  }
-
-  private writeDirectionToTarget(originX: number, originZ: number): void {
+  /** 将候选目标方向轻度混入右摇杆方向，玩家输入始终保留主要权重。 */
+  private applySoftAimCorrection(originX: number, originZ: number): void {
     const deltaX = this.aimTarget.x - originX;
     const deltaZ = this.aimTarget.z - originZ;
     const inverseDistance = 1 / Math.max(Math.hypot(deltaX, deltaZ), DIRECTION_EPSILON);
-    this.aimDirection.x = deltaX * inverseDistance;
-    this.aimDirection.z = deltaZ * inverseDistance;
+    writeSoftAimDirection(
+      this.aimDirection.x,
+      this.aimDirection.z,
+      deltaX * inverseDistance,
+      deltaZ * inverseDistance,
+      this.aimDirection,
+    );
+  }
+
+  /** 无辅助目标时沿右摇杆方向写入远处自由射击点。 */
+  private writeFreeAimTarget(
+    player: VanguardPopulation,
+    fireTarget: MutableBattlefieldAimTarget,
+  ): void {
+    fireTarget.x = player.positionX
+      + this.aimDirection.x * BATTLEFIELD_AIM_ASSIST.freeAimDistance;
+    fireTarget.y = player.positionY + PLAYER_WEAPON_AIM_HEIGHT;
+    fireTarget.z = player.positionZ
+      + this.aimDirection.z * BATTLEFIELD_AIM_ASSIST.freeAimDistance;
   }
 
   private writePitchToTarget(originX: number, originY: number, originZ: number): number {

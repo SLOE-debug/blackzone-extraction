@@ -7,9 +7,9 @@ import {
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
+import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
-const MAXIMUM_AIM_DISTANCE = 26;
 
 /** 聚合异构怪物群的辅助瞄准与共享空间索引命中路由。 */
 export class BattlefieldMonsterTargetRegistry {
@@ -47,7 +47,6 @@ export class BattlefieldMonsterTargetRegistry {
     originZ: number,
     directionX: number,
     directionZ: number,
-    automatic: boolean,
     result: MutableBattlefieldAimTarget,
   ): boolean {
     let found = false;
@@ -56,7 +55,7 @@ export class BattlefieldMonsterTargetRegistry {
     this.crowd.collectCircleCandidates(
       originX * inverseScale,
       -originZ * inverseScale,
-      MAXIMUM_AIM_DISTANCE * inverseScale,
+      BATTLEFIELD_AIM_ASSIST.maximumDistance * inverseScale,
       this.candidates,
     );
     for (let index = 0; index < this.candidates.count; index++) {
@@ -67,7 +66,6 @@ export class BattlefieldMonsterTargetRegistry {
         originZ,
         directionX,
         directionZ,
-        automatic,
         this.aimCandidate,
       )) {
         continue;
@@ -78,7 +76,8 @@ export class BattlefieldMonsterTargetRegistry {
       const distance = Math.sqrt(distanceSquared);
       const alignment = (deltaX * directionX + deltaZ * directionZ)
         / Math.max(distance, 0.0001);
-      const score = 1 - alignment + distance / MAXIMUM_AIM_DISTANCE * 0.08;
+      const score = 1 - alignment
+        + distance / BATTLEFIELD_AIM_ASSIST.maximumDistance * 0.08;
       if (score >= bestScore) {
         continue;
       }

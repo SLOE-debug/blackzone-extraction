@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
-import {
-  calculateVenomLobberSpawnRootElevation,
-  calculateVenomLobberSpawnRootPitch,
-} from '../../assets/bundles/common-monsters/entities/venom-lobber/animation/venom-lobber-spawn-pose';
+import { VenomLobberLifecyclePoseSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/animation/venom-lobber-lifecycle-pose-system';
 import { VenomLobberCombatSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/behavior/venom-lobber-combat-system';
 import { VenomBombSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/behavior/venom-bomb-system';
 import {
@@ -16,15 +13,19 @@ import {
   VENOM_WARNING_CIRCLE_VERTEX_COUNT,
   writeVenomChargeEffectSlot,
   writeVenomBombEffectSlot,
+  writeVenomCocoonEffectSlot,
+  writeVenomDeathEffectSlot,
   writeVenomPoolEffectSlot,
 } from '../../assets/bundles/common-monsters/entities/venom-lobber/geometry/venom-lobber-effect-geometry';
 import { VENOM_POOL_OUTER_SEGMENTS } from '../../assets/bundles/common-monsters/entities/venom-lobber/geometry/venom-pool-geometry';
 import { VENOM_LOBBER_MODEL_GEOMETRY } from '../../assets/bundles/common-monsters/entities/venom-lobber/geometry/venom-lobber-model-geometry';
 import { VenomLobberAction } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-action';
 import { VenomBombState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-bomb-state';
+import { VenomDeathEffectState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-death-effect-state';
 import { VenomPoolState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-pool-state';
 import { type VenomLobberCombatOptions } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-combat-options';
 import { VenomLobberState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-state';
+import { VenomLobberLifeSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/population/venom-lobber-life-system';
 
 const COMBAT = Object.freeze({
   detectionRadius: 50,
@@ -76,15 +77,81 @@ describe('Venom Lobber 技能与程序化模型', () => {
     }
   });
 
-  it('出生 Root 从地下曲线上升且全程前倾不超过十度', () => {
-    expect(calculateVenomLobberSpawnRootElevation(-0.1)).toBe(-12);
-    expect(calculateVenomLobberSpawnRootElevation(0.25)).toBeCloseTo(-7.45, 6);
-    expect(calculateVenomLobberSpawnRootElevation(1.35)).toBeCloseTo(0, 6);
-    for (let step = 0; step <= 20; step++) {
-      const stateTime = step / 20 * 1.6;
-      expect(Math.abs(calculateVenomLobberSpawnRootPitch(stateTime)))
-        .toBeLessThanOrEqual(Math.PI / 18 + 0.000001);
-    }
+  it('统一生命周期姿态让毒茧破土全程不前移，并按阶段展开最终姿态', () => {
+    const state = createVenomState();
+    const pose = new VenomLobberLifecyclePoseSystem();
+    state.data.vitality.state[0] = MonsterLifecycleState.Spawning;
+    state.data.vitality.stateTime[0] = 0.1;
+    pose.update(state, 0.01);
+    expect(state.data.animation.rootElevation[0]).toBe(-12);
+    expect(state.data.animation.rootForward[0]).toBe(0);
+    expect(state.data.animation.cocoonOpen[0]).toBe(0);
+
+    state.data.vitality.stateTime[0] = 0.37;
+    pose.update(state, 0.01);
+    expect(state.data.animation.cocoonOpen[0]).toBeGreaterThan(0);
+    expect(state.data.animation.cocoonOpen[0]).toBeLessThan(1);
+    expect(state.data.animation.rootForward[0]).toBe(0);
+
+    state.data.vitality.stateTime[0] = 0.82;
+    pose.update(state, 0.01);
+    expect(state.data.animation.lifecycleLegProgress[0]).toBeGreaterThan(0);
+    expect(state.data.animation.bodyCompression[0]).toBeGreaterThan(0.32);
+
+    state.data.vitality.stateTime[0] = 1.45;
+    pose.update(state, 0.01);
+    expect(state.data.animation.rootElevation[0]).toBeCloseTo(0, 6);
+    expect(state.data.animation.bodyCompression[0]).toBeCloseTo(1, 6);
+    expect(state.data.animation.venomSacScale[0]).toBeCloseTo(1, 6);
+    expect(state.data.animation.lifecycleLegProgress[0]).toBe(1);
+  });
+
+  it('死亡姿态保持朝上并完成六足失力、毒囊泄压和残躯塌陷', () => {
+    const state = createVenomState();
+    const pose = new VenomLobberLifecyclePoseSystem();
+    state.data.vitality.state[0] = MonsterLifecycleState.Dying;
+    state.data.vitality.stateTime[0] = 0.4;
+    pose.update(state, 0.01);
+    expect(state.data.animation.lifecycleLegProgress[0]).toBeGreaterThan(0);
+    expect(state.data.animation.lifecycleLegProgress[0]).toBeLessThan(1);
+
+    state.data.vitality.stateTime[0] = 0.84;
+    pose.update(state, 0.01);
+    expect(state.data.animation.lifecycleLegProgress[0]).toBe(0);
+    expect(state.data.animation.venomSacScale[0]).toBeLessThan(1);
+
+    state.data.vitality.stateTime[0] = 1.55;
+    pose.update(state, 0.01);
+    expect(state.data.animation.rootElevation[0]).toBeCloseTo(-0.9, 6);
+    expect(state.data.animation.bodyCompression[0]).toBeCloseTo(0.35, 6);
+    expect(state.data.animation.venomSacScale[0]).toBeCloseTo(0.25, 6);
+  });
+
+  it('毒茧使用土包、裂纹和六块甲壳，死亡残迹不再生成飞溅物', () => {
+    const geometry = createVenomEffectGeometry(1);
+    writeVenomCocoonEffectSlot(geometry, 0, 0, 0, 3.4, 0, 0, 7);
+    expect(maximumSlotHeight(geometry.positions, 0)).toBeGreaterThan(0.8);
+    writeVenomCocoonEffectSlot(geometry, 0, 0, 0, 3.4, 1, 0.5, 7);
+    expect(maximumSlotRadius(geometry.positions, 0)).toBeGreaterThan(0.5);
+
+    const deaths = new VenomDeathEffectState(1);
+    deaths.spawn(0, 0, 0, 1);
+    writeVenomDeathEffectSlot(geometry, 0, deaths, 0);
+    expect(maximumSlotHeight(geometry.positions, 0)).toBeLessThan(0.1);
+  });
+
+  it('死亡残迹只在残躯塌陷阶段开始时创建', () => {
+    const state = createVenomState();
+    const effects = new VenomBombSystem(1, COMBAT);
+    const life = new VenomLobberLifeSystem(effects);
+    state.data.vitality.state[0] = MonsterLifecycleState.Alive;
+    state.data.vitality.health[0] = 1;
+    life.damage(state, 0, 1);
+
+    life.update(state, 1.04);
+    expect(effects.deaths.active[0]).toBe(0);
+    life.update(state, 0.02);
+    expect(effects.deaths.active[0]).toBe(1);
   });
 
   it('尾部蓄力球会从接近零尺寸平滑成长，并以大尺寸毒弹离开发射点', () => {
@@ -254,4 +321,27 @@ function maximumBombRadius(
     ));
   }
   return maximum;
+}
+
+function maximumSlotRadius(positions: Float32Array, slotIndex: number): number {
+  const firstVertex = slotIndex * VENOM_EFFECT_SLOT_VERTEX_COUNT;
+  let maximum = 0;
+  for (let vertex = 0; vertex < VENOM_EFFECT_SLOT_VERTEX_COUNT; vertex++) {
+    const offset = (firstVertex + vertex) * 3;
+    maximum = Math.max(maximum, Math.hypot(
+      positions[offset] ?? 0,
+      positions[offset + 1] ?? 0,
+    ));
+  }
+  return maximum;
+}
+
+function createVenomState(): VenomLobberState {
+  return new VenomLobberState({
+    count: 1,
+    initialPopulationCount: 1,
+    spawnArea: Object.freeze({ centerX: 0, centerY: 0, width: 2, height: 2 }),
+    seed: 17,
+    surfaceMaterialTemplate: {} as never,
+  });
 }

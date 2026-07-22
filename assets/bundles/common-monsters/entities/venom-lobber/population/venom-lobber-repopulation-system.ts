@@ -45,8 +45,7 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     options: Readonly<VenomLobberRepopulationOptions>,
     delaySeconds: number,
   ): void {
-    const { identity, transform, vitality, behavior, combat, intent, motion, animation } =
-      this.state.data;
+    const { identity } = this.state.data;
     const angle = this.spawnSequence * GOLDEN_ANGLE
       + randomRange(identity.randomState, entityIndex, -0.18, 0.18);
     this.spawnSequence = (this.spawnSequence + 1) % 0x1000000;
@@ -58,17 +57,52 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
       innerSquared,
       outerSquared,
     ));
-    transform.x[entityIndex] = options.centerX + Math.cos(angle) * radius;
-    transform.y[entityIndex] = options.centerY + Math.sin(angle) * radius;
-    transform.previousX[entityIndex] = transform.x[entityIndex] ?? 0;
-    transform.previousY[entityIndex] = transform.y[entityIndex] ?? 0;
-    transform.heading[entityIndex] = angle + Math.PI;
-    transform.targetHeading[entityIndex] = angle + Math.PI;
+    this.initializeSpawn(
+      entityIndex,
+      options.centerX + Math.cos(angle) * radius,
+      options.centerY + Math.sin(angle) * radius,
+      angle + Math.PI,
+      -(delaySeconds + randomRange(identity.randomState, entityIndex, 0, 0.2)),
+    );
+  }
+
+  /** 在精确局部平面坐标激活一个独立 Debug 实体。 */
+  public spawnAt(x: number, y: number): boolean {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      throw new Error('Venom Lobber 精确生成坐标必须是有限数值。');
+    }
+    for (let index = 0; index < this.state.count; index++) {
+      const lifecycle = this.getLifecycleState(index);
+      if (lifecycle !== MonsterLifecycleState.Dormant
+        && lifecycle !== MonsterLifecycleState.DeathComplete) {
+        continue;
+      }
+      this.initializeSpawn(index, x, y, 0, 0);
+      return true;
+    }
+    return false;
+  }
+
+  private initializeSpawn(
+    entityIndex: number,
+    x: number,
+    y: number,
+    heading: number,
+    stateTime: number,
+  ): void {
+    const { identity, transform, vitality, behavior, combat, intent, motion, animation } =
+      this.state.data;
+    transform.x[entityIndex] = x;
+    transform.y[entityIndex] = y;
+    transform.previousX[entityIndex] = x;
+    transform.previousY[entityIndex] = y;
+    transform.heading[entityIndex] = heading;
+    transform.targetHeading[entityIndex] = heading;
     transitionMonsterLifecycle(
       vitality,
       entityIndex,
       MonsterLifecycleState.Spawning,
-      -(delaySeconds + randomRange(identity.randomState, entityIndex, 0, 0.2)),
+      stateTime,
     );
     vitality.health[entityIndex] = VENOM_LOBBER_MAX_HEALTH;
     vitality.hitTime[entityIndex] = 0;
@@ -99,6 +133,13 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     animation.tailCharge[entityIndex] = 0;
     animation.sacPulse[entityIndex] = 0;
     animation.hitFlash[entityIndex] = 0;
+    animation.rootForward[entityIndex] = 0;
+    animation.rootElevation[entityIndex] = -12;
+    animation.bodyCompression[entityIndex] = 0.22;
+    animation.venomSacScale[entityIndex] = 0.7;
+    animation.tailCurl[entityIndex] = -0.9;
+    animation.cocoonOpen[entityIndex] = stateTime < 0 ? -1 : 0;
+    animation.lifecycleLegProgress[entityIndex] = 0;
   }
 
   /** 回收远处实体，并把当前驻留数补到波次目标。 */

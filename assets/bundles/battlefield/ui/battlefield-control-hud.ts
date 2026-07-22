@@ -57,6 +57,7 @@ export class BattlefieldControlHud {
   private readonly gameplayGraphics: BattlefieldGameplayGraphics;
   private readonly movementJoystick: VirtualJoystick;
   private readonly aimJoystick: VirtualJoystick;
+  private readonly interactionButton: VirtualJoystick;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
   private readonly playerStatus: BattlefieldPlayerStatusHud;
   private readonly weaponStatus: BattlefieldWeaponStatusHud;
@@ -98,6 +99,7 @@ export class BattlefieldControlHud {
     let gameplayGraphics: BattlefieldGameplayGraphics | null = null;
     let movementJoystick: VirtualJoystick | null = null;
     let aimJoystick: VirtualJoystick | null = null;
+    let interactionButton: VirtualJoystick | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
     let equipmentLabel: BattlefieldEquipmentLabelHud | null = null;
     let playerStatus: BattlefieldPlayerStatusHud | null = null;
@@ -115,6 +117,13 @@ export class BattlefieldControlHud {
         'AimJoystick',
         BATTLEFIELD_CONTROL_STYLE.aim,
       );
+      interactionButton = new VirtualJoystick(
+        this.canvas.node,
+        'InteractionButton',
+        BATTLEFIELD_CONTROL_STYLE.interaction,
+      );
+      interactionButton.setActionIcon(VirtualJoystickActionIcon.OpenContainer);
+      interactionButton.setVisible(false);
       cameraOrbitInput = new BattlefieldCameraOrbitInput(this.canvas.node);
       equipmentLabel = new BattlefieldEquipmentLabelHud(
         this.canvas.node,
@@ -129,6 +138,7 @@ export class BattlefieldControlHud {
       );
       this.movementJoystick = movementJoystick;
       this.aimJoystick = aimJoystick;
+      this.interactionButton = interactionButton;
       this.gameplayGraphics = gameplayGraphics;
       this.cameraOrbitInput = cameraOrbitInput;
       this.equipmentLabel = equipmentLabel;
@@ -146,6 +156,7 @@ export class BattlefieldControlHud {
       cameraOrbitInput?.dispose();
       movementJoystick?.dispose();
       aimJoystick?.dispose();
+      interactionButton?.dispose();
       gameplayGraphics?.dispose();
       this.canvas.dispose();
       throw error;
@@ -170,21 +181,24 @@ export class BattlefieldControlHud {
     this.writeCameraOrbitState();
     this.defeatDialog.update();
     this.synchronizeGameplayGraphics();
-    if (this.aimJoystick.consumeActionPress()) {
+    if (this.interactionButton.consumeActionPress()) {
       this.contextActionPressed = true;
     }
   }
 
-  /** 切换右摇杆的普通瞄准与场景操作图案。 */
+  /** 只切换右摇杆上方的临时场景操作按钮，不改变瞄准摇杆职责。 */
   public setContextAction(action: BattlefieldInteractionAction | null): void {
     if (this.disposed || this.contextAction === action) {
       return;
     }
     this.contextAction = action;
     this.contextActionPressed = false;
-    this.aimJoystick.setActionIcon(action === null
-      ? null
-      : BATTLEFIELD_INTERACTION_ICONS[action]);
+    if (action === null) {
+      this.interactionButton.setVisible(false);
+    } else {
+      this.interactionButton.setActionIcon(BATTLEFIELD_INTERACTION_ICONS[action]);
+      this.interactionButton.setVisible(true);
+    }
     this.synchronizeGameplayGraphics();
   }
 
@@ -246,6 +260,7 @@ export class BattlefieldControlHud {
     this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
+    this.interactionButton.dispose();
     this.gameplayGraphics.dispose();
     this.canvas.dispose();
     this.inputRegistered = false;
@@ -281,6 +296,14 @@ export class BattlefieldControlHud {
       + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
     this.aimJoystick.setPosition(rightX, centerY);
+    const interactionY = Math.min(
+      height * 0.5 - style.interaction.interactionRadius,
+      centerY
+        + style.aim.interactionRadius
+        + style.interaction.interactionRadius
+        + style.interactionVerticalGap,
+    );
+    this.interactionButton.setPosition(rightX, interactionY);
     this.playerStatus.synchronizeLayout(width, height);
     this.weaponStatus.synchronizeLayout(width, height);
     this.layoutWidth = width;
@@ -294,6 +317,7 @@ export class BattlefieldControlHud {
       this.canvas.transform.height,
       this.movementJoystick,
       this.aimJoystick,
+      this.interactionButton,
       this.playerStatus,
       this.weaponStatus,
     );
@@ -316,12 +340,6 @@ export class BattlefieldControlHud {
 
   /** 右摇杆优先，未触摸时使用方向键或 IJKL，并把瞄准值归一化。 */
   private writeAimState(): void {
-    if (this.contextAction !== null) {
-      this.mutableState.aimX = 0;
-      this.mutableState.aimY = 0;
-      this.mutableState.aiming = false;
-      return;
-    }
     const joystick = this.aimJoystick.value;
     let aimX = joystick.x;
     let aimY = joystick.y;
@@ -331,7 +349,8 @@ export class BattlefieldControlHud {
       aimY = Number(this.aimUp) - Number(this.aimDown);
       magnitude = Math.hypot(aimX, aimY);
     }
-    const aiming = magnitude >= BATTLEFIELD_CONTROL_STYLE.aimActivationMagnitude;
+    // 摇杆自身已经应用 Dead Zone，任何剩余方向都应立即产生射击意图。
+    const aiming = magnitude > 0;
     const inverseLength = aiming ? 1 / Math.hypot(aimX, aimY) : 0;
     this.mutableState.aimX = aimX * inverseLength;
     this.mutableState.aimY = aimY * inverseLength;

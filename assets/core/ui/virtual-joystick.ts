@@ -78,6 +78,9 @@ export class VirtualJoystick {
 
   /** 把当前摇杆外观写入调用方持有的共享 Graphics。 */
   public draw(graphics: Graphics): void {
+    if (!this.root.active) {
+      return;
+    }
     drawVirtualJoystick(
       graphics,
       this.centerX,
@@ -111,6 +114,18 @@ export class VirtualJoystick {
       return;
     }
     this.actionIcon = icon;
+    this.activeTouchId = null;
+    this.actionPressPending = false;
+    this.resetValue();
+    this.invalidateGraphics();
+  }
+
+  /** 同步隐藏命中节点和共享外观，隐藏时同时释放残留触摸。 */
+  public setVisible(visible: boolean): void {
+    if (this.disposed || this.root.active === visible) {
+      return;
+    }
+    this.root.active = visible;
     this.activeTouchId = null;
     this.actionPressPending = false;
     this.resetValue();

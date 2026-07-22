@@ -8,12 +8,6 @@ import {
   VENOM_LOBBER_LEG_PATHS,
 } from '../model/venom-lobber-leg-rig';
 import { type VenomLobberState } from '../model/venom-lobber-state';
-import {
-  calculateVenomLobberSpawnLandingBob,
-  calculateVenomLobberSpawnRootElevation,
-  calculateVenomLobberSpawnRootForward,
-  calculateVenomLobberSpawnRootPitch,
-} from './venom-lobber-spawn-pose';
 
 const TAU = Math.PI * 2;
 const SWING_PORTION = 0.4;
@@ -26,17 +20,16 @@ implements EntitySystem<VenomLobberState, number> {
     const { transform, morphology, vitality, motion, animation } = state.data;
     for (let entityIndex = 0; entityIndex < state.count; entityIndex++) {
       const lifecycle = vitality.state[entityIndex] as MonsterLifecycleState;
-      const stateTime = vitality.stateTime[entityIndex] ?? 0;
       const scale = morphology.scale[entityIndex] ?? 1;
       if (lifecycle === MonsterLifecycleState.Spawning) {
         animation.legPoseInitialized[entityIndex] = 0;
-        this.writeSpawnPose(state, entityIndex, stateTime);
+        this.writeLifecyclePose(state, entityIndex, lifecycle);
         continue;
       }
       if (lifecycle === MonsterLifecycleState.Dying
         || lifecycle === MonsterLifecycleState.Despawning) {
         animation.legPoseInitialized[entityIndex] = 0;
-        this.writeFoldedPose(state, entityIndex, lifecycle, stateTime);
+        this.writeLifecyclePose(state, entityIndex, lifecycle);
         continue;
       }
       if (lifecycle !== MonsterLifecycleState.Alive) {
@@ -133,64 +126,41 @@ implements EntitySystem<VenomLobberState, number> {
     }
   }
 
-  /** 出生阶段按后、中、前顺序把脚从身体下方送到静止落点。 */
-  private writeSpawnPose(state: VenomLobberState, entityIndex: number, stateTime: number): void {
+  /** 只消费统一生命周期腿部进度，按前、中、后顺序展开或失力。 */
+  private writeLifecyclePose(
+    state: VenomLobberState,
+    entityIndex: number,
+    lifecycle: MonsterLifecycleState,
+  ): void {
+    const animation = state.data.animation;
+    const masterProgress = clamp01(animation.lifecycleLegProgress[entityIndex] ?? 0);
+    const spawning = lifecycle === MonsterLifecycleState.Spawning;
+    const rootElevation = animation.rootElevation[entityIndex] ?? 0;
+    const bodyCompression = animation.bodyCompression[entityIndex] ?? 1;
     for (let legId = 0; legId < VENOM_LOBBER_LEG_COUNT; legId++) {
       const path = VENOM_LOBBER_LEG_PATHS[legId];
       if (path === undefined) {
         continue;
       }
       const longitudinalGroup = legId % 3;
-      const startTime = 0.78 + (2 - longitudinalGroup) * 0.09;
-      const progress = smoothStep(clamp01((stateTime - startTime) / 0.34));
-      const spawnElevation = calculateVenomLobberSpawnRootElevation(stateTime);
-      const spawnForward = calculateVenomLobberSpawnRootForward(stateTime);
-      const spawnPitch = calculateVenomLobberSpawnRootPitch(stateTime);
-      const landingBob = calculateVenomLobberSpawnLandingBob(stateTime);
-      const root = path[0];
-      const foot = path[3];
-      const adjustedFootX = foot[0] - spawnForward;
-      const adjustedFootZ = foot[2] - spawnElevation - landingBob;
-      const pitchCosine = Math.cos(spawnPitch);
-      const pitchSine = Math.sin(spawnPitch);
-      const posedFootX = adjustedFootX * pitchCosine + adjustedFootZ * pitchSine;
-      const posedFootZ = -adjustedFootX * pitchSine + adjustedFootZ * pitchCosine;
-      solveLeg(
-        state,
-        entityIndex,
-        legId,
-        lerp(root[0], posedFootX, progress),
-        lerp(root[1] * 0.35, foot[1], progress),
-        lerp(root[2] * 0.62, posedFootZ, progress),
-      );
-    }
-  }
-
-  private writeFoldedPose(
-    state: VenomLobberState,
-    entityIndex: number,
-    lifecycle: MonsterLifecycleState,
-    stateTime: number,
-  ): void {
-    const progress = smoothStep(clamp01(
-      lifecycle === MonsterLifecycleState.Dying
-        ? (stateTime - 0.18) / 0.5
-        : stateTime / 0.7,
-    ));
-    for (let legId = 0; legId < VENOM_LOBBER_LEG_COUNT; legId++) {
-      const path = VENOM_LOBBER_LEG_PATHS[legId];
-      if (path === undefined) {
-        continue;
-      }
+      const staggerOffset = (spawning ? longitudinalGroup : 2 - longitudinalGroup) * 0.17;
+      const extendedProgress = smoothStep(clamp01(
+        (masterProgress - staggerOffset) / 0.66,
+      ));
       const root = path[0];
       const foot = path[3];
       solveLeg(
         state,
         entityIndex,
         legId,
-        lerp(foot[0], root[0] + (foot[0] - root[0]) * 0.28, progress),
-        lerp(foot[1], root[1] + (foot[1] - root[1]) * 0.28, progress),
-        lerp(foot[2], root[2] * 0.48, progress),
+        lerp(root[0], foot[0], extendedProgress),
+        lerp(root[1] * 0.35, foot[1], extendedProgress),
+        lerp(
+          root[2] * bodyCompression,
+          foot[2] - rootElevation,
+          extendedProgress,
+        ),
+        root[2] * bodyCompression,
       );
     }
   }
@@ -231,6 +201,7 @@ function solveLeg(
   targetX: number,
   targetY: number,
   targetZ: number,
+  rootZOverride?: number,
 ): void {
   const path = VENOM_LOBBER_LEG_PATHS[legId];
   if (path === undefined) {
@@ -240,6 +211,7 @@ function solveLeg(
   const coxaRest = path[1];
   const kneeRest = path[2];
   const footRest = path[3];
+  const rootZ = rootZOverride ?? root[2];
   const directionX = targetX - root[0];
   const directionY = targetY - root[1];
   const inverseDirection = 1 / Math.max(Math.hypot(directionX, directionY), 0.0001);
@@ -251,7 +223,7 @@ function solveLeg(
   );
   const coxaX = root[0] + planarX * coxaLength;
   const coxaY = root[1] + planarY * coxaLength;
-  const coxaZ = coxaRest[2];
+  const coxaZ = coxaRest[2] + rootZ - root[2];
   const remainingHorizontal = Math.max(
     0.0001,
     Math.hypot(targetX - coxaX, targetY - coxaY),
@@ -281,7 +253,7 @@ function solveLeg(
   const footX = coxaX + planarX * solvedHorizontal;
   const footY = coxaY + planarY * solvedHorizontal;
   const footZ = coxaZ + solvedVertical;
-  writeJoint(state, entityIndex, legId, 0, root[0], root[1], root[2]);
+  writeJoint(state, entityIndex, legId, 0, root[0], root[1], rootZ);
   writeJoint(state, entityIndex, legId, 1, coxaX, coxaY, coxaZ);
   writeJoint(state, entityIndex, legId, 2, kneeX, kneeY, kneeZ);
   writeJoint(state, entityIndex, legId, 3, footX, footY, footZ);

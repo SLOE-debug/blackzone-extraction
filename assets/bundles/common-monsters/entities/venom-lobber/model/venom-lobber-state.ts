@@ -78,9 +78,13 @@ function initializeState(
     animation.tailCharge[index] = 0;
     animation.sacPulse[index] = 0;
     animation.hitFlash[index] = 0;
-    animation.spawnRootForward[index] = 0;
-    animation.spawnRootElevation[index] = 0;
-    animation.spawnRootPitch[index] = 0;
+    animation.rootForward[index] = 0;
+    animation.rootElevation[index] = 0;
+    animation.bodyCompression[index] = 1;
+    animation.venomSacScale[index] = 1;
+    animation.tailCurl[index] = 0;
+    animation.cocoonOpen[index] = index < options.initialPopulationCount ? -1 : 0;
+    animation.lifecycleLegProgress[index] = 0;
     animation.legPoseInitialized[index] = 0;
   }
 }

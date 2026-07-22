@@ -1,6 +1,7 @@
 import { BrowserDebugPanel } from '../../../core/debug/browser-debug-panel';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import { type BattlefieldDebugControls } from './battlefield-debug-controls';
+import { BATTLEFIELD_DEBUG_MONSTER_OPTIONS } from './battlefield-debug-monster-options';
 
 const PANEL_OPTIONS = Object.freeze({
   id: 'battlefield-debug-panel',
@@ -37,9 +38,22 @@ export class BattlefieldDebugPanel {
         controls.setPerformanceDiagnosticsEnabled(value);
       },
     );
-    panel.addButton('在玩家正前方生成蜘蛛', () => {
-      controls.spawnCurveCrawlerAhead();
+    panel.addSection('怪物生成');
+    panel.addBoolean('是否生成怪物', snapshot.automaticGenerationEnabled, (value) => {
+      controls.setAutomaticGenerationEnabled(value);
     });
+    panel.addSection('生成哪些怪物（可多选）');
+    for (const option of BATTLEFIELD_DEBUG_MONSTER_OPTIONS) {
+      panel.addBoolean(option.label, snapshot.automaticMonsters[option.id], (value) => {
+        controls.setAutomaticMonsterEnabled(option.id, value);
+      });
+    }
+    panel.addSection('单只怪物观察');
+    for (const option of BATTLEFIELD_DEBUG_MONSTER_OPTIONS) {
+      panel.addButton(`在玩家正前方生成 ${option.label}`, () => {
+        controls.spawnMonsterAhead(option.id);
+      });
+    }
     this.panel = panel;
   }
 

@@ -7,6 +7,7 @@ import { type VenomLobberState } from '../model/venom-lobber-state';
 import { type VenomBombSystem } from '../behavior/venom-bomb-system';
 import {
   VENOM_LOBBER_DEATH_SECONDS,
+  VENOM_LOBBER_DEATH_RESIDUE_START_SECONDS,
   VENOM_LOBBER_DESPAWN_SECONDS,
   VENOM_LOBBER_SPAWN_SECONDS,
 } from '../model/venom-lobber-lifecycle';
@@ -31,13 +32,14 @@ export class VenomLobberLifeSystem {
           transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.Alive);
         }
       } else if (lifecycle === MonsterLifecycleState.Dying) {
-        if ((vitality.deathEffectSpawned[index] ?? 0) === 0) {
+        const stateTime = advanceMonsterLifecycleTime(vitality, index, deltaTime);
+        if (stateTime >= VENOM_LOBBER_DEATH_RESIDUE_START_SECONDS
+          && (vitality.deathEffectSpawned[index] ?? 0) === 0) {
           const { transform, morphology } = state.data;
           this.effects.deaths.spawn(
             index,
             transform.x[index] ?? 0,
             transform.y[index] ?? 0,
-            transform.heading[index] ?? 0,
             morphology.scale[index] ?? 1,
           );
           vitality.deathEffectSpawned[index] = 1;
@@ -45,8 +47,7 @@ export class VenomLobberLifeSystem {
         motion.currentSpeed[index] = 0;
         intent.targetSpeed[index] = 0;
         combat.engaged[index] = 0;
-        if (advanceMonsterLifecycleTime(vitality, index, deltaTime)
-          >= VENOM_LOBBER_DEATH_SECONDS) {
+        if (stateTime >= VENOM_LOBBER_DEATH_SECONDS) {
           transitionMonsterLifecycle(vitality, index, MonsterLifecycleState.DeathComplete);
         }
       } else if (lifecycle === MonsterLifecycleState.Despawning) {

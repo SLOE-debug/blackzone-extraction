@@ -6,8 +6,8 @@ import {
   VENOM_POOL_VERTEX_COUNT,
   writeVenomPoolGeometry,
   writeVenomDeathResidueGeometry,
-  writeVenomSpawnResidueGeometry,
 } from './venom-pool-geometry';
+import { writeVenomCocoonGeometry } from './venom-cocoon-geometry';
 
 const BOMB_VERTEX_COUNT = 24;
 export const VENOM_WARNING_CIRCLE_SEGMENTS = 32;
@@ -181,30 +181,32 @@ export function writeVenomPoolEffectSlot(
   );
 }
 
-/** 使用池拓扑写入出生前置暗斑与三条裂纹。 */
-export function writeVenomSpawnEffectSlot(
+/** 使用固定效果槽写入毒茧土包、裂纹与六枚甲壳碎片。 */
+export function writeVenomCocoonEffectSlot(
   geometry: UnlitColorBufferGeometry,
   slotIndex: number,
   x: number,
   y: number,
   radius: number,
-  elapsed: number,
+  cocoonOpen: number,
+  lifecycleLegProgress: number,
   seed: number,
 ): void {
   const baseVertex = slotIndex * VENOM_EFFECT_SLOT_VERTEX_COUNT;
   collapseSection(geometry, baseVertex, BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT, x, y, 0.06);
-  writeVenomSpawnResidueGeometry(
+  writeVenomCocoonGeometry(
     geometry,
     baseVertex + BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT,
     x,
     y,
     radius,
-    Math.max(0, elapsed),
+    cocoonOpen,
+    lifecycleLegProgress,
     seed,
   );
 }
 
-/** 使用池拓扑写入五枚无伤害飞溅和延迟消退残迹。 */
+/** 使用池拓扑写入延迟出现并向中心收缩的脚印残迹。 */
 export function writeVenomDeathEffectSlot(
   geometry: UnlitColorBufferGeometry,
   slotIndex: number,
@@ -220,7 +222,6 @@ export function writeVenomDeathEffectSlot(
     baseVertex + BOMB_VERTEX_COUNT + MARKER_VERTEX_COUNT,
     x,
     y,
-    deaths.heading[deathIndex] ?? 0,
     deaths.scale[deathIndex] ?? 1,
     deaths.elapsed[deathIndex] ?? 0,
     deaths.duration[deathIndex] ?? 1,

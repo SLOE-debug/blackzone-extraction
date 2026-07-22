@@ -15,12 +15,12 @@ const AIM_PALETTE = Object.freeze({
   handle: new Color(151, 91, 50, 255),
 });
 
-/** 战场双摇杆的共享尺寸和左右职责配色。 */
+/** 战场双摇杆与独立场景操作按钮的共享尺寸和职责配色。 */
 export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
   horizontalEdgeInset: 64,
   bottomEdgeInset: 56,
   minimumCenterGap: 24,
-  aimActivationMagnitude: 0.24,
+  interactionVerticalGap: 18,
   movement: Object.freeze({
     radius: 72,
     handleRadius: 30,
@@ -34,6 +34,14 @@ export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
     handleRadius: 30,
     interactionRadius: 108,
     deadZone: 0.1,
+    responseExponent: 1,
+    palette: AIM_PALETTE,
+  }) satisfies VirtualJoystickOptions,
+  interaction: Object.freeze({
+    radius: 48,
+    handleRadius: 30,
+    interactionRadius: 58,
+    deadZone: 0,
     responseExponent: 1,
     palette: AIM_PALETTE,
   }) satisfies VirtualJoystickOptions,

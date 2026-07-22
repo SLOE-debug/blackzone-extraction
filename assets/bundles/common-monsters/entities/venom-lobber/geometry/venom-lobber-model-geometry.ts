@@ -75,8 +75,10 @@ export function createVenomLobberModelGeometry(): VenomLobberModelGeometry {
   const tailEnd = sink.vertexCount;
   const venomStart = sink.vertexCount;
   appendVenomSacs(sink);
-  appendStinger(sink);
   const venomEnd = sink.vertexCount;
+  const stingerStart = sink.vertexCount;
+  appendStinger(sink);
+  const stingerEnd = sink.vertexCount;
 
   const geometry = sink.build();
   const tailWeights = new Float32Array(geometry.vertexCount);
@@ -100,6 +102,11 @@ export function createVenomLobberModelGeometry(): VenomLobberModelGeometry {
     const bone = Math.round(0.72 * (TAIL_BONE_COUNT - 1));
     tailBones[vertex] = bone;
     tailWeights[vertex] = bone / (TAIL_BONE_COUNT - 1);
+  }
+  for (let vertex = stingerStart; vertex < stingerEnd; vertex++) {
+    const bone = TAIL_BONE_COUNT - 1;
+    tailBones[vertex] = bone;
+    tailWeights[vertex] = 1;
   }
   for (let vertex = 0; vertex < geometry.vertexCount; vertex++) {
     const x = geometry.positions[vertex * 3] ?? 0;

@@ -19,10 +19,9 @@ import {
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
+import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
 
-const AIM_ASSIST_MAXIMUM_WORLD_DISTANCE = 26;
-const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(25 / 180 * Math.PI);
-const AUTO_LOCK_MINIMUM_ALIGNMENT = Math.cos(68 / 180 * Math.PI);
+const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(BATTLEFIELD_AIM_ASSIST.maximumAngleRadians);
 
 interface MutablePlanarTargetQuery extends PlanarTargetQuery {
   originX: number;
@@ -121,12 +120,16 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     initialCenterZ: number,
     populationId: number,
     camera: Camera,
+    populationCapacity = BATTLEFIELD_VENOM_LOBBER_CONFIG.populationCapacity,
   ) {
+    if (!Number.isInteger(populationCapacity) || populationCapacity <= 0) {
+      throw new Error('战场 Venom Lobber 群体容量必须是正整数。');
+    }
     const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
     const config = BATTLEFIELD_VENOM_LOBBER_CONFIG;
     const combat = config.combat;
     this.population = commonMonsters.createVenomLobber(parent, {
-      count: config.populationCapacity,
+      count: populationCapacity,
       initialPopulationCount: 0,
       spawnArea: Object.freeze({
         centerX: initialCenterX * inverseScale,
@@ -203,6 +206,15 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     this.population.maintainAround(this.repopulation);
   }
 
+  /** 在精确世界坐标启动一个 Venom Lobber 出生生命周期。 */
+  public spawnAt(worldX: number, worldZ: number): boolean {
+    if (this.disposed) {
+      return false;
+    }
+    const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    return this.population.spawnAt(worldX * inverseScale, -worldZ * inverseScale);
+  }
+
   public update(
     deltaTime: number,
     target: Readonly<BattlefieldMonsterCombatTarget> | null,
@@ -250,18 +262,6 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     );
   }
 
-  public writeAutoTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    return this.writeTarget(
-      originX, originZ, directionX, directionZ, AUTO_LOCK_MINIMUM_ALIGNMENT, result,
-    );
-  }
-
   /** 只对共享空间索引给出的单一实体执行瞄准窄相位。 */
   public writeAimTargetForEntity(
     entityIndex: number,
@@ -269,7 +269,6 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     originZ: number,
     directionX: number,
     directionZ: number,
-    automatic: boolean,
     result: MutableBattlefieldAimTarget,
   ): boolean {
     if (this.disposed) {
@@ -281,10 +280,8 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     query.originY = -originZ / scale;
     query.directionX = directionX;
     query.directionY = -directionZ;
-    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE / scale;
-    query.minimumAlignment = automatic
-      ? AUTO_LOCK_MINIMUM_ALIGNMENT
-      : AIM_ASSIST_MINIMUM_ALIGNMENT;
+    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance / scale;
+    query.minimumAlignment = AIM_ASSIST_MINIMUM_ALIGNMENT;
     if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
       return false;
     }
@@ -361,7 +358,7 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     query.originY = -originZ / scale;
     query.directionX = directionX;
     query.directionY = -directionZ;
-    query.maximumDistance = AIM_ASSIST_MAXIMUM_WORLD_DISTANCE / scale;
+    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance / scale;
     query.minimumAlignment = minimumAlignment;
     if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
       return false;

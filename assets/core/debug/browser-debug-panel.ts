@@ -68,6 +68,28 @@ export class BrowserDebugPanel {
     body.appendChild(row);
   }
 
+  /** 添加一行只承担控件分组语义的标题。 */
+  public addSection(title: string): void {
+    const body = this.body;
+    if (body === null) {
+      return;
+    }
+    if (title.length === 0) {
+      throw new Error('调试控件分组标题不能为空。');
+    }
+    const section = document.createElement('div');
+    section.textContent = title;
+    Object.assign(section.style, {
+      marginTop: '8px',
+      paddingTop: '7px',
+      color: this.options.outputColor,
+      borderTop: '1px solid rgba(255, 255, 255, 0.12)',
+      fontSize: '12px',
+      fontWeight: '700',
+    });
+    body.appendChild(section);
+  }
+
   /** 添加带实时数值显示的滑杆。 */
   public addNumber(
     label: string,

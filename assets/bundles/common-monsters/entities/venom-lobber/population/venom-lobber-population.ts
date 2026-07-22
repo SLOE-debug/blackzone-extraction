@@ -16,6 +16,7 @@ import { type Node } from 'cc';
 import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { VenomLobberAnimationSystem } from '../animation/venom-lobber-animation-system';
 import { VenomLobberLegAnimationSystem } from '../animation/venom-lobber-leg-animation-system';
+import { VenomLobberLifecyclePoseSystem } from '../animation/venom-lobber-lifecycle-pose-system';
 import { VenomLobberCombatSystem } from '../behavior/venom-lobber-combat-system';
 import { normalizeVenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
 import {
@@ -43,6 +44,7 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
   private readonly combat: VenomLobberCombatSystem;
   private readonly movement = new VenomLobberMovementSystem();
   private readonly animation = new VenomLobberAnimationSystem();
+  private readonly lifecyclePose = new VenomLobberLifecyclePoseSystem();
   private readonly legAnimation = new VenomLobberLegAnimationSystem();
   private readonly repopulation: VenomLobberRepopulationSystem;
   private readonly targeting = new VenomLobberTargeting();
@@ -88,6 +90,12 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     this.repopulation.maintainAround(options, this.renderer);
   }
 
+  /** 在精确局部坐标启动一个完整出生生命周期。 */
+  public spawnAt(x: number, y: number): boolean {
+    this.ensureActive();
+    return this.repopulation.spawnAt(x, y);
+  }
+
   /** 暴露给战场世界统一空间约束的重型 SoA 视图。 */
   public createCrowdPopulation(populationId: number): PlanarCrowdPopulation {
     this.ensureActive();
@@ -110,8 +118,9 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     this.life.update(this.state, safeDeltaTime);
     this.combat.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
-    this.legAnimation.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
+    this.lifecyclePose.update(this.state, safeDeltaTime);
+    this.legAnimation.update(this.state, safeDeltaTime);
   }
 
   /** 在共享 Crowd 修正位置后上传最终姿态。 */
