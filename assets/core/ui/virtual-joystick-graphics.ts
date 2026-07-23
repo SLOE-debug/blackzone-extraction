@@ -8,7 +8,7 @@ enum JoystickDirectionMarker {
   Right,
 }
 
-/** 虚拟摇杆切换为场景操作按钮时可绘制的中心图案。 */
+/** 虚拟摇杆可叠加显示的场景操作中心图案。 */
 export enum VirtualJoystickActionIcon {
   OpenContainer,
   PickupEquipment,
@@ -37,19 +37,18 @@ export function drawVirtualJoystick(
 ): void {
   fillCircle(graphics, radius, centerX, centerY, palette.base);
   strokeCircle(graphics, radius - 2, centerX, centerY, palette.rim, 4);
-  if (actionIcon === null) {
-    drawDirectionMarkers(
-      graphics,
-      centerX,
-      centerY,
-      radius,
-      handleX,
-      handleY,
-      palette.rim,
-      palette.accent,
-      active,
-    );
-  } else {
+  drawDirectionMarkers(
+    graphics,
+    centerX,
+    centerY,
+    radius,
+    handleX,
+    handleY,
+    palette.rim,
+    palette.accent,
+    active,
+  );
+  if (actionIcon !== null) {
     strokeCircle(
       graphics,
       radius - 13,
@@ -72,7 +71,7 @@ export function drawVirtualJoystick(
     4,
   );
   if (actionIcon !== null) {
-    drawActionIcon(graphics, actionIcon, handleCenterX, handleCenterY, palette.accent);
+    drawActionIcon(graphics, actionIcon, centerX, centerY, palette.accent);
   }
 }
 

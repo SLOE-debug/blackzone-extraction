@@ -82,7 +82,12 @@ describe('玩家武器运行时模型', () => {
     const result = new BattlefieldWeaponAttackExecutor().execute(
       definition,
       { muzzleX: 1, muzzleY: 2, muzzleZ: 3 },
-      { x: 4, y: 2.5, z: 11 },
+      {
+        directionX: 0,
+        directionZ: 1,
+        targetElevation: 2.5,
+        targetDistance: 8,
+      },
       ammunition,
       {
         spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
@@ -101,6 +106,35 @@ describe('玩家武器运行时模型', () => {
       )).toBeCloseTo(1, 6);
     }
     expect(ammunition.roundsRemaining).toBe(4);
+  });
+
+  it('没有纵向候选时从真实枪口严格水平射击', () => {
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
+    const ammunition = createWeaponAmmunition(
+      definition.ammunition,
+      new WeaponAmmunitionReserve(),
+    );
+    const directions: number[] = [];
+    new BattlefieldWeaponAttackExecutor().execute(
+      definition,
+      { muzzleX: 3, muzzleY: 4.25, muzzleZ: -2 },
+      {
+        directionX: Math.SQRT1_2,
+        directionZ: Math.SQRT1_2,
+        targetElevation: null,
+        targetDistance: null,
+      },
+      ammunition,
+      {
+        spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
+          directions.push(directionX, directionY, directionZ);
+        },
+      },
+    );
+
+    expect(directions[0]).toBeCloseTo(Math.SQRT1_2, 6);
+    expect(directions[1]).toBe(0);
+    expect(directions[2]).toBeCloseTo(Math.SQRT1_2, 6);
   });
 
   it('手枪耗尽八发后必须消耗拾取的备用弹药才能重新装填', () => {

@@ -1,5 +1,8 @@
 import { WorldPhase } from '../../../../core/world/world-phase';
-import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance-contracts';
+import {
+  BattlefieldPerformanceEvent,
+  BattlefieldPerformanceStage,
+} from '../../debug/battlefield-performance-contracts';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
@@ -10,7 +13,20 @@ export class BattlefieldProjectileCollisionWorldSystem extends BattlefieldWorldS
   protected readonly performanceStage = BattlefieldPerformanceStage.Weapon;
 
   protected execute(world: BattlefieldWorld): void {
-    const { weapon, monsters } = world.resources;
+    const { weapon, monsters, performance } = world.resources;
     weapon.collideProjectiles(monsters);
+    const statistics = weapon.projectileStatistics;
+    performance.recordEvent(
+      BattlefieldPerformanceEvent.ProjectileBroadPhaseCandidates,
+      statistics.broadPhaseCandidates,
+    );
+    performance.recordEvent(
+      BattlefieldPerformanceEvent.ProjectileNarrowPhaseHits,
+      statistics.narrowPhaseHits,
+    );
+    performance.recordEvent(
+      BattlefieldPerformanceEvent.ProjectileImpactsQueued,
+      statistics.impactsQueued,
+    );
   }
 }

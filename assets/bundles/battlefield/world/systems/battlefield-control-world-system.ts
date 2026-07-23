@@ -42,7 +42,7 @@ export class BattlefieldControlWorldSystem extends BattlefieldWorldSystem {
       toVanguardWeaponAction(weapon.weaponAction),
       weapon.weaponActionProgress,
       monsters.playerMovementSpeedMultiplier,
-      world.weaponAimTarget,
+      world.weaponFireIntent,
     );
   }
 }

@@ -8,6 +8,9 @@ import {
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
+import {
+  type MutableBattlefieldProjectileStatistics,
+} from '../equipment/projectile/model/battlefield-projectile-statistics';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
 
@@ -98,6 +101,7 @@ export class BattlefieldMonsterTargetRegistry {
     ignoredOffset: number,
     ignoredCount: number,
     result: MutableBattlefieldProjectileHit,
+    statistics: MutableBattlefieldProjectileStatistics,
   ): boolean {
     validateSweepQuery(query, ignoredPopulationIds, ignoredEntityIds, ignoredOffset, ignoredCount);
     const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
@@ -109,6 +113,7 @@ export class BattlefieldMonsterTargetRegistry {
       query.impactRadius * inverseScale,
       this.candidates,
     );
+    statistics.broadPhaseCandidates += this.candidates.count;
     let found = false;
     let bestProgress = Number.POSITIVE_INFINITY;
     for (let index = 0; index < this.candidates.count; index++) {
@@ -127,6 +132,7 @@ export class BattlefieldMonsterTargetRegistry {
       )) {
         continue;
       }
+      statistics.narrowPhaseHits++;
       const entityId = this.hitCandidate.entityId;
       if (isIgnored(
         populationId,
@@ -151,11 +157,16 @@ export class BattlefieldMonsterTargetRegistry {
   }
 
   /** 按稳定群体标识路由延迟伤害。 */
-  public damageMonster(populationId: number, entityId: number, amount: number): void {
+  public damageMonster(populationId: number, entityId: number, amount: number): boolean {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error('实体弹丸伤害必须是有限正数。');
     }
-    this.findGroup(populationId)?.damageMonster(entityId, amount);
+    const group = this.findGroup(populationId);
+    if (group === null) {
+      return false;
+    }
+    group.damageMonster(entityId, amount);
+    return true;
   }
 
   private findGroup(populationId: number): BattlefieldMonsterTargetGroup | null {

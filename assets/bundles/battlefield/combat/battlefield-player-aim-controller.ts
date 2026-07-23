@@ -9,10 +9,7 @@ import {
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
 import { type MutableBattlefieldPlanarDirection } from '../scene/battlefield-camera-direction';
 import { type BattlefieldScreenControlState } from '../ui/battlefield-control-hud';
-import {
-  BATTLEFIELD_AIM_ASSIST,
-  writeSoftAimDirection,
-} from './battlefield-aim-assist';
+import { type MutableBattlefieldFireIntent } from './battlefield-fire-intent';
 
 const DIRECTION_EPSILON = 0.0001;
 const PLAYER_WEAPON_AIM_HEIGHT = 2.35;
@@ -60,7 +57,7 @@ export class BattlefieldPlayerAimController {
     weaponAction: VanguardWeaponAction,
     weaponActionProgress: number,
     movementSpeedMultiplier: number,
-    fireTarget: MutableBattlefieldAimTarget,
+    fireIntent: MutableBattlefieldFireIntent,
   ): boolean {
     if (!Number.isFinite(movementSpeedMultiplier)
       || movementSpeedMultiplier <= 0
@@ -100,18 +97,22 @@ export class BattlefieldPlayerAimController {
       this.aimDirection.z,
       this.aimTarget,
     );
+    fireIntent.directionX = this.aimDirection.x;
+    fireIntent.directionZ = this.aimDirection.z;
     if (targetFound) {
-      this.applySoftAimCorrection(player.positionX, player.positionZ);
-      fireTarget.x = this.aimTarget.x;
-      fireTarget.y = this.aimTarget.y;
-      fireTarget.z = this.aimTarget.z;
+      const targetDeltaX = this.aimTarget.x - player.positionX;
+      const targetDeltaZ = this.aimTarget.z - player.positionZ;
+      const projectedDistance = targetDeltaX * this.aimDirection.x
+        + targetDeltaZ * this.aimDirection.z;
+      fireIntent.targetElevation = this.aimTarget.y;
+      fireIntent.targetDistance = Math.max(projectedDistance, DIRECTION_EPSILON);
       intent.aimPitch = this.writePitchToTarget(
-        player.positionX,
         player.positionY,
-        player.positionZ,
+        fireIntent.targetDistance,
       );
     } else {
-      this.writeFreeAimTarget(player, fireTarget);
+      fireIntent.targetElevation = null;
+      fireIntent.targetDistance = null;
       intent.aimPitch = 0;
     }
     intent.aimX = this.aimDirection.x;
@@ -121,44 +122,15 @@ export class BattlefieldPlayerAimController {
     return true;
   }
 
-  /** 将候选目标方向轻度混入右摇杆方向，玩家输入始终保留主要权重。 */
-  private applySoftAimCorrection(originX: number, originZ: number): void {
-    const deltaX = this.aimTarget.x - originX;
-    const deltaZ = this.aimTarget.z - originZ;
-    const inverseDistance = 1 / Math.max(Math.hypot(deltaX, deltaZ), DIRECTION_EPSILON);
-    writeSoftAimDirection(
-      this.aimDirection.x,
-      this.aimDirection.z,
-      deltaX * inverseDistance,
-      deltaZ * inverseDistance,
-      this.aimDirection,
-    );
-  }
-
-  /** 无辅助目标时沿右摇杆方向写入远处自由射击点。 */
-  private writeFreeAimTarget(
-    player: VanguardPopulation,
-    fireTarget: MutableBattlefieldAimTarget,
-  ): void {
-    fireTarget.x = player.positionX
-      + this.aimDirection.x * BATTLEFIELD_AIM_ASSIST.freeAimDistance;
-    fireTarget.y = player.positionY + PLAYER_WEAPON_AIM_HEIGHT;
-    fireTarget.z = player.positionZ
-      + this.aimDirection.z * BATTLEFIELD_AIM_ASSIST.freeAimDistance;
-  }
-
-  private writePitchToTarget(originX: number, originY: number, originZ: number): number {
-    const planarDistance = Math.hypot(
-      this.aimTarget.x - originX,
-      this.aimTarget.z - originZ,
-    );
+  /** 只按候选高度和手动方向上的投影距离计算展示俯仰。 */
+  private writePitchToTarget(originY: number, projectedDistance: number): number {
     return Math.max(
       -Math.PI * 0.4,
       Math.min(
         Math.PI * 0.4,
         Math.atan2(
           this.aimTarget.y - (originY + PLAYER_WEAPON_AIM_HEIGHT),
-          Math.max(planarDistance, DIRECTION_EPSILON),
+          Math.max(projectedDistance, DIRECTION_EPSILON),
         ),
       ),
     );

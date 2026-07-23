@@ -1,5 +1,8 @@
 import { WorldPhase } from '../../../../core/world/world-phase';
-import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance-contracts';
+import {
+  BattlefieldPerformanceEvent,
+  BattlefieldPerformanceStage,
+} from '../../debug/battlefield-performance-contracts';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
@@ -10,7 +13,11 @@ export class BattlefieldProjectileDamageWorldSystem extends BattlefieldWorldSyst
   protected readonly performanceStage = BattlefieldPerformanceStage.Weapon;
 
   protected execute(world: BattlefieldWorld): void {
-    const { weapon, monsters } = world.resources;
+    const { weapon, monsters, performance } = world.resources;
     weapon.resolveProjectileImpacts(monsters);
+    performance.recordEvent(
+      BattlefieldPerformanceEvent.ProjectileDamageEventsApplied,
+      weapon.projectileStatistics.damageEventsApplied,
+    );
   }
 }

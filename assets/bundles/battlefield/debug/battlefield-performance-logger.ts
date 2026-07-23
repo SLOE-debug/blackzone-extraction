@@ -63,6 +63,12 @@ const EVENT_NAMES = Object.freeze([
   '玩家受伤量',
   '怪物批次扩容',
   '怪物容量增加',
+  '生成弹丸',
+  '积分弹丸',
+  '弹丸宽相位候选',
+  '弹丸窄相位命中',
+  '弹丸命中入队',
+  '怪物伤害结算',
 ]);
 
 const MONSTER_STAGE_NAMES = Object.freeze([

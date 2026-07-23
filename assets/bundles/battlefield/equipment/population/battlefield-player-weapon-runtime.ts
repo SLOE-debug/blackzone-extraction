@@ -14,9 +14,7 @@ import {
   EquipmentId,
   type WeaponEquipmentId,
 } from '../catalog/equipment-id';
-import {
-  type BattlefieldAimTarget,
-} from '../../population/battlefield-monster-population';
+import { type BattlefieldFireIntent } from '../../combat/battlefield-fire-intent';
 import { BattlefieldWeaponActionState } from '../combat/battlefield-weapon-action-state';
 import {
   BattlefieldWeaponAttackExecutor,
@@ -38,6 +36,10 @@ import {
   BattlefieldProjectilePopulation,
   type BattlefieldProjectileCollisionTarget,
 } from '../projectile/population/battlefield-projectile-population';
+import {
+  MutableBattlefieldProjectileStatistics,
+  type BattlefieldProjectileStatistics,
+} from '../projectile/model/battlefield-projectile-statistics';
 import { createHeldWeaponMaterial } from '../rendering/held-weapon-material';
 import { HeldWeaponRenderer } from '../rendering/held-weapon-renderer';
 
@@ -52,6 +54,7 @@ export class BattlefieldPlayerWeaponRuntime {
   private readonly ammunitionInventory = new WeaponAmmunitionInventory();
   private readonly actionState = new BattlefieldWeaponActionState();
   private readonly attackExecutor = new BattlefieldWeaponAttackExecutor();
+  private readonly mutableProjectileStatistics = new MutableBattlefieldProjectileStatistics();
   private readonly muzzlePose: MutableBattlefieldWeaponMuzzlePose = {
     muzzleX: 0,
     muzzleY: 0,
@@ -121,6 +124,11 @@ export class BattlefieldPlayerWeaponRuntime {
     return status;
   }
 
+  /** 当前帧从弹丸生成到伤害路由的只读观测数据。 */
+  public get projectileStatistics(): Readonly<BattlefieldProjectileStatistics> {
+    return this.mutableProjectileStatistics;
+  }
+
   /**
    * 装备一件武器，并在成功创建新资源后替换旧武器与在途弹体。
    *
@@ -136,7 +144,11 @@ export class BattlefieldPlayerWeaponRuntime {
     let projectiles: BattlefieldProjectilePopulation | null = null;
     try {
       heldRenderer = new HeldWeaponRenderer(this.parent, equipmentId, this.heldMaterial);
-      projectiles = new BattlefieldProjectilePopulation(this.parent, definition);
+      projectiles = new BattlefieldProjectilePopulation(
+        this.parent,
+        definition,
+        this.mutableProjectileStatistics,
+      );
       this.ammunitionInventory.provisionFirstAcquisition(definition);
     } catch (error: unknown) {
       projectiles?.dispose();
@@ -154,6 +166,12 @@ export class BattlefieldPlayerWeaponRuntime {
     this.projectiles = projectiles;
     this.actionState.reset();
     return replacedEquipmentId;
+  }
+
+  /** 在武器生成阶段开始前清空上一帧弹丸链路统计。 */
+  public beginProjectileFrame(): void {
+    this.ensureActive();
+    this.mutableProjectileStatistics.reset();
   }
 
   /** 接收一件世界装备；武器进入槽位，弹药则直接加入对应备用库存。 */
@@ -177,7 +195,7 @@ export class BattlefieldPlayerWeaponRuntime {
   public updateFiring(
     deltaTime: number,
     owner: Readonly<BattlefieldWeaponOwnerPose>,
-    fireTarget: Readonly<BattlefieldAimTarget> | null,
+    fireIntent: Readonly<BattlefieldFireIntent> | null,
   ): void {
     this.ensureActive();
     validateOwnerPose(owner);
@@ -193,7 +211,7 @@ export class BattlefieldPlayerWeaponRuntime {
 
     this.actionState.update(safeDeltaTime, definition, ammunition);
     if (owner.alive
-      && fireTarget !== null
+      && fireIntent !== null
       && this.actionState.canFire(ammunition)
       && this.projectiles !== null) {
       const heldProfile = this.heldProfile;
@@ -204,7 +222,7 @@ export class BattlefieldPlayerWeaponRuntime {
       const attackResult = this.attackExecutor.execute(
         definition,
         this.muzzlePose,
-        fireTarget,
+        fireIntent,
         ammunition,
         this.projectiles,
       );

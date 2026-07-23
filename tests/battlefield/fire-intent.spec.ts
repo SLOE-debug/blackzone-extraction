@@ -1,83 +1,122 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BATTLEFIELD_AIM_ASSIST,
-  writeSoftAimDirection,
-} from '../../assets/bundles/battlefield/combat/battlefield-aim-assist';
+import { BATTLEFIELD_AIM_ASSIST } from '../../assets/bundles/battlefield/combat/battlefield-aim-assist';
 import { BattlefieldPlayerAimController } from '../../assets/bundles/battlefield/combat/battlefield-player-aim-controller';
 import { VanguardWeaponAction } from '../../assets/player/vanguard/model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../../assets/player/vanguard/model/vanguard-weapon-pose';
 
-describe('战场轻度辅助瞄准', () => {
-  it('使用敲定的六度、十六单位和三成修正参数', () => {
-    expect(BATTLEFIELD_AIM_ASSIST.maximumAngleRadians).toBeCloseTo(Math.PI / 30, 8);
+describe('战场射击意图', () => {
+  it('只保留六度与十六单位的纵向候选查询范围', () => {
+    expect(BATTLEFIELD_AIM_ASSIST.maximumAngleRadians).toBeCloseTo(Math.PI / 30, 12);
     expect(BATTLEFIELD_AIM_ASSIST.maximumDistance).toBe(16);
-    expect(BATTLEFIELD_AIM_ASSIST.correctionWeight).toBe(0.3);
-    expect(BATTLEFIELD_AIM_ASSIST.freeAimDistance).toBe(32);
-  });
-
-  it('目标方向只占三成权重并重新归一化', () => {
-    const result = { x: 0, z: 0 };
-    writeSoftAimDirection(0, 1, 1, 0, result);
-    expect(result.x).toBeCloseTo(0.393919, 5);
-    expect(result.z).toBeCloseTo(0.919145, 5);
+    expect(Object.keys(BATTLEFIELD_AIM_ASSIST)).toEqual([
+      'maximumAngleRadians',
+      'maximumDistance',
+    ]);
   });
 
   it('右摇杆未激活时不查询怪物，也不会由左摇杆触发射击', () => {
     const controller = new BattlefieldPlayerAimController();
-    const fixture = createAimControllerFixture(false);
-    const firing = controller.apply(
-      fixture.player,
-      fixture.monsters,
-      fixture.camera,
-      fixture.controls,
-      VanguardWeaponPose.Handgun,
-      VanguardWeaponAction.Ready,
-      0,
-      1,
-      fixture.fireTarget,
-    );
+    const fixture = createAimControllerFixture(false, null);
+    const firing = applyController(controller, fixture);
     expect(firing).toBe(false);
     expect(fixture.resolveCalls()).toBe(0);
     expect(fixture.intent()?.aiming).toBe(false);
   });
 
-  it('右摇杆激活但没有目标时仍沿手动方向自由射击', () => {
+  it('没有候选怪物时保留手动 XZ，并请求枪口高度的水平射击', () => {
     const controller = new BattlefieldPlayerAimController();
-    const fixture = createAimControllerFixture(true);
-    const firing = controller.apply(
-      fixture.player,
-      fixture.monsters,
-      fixture.camera,
-      fixture.controls,
-      VanguardWeaponPose.Handgun,
-      VanguardWeaponAction.Ready,
-      0,
-      1,
-      fixture.fireTarget,
-    );
+    const fixture = createAimControllerFixture(true, null);
+    const firing = applyController(controller, fixture);
     expect(firing).toBe(true);
     expect(fixture.resolveCalls()).toBe(1);
-    expect(fixture.fireTarget).toEqual({ x: 44, y: 5.35, z: -8 });
+    expect(fixture.fireIntent).toEqual({
+      directionX: 1,
+      directionZ: 0,
+      targetElevation: null,
+      targetDistance: null,
+    });
     expect(fixture.intent()?.aiming).toBe(true);
+    expect(fixture.intent()?.aimPitch).toBe(0);
+  });
+
+  it('候选怪物只提供高度和投影距离，绝不修改手动 XZ', () => {
+    const controller = new BattlefieldPlayerAimController();
+    const fixture = createAimControllerFixture(true, { x: 20, y: 2.1, z: -7 });
+    const firing = applyController(controller, fixture);
+    expect(firing).toBe(true);
+    expect(fixture.fireIntent.directionX).toBe(1);
+    expect(fixture.fireIntent.directionZ).toBe(0);
+    expect(fixture.fireIntent.targetElevation).toBe(2.1);
+    expect(fixture.fireIntent.targetDistance).toBe(8);
+    expect(fixture.intent()?.aimX).toBe(1);
+    expect(fixture.intent()?.aimZ).toBe(0);
+    expect(fixture.intent()?.aimPitch).toBeLessThan(0);
   });
 });
 
-function createAimControllerFixture(aiming: boolean) {
-  let latestIntent: Readonly<{ aiming: boolean }> | null = null;
+function applyController(
+  controller: BattlefieldPlayerAimController,
+  fixture: ReturnType<typeof createAimControllerFixture>,
+): boolean {
+  return controller.apply(
+    fixture.player,
+    fixture.monsters,
+    fixture.camera,
+    fixture.controls,
+    VanguardWeaponPose.Handgun,
+    VanguardWeaponAction.Ready,
+    0,
+    1,
+    fixture.fireIntent,
+  );
+}
+
+function createAimControllerFixture(
+  aiming: boolean,
+  target: Readonly<{ x: number; y: number; z: number }> | null,
+) {
+  let latestIntent: Readonly<{
+    aiming: boolean;
+    aimX: number;
+    aimZ: number;
+    aimPitch: number;
+  }> | null = null;
   let resolveCalls = 0;
   const player = {
     positionX: 12,
     positionY: 3,
     positionZ: -8,
     heading: 0,
-    setControlIntent(intent: Readonly<{ aiming: boolean }>) {
-      latestIntent = { ...intent };
+    setControlIntent(intent: Readonly<{
+      aiming: boolean;
+      aimX: number;
+      aimZ: number;
+      aimPitch: number;
+    }>) {
+      latestIntent = {
+        aiming: intent.aiming,
+        aimX: intent.aimX,
+        aimZ: intent.aimZ,
+        aimPitch: intent.aimPitch,
+      };
     },
   };
   const monsters = {
-    resolveAimTarget() {
+    resolveAimTarget(
+      _originX: number,
+      _originZ: number,
+      _directionX: number,
+      _directionZ: number,
+      result: { x: number; y: number; z: number },
+    ) {
       resolveCalls++;
-      return false;
+      if (target === null) {
+        return false;
+      }
+      result.x = target.x;
+      result.y = target.y;
+      result.z = target.z;
+      return true;
     },
   };
   const camera = {
@@ -99,7 +138,12 @@ function createAimControllerFixture(aiming: boolean) {
       aiming,
       cameraOrbitDeltaX: 0,
     }),
-    fireTarget: { x: 0, y: 0, z: 0 },
+    fireIntent: {
+      directionX: 0,
+      directionZ: 0,
+      targetElevation: null,
+      targetDistance: null,
+    },
     resolveCalls: () => resolveCalls,
     intent: () => latestIntent,
   };

@@ -21,6 +21,9 @@ import {
   type BattlefieldMonsterPerformanceRecorder,
   BattlefieldMonsterPerformanceStage,
 } from './battlefield-monster-performance';
+import {
+  type MutableBattlefieldProjectileStatistics,
+} from '../equipment/projectile/model/battlefield-projectile-statistics';
 
 const MAXIMUM_WAVE_DELTA_TIME = 0.05;
 const SWARM_POPULATION_ID = 0;
@@ -380,6 +383,7 @@ implements Disposable {
     ignoredOffset: number,
     ignoredCount: number,
     result: MutableBattlefieldProjectileHit,
+    statistics: MutableBattlefieldProjectileStatistics,
   ): boolean {
     if (this.disposed) {
       return false;
@@ -391,14 +395,13 @@ implements Disposable {
       ignoredOffset,
       ignoredCount,
       result,
+      statistics,
     );
   }
 
   /** 把 PostSimulation 中的弹丸伤害路由到稳定群体与实体。 */
-  public damageMonster(populationId: number, entityId: number, amount: number): void {
-    if (!this.disposed) {
-      this.targets.damageMonster(populationId, entityId, amount);
-    }
+  public damageMonster(populationId: number, entityId: number, amount: number): boolean {
+    return !this.disposed && this.targets.damageMonster(populationId, entityId, amount);
   }
 
   /** 释放尸潮状态、共享渲染批次和调试实体。 */

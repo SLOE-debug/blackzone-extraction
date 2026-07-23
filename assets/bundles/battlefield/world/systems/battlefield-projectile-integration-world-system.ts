@@ -1,5 +1,8 @@
 import { WorldPhase } from '../../../../core/world/world-phase';
-import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance-contracts';
+import {
+  BattlefieldPerformanceEvent,
+  BattlefieldPerformanceStage,
+} from '../../debug/battlefield-performance-contracts';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
@@ -10,6 +13,11 @@ export class BattlefieldProjectileIntegrationWorldSystem extends BattlefieldWorl
   protected readonly performanceStage = BattlefieldPerformanceStage.Weapon;
 
   protected execute(world: BattlefieldWorld, deltaTime: number): void {
-    world.resources.weapon.integrateProjectiles(deltaTime);
+    const { weapon, performance } = world.resources;
+    weapon.integrateProjectiles(deltaTime);
+    performance.recordEvent(
+      BattlefieldPerformanceEvent.ProjectilesIntegrated,
+      weapon.projectileStatistics.projectilesIntegrated,
+    );
   }
 }

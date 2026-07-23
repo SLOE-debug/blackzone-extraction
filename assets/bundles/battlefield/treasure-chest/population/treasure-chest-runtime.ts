@@ -71,7 +71,7 @@ export class TreasureChestRuntime {
     }
   }
 
-  /** 只有尚未打开的宝箱能进入操作按钮候选。 */
+  /** 只有尚未打开的宝箱能进入场景操作候选。 */
   public get interactable(): boolean {
     return !this.disposed && this.phase === TreasureChestPhase.Closed;
   }

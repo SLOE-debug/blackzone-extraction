@@ -1,7 +1,5 @@
 import { type WeaponEquipmentDefinition } from '../../../../core/equipment/equipment';
-import {
-  type BattlefieldAimTarget,
-} from '../../population/battlefield-monster-population';
+import { type BattlefieldFireIntent } from '../../combat/battlefield-fire-intent';
 import { type WeaponEquipmentId } from '../catalog/equipment-id';
 import { type WeaponAmmunition } from '../model/weapon-ammunition';
 import {
@@ -49,18 +47,19 @@ export class BattlefieldWeaponAttackExecutor {
   public execute(
     definition: Readonly<WeaponEquipmentDefinition<WeaponEquipmentId>>,
     muzzle: Readonly<BattlefieldWeaponMuzzlePose>,
-    target: Readonly<BattlefieldAimTarget>,
+    intent: Readonly<BattlefieldFireIntent>,
     ammunition: WeaponAmmunition,
     projectiles: BattlefieldWeaponProjectileSink,
   ): BattlefieldWeaponAttackResult {
     const direction = this.shotDirection;
+    const targetDistance = intent.targetDistance ?? definition.projectile.maximumRange;
     writeBattlefieldProjectileDirection(
       muzzle.muzzleX,
       muzzle.muzzleY,
       muzzle.muzzleZ,
-      target.x,
-      target.y,
-      target.z,
+      muzzle.muzzleX + intent.directionX * targetDistance,
+      intent.targetElevation ?? muzzle.muzzleY,
+      muzzle.muzzleZ + intent.directionZ * targetDistance,
       direction,
     );
     if (!ammunition.tryConsumeShot()) {

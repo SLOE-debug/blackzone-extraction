@@ -17,6 +17,7 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.x.set([30, 70, 50]);
     state.data.transform.y.set([0, 0, 0]);
     configureHitShape(state);
+    synchronizePreviousPosition(state);
     state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const elevation = calculateCurveCrawlerAimElevation(4, 0, 0, 0);
     const result = {
@@ -47,6 +48,7 @@ describe('Curve Crawler 子弹线段命中', () => {
     configureHitShape(state);
     state.data.transform.x.fill(5);
     state.data.transform.y.fill(30);
+    synchronizePreviousPosition(state);
 
     expect(new CurveCrawlerProjectileHitSystem().findFirst(state, {
       startX: 0,
@@ -70,6 +72,7 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.x.set([30, 70, 180]);
     state.data.transform.y.fill(0);
     configureHitShape(state);
+    synchronizePreviousPosition(state);
     state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const elevation = calculateCurveCrawlerAimElevation(4, 0, 0, 0);
     const result = {
@@ -93,11 +96,12 @@ describe('Curve Crawler 子弹线段命中', () => {
     expect(result.elevation).toBeCloseTo(elevation, 6);
   });
 
-  it('远离躯干但仍穿过远端腿部范围时判定命中', () => {
+  it('远离胸腔和腹部但穿过腿部时保持不命中', () => {
     const state = createState();
     configureHitShape(state);
     state.data.transform.x.fill(0);
     state.data.transform.y.fill(0);
+    synchronizePreviousPosition(state);
     state.data.vitality.state[1] = MonsterLifecycleState.DeathComplete;
     state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const lateralHalfExtent = calculateCurveCrawlerLateralHitHalfExtent(
@@ -125,11 +129,10 @@ describe('Curve Crawler 子弹线段命中', () => {
       endY: 9,
       endElevation: 0.3,
       impactRadius: 0,
-    }, result)).toBe(true);
-    expect(result.entityId).toBe(0);
+    }, result)).toBe(false);
   });
 
-  it('单一碰撞体随蜘蛛朝向旋转并在远端腿外保持不命中', () => {
+  it('胸腹复合碰撞体随蜘蛛朝向旋转且不会扩张到腿部', () => {
     const state = createState();
     configureHitShape(state);
     state.data.transform.x.fill(0);
@@ -137,6 +140,7 @@ describe('Curve Crawler 子弹线段命中', () => {
     state.data.transform.heading[0] = Math.PI * 0.5;
     state.data.transform.headingCosine[0] = 0;
     state.data.transform.headingSine[0] = 1;
+    synchronizePreviousPosition(state);
     state.data.vitality.state[1] = MonsterLifecycleState.DeathComplete;
     state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
     const hitSystem = new CurveCrawlerProjectileHitSystem();
@@ -149,19 +153,19 @@ describe('Curve Crawler 子弹线段命中', () => {
     };
 
     expect(hitSystem.findFirst(state, {
-      startX: 9,
+      startX: 1.8,
       startY: -20,
       startElevation: 0.3,
-      endX: 9,
+      endX: 1.8,
       endY: 20,
       endElevation: 0.3,
       impactRadius: 0,
     }, result)).toBe(true);
     expect(hitSystem.findFirst(state, {
-      startX: 10.2,
+      startX: 2.5,
       startY: -20,
       startElevation: 0.3,
-      endX: 10.2,
+      endX: 2.5,
       endY: 20,
       endElevation: 0.3,
       impactRadius: 0,
@@ -189,4 +193,9 @@ function configureHitShape(state: CurveCrawlerState): void {
   state.data.animation.crouchAmount.fill(0);
   state.data.animation.biteAmount.fill(0);
   state.data.animation.turnAmount.fill(0);
+}
+
+function synchronizePreviousPosition(state: CurveCrawlerState): void {
+  state.data.transform.previousX.set(state.data.transform.x);
+  state.data.transform.previousY.set(state.data.transform.y);
 }

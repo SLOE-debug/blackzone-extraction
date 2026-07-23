@@ -1,5 +1,5 @@
 import { WorldScheduler } from '../../../core/world/world-scheduler';
-import { type MutableBattlefieldAimTarget } from '../population/battlefield-monster-population';
+import { type MutableBattlefieldFireIntent } from '../combat/battlefield-fire-intent';
 import { type BattlefieldMonsterCombatTarget } from '../population/battlefield-monster-contracts';
 import { type BattlefieldWeaponOwnerPose } from '../equipment/population/battlefield-player-weapon-runtime';
 import { BattlefieldPerformanceStage } from '../debug/battlefield-performance-contracts';
@@ -66,7 +66,12 @@ export class BattlefieldWorld {
     forwardZ: 1,
     alive: true,
   };
-  public readonly weaponAimTarget: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
+  public readonly weaponFireIntent: MutableBattlefieldFireIntent = {
+    directionX: 0,
+    directionZ: 1,
+    targetElevation: null,
+    targetDistance: null,
+  };
   public weaponFiringRequested = false;
   public pendingMonsterAttackDamage = 0;
   private defeatPresented = false;

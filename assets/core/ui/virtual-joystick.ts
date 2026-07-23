@@ -12,6 +12,7 @@ import {
   VirtualJoystickActionIcon,
   type VirtualJoystickPalette,
 } from './virtual-joystick-graphics';
+import { VirtualJoystickGesture } from './virtual-joystick-gesture';
 
 /** 虚拟摇杆固定尺寸、响应曲线和视觉参数。 */
 export interface VirtualJoystickOptions {
@@ -38,11 +39,10 @@ export class VirtualJoystick {
   private readonly touchLocation = new Vec2();
   private readonly touchWorldPosition = new Vec3();
   private readonly touchLocalPosition = new Vec3();
-  private activeTouchId: number | null = null;
+  private readonly gesture = new VirtualJoystickGesture();
   private handleX = 0;
   private handleY = 0;
   private actionIcon: VirtualJoystickActionIcon | null = null;
-  private actionPressPending = false;
   private centerX = 0;
   private centerY = 0;
   private revision = 1;
@@ -68,7 +68,7 @@ export class VirtualJoystick {
 
   /** 当前是否有一根手指正在控制此摇杆。 */
   public get active(): boolean {
-    return this.activeTouchId !== null;
+    return this.gesture.active;
   }
 
   /** 共享 HUD Graphics 判断是否需要重绘使用的单调版本。 */
@@ -108,15 +108,13 @@ export class VirtualJoystick {
     }
   }
 
-  /** 在轴输入与单次场景操作按钮之间切换中心图案和触摸语义。 */
+  /** 设置摇杆中心的场景操作图案，不改变轴输入职责。 */
   public setActionIcon(icon: VirtualJoystickActionIcon | null): void {
     if (this.disposed || this.actionIcon === icon) {
       return;
     }
     this.actionIcon = icon;
-    this.activeTouchId = null;
-    this.actionPressPending = false;
-    this.resetValue();
+    this.gesture.cancelActionCandidate();
     this.invalidateGraphics();
   }
 
@@ -126,17 +124,14 @@ export class VirtualJoystick {
       return;
     }
     this.root.active = visible;
-    this.activeTouchId = null;
-    this.actionPressPending = false;
+    this.gesture.reset();
     this.resetValue();
     this.invalidateGraphics();
   }
 
-  /** 读取并清除动作模式下最近一次 TOUCH_START。 */
+  /** 读取并清除最近一次在死区内完成的场景操作点击。 */
   public consumeActionPress(): boolean {
-    const pressed = this.actionPressPending;
-    this.actionPressPending = false;
-    return pressed;
+    return this.gesture.consumeActionPress();
   }
 
   /** 解除触摸监听并销毁摇杆节点。 */
@@ -145,8 +140,7 @@ export class VirtualJoystick {
       return;
     }
     this.disposed = true;
-    this.activeTouchId = null;
-    this.actionPressPending = false;
+    this.gesture.reset();
     this.resetValue();
     if (!this.root.isValid) {
       return;
@@ -165,39 +159,37 @@ export class VirtualJoystick {
     if (touchId === null) {
       return;
     }
-    if (this.activeTouchId !== null) {
+    if (!this.gesture.begin(touchId, this.actionIcon !== null)) {
       event.propagationStopped = true;
       return;
     }
-    this.activeTouchId = touchId;
-    if (this.actionIcon === null) {
-      this.updateFromTouch(event);
-    } else {
-      this.actionPressPending = true;
-      this.resetValue();
-      this.invalidateGraphics();
-    }
+    this.updateFromTouch(event);
+    this.gesture.move(touchId, this.value.magnitude <= 0);
     event.propagationStopped = true;
   }
 
   private handleTouchMove(event: EventTouch): void {
-    if (!this.matchesActiveTouch(event)) {
+    const touchId = event.getID();
+    if (touchId === null || !this.gesture.owns(touchId)) {
       return;
     }
-    if (this.actionIcon === null) {
-      this.updateFromTouch(event);
-    }
+    this.updateFromTouch(event);
+    this.gesture.move(touchId, this.value.magnitude <= 0);
     event.propagationStopped = true;
   }
 
   private handleTouchEnd(event: EventTouch): void {
-    if (this.matchesActiveTouch(event)) {
+    const touchId = event.getID();
+    if (touchId !== null && this.gesture.owns(touchId)) {
+      this.updateFromTouch(event);
+      this.gesture.end(touchId, this.value.magnitude <= 0);
       this.releaseTouch(event);
     }
   }
 
   private handleTouchCancel(event: EventTouch): void {
-    if (this.matchesActiveTouch(event)) {
+    const touchId = event.getID();
+    if (touchId !== null && this.gesture.cancel(touchId)) {
       this.releaseTouch(event);
     }
   }
@@ -230,14 +222,9 @@ export class VirtualJoystick {
   }
 
   private releaseTouch(event: EventTouch): void {
-    this.activeTouchId = null;
     this.resetValue();
     this.invalidateGraphics();
     event.propagationStopped = true;
-  }
-
-  private matchesActiveTouch(event: EventTouch): boolean {
-    return this.activeTouchId !== null && event.getID() === this.activeTouchId;
   }
 
   private resetValue(): void {
