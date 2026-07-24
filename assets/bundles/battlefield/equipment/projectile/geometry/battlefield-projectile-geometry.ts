@@ -25,6 +25,11 @@ const BUCKSHOT_PELLET_TRIANGLES = createScaledProjectileTriangles(
   0.28,
 );
 
+const PROJECTILE_FORWARD_TIP_OFFSETS = Object.freeze({
+  [WeaponProjectileVisual.Bullet]: BULLET_TRIANGLES[2] ?? 0,
+  [WeaponProjectileVisual.BuckshotPellet]: BUCKSHOT_PELLET_TRIANGLES[2] ?? 0,
+} satisfies Readonly<Record<WeaponProjectileVisual, number>>);
+
 const PROJECTILE_LOCAL_TRIANGLES = Object.freeze({
   [WeaponProjectileVisual.Bullet]: BULLET_TRIANGLES,
   [WeaponProjectileVisual.BuckshotPellet]: BUCKSHOT_PELLET_TRIANGLES,
@@ -95,6 +100,7 @@ export function writeBattlefieldProjectilePositions(
 ): void {
   const verticesPerProjectile = BATTLEFIELD_PROJECTILE_TOPOLOGY.verticesPerProjectile;
   const localTriangles = PROJECTILE_LOCAL_TRIANGLES[visual];
+  const forwardTipOffset = PROJECTILE_FORWARD_TIP_OFFSETS[visual];
   for (let slot = 0; slot < state.capacity; slot++) {
     const targetStart = slot * verticesPerProjectile * 3;
     if ((state.active[slot] ?? 0) === 0) {
@@ -119,18 +125,20 @@ export function writeBattlefieldProjectilePositions(
       const localRight = localTriangles[component] ?? 0;
       const localY = localTriangles[component + 1] ?? 0;
       const localForward = localTriangles[component + 2] ?? 0;
+      // 权威弹丸位置代表弹头尖端，全部可见几何只能位于该碰撞点后方。
+      const collisionAlignedForward = localForward - forwardTipOffset;
       const target = targetStart + component;
       positions[target] = originX
         + rightX * localRight
         + upX * localY
-        + forwardX * localForward;
+        + forwardX * collisionAlignedForward;
       positions[target + 1] = originY
         + upY * localY
-        + forwardY * localForward;
+        + forwardY * collisionAlignedForward;
       positions[target + 2] = originZ
         + rightZ * localRight
         + upZ * localY
-        + forwardZ * localForward;
+        + forwardZ * collisionAlignedForward;
     }
   }
 }

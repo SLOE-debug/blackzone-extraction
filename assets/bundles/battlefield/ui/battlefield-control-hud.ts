@@ -175,7 +175,7 @@ export class BattlefieldControlHud {
     }
   }
 
-  /** 在右摇杆中心叠加临时场景操作图案，不改变拖动瞄准职责。 */
+  /** 在右侧控制区与瞄准摇杆互斥地显示临时场景操作。 */
   public setContextAction(action: BattlefieldInteractionAction | null): void {
     if (this.disposed || this.contextAction === action) {
       return;
@@ -185,6 +185,9 @@ export class BattlefieldControlHud {
     this.aimJoystick.setActionIcon(
       action === null ? null : BATTLEFIELD_INTERACTION_ICONS[action],
     );
+    if (action !== null) {
+      this.clearAimState();
+    }
     this.synchronizeGameplayGraphics();
   }
 
@@ -316,6 +319,10 @@ export class BattlefieldControlHud {
 
   /** 右摇杆优先，未触摸时使用方向键或 IJKL，并把瞄准值归一化。 */
   private writeAimState(): void {
+    if (this.contextAction !== null) {
+      this.clearAimState();
+      return;
+    }
     const joystick = this.aimJoystick.value;
     let aimX = joystick.x;
     let aimY = joystick.y;
@@ -331,6 +338,13 @@ export class BattlefieldControlHud {
     this.mutableState.aimX = aimX * inverseLength;
     this.mutableState.aimY = aimY * inverseLength;
     this.mutableState.aiming = aiming;
+  }
+
+  /** 场景操作模式下同步清除触摸和键盘残留的瞄准意图。 */
+  private clearAimState(): void {
+    this.mutableState.aimX = 0;
+    this.mutableState.aimY = 0;
+    this.mutableState.aiming = false;
   }
 
   /** 只取走水平旋转增量；输入层不产生任何纵向俯仰量。 */

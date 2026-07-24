@@ -12,7 +12,10 @@ import {
   VirtualJoystickActionIcon,
   type VirtualJoystickPalette,
 } from './virtual-joystick-graphics';
-import { VirtualJoystickGesture } from './virtual-joystick-gesture';
+import {
+  VirtualJoystickGesture,
+  VirtualJoystickMode,
+} from './virtual-joystick-gesture';
 
 /** 虚拟摇杆固定尺寸、响应曲线和视觉参数。 */
 export interface VirtualJoystickOptions {
@@ -108,13 +111,15 @@ export class VirtualJoystick {
     }
   }
 
-  /** 设置摇杆中心的场景操作图案，不改变轴输入职责。 */
+  /** 设置场景操作图案并在 Axis 与 Action 职责之间严格切换。 */
   public setActionIcon(icon: VirtualJoystickActionIcon | null): void {
     if (this.disposed || this.actionIcon === icon) {
       return;
     }
     this.actionIcon = icon;
-    this.gesture.cancelActionCandidate();
+    // 模式变化时释放旧触摸，禁止同一手势跨模式继续写入轴值或触发操作。
+    this.gesture.reset();
+    this.resetValue();
     this.invalidateGraphics();
   }
 
@@ -129,7 +134,7 @@ export class VirtualJoystick {
     this.invalidateGraphics();
   }
 
-  /** 读取并清除最近一次在死区内完成的场景操作点击。 */
+  /** 读取并清除最近一次 Action 模式松开产生的场景操作。 */
   public consumeActionPress(): boolean {
     return this.gesture.consumeActionPress();
   }
@@ -159,12 +164,19 @@ export class VirtualJoystick {
     if (touchId === null) {
       return;
     }
-    if (!this.gesture.begin(touchId, this.actionIcon !== null)) {
+    const mode = this.actionIcon === null
+      ? VirtualJoystickMode.Axis
+      : VirtualJoystickMode.Action;
+    if (!this.gesture.begin(touchId, mode)) {
       event.propagationStopped = true;
       return;
     }
-    this.updateFromTouch(event);
-    this.gesture.move(touchId, this.value.magnitude <= 0);
+    if (this.gesture.axisInputEnabled) {
+      this.updateFromTouch(event);
+    } else {
+      this.resetValue();
+      this.invalidateGraphics();
+    }
     event.propagationStopped = true;
   }
 
@@ -173,16 +185,20 @@ export class VirtualJoystick {
     if (touchId === null || !this.gesture.owns(touchId)) {
       return;
     }
-    this.updateFromTouch(event);
-    this.gesture.move(touchId, this.value.magnitude <= 0);
+    if (this.gesture.axisInputEnabled) {
+      this.updateFromTouch(event);
+    }
+    this.gesture.move(touchId);
     event.propagationStopped = true;
   }
 
   private handleTouchEnd(event: EventTouch): void {
     const touchId = event.getID();
     if (touchId !== null && this.gesture.owns(touchId)) {
-      this.updateFromTouch(event);
-      this.gesture.end(touchId, this.value.magnitude <= 0);
+      if (this.gesture.axisInputEnabled) {
+        this.updateFromTouch(event);
+      }
+      this.gesture.end(touchId);
       this.releaseTouch(event);
     }
   }

@@ -5,19 +5,35 @@ export enum VirtualJoystickGestureEndResult {
   ActionPressed,
 }
 
+/** 虚拟摇杆一次触摸期间严格互斥的输入职责。 */
+export enum VirtualJoystickMode {
+  Axis,
+  Action,
+}
+
 /**
- * 管理虚拟摇杆的单指所有权与场景操作点击候选。
+ * 管理虚拟摇杆的单指所有权与互斥输入模式。
  *
- * 该状态机不依赖 Cocos 事件对象，使点击、拖动、取消和多点触控语义可以隔离验证。
+ * 该状态机不依赖 Cocos 事件对象，使轴输入、操作点击、取消和多点触控语义可以隔离验证。
  */
 export class VirtualJoystickGesture {
   private touchId: number | null = null;
-  private actionCandidate = false;
+  private touchMode: VirtualJoystickMode | null = null;
   private actionPressPending = false;
 
   /** 当前是否已有一根手指拥有摇杆。 */
   public get active(): boolean {
     return this.touchId !== null;
+  }
+
+  /** 当前触摸是否允许摇杆写入轴值。 */
+  public get axisInputEnabled(): boolean {
+    return this.touchId !== null && this.touchMode === VirtualJoystickMode.Axis;
+  }
+
+  /** 返回当前触摸锁定的输入模式，未触摸时返回空。 */
+  public get mode(): VirtualJoystickMode | null {
+    return this.touchId === null ? null : this.touchMode;
   }
 
   /** 判断指定手指是否拥有当前摇杆。 */
@@ -26,38 +42,28 @@ export class VirtualJoystickGesture {
   }
 
   /** 尝试让一根手指取得摇杆所有权。 */
-  public begin(touchId: number, actionAvailable: boolean): boolean {
+  public begin(touchId: number, mode: VirtualJoystickMode): boolean {
     if (!Number.isSafeInteger(touchId) || this.touchId !== null) {
       return false;
     }
     this.touchId = touchId;
-    this.actionCandidate = actionAvailable;
+    this.touchMode = mode;
     return true;
   }
 
-  /**
-   * 同步当前触摸是否仍在死区内。
-   *
-   * 一旦离开死区，本次手势永久转为摇杆拖动，之后回到中心也不会触发操作。
-   */
-  public move(touchId: number, insideDeadZone: boolean): boolean {
-    if (!this.matches(touchId)) {
-      return false;
-    }
-    if (!insideDeadZone) {
-      this.actionCandidate = false;
-    }
-    return true;
+  /** 保持当前触摸所有权，移动不会改变本次触摸锁定的模式。 */
+  public move(touchId: number): boolean {
+    return this.matches(touchId);
   }
 
   /** 在有效手指松开时决定是否生成一次场景操作。 */
-  public end(touchId: number, insideDeadZone: boolean): VirtualJoystickGestureEndResult {
+  public end(touchId: number): VirtualJoystickGestureEndResult {
     if (!this.matches(touchId)) {
       return VirtualJoystickGestureEndResult.Ignored;
     }
-    const actionPressed = this.actionCandidate && insideDeadZone;
+    const actionPressed = this.touchMode === VirtualJoystickMode.Action;
     this.touchId = null;
-    this.actionCandidate = false;
+    this.touchMode = null;
     if (actionPressed) {
       this.actionPressPending = true;
       return VirtualJoystickGestureEndResult.ActionPressed;
@@ -71,17 +77,11 @@ export class VirtualJoystickGesture {
       return false;
     }
     this.touchId = null;
-    this.actionCandidate = false;
+    this.touchMode = null;
     return true;
   }
 
-  /** 场景操作变化时只取消点击候选，保留正在进行的摇杆拖动。 */
-  public cancelActionCandidate(): void {
-    this.actionCandidate = false;
-    this.actionPressPending = false;
-  }
-
-  /** 读取并清除最近一次在死区内完成的场景操作。 */
+  /** 读取并清除最近一次 Action 模式松开产生的场景操作。 */
   public consumeActionPress(): boolean {
     const pressed = this.actionPressPending;
     this.actionPressPending = false;
@@ -91,7 +91,7 @@ export class VirtualJoystickGesture {
   /** 隐藏或销毁摇杆时释放全部手势状态。 */
   public reset(): void {
     this.touchId = null;
-    this.actionCandidate = false;
+    this.touchMode = null;
     this.actionPressPending = false;
   }
 

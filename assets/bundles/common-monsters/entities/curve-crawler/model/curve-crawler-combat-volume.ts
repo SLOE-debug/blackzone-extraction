@@ -9,6 +9,18 @@ const LEG_CROUCH_OUTWARD_SCALE = 0.12;
 const FRONT_LEG_BITE_OUTWARD_SCALE = 0.035;
 const FOOT_RADIUS_SCALE = 0.29 * 1.2;
 const LEG_MAXIMUM_TURN_LIFT_EXPANSION = 0.12;
+const FORGIVING_LEG_LATERAL_COVERAGE = 0.58;
+const FORGIVING_LEG_BITE_LATERAL_EXPANSION = 0.035;
+const FORGIVING_LEG_BITE_FORWARD_EXPANSION = 0.055;
+const FORGIVING_LEG_TURN_FORWARD_EXPANSION = 0.018;
+const FORGIVING_LEG_VERTICAL_COVERAGE = 0.03;
+
+/** 近端腿部宽容碰撞体在蜘蛛局部坐标中的三个半轴。 */
+export interface MutableCurveCrawlerHitExtents {
+  forward: number;
+  lateral: number;
+  vertical: number;
+}
 
 /** 返回腹部与胸部可见中心之间的瞄准高度。 */
 export function calculateCurveCrawlerAimElevation(
@@ -125,6 +137,38 @@ export function calculateCurveCrawlerVerticalHitHalfExtent(
     centerElevation - minimumHeight,
     maximumHeight - centerElevation,
   );
+}
+
+/** 把覆盖身体与近端腿部约六成长度的扁平碰撞体半轴写入复用结果。 */
+export function writeCurveCrawlerForgivingHitExtents(
+  bodyLength: number,
+  bodyWidth: number,
+  legLength: number,
+  legWidth: number,
+  bodyPulse: number,
+  crouchAmount: number,
+  biteAmount: number,
+  turnAmount: number,
+  result: MutableCurveCrawlerHitExtents,
+): void {
+  const visibleBodyLength = bodyLength * Math.max(0, 1 + bodyPulse);
+  const visibleBodyWidth = calculateVisibleBodyWidth(bodyWidth, bodyPulse, crouchAmount);
+  const visibleLegLength = calculateVisibleLegLength(legLength, crouchAmount);
+  result.forward = visibleBodyLength * 0.55
+    + visibleLegLength * (
+      FORGIVING_LEG_BITE_FORWARD_EXPANSION * biteAmount
+      + FORGIVING_LEG_TURN_FORWARD_EXPANSION * turnAmount
+    )
+    + legWidth * FOOT_RADIUS_SCALE;
+  result.lateral = visibleBodyWidth * 0.45
+    + visibleLegLength * (
+      FORGIVING_LEG_LATERAL_COVERAGE
+      + FORGIVING_LEG_BITE_LATERAL_EXPANSION * biteAmount
+    )
+    + legWidth * FOOT_RADIUS_SCALE;
+  result.vertical = visibleBodyWidth * 0.35
+    + visibleLegLength * FORGIVING_LEG_VERTICAL_COVERAGE * turnAmount
+    + legWidth * FOOT_RADIUS_SCALE;
 }
 
 function calculateVisibleBodyWidth(

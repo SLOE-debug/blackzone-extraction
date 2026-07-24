@@ -22,6 +22,7 @@ import { BattlefieldProjectileIntegrationWorldSystem } from '../../assets/bundle
 import { BattlefieldWeaponWorldSystem } from '../../assets/bundles/battlefield/world/systems/battlefield-weapon-world-system';
 import { calculateCurveCrawlerAimElevation } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-combat-volume';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
+import { createCurveCrawlerCrowdPopulation } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-crowd-population';
 import { CurveCrawlerProjectileHitSystem } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-projectile-hit-system';
 import { VenomLobberState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-state';
 import { VenomLobberProjectileHitSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/population/venom-lobber-projectile-hit-system';
@@ -50,6 +51,38 @@ describe('战场实体弹丸完整伤害链路', () => {
     const initialHealth = fixture.health[0] ?? 0;
 
     projectiles.spawn(0, fixture.aimElevation, 0, 1, 0, 0);
+    projectiles.integrate(0.05);
+    projectiles.collide(fixture.registry);
+    projectiles.resolveImpacts(fixture.registry);
+
+    expect(fixture.health[0]).toBe(initialHealth - definition.damage);
+    expect(statistics).toMatchObject({
+      projectilesSpawned: 1,
+      projectilesIntegrated: 1,
+      broadPhaseCandidates: 1,
+      narrowPhaseHits: 1,
+      impactsQueued: 1,
+      damageEventsApplied: 1,
+    });
+  });
+
+  it('弹道穿过近端腿部可见轮廓时产生完整命中与伤害统计', () => {
+    const fixture = createCurveCrawlerChain([7]);
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
+    const statistics = new MutableBattlefieldProjectileStatistics();
+    const projectiles = new BattlefieldProjectileCombatPopulation(definition, statistics);
+    const initialHealth = fixture.health[0] ?? 0;
+    const localLateralOffset = 7;
+    const localLegElevation = 0.3;
+
+    projectiles.spawn(
+      0,
+      WORLD_GROUND + localLegElevation * WORLD_SCALE,
+      -localLateralOffset * WORLD_SCALE,
+      1,
+      0,
+      0,
+    );
     projectiles.integrate(0.05);
     projectiles.collide(fixture.registry);
     projectiles.resolveImpacts(fixture.registry);
@@ -165,19 +198,17 @@ function createCurveCrawlerChain(localX: readonly number[]): ProjectileChainFixt
   state.data.transform.headingSine.fill(0);
   state.data.morphology.bodyWidth.fill(4);
   state.data.morphology.bodyLength.fill(6);
+  state.data.morphology.legLength.fill(10);
+  state.data.morphology.legWidth.fill(0.8);
   state.data.animation.bodyPulse.fill(0);
   state.data.animation.crouchAmount.fill(0);
   state.data.animation.biteAmount.fill(0);
+  state.data.animation.turnAmount.fill(0);
   const hitSystem = new CurveCrawlerProjectileHitSystem();
   const aimElevation = calculateCurveCrawlerAimElevation(4, 0, 0, 0);
   return createChainFixture(
     state,
-    10,
-    state.data.vitality.state,
-    state.data.transform.previousX,
-    state.data.transform.previousY,
-    state.data.transform.x,
-    state.data.transform.y,
+    createCurveCrawlerCrowdPopulation(state, 10),
     state.data.vitality.health,
     aimElevation,
     (entityIndex, query, result) => hitSystem.findEntity(state, entityIndex, query, result),
@@ -200,14 +231,20 @@ function createVenomLobberChain(localX: number): ProjectileChainFixture<VenomLob
   state.data.transform.heading[0] = 0;
   state.data.morphology.scale[0] = 1;
   const hitSystem = new VenomLobberProjectileHitSystem();
+  const crowdPopulation: PlanarCrowdPopulation = {
+    populationId: 11,
+    count: state.count,
+    lifecycle: state.data.vitality.state,
+    previousX: state.data.transform.previousX,
+    previousY: state.data.transform.previousY,
+    x: state.data.transform.x,
+    y: state.data.transform.y,
+    radius: new Float32Array(state.count).fill(10),
+    inverseMass: new Float32Array(state.count).fill(1),
+  };
   return createChainFixture(
     state,
-    11,
-    state.data.vitality.state,
-    state.data.transform.previousX,
-    state.data.transform.previousY,
-    state.data.transform.x,
-    state.data.transform.y,
+    crowdPopulation,
     state.data.vitality.health,
     2.55,
     (entityIndex, query, result) => hitSystem.findEntity(state, entityIndex, query, result),
@@ -216,12 +253,7 @@ function createVenomLobberChain(localX: number): ProjectileChainFixture<VenomLob
 
 function createChainFixture<TState>(
   state: TState,
-  populationId: number,
-  lifecycle: Uint8Array,
-  previousX: Float32Array,
-  previousY: Float32Array,
-  x: Float32Array,
-  y: Float32Array,
+  crowdPopulation: PlanarCrowdPopulation,
   health: Float32Array,
   localAimElevation: number,
   findHit: (
@@ -230,18 +262,6 @@ function createChainFixture<TState>(
     result: MutablePlanarMonsterHitResult,
   ) => boolean,
 ): ProjectileChainFixture<TState> {
-  const count = lifecycle.length;
-  const crowdPopulation: PlanarCrowdPopulation = {
-    populationId,
-    count,
-    lifecycle,
-    previousX,
-    previousY,
-    x,
-    y,
-    radius: new Float32Array(count).fill(5),
-    inverseMass: new Float32Array(count).fill(1),
-  };
   const group = new TestProjectileTargetGroup(
     crowdPopulation,
     health,

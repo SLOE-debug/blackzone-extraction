@@ -4,12 +4,16 @@ import {
 } from '../../../../../core/contracts/monster-hit';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
 import { findSweptSphereBoxContact } from '../../../../../core/geometry/swept-volume-collision';
-import { calculateCurveCrawlerAimElevation } from '../model/curve-crawler-combat-volume';
+import {
+  calculateCurveCrawlerAimElevation,
+  type MutableCurveCrawlerHitExtents,
+  writeCurveCrawlerForgivingHitExtents,
+} from '../model/curve-crawler-combat-volume';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 
 const SEGMENT_EPSILON = 0.000001;
 
-/** 使用不包含腿部的胸腔、腹部复合 OBB 执行实体弹丸连续碰撞。 */
+/** 使用胸腔、腹部与近端腿部宽容 OBB 执行实体弹丸连续碰撞。 */
 export class CurveCrawlerProjectileHitSystem {
   private readonly candidate: MutablePlanarMonsterHitResult = {
     entityId: -1,
@@ -17,6 +21,11 @@ export class CurveCrawlerProjectileHitSystem {
     y: 0,
     elevation: 0,
     segmentProgress: 0,
+  };
+  private readonly forgivingHitExtents: MutableCurveCrawlerHitExtents = {
+    forward: 0,
+    lateral: 0,
+    vertical: 0,
   };
 
   /** 选择整个人口中从线段起点最先接触的存活实体。 */
@@ -72,11 +81,17 @@ export class CurveCrawlerProjectileHitSystem {
     const endLateral = -endRelativeX * headingSine + endRelativeY * headingCosine;
     const bodyLength = morphology.bodyLength[entityIndex] ?? 1;
     const bodyWidth = morphology.bodyWidth[entityIndex] ?? 1;
+    const legLength = morphology.legLength[entityIndex] ?? 1;
+    const legWidth = morphology.legWidth[entityIndex] ?? 0;
+    const bodyPulse = animation.bodyPulse[entityIndex] ?? 0;
+    const crouchAmount = animation.crouchAmount[entityIndex] ?? 0;
+    const biteAmount = animation.biteAmount[entityIndex] ?? 0;
+    const turnAmount = animation.turnAmount[entityIndex] ?? 0;
     const centerElevation = calculateCurveCrawlerAimElevation(
       bodyWidth,
-      animation.bodyPulse[entityIndex] ?? 0,
-      animation.crouchAmount[entityIndex] ?? 0,
-      animation.biteAmount[entityIndex] ?? 0,
+      bodyPulse,
+      crouchAmount,
+      biteAmount,
     );
     const startElevation = query.startElevation - centerElevation;
     const endElevation = query.endElevation - centerElevation;
@@ -104,7 +119,31 @@ export class CurveCrawlerProjectileHitSystem {
       bodyWidth * 0.47,
       query.impactRadius,
     );
-    const progress = minimumContact(thoraxContact, abdomenContact);
+    writeCurveCrawlerForgivingHitExtents(
+      bodyLength,
+      bodyWidth,
+      legLength,
+      legWidth,
+      bodyPulse,
+      crouchAmount,
+      biteAmount,
+      turnAmount,
+      this.forgivingHitExtents,
+    );
+    const forgivingFootprintContact = findSweptSphereBoxContact(
+      startForward,
+      startLateral,
+      startElevation,
+      endForward,
+      endLateral,
+      endElevation,
+      this.forgivingHitExtents.forward,
+      this.forgivingHitExtents.lateral,
+      this.forgivingHitExtents.vertical,
+      query.impactRadius,
+    );
+    const bodyContact = minimumContact(thoraxContact, abdomenContact);
+    const progress = minimumContact(bodyContact, forgivingFootprintContact);
     if (progress === null) {
       return false;
     }

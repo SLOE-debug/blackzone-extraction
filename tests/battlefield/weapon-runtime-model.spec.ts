@@ -320,7 +320,28 @@ describe('玩家武器运行时模型', () => {
       WeaponProjectileVisual.Bullet,
     );
 
-    expect(positions[1]).toBeLessThan(2.5);
+    // 下降弹道的尾端应位于权威尖端后上方，证明局部前向轴随三维方向俯仰。
+    expect(positions[13]).toBeGreaterThan(positions[1] ?? 0);
     expect(state.directionY[0]).toBeLessThan(0);
+  });
+
+  it.each([
+    WeaponProjectileVisual.Bullet,
+    WeaponProjectileVisual.BuckshotPellet,
+  ])('弹体视觉 %s 不会领先于权威碰撞点', (visual) => {
+    const state = new BattlefieldProjectileState(1, 1, 10);
+    state.spawn(0, 0, 0, 0, 0, 1);
+    const positions = new Float32Array(
+      BATTLEFIELD_PROJECTILE_TOPOLOGY.verticesPerProjectile * 3,
+    );
+
+    writeBattlefieldProjectilePositions(state, positions, visual);
+
+    let maximumVisualForward = Number.NEGATIVE_INFINITY;
+    for (let offset = 2; offset < positions.length; offset += 3) {
+      maximumVisualForward = Math.max(maximumVisualForward, positions[offset] ?? 0);
+    }
+    expect(maximumVisualForward).toBeLessThanOrEqual(0);
+    expect(maximumVisualForward).toBeCloseTo(0, 6);
   });
 });
