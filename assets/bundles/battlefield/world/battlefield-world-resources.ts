@@ -9,6 +9,9 @@ import { type BattlefieldGroundRenderer } from '../rendering/battlefield-ground-
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
 import { type BattlefieldTreasurePopulation } from '../treasure-chest/population/battlefield-treasure-population';
 import { type BattlefieldControlHud } from '../ui/battlefield-control-hud';
+import {
+  type BattlefieldCombatModuleRuntime,
+} from '../action-modules/population/battlefield-combat-module-runtime';
 
 /** BattlefieldWorld 统一持有的稳定运行时资源引用。 */
 export interface BattlefieldWorldResources {
@@ -23,4 +26,5 @@ export interface BattlefieldWorldResources {
   readonly treasures: BattlefieldTreasurePopulation;
   readonly controls: BattlefieldControlHud;
   readonly interaction: BattlefieldSceneInteractionSystem;
+  readonly actions: BattlefieldCombatModuleRuntime;
 }

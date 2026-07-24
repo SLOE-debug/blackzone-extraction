@@ -23,6 +23,12 @@ import { BattlefieldProjectileCollisionWorldSystem } from './systems/battlefield
 import { BattlefieldProjectileDamageWorldSystem } from './systems/battlefield-projectile-damage-world-system';
 import { BattlefieldProjectileIntegrationWorldSystem } from './systems/battlefield-projectile-integration-world-system';
 import { BattlefieldProjectileRenderingWorldSystem } from './systems/battlefield-projectile-rendering-world-system';
+import { BattlefieldActionInputWorldSystem } from './systems/battlefield-action-input-world-system';
+import { BattlefieldActionExecutionWorldSystem } from './systems/battlefield-action-execution-world-system';
+import { BattlefieldThrownSimulationWorldSystem } from './systems/battlefield-thrown-simulation-world-system';
+import { BattlefieldThrownCollisionWorldSystem } from './systems/battlefield-thrown-collision-world-system';
+import { BattlefieldCombatEventWorldSystem } from './systems/battlefield-combat-event-world-system';
+import { BattlefieldActionPresentationWorldSystem } from './systems/battlefield-action-presentation-world-system';
 
 interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombatTarget {
   x: number;
@@ -84,20 +90,26 @@ export class BattlefieldWorld {
 
   constructor(public readonly resources: Readonly<BattlefieldWorldResources>) {
     this.scheduler.register(new BattlefieldControlWorldSystem());
+    this.scheduler.register(new BattlefieldActionInputWorldSystem());
     this.scheduler.register(new BattlefieldPlayerWorldSystem());
+    this.scheduler.register(new BattlefieldActionExecutionWorldSystem());
     this.scheduler.register(new BattlefieldCameraWorldSystem());
     this.scheduler.register(new BattlefieldMonsterWorldSystem());
+    this.scheduler.register(new BattlefieldThrownSimulationWorldSystem());
     this.scheduler.register(new BattlefieldProjectileIntegrationWorldSystem());
     this.scheduler.register(new BattlefieldEnvironmentWorldSystem());
     this.scheduler.register(new BattlefieldGroundWorldSystem());
     this.scheduler.register(new BattlefieldMonsterSpatialIndexWorldSystem());
     this.scheduler.register(new BattlefieldProjectileCollisionWorldSystem());
+    this.scheduler.register(new BattlefieldThrownCollisionWorldSystem());
     this.scheduler.register(new BattlefieldWeaponWorldSystem());
     this.scheduler.register(new BattlefieldMonsterAttackWorldSystem());
     this.scheduler.register(new BattlefieldProjectileDamageWorldSystem());
+    this.scheduler.register(new BattlefieldCombatEventWorldSystem());
     this.scheduler.register(new BattlefieldMonsterRenderingWorldSystem());
     this.scheduler.register(new BattlefieldProjectileRenderingWorldSystem());
     this.scheduler.register(new BattlefieldStatusWorldSystem());
+    this.scheduler.register(new BattlefieldActionPresentationWorldSystem());
     this.scheduler.register(new BattlefieldTreasureWorldSystem());
     this.scheduler.seal();
   }

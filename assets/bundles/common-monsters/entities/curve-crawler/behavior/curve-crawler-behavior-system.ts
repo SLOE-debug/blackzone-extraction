@@ -1,5 +1,6 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
@@ -14,7 +15,8 @@ import {
 export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的行为状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { identity, transform, morphology, vitality, behavior, combat, intent } = state.data;
+    const { identity, transform, morphology, vitality, manipulation, behavior, combat, intent } =
+      state.data;
 
     for (let index = 0; index < state.count; index++) {
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
@@ -22,6 +24,13 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
         intent.targetCrouch[index] = 0;
         intent.targetBite[index] = 0;
         intent.targetTurn[index] = 0;
+        intent.gaitMultiplier[index] = 0;
+        continue;
+      }
+      if ((manipulation.state[index] as MonsterManipulationState)
+        !== MonsterManipulationState.Free) {
+        intent.targetSpeed[index] = 0;
+        intent.targetBite[index] = 0;
         intent.gaitMultiplier[index] = 0;
         continue;
       }
@@ -89,9 +98,13 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
 
   /** 让全部实体立即进入短时疾跑状态。 */
   public triggerScuttle(state: CurveCrawlerState): void {
-    const { identity, vitality, behavior } = state.data;
+    const { identity, vitality, manipulation, behavior } = state.data;
     for (let index = 0; index < state.count; index++) {
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
+        continue;
+      }
+      if ((manipulation.state[index] as MonsterManipulationState)
+        !== MonsterManipulationState.Free) {
         continue;
       }
       behavior.action[index] = CurveCrawlerAction.Scuttle;

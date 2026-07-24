@@ -10,12 +10,15 @@ import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobb
 import { calculateBattlefieldMonsterTargetCount } from '../model/battlefield-monster-wave-schedule';
 import {
   type BattlefieldProjectileSweepQuery,
+  type BattlefieldGrabTargetQuery,
   type BattlefieldMonsterCombatTarget,
   type MutableBattlefieldAimTarget,
+  type MutableBattlefieldManipulationCandidate,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
+import { BattlefieldMonsterManipulationRegistry } from './battlefield-monster-manipulation-registry';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
@@ -50,6 +53,7 @@ implements Disposable {
   private readonly groups: BattlefieldMonsterGroup[] = [];
   private readonly crowd = new PlanarCrowdSeparationSystem();
   private readonly targets = new BattlefieldMonsterTargetRegistry(this.crowd);
+  private readonly manipulations = new BattlefieldMonsterManipulationRegistry(this.crowd);
   private readonly venomGroup: BattlefieldVenomLobberGroup;
   private readonly debugMonsters: BattlefieldDebugMonsterPopulation;
   private swarm: BattlefieldMonsterGroup | null = null;
@@ -116,6 +120,7 @@ implements Disposable {
       while (this.groups.length > 0) {
         const group = this.groups.pop();
         if (group !== undefined) {
+          this.manipulations.unregister(group);
           this.targets.unregister(group);
           this.crowd.unregister(group.populationId);
           group.dispose();
@@ -138,6 +143,7 @@ implements Disposable {
       this.renderBatch,
       this.crowd,
       this.targets,
+      this.manipulations,
       camera,
     );
   }
@@ -352,6 +358,7 @@ implements Disposable {
     this.groups.push(group);
     this.crowd.register(group.crowdPopulation);
     this.targets.register(group);
+    this.manipulations.register(group);
     this.swarm = group;
   }
 
@@ -406,6 +413,52 @@ implements Disposable {
     return !this.disposed && this.targets.damageMonster(populationId, entityId, amount);
   }
 
+  public knockbackMonster(populationId: number, entityId: number, x: number, z: number): boolean {
+    return !this.disposed && this.targets.knockbackMonster(populationId, entityId, x, z);
+  }
+
+  /** 选择玩家方向锥内唯一合法的小型半血怪物。 */
+  public findGrabbable(
+    query: Readonly<BattlefieldGrabTargetQuery>,
+    result: MutableBattlefieldManipulationCandidate,
+  ): boolean {
+    return !this.disposed && this.manipulations.findGrabbable(query, result);
+  }
+
+  public beginCarry(populationId: number, entityId: number): boolean {
+    return !this.disposed && this.manipulations.beginCarry(populationId, entityId);
+  }
+
+  public beginThrow(populationId: number, entityId: number): boolean {
+    return !this.disposed && this.manipulations.beginThrow(populationId, entityId);
+  }
+
+  public synchronizeManipulatedPose(
+    populationId: number,
+    entityId: number,
+    x: number,
+    y: number,
+    z: number,
+    heading: number,
+  ): boolean {
+    return !this.disposed && this.manipulations.synchronizePose(
+      populationId,
+      entityId,
+      x,
+      y,
+      z,
+      heading,
+    );
+  }
+
+  public releaseManipulation(populationId: number, entityId: number): boolean {
+    return !this.disposed && this.manipulations.release(populationId, entityId);
+  }
+
+  public killManipulated(populationId: number, entityId: number): boolean {
+    return !this.disposed && this.manipulations.kill(populationId, entityId);
+  }
+
   /** 释放尸潮状态、共享渲染批次和调试实体。 */
   public dispose(): void {
     if (this.disposed) {
@@ -419,6 +472,7 @@ implements Disposable {
     while (this.groups.length > 0) {
       const group = this.groups.pop();
       if (group !== undefined) {
+        this.manipulations.unregister(group);
         this.targets.unregister(group);
         this.crowd.unregister(group.populationId);
         group.dispose();

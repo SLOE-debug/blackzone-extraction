@@ -6,6 +6,9 @@ import { BattlefieldMonsterId } from '../model/battlefield-monster-id';
 import { type BattlefieldMonsterCombatTarget } from '../population/battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from '../population/battlefield-monster-group';
 import { type BattlefieldMonsterTargetRegistry } from '../population/battlefield-monster-target-registry';
+import {
+  type BattlefieldMonsterManipulationRegistry,
+} from '../population/battlefield-monster-manipulation-registry';
 import { BattlefieldVenomLobberGroup } from '../population/battlefield-venom-lobber-group';
 
 const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
@@ -28,6 +31,7 @@ export class BattlefieldDebugMonsterPopulation {
     >,
     private readonly crowd: PlanarCrowdSeparationSystem,
     private readonly targets: BattlefieldMonsterTargetRegistry,
+    private readonly manipulations: BattlefieldMonsterManipulationRegistry,
     private readonly camera: Camera,
   ) {}
 
@@ -110,6 +114,7 @@ export class BattlefieldDebugMonsterPopulation {
     );
     this.crowd.register(group.crowdPopulation);
     this.targets.register(group);
+    this.manipulations.register(group);
     this.curveCrawler = group;
   }
 
@@ -140,6 +145,7 @@ export class BattlefieldDebugMonsterPopulation {
       return;
     }
     this.targets.unregister(group);
+    this.manipulations.unregister(group);
     this.crowd.unregister(group.populationId);
     group.dispose();
     this.curveCrawler = null;

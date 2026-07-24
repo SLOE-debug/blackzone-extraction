@@ -3,6 +3,7 @@ import {
   type PlanarTargetQuery,
 } from '../../../../../core/contracts/planar-target';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { findSweptSphereBoxContact } from '../../../../../core/geometry/swept-volume-collision';
 import {
   calculateCurveCrawlerAimElevation,
@@ -60,9 +61,13 @@ export class CurveCrawlerTargeting {
     if (!Number.isSafeInteger(entityIndex) || entityIndex < 0 || entityIndex >= state.count) {
       throw new Error('Curve Crawler 瞄准实体索引越界。');
     }
-    const { identity, transform, morphology, vitality, animation } = state.data;
+    const { identity, transform, morphology, vitality, manipulation, animation } = state.data;
     if ((vitality.state[entityIndex] as MonsterLifecycleState)
       !== MonsterLifecycleState.Alive) {
+      return false;
+    }
+    if ((manipulation.state[entityIndex] as MonsterManipulationState)
+      !== MonsterManipulationState.Free) {
       return false;
     }
     const centerX = transform.x[entityIndex] ?? 0;

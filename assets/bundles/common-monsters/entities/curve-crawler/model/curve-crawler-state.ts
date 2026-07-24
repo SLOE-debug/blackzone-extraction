@@ -13,6 +13,8 @@ import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entitie
 import { CurveCrawlerAction } from './curve-crawler-action';
 import { CURVE_CRAWLER_EMERGENCE_TIMING } from './curve-crawler-emergence';
 import { CurveCrawlerDeathStage, CURVE_CRAWLER_MAX_HEALTH } from './curve-crawler-life';
+import { CURVE_CRAWLER_MANIPULATION_PROFILE } from './curve-crawler-manipulation';
+import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import {
   type CurveCrawlerStateOptions,
 } from './curve-crawler-options';
@@ -77,6 +79,7 @@ function initializeCurveCrawlerData(
     transform,
     morphology,
     vitality,
+    manipulation,
     death,
     behavior,
     combat,
@@ -170,6 +173,21 @@ function initializeCurveCrawlerData(
       : 0;
     vitality.hitTime[index] = 0;
     vitality.timeSinceHit[index] = 1;
+    manipulation.grabbable[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.grabbable ? 1 : 0;
+    manipulation.executableHealthRatio[index] =
+      CURVE_CRAWLER_MANIPULATION_PROFILE.executableHealthRatio;
+    manipulation.bodySize[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.bodySize;
+    manipulation.grabResistance[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.grabResistance;
+    manipulation.playerGrabbable[index] =
+      CURVE_CRAWLER_MANIPULATION_PROFILE.playerGrabbable ? 1 : 0;
+    manipulation.tags[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.baseTags;
+    manipulation.state[index] = MonsterManipulationState.Free;
+    manipulation.throwMass[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.throwMass;
+    manipulation.maximumThrowDistance[index] =
+      CURVE_CRAWLER_MANIPULATION_PROFILE.maximumThrowDistance;
+    manipulation.collisionRadius[index] =
+      CURVE_CRAWLER_MANIPULATION_PROFILE.collisionRadius;
+    manipulation.impactStrength[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.impactStrength;
     death.stage[index] = CurveCrawlerDeathStage.Bursting;
     death.stageTime[index] = 0;
 

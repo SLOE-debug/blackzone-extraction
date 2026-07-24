@@ -43,5 +43,8 @@ export class BattlefieldControlWorldSystem extends BattlefieldWorldSystem {
       monsters.playerMovementSpeedMultiplier,
       world.weaponFireDirection,
     );
+    if (controls.combatModuleActionActive) {
+      world.weaponFiringRequested = false;
+    }
   }
 }

@@ -179,6 +179,30 @@ export class BattlefieldMonsterTargetRegistry {
     return true;
   }
 
+  /** 通过共享 Crowd 视图施加一次世界平面击退，并保留本帧相对运动。 */
+  public knockbackMonster(
+    populationId: number,
+    entityId: number,
+    offsetX: number,
+    offsetZ: number,
+  ): boolean {
+    if (![offsetX, offsetZ].every(Number.isFinite)) {
+      throw new Error('怪物击退偏移必须是有限数值。');
+    }
+    const group = this.findGroup(populationId);
+    const crowd = group?.crowdPopulation;
+    if (crowd === undefined || !Number.isSafeInteger(entityId)
+      || entityId < 0 || entityId >= crowd.count) {
+      return false;
+    }
+    const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    crowd.previousX[entityId] = crowd.x[entityId] ?? 0;
+    crowd.previousY[entityId] = crowd.y[entityId] ?? 0;
+    crowd.x[entityId] = (crowd.x[entityId] ?? 0) + offsetX * inverseScale;
+    crowd.y[entityId] = (crowd.y[entityId] ?? 0) - offsetZ * inverseScale;
+    return true;
+  }
+
   private findGroup(populationId: number): BattlefieldMonsterTargetGroup | null {
     for (const group of this.groups) {
       if (group.populationId === populationId) {
@@ -201,6 +225,7 @@ function validateAimSegment(
     || Math.abs(Math.hypot(directionX, directionZ) - 1) > 0.001) {
     throw new Error('怪物纵向目标线段必须使用单位方向和有限正射程。');
   }
+
 }
 
 function isIgnored(

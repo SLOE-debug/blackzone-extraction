@@ -1,3 +1,8 @@
+import {
+  type CombatTag,
+  type MonsterBodySize,
+} from '../../../core/contracts/monster-manipulation';
+
 /** 战场世界 XZ 平面中可被怪物感知和攻击的目标。 */
 export interface BattlefieldMonsterCombatTarget {
   readonly x: number;
@@ -43,4 +48,33 @@ export interface BattlefieldProjectileSweepQuery {
   readonly endY: number;
   readonly endZ: number;
   readonly impactRadius: number;
+}
+
+/** 抓取模块在世界平面中使用的方向锥查询。 */
+export interface BattlefieldGrabTargetQuery {
+  readonly originX: number;
+  readonly originZ: number;
+  readonly directionX: number;
+  readonly directionZ: number;
+  readonly maximumDistance: number;
+  readonly maximumLateralDistance: number;
+  readonly minimumDirectionAlignment: number;
+}
+
+/** 调用方复用的世界空间怪物操作候选。 */
+export interface MutableBattlefieldManipulationCandidate {
+  populationId: number;
+  entityId: number;
+  x: number;
+  y: number;
+  z: number;
+  healthRatio: number;
+  bodySize: MonsterBodySize;
+  grabResistance: number;
+  playerGrabbable: boolean;
+  tags: CombatTag;
+  throwMass: number;
+  maximumThrowDistance: number;
+  collisionRadius: number;
+  impactStrength: number;
 }

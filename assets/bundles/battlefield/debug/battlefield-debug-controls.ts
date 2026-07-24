@@ -5,6 +5,7 @@ import {
   type BattlefieldDebugPlayerAnchor,
 } from './battlefield-debug-monster-spawn';
 import { type BattlefieldDebugMonsterSelection } from './battlefield-debug-monster-options';
+import { type BattlefieldCombatModuleId } from '../action-modules/model/battlefield-combat-module';
 
 /** Debug 面板依赖的自动生成配置与精确怪物生成门面。 */
 export interface BattlefieldDebugMonsterSpawner {
@@ -30,6 +31,11 @@ export interface BattlefieldDebugPerformanceDiagnostics {
   setEnabled(enabled: boolean): void;
 }
 
+/** 调试面板切换当前行为模块时依赖的最小门面。 */
+export interface BattlefieldDebugCombatModuleControls {
+  selectCombatModule(moduleId: BattlefieldCombatModuleId): void;
+}
+
 /** 把 Debug 面板修改映射到战场相机与观察动作。 */
 export class BattlefieldDebugControls {
   constructor(
@@ -37,6 +43,7 @@ export class BattlefieldDebugControls {
     private readonly player: BattlefieldDebugPlayerAnchor,
     private readonly monsters: BattlefieldDebugMonsterSpawner,
     private readonly diagnostics: BattlefieldDebugPerformanceDiagnostics,
+    private readonly modules: BattlefieldDebugCombatModuleControls,
   ) {}
 
   /** 获取面板全部控件的当前值。 */
@@ -86,5 +93,10 @@ export class BattlefieldDebugControls {
   /** 显式启停高精度分阶段计时和控制台报告。 */
   public setPerformanceDiagnosticsEnabled(value: boolean): void {
     this.diagnostics.setEnabled(value);
+  }
+
+  /** 绕过轮盘手势，直接选择一个已注册行为模块。 */
+  public selectCombatModule(moduleId: BattlefieldCombatModuleId): void {
+    this.modules.selectCombatModule(moduleId);
   }
 }

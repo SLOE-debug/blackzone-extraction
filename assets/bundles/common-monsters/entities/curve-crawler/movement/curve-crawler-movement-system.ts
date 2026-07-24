@@ -1,5 +1,6 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { damp, dampAngle } from '../../../../../core/math/scalar';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import {
@@ -11,12 +12,17 @@ import {
 export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的移动状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { transform, vitality, intent, motion } = state.data;
+    const { transform, vitality, manipulation, intent, motion } = state.data;
 
     for (let index = 0; index < state.count; index++) {
       transform.previousX[index] = transform.x[index] ?? 0;
       transform.previousY[index] = transform.y[index] ?? 0;
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
+        motion.currentSpeed[index] = 0;
+        continue;
+      }
+      if ((manipulation.state[index] as MonsterManipulationState)
+        !== MonsterManipulationState.Free) {
         motion.currentSpeed[index] = 0;
         continue;
       }

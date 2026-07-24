@@ -25,6 +25,16 @@ import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
 import { BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 import { type WeaponAmmunitionStatus } from '../equipment/model/weapon-ammunition-status';
 import { BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
+import {
+  type BattlefieldCombatModuleId,
+  type BattlefieldCombatModuleUnavailableReason,
+} from '../action-modules/model/battlefield-combat-module';
+import { type MutableBattlefieldActionPreview } from '../action-modules/model/battlefield-action-preview';
+import {
+  BattlefieldSkillWheel,
+  type MutableBattlefieldSkillWheelInput,
+} from './battlefield-skill-wheel';
+import { BattlefieldActionPreviewHud } from './battlefield-action-preview-hud';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
   [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
@@ -61,6 +71,8 @@ export class BattlefieldControlHud {
   private readonly playerStatus: BattlefieldPlayerStatusHud;
   private readonly weaponStatus: BattlefieldWeaponStatusHud;
   private readonly defeatDialog: BattlefieldDefeatDialog;
+  private readonly skillWheel: BattlefieldSkillWheel;
+  private readonly actionPreview: BattlefieldActionPreviewHud;
   private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
   private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
   private readonly mutableState: MutableBattlefieldScreenControlState = {
@@ -103,6 +115,7 @@ export class BattlefieldControlHud {
     let playerStatus: BattlefieldPlayerStatusHud | null = null;
     let weaponStatus: BattlefieldWeaponStatusHud | null = null;
     let defeatDialog: BattlefieldDefeatDialog | null = null;
+    let skillWheel: BattlefieldSkillWheel | null = null;
     try {
       gameplayGraphics = new BattlefieldGameplayGraphics(this.canvas.node);
       movementJoystick = new VirtualJoystick(
@@ -127,6 +140,7 @@ export class BattlefieldControlHud {
         this.canvas.node,
         onReturnToLobbyRequested,
       );
+      skillWheel = new BattlefieldSkillWheel(this.canvas.node);
       this.movementJoystick = movementJoystick;
       this.aimJoystick = aimJoystick;
       this.gameplayGraphics = gameplayGraphics;
@@ -135,10 +149,13 @@ export class BattlefieldControlHud {
       this.playerStatus = playerStatus;
       this.weaponStatus = weaponStatus;
       this.defeatDialog = defeatDialog;
+      this.skillWheel = skillWheel;
+      this.actionPreview = new BattlefieldActionPreviewHud(this.canvas.node, worldCamera);
       this.synchronizeLayout();
       this.synchronizeGameplayGraphics();
       this.canvas.node.active = false;
     } catch (error: unknown) {
+      skillWheel?.dispose();
       defeatDialog?.dispose();
       weaponStatus?.dispose();
       playerStatus?.dispose();
@@ -198,6 +215,39 @@ export class BattlefieldControlHud {
     return pressed;
   }
 
+  public get selectedCombatModule(): BattlefieldCombatModuleId {
+    return this.skillWheel.selectedModule;
+  }
+
+  public get combatModuleActionActive(): boolean {
+    return this.skillWheel.active;
+  }
+
+  /** 复制并消费技能按钮的唯一松开快照。 */
+  public consumeCombatModuleInput(result: MutableBattlefieldSkillWheelInput): void {
+    this.skillWheel.consumeInput(result);
+  }
+
+  public setCombatModuleContext(moduleId: BattlefieldCombatModuleId | null): void {
+    this.skillWheel.setContextualModule(moduleId);
+  }
+
+  public selectCombatModule(moduleId: BattlefieldCombatModuleId): void {
+    this.skillWheel.select(moduleId);
+  }
+
+  public presentCombatModuleAvailability(
+    moduleId: BattlefieldCombatModuleId,
+    reason: BattlefieldCombatModuleUnavailableReason,
+  ): void {
+    this.skillWheel.presentAvailability(moduleId, reason);
+  }
+
+  public presentCombatModulePreview(preview: Readonly<MutableBattlefieldActionPreview>): void {
+    this.actionPreview.present(preview);
+    this.synchronizeGameplayGraphics();
+  }
+
   /** 同步靠近玩家的装备世界标签。 */
   public presentEquipmentLabel(
     presentation: Readonly<BattlefieldEquipmentLabelPresentation> | null,
@@ -246,6 +296,7 @@ export class BattlefieldControlHud {
     this.defeatDialog.dispose();
     this.playerStatus.dispose();
     this.weaponStatus.dispose();
+    this.skillWheel.dispose();
     this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
@@ -284,6 +335,10 @@ export class BattlefieldControlHud {
       + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
     this.aimJoystick.setPosition(rightX, centerY);
+    this.skillWheel.setPosition(
+      rightX,
+      Math.min(height * 0.5 - 76, centerY + style.aim.interactionRadius + 76),
+    );
     this.playerStatus.synchronizeLayout(width, height);
     this.weaponStatus.synchronizeLayout(width, height);
     this.layoutWidth = width;
@@ -299,6 +354,8 @@ export class BattlefieldControlHud {
       this.aimJoystick,
       this.playerStatus,
       this.weaponStatus,
+      this.skillWheel,
+      this.actionPreview,
     );
   }
 
@@ -381,6 +438,19 @@ export class BattlefieldControlHud {
           this.contextActionPressed = true;
         }
         this.interactionKeyDown = pressed;
+        break;
+      case KeyCode.KEY_Q:
+        if (pressed) {
+          this.skillWheel.cycle(-1);
+        }
+        break;
+      case KeyCode.KEY_R:
+        if (pressed) {
+          this.skillWheel.cycle(1);
+        }
+        break;
+      case KeyCode.SPACE:
+        this.skillWheel.setKeyboardActive(pressed);
         break;
       case KeyCode.ARROW_UP:
       case KeyCode.KEY_I:

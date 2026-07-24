@@ -18,6 +18,10 @@ import {
   type MonsterObservationPopulation,
 } from '../../../../../core/contracts/monster-observation';
 import { type MonsterPopulation } from '../../../../../core/contracts/monster-population';
+import {
+  type MutablePlanarMonsterManipulationCandidate,
+  type PlanarMonsterManipulationPopulation,
+} from '../../../../../core/contracts/monster-manipulation';
 import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { CurveCrawlerAnimationSystem } from '../animation/curve-crawler-animation-system';
 import { CurveCrawlerEmergenceSystem } from '../animation/curve-crawler-emergence-system';
@@ -48,6 +52,7 @@ import { CurveCrawlerProjectileHitSystem } from './curve-crawler-projectile-hit-
 import { CurveCrawlerRepopulationSystem } from './curve-crawler-repopulation-system';
 import { CurveCrawlerSimulationCadence } from './curve-crawler-simulation-cadence';
 import { CurveCrawlerTargeting } from './curve-crawler-targeting';
+import { CurveCrawlerManipulationSystem } from './curve-crawler-manipulation-system';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
@@ -59,7 +64,8 @@ const MAXIMUM_DELTA_TIME = 0.05;
  */
 export class CurveCrawlerPopulation
 implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation,
-MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
+MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation,
+PlanarMonsterManipulationPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
@@ -70,6 +76,7 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   private readonly movement = new CurveCrawlerMovementSystem();
   private readonly targeting = new CurveCrawlerTargeting();
   private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
+  private readonly manipulation = new CurveCrawlerManipulationSystem();
   private readonly repopulation: CurveCrawlerRepopulationSystem;
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly emergence = new CurveCrawlerEmergenceSystem();
@@ -270,6 +277,65 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
   public consumeAttackDamage(): number {
     this.ensureActive();
     return this.ensureCombat().consumeAttackDamage();
+  }
+
+  /** 写出一个活动实体的抓取与投掷能力。 */
+  public writeManipulationCandidate(
+    entityIndex: number,
+    result: MutablePlanarMonsterManipulationCandidate,
+  ): boolean {
+    this.ensureActive();
+    return this.manipulation.writeCandidate(this.state, entityIndex, result);
+  }
+
+  /** 让合法小型实体停止自主行为并进入携带状态。 */
+  public beginCarry(entityId: number): boolean {
+    this.ensureActive();
+    return this.manipulation.beginCarry(this.state, entityId);
+  }
+
+  /** 把当前携带对象切换到投掷状态。 */
+  public beginThrow(entityId: number): boolean {
+    this.ensureActive();
+    return this.manipulation.beginThrow(this.state, entityId);
+  }
+
+  /** 同步外部战斗行为拥有的实体姿态。 */
+  public synchronizeManipulatedPose(
+    entityId: number,
+    x: number,
+    y: number,
+    elevation: number,
+    heading: number,
+  ): boolean {
+    this.ensureActive();
+    return this.manipulation.synchronizePose(
+      this.state,
+      entityId,
+      x,
+      y,
+      elevation,
+      heading,
+    );
+  }
+
+  /** 结束外部接管并恢复地面自由状态。 */
+  public releaseManipulation(entityId: number): boolean {
+    this.ensureActive();
+    return this.manipulation.release(this.state, entityId);
+  }
+
+  /** 复用怪物自身受击与死亡系统完成投掷重击斩杀。 */
+  public killManipulated(entityId: number): boolean {
+    this.ensureActive();
+    if (!this.manipulation.release(this.state, entityId)) {
+      return false;
+    }
+    if (!this.hit.damage(this.state, entityId, Number.MAX_VALUE)) {
+      return false;
+    }
+    this.death.start(this.state, entityId);
+    return true;
   }
 
   /** 释放群体持有的动态网格和材质。 */

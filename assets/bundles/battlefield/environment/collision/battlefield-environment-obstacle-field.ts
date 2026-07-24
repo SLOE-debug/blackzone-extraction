@@ -83,7 +83,12 @@ export class BattlefieldEnvironmentObstacleField implements PlanarMovementConstr
     radius: number,
     result: MutablePlanarPosition,
   ): void {
-    if (![startX, startZ, targetX, targetZ, radius].every(Number.isFinite) || radius <= 0) {
+    if (!Number.isFinite(startX)
+      || !Number.isFinite(startZ)
+      || !Number.isFinite(targetX)
+      || !Number.isFinite(targetZ)
+      || !Number.isFinite(radius)
+      || radius <= 0) {
       throw new Error('环境平面碰撞输入必须是有限坐标和正占地半径。');
     }
     result.x = targetX;

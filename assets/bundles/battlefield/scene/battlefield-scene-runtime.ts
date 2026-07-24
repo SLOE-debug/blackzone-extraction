@@ -31,6 +31,9 @@ import {
   type BattlefieldCameraRig,
 } from './battlefield-camera';
 import { BattlefieldWorld } from '../world/battlefield-world';
+import {
+  BattlefieldCombatModuleRuntime,
+} from '../action-modules/population/battlefield-combat-module-runtime';
 
 enum BattlefieldSceneState {
   Created,
@@ -55,6 +58,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private cameraRig: BattlefieldCameraRig | null = null;
   private controlHud: BattlefieldControlHud | null = null;
   private interactionSystem: BattlefieldSceneInteractionSystem | null = null;
+  private actions: BattlefieldCombatModuleRuntime | null = null;
   private debugPanel: BattlefieldDebugPanel | null = null;
   private world: BattlefieldWorld | null = null;
   private returningToLobby = false;
@@ -83,6 +87,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let cameraRig: BattlefieldCameraRig | null = null;
     let controlHud: BattlefieldControlHud | null = null;
     let interactionSystem: BattlefieldSceneInteractionSystem | null = null;
+    let actions: BattlefieldCombatModuleRuntime | null = null;
     let debugPanel: BattlefieldDebugPanel | null = null;
     let world: BattlefieldWorld | null = null;
     try {
@@ -113,6 +118,10 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         cameraRig.camera,
         player.positionX,
         player.positionZ,
+      );
+      actions = new BattlefieldCombatModuleRuntime(
+        monsters,
+        environment.movementConstraint,
       );
       treasures = new BattlefieldTreasurePopulation(
         runtimeRoot,
@@ -159,6 +168,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
           player,
           monsters,
           this.performanceLogger,
+          controlHud,
         ),
       );
       this.performanceLogger.bindSources(Object.freeze({
@@ -181,6 +191,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         treasures,
         controls: controlHud,
         interaction: interactionSystem,
+        actions,
       }));
     } catch (error: unknown) {
       debugPanel?.dispose();
@@ -189,6 +200,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       cameraRig?.dispose();
       chunkRuntimes?.dispose();
       treasures?.dispose();
+      actions?.dispose();
       monsters?.dispose();
       playerWeapon?.dispose();
       player?.dispose();
@@ -210,6 +222,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.cameraRig = cameraRig;
     this.controlHud = controlHud;
     this.interactionSystem = interactionSystem;
+    this.actions = actions;
     this.debugPanel = debugPanel;
     this.world = world;
     this.state = BattlefieldSceneState.Initialized;
@@ -235,6 +248,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.cameraRig?.dispose();
     this.chunkRuntimes?.dispose();
     this.treasures?.dispose();
+    this.actions?.dispose();
     this.monsters?.dispose();
     this.playerWeapon?.dispose();
     this.player?.dispose();
@@ -254,6 +268,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.cameraRig = null;
     this.controlHud = null;
     this.interactionSystem = null;
+    this.actions = null;
     this.debugPanel = null;
     this.world = null;
   }

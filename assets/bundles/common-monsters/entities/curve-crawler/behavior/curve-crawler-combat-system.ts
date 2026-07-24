@@ -1,5 +1,6 @@
 import { type PlanarMonsterCombatTarget } from '../../../../../core/contracts/monster-combat';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
+import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { type CurveCrawlerCombatOptions } from '../model/curve-crawler-combat-options';
@@ -55,7 +56,7 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
 
   /** 按感知、追击、独立冷却和啃咬时间轴推进全部存活实体。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { vitality, behavior, combat } = state.data;
+    const { vitality, manipulation, behavior, combat } = state.data;
 
     for (let index = 0; index < state.count; index++) {
       combat.attackCooldown[index] = Math.max(
@@ -65,6 +66,11 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
       const wasBiting = (behavior.action[index] as CurveCrawlerAction)
         === CurveCrawlerAction.Bite;
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
+        this.disengage(state, index);
+        continue;
+      }
+      if ((manipulation.state[index] as MonsterManipulationState)
+        !== MonsterManipulationState.Free) {
         this.disengage(state, index);
         continue;
       }

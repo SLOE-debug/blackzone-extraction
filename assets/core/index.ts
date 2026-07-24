@@ -43,6 +43,13 @@ export type {
   PlanarMonsterHitPopulation,
   PlanarMonsterHitQuery,
 } from './contracts/monster-hit';
+export {
+  CombatTag,
+  MonsterBodySize,
+  MonsterManipulationState,
+  type MutablePlanarMonsterManipulationCandidate,
+  type PlanarMonsterManipulationPopulation,
+} from './contracts/monster-manipulation';
 export type {
   MutablePlanarTargetResult,
   PlanarTargetPopulation,

@@ -2,6 +2,8 @@ import { Graphics, Layers, Node, UITransform } from 'cc';
 import { type VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { type BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 import { type BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
+import { type BattlefieldSkillWheel } from './battlefield-skill-wheel';
+import { type BattlefieldActionPreviewHud } from './battlefield-action-preview-hud';
 
 /**
  * 把双摇杆、玩家血条与武器弹药板压入同一个 Graphics 组件。
@@ -17,6 +19,8 @@ export class BattlefieldGameplayGraphics {
   private aimRevision = -1;
   private playerStatusRevision = -1;
   private weaponStatusRevision = -1;
+  private skillWheelRevision = -1;
+  private actionPreviewRevision = -1;
   private width = -1;
   private height = -1;
   private disposed = false;
@@ -40,6 +44,8 @@ export class BattlefieldGameplayGraphics {
     aim: VirtualJoystick,
     playerStatus: BattlefieldPlayerStatusHud,
     weaponStatus: BattlefieldWeaponStatusHud,
+    skillWheel: BattlefieldSkillWheel,
+    actionPreview: BattlefieldActionPreviewHud,
   ): void {
     if (this.disposed) {
       return;
@@ -49,7 +55,9 @@ export class BattlefieldGameplayGraphics {
       && movement.graphicsRevision === this.movementRevision
       && aim.graphicsRevision === this.aimRevision
       && playerStatus.graphicsRevision === this.playerStatusRevision
-      && weaponStatus.graphicsRevision === this.weaponStatusRevision) {
+      && weaponStatus.graphicsRevision === this.weaponStatusRevision
+      && skillWheel.graphicsRevision === this.skillWheelRevision
+      && actionPreview.graphicsRevision === this.actionPreviewRevision) {
       return;
     }
     if (frameChanged) {
@@ -62,10 +70,14 @@ export class BattlefieldGameplayGraphics {
     aim.draw(this.graphics);
     playerStatus.draw(this.graphics);
     weaponStatus.draw(this.graphics);
+    actionPreview.draw(this.graphics);
+    skillWheel.draw(this.graphics);
     this.movementRevision = movement.graphicsRevision;
     this.aimRevision = aim.graphicsRevision;
     this.playerStatusRevision = playerStatus.graphicsRevision;
     this.weaponStatusRevision = weaponStatus.graphicsRevision;
+    this.skillWheelRevision = skillWheel.graphicsRevision;
+    this.actionPreviewRevision = actionPreview.graphicsRevision;
   }
 
   public dispose(): void {

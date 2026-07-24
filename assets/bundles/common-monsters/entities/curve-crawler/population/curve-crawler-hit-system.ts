@@ -5,6 +5,7 @@ import {
 } from '../model/curve-crawler-life';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
+import { synchronizeCurveCrawlerExecutableTag } from './curve-crawler-manipulation-system';
 
 /** 独立处理伤害结算、受击计时和红色闪烁。 */
 export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, number> {
@@ -51,6 +52,7 @@ export class CurveCrawlerHitSystem implements EntitySystem<CurveCrawlerState, nu
     vitality.health[entityId] = remainingHealth;
     vitality.hitTime[entityId] = CURVE_CRAWLER_HIT_FLASH_DURATION;
     vitality.timeSinceHit[entityId] = 0;
+    synchronizeCurveCrawlerExecutableTag(state, entityId);
     return remainingHealth <= 0;
   }
 }

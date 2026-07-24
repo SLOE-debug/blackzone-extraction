@@ -2,6 +2,7 @@ import { BrowserDebugPanel } from '../../../core/debug/browser-debug-panel';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import { type BattlefieldDebugControls } from './battlefield-debug-controls';
 import { BATTLEFIELD_DEBUG_MONSTER_OPTIONS } from './battlefield-debug-monster-options';
+import { BattlefieldCombatModuleId } from '../action-modules/model/battlefield-combat-module';
 
 const PANEL_OPTIONS = Object.freeze({
   id: 'battlefield-debug-panel',
@@ -54,6 +55,13 @@ export class BattlefieldDebugPanel {
         controls.spawnMonsterAhead(option.id);
       });
     }
+    panel.addSection('行为模块');
+    panel.addButton('选择抓取（Space 按住/松开）', () => {
+      controls.selectCombatModule(BattlefieldCombatModuleId.Grab);
+    });
+    panel.addButton('选择投掷（拖动技能按钮）', () => {
+      controls.selectCombatModule(BattlefieldCombatModuleId.Throw);
+    });
     this.panel = panel;
   }
 
