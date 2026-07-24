@@ -1,37 +1,30 @@
-/** 二维平面目标查询的只读输入。 */
+/** 二维平面射线走廊的有限线段查询。 */
 export interface PlanarTargetQuery {
-  /** 查询射线起点的第一轴坐标。 */
-  readonly originX: number;
-  /** 查询射线起点的第二轴坐标。 */
-  readonly originY: number;
-  /** 已归一化查询方向的第一轴分量。 */
-  readonly directionX: number;
-  /** 已归一化查询方向的第二轴分量。 */
-  readonly directionY: number;
-  /** 允许吸附的最大直线距离。 */
-  readonly maximumDistance: number;
-  /** 目标方向与查询方向点积的最小值。 */
-  readonly minimumAlignment: number;
+  readonly startX: number;
+  readonly startY: number;
+  readonly endX: number;
+  readonly endY: number;
 }
 
-/** 由调用方复用的地面目标查询结果，平面坐标外同时返回正交高度。 */
+/** 由调用方复用的射线首次接触结果。 */
 export interface MutablePlanarTargetResult {
   entityId: number;
   x: number;
   y: number;
   elevation: number;
+  segmentProgress: number;
 }
 
-/** 能够在自身局部地面平面中提供位置与正交高度瞄准候选的群体契约。 */
+/** 能够在自身局部平面中解析射线首次接触目标的群体契约。 */
 export interface PlanarTargetPopulation {
   /**
-   * 查找查询方向附近最适合辅助瞄准的存活目标。
+   * 查找有限线段最先经过的存活目标。
    *
-   * @param query 已归一化方向、距离和吸附角约束。
+   * @param query 局部平面中的有限线段。
    * @param result 调用方持有并复用的结果缓冲。
-   * @returns 是否找到符合约束的目标。
+   * @returns 是否找到与线段实际相交的目标。
    */
-  findBestPlanarTarget(
+  findFirstPlanarTarget(
     query: Readonly<PlanarTargetQuery>,
     result: MutablePlanarTargetResult,
   ): boolean;

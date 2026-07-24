@@ -355,22 +355,24 @@ implements Disposable {
     this.swarm = group;
   }
 
-  /** 在所有活动地图群体中选择距离玩家最近的有效瞄准吸附结果。 */
-  public resolveAimTarget(
+  /** 从真实枪口沿手动方向选择武器射程内最先经过的怪物轮廓。 */
+  public resolveElevationAlongSegment(
     originX: number,
     originZ: number,
     directionX: number,
     directionZ: number,
+    maximumDistance: number,
     result: MutableBattlefieldAimTarget,
   ): boolean {
     if (this.disposed) {
       return false;
     }
-    return this.targets.resolveAimTarget(
+    return this.targets.resolveElevationAlongSegment(
       originX,
       originZ,
       directionX,
       directionZ,
+      maximumDistance,
       result,
     );
   }

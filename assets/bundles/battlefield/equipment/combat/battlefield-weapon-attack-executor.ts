@@ -12,6 +12,8 @@ import {
 } from '../projectile/model/battlefield-weapon-shot-pattern';
 import { type BattlefieldWeaponMuzzlePose } from './battlefield-weapon-muzzle-pose';
 
+const DIRECTION_EPSILON = 0.0001;
+
 /** 射击求解依赖的最小弹体生成门面。 */
 export interface BattlefieldWeaponProjectileSink {
   spawn(
@@ -52,13 +54,18 @@ export class BattlefieldWeaponAttackExecutor {
     projectiles: BattlefieldWeaponProjectileSink,
   ): BattlefieldWeaponAttackResult {
     const direction = this.shotDirection;
-    const targetDistance = intent.targetDistance ?? definition.projectile.maximumRange;
+    const elevationTarget = intent.elevationTarget;
+    const targetDistance = Math.max(
+      (elevationTarget.x - muzzle.muzzleX) * intent.directionX
+        + (elevationTarget.z - muzzle.muzzleZ) * intent.directionZ,
+      DIRECTION_EPSILON,
+    );
     writeBattlefieldProjectileDirection(
       muzzle.muzzleX,
       muzzle.muzzleY,
       muzzle.muzzleZ,
       muzzle.muzzleX + intent.directionX * targetDistance,
-      intent.targetElevation ?? muzzle.muzzleY,
+      elevationTarget.y,
       muzzle.muzzleZ + intent.directionZ * targetDistance,
       direction,
     );

@@ -14,22 +14,17 @@ import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobber-config';
 import {
   type BattlefieldMonsterCombatTarget,
-  type MutableBattlefieldAimTarget,
+  type MutableBattlefieldAimRayContact,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
-import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
-
-const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(BATTLEFIELD_AIM_ASSIST.maximumAngleRadians);
 
 interface MutablePlanarTargetQuery extends PlanarTargetQuery {
-  originX: number;
-  originY: number;
-  directionX: number;
-  directionY: number;
-  maximumDistance: number;
-  minimumAlignment: number;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
 }
 
 interface MutablePlanarCombatTarget extends PlanarMonsterCombatTarget {
@@ -66,18 +61,17 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createVenomLobber']
   >;
   private readonly localTargetQuery: MutablePlanarTargetQuery = {
-    originX: 0,
-    originY: 0,
-    directionX: 0,
-    directionY: 1,
-    maximumDistance: 1,
-    minimumAlignment: AIM_ASSIST_MINIMUM_ALIGNMENT,
+    startX: 0,
+    startY: 0,
+    endX: 0,
+    endY: 1,
   };
   private readonly localTargetResult: MutablePlanarTargetResult = {
     entityId: -1,
     x: 0,
     y: 0,
     elevation: 0,
+    segmentProgress: 0,
   };
   private readonly localCombatTarget: MutablePlanarCombatTarget = {
     x: 0,
@@ -250,38 +244,24 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     }
   }
 
-  public writeAimTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    return this.writeTarget(
-      originX, originZ, directionX, directionZ, AIM_ASSIST_MINIMUM_ALIGNMENT, result,
-    );
-  }
-
-  /** 只对共享空间索引给出的单一实体执行瞄准窄相位。 */
-  public writeAimTargetForEntity(
+  /** 把世界 XZ 线段转换到本群体局部平面并查询实体轮廓首次接触。 */
+  public writeAimRayContactForEntity(
     entityIndex: number,
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    result: MutableBattlefieldAimRayContact,
   ): boolean {
     if (this.disposed) {
       return false;
     }
     const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
     const query = this.localTargetQuery;
-    query.originX = originX / scale;
-    query.originY = -originZ / scale;
-    query.directionX = directionX;
-    query.directionY = -directionZ;
-    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance / scale;
-    query.minimumAlignment = AIM_ASSIST_MINIMUM_ALIGNMENT;
+    query.startX = startX / scale;
+    query.startY = -startZ / scale;
+    query.endX = endX / scale;
+    query.endY = -endZ / scale;
     if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
       return false;
     }
@@ -289,6 +269,7 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
       + this.localTargetResult.elevation * scale;
     result.z = -this.localTargetResult.y * scale;
+    result.segmentProgress = this.localTargetResult.segmentProgress;
     return true;
   }
 
@@ -339,35 +320,6 @@ export class BattlefieldVenomLobberGroup implements BattlefieldMonsterTargetGrou
     }
     this.disposed = true;
     this.population.dispose();
-  }
-
-  private writeTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    minimumAlignment: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    const query = this.localTargetQuery;
-    query.originX = originX / scale;
-    query.originY = -originZ / scale;
-    query.directionX = directionX;
-    query.directionY = -directionZ;
-    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance / scale;
-    query.minimumAlignment = minimumAlignment;
-    if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
-      return false;
-    }
-    result.x = this.localTargetResult.x * scale;
-    result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
-      + this.localTargetResult.elevation * scale;
-    result.z = -this.localTargetResult.y * scale;
-    return true;
   }
 
   private writeLocalCombatTarget(target: Readonly<BattlefieldMonsterCombatTarget>): void {

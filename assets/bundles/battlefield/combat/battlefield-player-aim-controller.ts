@@ -2,17 +2,10 @@ import { type VanguardControlIntent } from '../../../player/vanguard/model/vangu
 import { VanguardWeaponAction } from '../../../player/vanguard/model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weapon-pose';
 import { type VanguardPopulation } from '../../../player/vanguard/population/vanguard-population';
-import {
-  type BattlefieldMonsterPopulation,
-  type MutableBattlefieldAimTarget,
-} from '../population/battlefield-monster-population';
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
 import { type MutableBattlefieldPlanarDirection } from '../scene/battlefield-camera-direction';
 import { type BattlefieldScreenControlState } from '../ui/battlefield-control-hud';
-import { type MutableBattlefieldFireIntent } from './battlefield-fire-intent';
-
-const DIRECTION_EPSILON = 0.0001;
-const PLAYER_WEAPON_AIM_HEIGHT = 2.35;
+import { type MutableBattlefieldFireDirection } from './battlefield-fire-intent';
 
 interface MutableVanguardControlIntent extends VanguardControlIntent {
   moveX: number;
@@ -30,7 +23,6 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
 export class BattlefieldPlayerAimController {
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
   private readonly aimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
-  private readonly aimTarget: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
   private readonly intent: MutableVanguardControlIntent = {
     moveX: 0,
     moveZ: 0,
@@ -50,14 +42,13 @@ export class BattlefieldPlayerAimController {
    */
   public apply(
     player: VanguardPopulation,
-    monsters: BattlefieldMonsterPopulation,
     cameraRig: BattlefieldCameraRig,
     controls: Readonly<BattlefieldScreenControlState>,
     weaponPose: VanguardWeaponPose,
     weaponAction: VanguardWeaponAction,
     weaponActionProgress: number,
     movementSpeedMultiplier: number,
-    fireIntent: MutableBattlefieldFireIntent,
+    fireDirection: MutableBattlefieldFireDirection,
   ): boolean {
     if (!Number.isFinite(movementSpeedMultiplier)
       || movementSpeedMultiplier <= 0
@@ -90,49 +81,13 @@ export class BattlefieldPlayerAimController {
       controls.aimY,
       this.aimDirection,
     );
-    const targetFound = monsters.resolveAimTarget(
-      player.positionX,
-      player.positionZ,
-      this.aimDirection.x,
-      this.aimDirection.z,
-      this.aimTarget,
-    );
-    fireIntent.directionX = this.aimDirection.x;
-    fireIntent.directionZ = this.aimDirection.z;
-    if (targetFound) {
-      const targetDeltaX = this.aimTarget.x - player.positionX;
-      const targetDeltaZ = this.aimTarget.z - player.positionZ;
-      const projectedDistance = targetDeltaX * this.aimDirection.x
-        + targetDeltaZ * this.aimDirection.z;
-      fireIntent.targetElevation = this.aimTarget.y;
-      fireIntent.targetDistance = Math.max(projectedDistance, DIRECTION_EPSILON);
-      intent.aimPitch = this.writePitchToTarget(
-        player.positionY,
-        fireIntent.targetDistance,
-      );
-    } else {
-      fireIntent.targetElevation = null;
-      fireIntent.targetDistance = null;
-      intent.aimPitch = 0;
-    }
+    fireDirection.directionX = this.aimDirection.x;
+    fireDirection.directionZ = this.aimDirection.z;
+    intent.aimPitch = 0;
     intent.aimX = this.aimDirection.x;
     intent.aimZ = this.aimDirection.z;
     intent.aiming = true;
     player.setControlIntent(intent);
     return true;
-  }
-
-  /** 只按候选高度和手动方向上的投影距离计算展示俯仰。 */
-  private writePitchToTarget(originY: number, projectedDistance: number): number {
-    return Math.max(
-      -Math.PI * 0.4,
-      Math.min(
-        Math.PI * 0.4,
-        Math.atan2(
-          this.aimTarget.y - (originY + PLAYER_WEAPON_AIM_HEIGHT),
-          Math.max(projectedDistance, DIRECTION_EPSILON),
-        ),
-      ),
-    );
   }
 }

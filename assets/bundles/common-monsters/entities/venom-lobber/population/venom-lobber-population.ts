@@ -135,15 +135,15 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     this.legAnimation.update(this.state, 0);
   }
 
-  public findBestPlanarTarget(
+  public findFirstPlanarTarget(
     query: Readonly<PlanarTargetQuery>,
     result: MutablePlanarTargetResult,
   ): boolean {
     this.ensureActive();
-    return this.targeting.findBest(this.state, query, result);
+    return this.targeting.findFirst(this.state, query, result);
   }
 
-  /** 对共享宽相位给出的实体执行单槽位瞄准窄相位。 */
+  /** 对共享宽相位给出的实体执行单槽位射线窄相位。 */
   public findPlanarTarget(
     entityIndex: number,
     query: Readonly<PlanarTargetQuery>,

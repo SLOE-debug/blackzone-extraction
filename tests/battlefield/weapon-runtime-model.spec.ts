@@ -85,8 +85,7 @@ describe('玩家武器运行时模型', () => {
       {
         directionX: 0,
         directionZ: 1,
-        targetElevation: 2.5,
-        targetDistance: 8,
+        elevationTarget: { x: 1, y: 2.5, z: 11 },
       },
       ammunition,
       {
@@ -106,35 +105,6 @@ describe('玩家武器运行时模型', () => {
       )).toBeCloseTo(1, 6);
     }
     expect(ammunition.roundsRemaining).toBe(4);
-  });
-
-  it('没有纵向候选时从真实枪口严格水平射击', () => {
-    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.DesertEagle);
-    const ammunition = createWeaponAmmunition(
-      definition.ammunition,
-      new WeaponAmmunitionReserve(),
-    );
-    const directions: number[] = [];
-    new BattlefieldWeaponAttackExecutor().execute(
-      definition,
-      { muzzleX: 3, muzzleY: 4.25, muzzleZ: -2 },
-      {
-        directionX: Math.SQRT1_2,
-        directionZ: Math.SQRT1_2,
-        targetElevation: null,
-        targetDistance: null,
-      },
-      ammunition,
-      {
-        spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
-          directions.push(directionX, directionY, directionZ);
-        },
-      },
-    );
-
-    expect(directions[0]).toBeCloseTo(Math.SQRT1_2, 6);
-    expect(directions[1]).toBe(0);
-    expect(directions[2]).toBeCloseTo(Math.SQRT1_2, 6);
   });
 
   it('手枪耗尽八发后必须消耗拾取的备用弹药才能重新装填', () => {
@@ -323,6 +293,35 @@ describe('玩家武器运行时模型', () => {
     // 下降弹道的尾端应位于权威尖端后上方，证明局部前向轴随三维方向俯仰。
     expect(positions[13]).toBeGreaterThan(positions[1] ?? 0);
     expect(state.directionY[0]).toBeLessThan(0);
+  });
+
+  it('纵向目标距离以真实枪口而非玩家脚底为起点', () => {
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.M4A1);
+    const ammunition = createWeaponAmmunition(
+      definition.ammunition,
+      new WeaponAmmunitionReserve(),
+    );
+    const muzzle = { muzzleX: 0.978, muzzleY: 2.5, muzzleZ: 0 };
+    const directions: number[] = [];
+
+    new BattlefieldWeaponAttackExecutor().execute(
+      definition,
+      muzzle,
+      {
+        directionX: 1,
+        directionZ: 0,
+        elevationTarget: { x: 4, y: 0.5, z: 0 },
+      },
+      ammunition,
+      {
+        spawn: (_x, _y, _z, directionX, directionY, directionZ) => {
+          directions.push(directionX, directionY, directionZ);
+        },
+      },
+    );
+
+    const travelToTarget = (4 - muzzle.muzzleX) / (directions[0] ?? 1);
+    expect(muzzle.muzzleY + (directions[1] ?? 0) * travelToTarget).toBeCloseTo(0.5, 6);
   });
 
   it.each([

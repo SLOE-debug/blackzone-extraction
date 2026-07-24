@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { CurveCrawlerState } from '../../assets/bundles/common-monsters/entities/curve-crawler/model/curve-crawler-state';
 import { CurveCrawlerTargeting } from '../../assets/bundles/common-monsters/entities/curve-crawler/population/curve-crawler-targeting';
 import {
@@ -7,52 +6,88 @@ import {
   createNormalizedCurveCrawlerTestOptions,
 } from './state-test-fixture';
 
-describe('Curve Crawler 辅助瞄准查询', () => {
-  it('优先选择瞄准锥内方向更准确的存活目标', () => {
-    const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
-      count: 3,
-      spawnArea: { centerX: 0, centerY: 0, width: 20, height: 20 },
-      seed: 73,
-    }));
-    completeCurveCrawlerTestEmergence(state);
-    state.data.transform.x.set([10, 5, 3]);
-    state.data.transform.y.set([0, 2, 0]);
-    state.data.vitality.state[2] = MonsterLifecycleState.DeathComplete;
-    const result = { entityId: -1, x: 0, y: 0, elevation: 0 };
+describe('Curve Crawler 纵向目标射线查询', () => {
+  it('中心位于旧六度锥外但射线经过近端腿部时仍返回目标', () => {
+    const state = createTargetingState(1);
+    state.data.transform.x[0] = 10;
+    state.data.transform.y[0] = 2;
+    const centerAlignment = 10 / Math.hypot(10, 2);
+    const result = createTargetResult();
 
-    const found = new CurveCrawlerTargeting().findBest(state, {
-      originX: 0,
-      originY: 0,
-      directionX: 1,
-      directionY: 0,
-      maximumDistance: 15,
-      minimumAlignment: 0.9,
+    const found = new CurveCrawlerTargeting().findEntity(state, 0, {
+      startX: 0,
+      startY: 0,
+      endX: 20,
+      endY: 0,
+    }, result);
+
+    expect(centerAlignment).toBeLessThan(Math.cos(Math.PI / 30));
+    expect(found).toBe(true);
+    expect(result.entityId).toBe(0);
+    expect(result.elevation).toBeGreaterThan(0);
+    expect(result.segmentProgress).toBeGreaterThan(0);
+    expect(result.segmentProgress).toBeLessThan(1);
+  });
+
+  it('附近存在怪物但射线不经过任何可感知轮廓时不返回目标', () => {
+    const state = createTargetingState(1);
+    state.data.transform.x[0] = 10;
+    state.data.transform.y[0] = 12;
+
+    expect(new CurveCrawlerTargeting().findEntity(state, 0, {
+      startX: 0,
+      startY: 0,
+      endX: 20,
+      endY: 0,
+    }, createTargetResult())).toBe(false);
+  });
+
+  it('近端目标稍偏而远端中心对齐时选择射线最先接触的近端目标', () => {
+    const state = createTargetingState(2);
+    state.data.transform.x.set([6, 15]);
+    state.data.transform.y.set([1.5, 0]);
+    const result = createTargetResult();
+
+    const found = new CurveCrawlerTargeting().findFirst(state, {
+      startX: 0,
+      startY: 0,
+      endX: 25,
+      endY: 0,
     }, result);
 
     expect(found).toBe(true);
     expect(result.entityId).toBe(0);
-    expect(result.x).toBe(10);
-    expect(result.y).toBe(0);
-    expect(result.elevation).toBeGreaterThan(0);
-  });
-
-  it('目标超出距离或吸附角时不返回候选', () => {
-    const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
-      count: 1,
-      spawnArea: { centerX: 0, centerY: 0, width: 8, height: 8 },
-      seed: 91,
-    }));
-    completeCurveCrawlerTestEmergence(state);
-    state.data.transform.x[0] = 0;
-    state.data.transform.y[0] = 7;
-
-    expect(new CurveCrawlerTargeting().findBest(state, {
-      originX: 0,
-      originY: 0,
-      directionX: 1,
-      directionY: 0,
-      maximumDistance: 5,
-      minimumAlignment: 0.8,
-    }, { entityId: -1, x: 0, y: 0, elevation: 0 })).toBe(false);
+    expect(result.x).toBe(6);
   });
 });
+
+function createTargetingState(count: number): CurveCrawlerState {
+  const state = new CurveCrawlerState(createNormalizedCurveCrawlerTestOptions({
+    count,
+    spawnArea: { centerX: 0, centerY: 0, width: 30, height: 30 },
+    seed: 73,
+  }));
+  completeCurveCrawlerTestEmergence(state);
+  state.data.transform.heading.fill(0);
+  state.data.transform.headingCosine.fill(1);
+  state.data.transform.headingSine.fill(0);
+  state.data.morphology.bodyWidth.fill(4);
+  state.data.morphology.bodyLength.fill(6);
+  state.data.morphology.legLength.fill(10);
+  state.data.morphology.legWidth.fill(0.8);
+  state.data.animation.bodyPulse.fill(0);
+  state.data.animation.crouchAmount.fill(0);
+  state.data.animation.biteAmount.fill(0);
+  state.data.animation.turnAmount.fill(0);
+  return state;
+}
+
+function createTargetResult() {
+  return {
+    entityId: -1,
+    x: 0,
+    y: 0,
+    elevation: 0,
+    segmentProgress: 0,
+  };
+}

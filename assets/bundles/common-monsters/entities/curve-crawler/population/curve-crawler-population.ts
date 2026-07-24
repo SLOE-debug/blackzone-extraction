@@ -216,16 +216,16 @@ MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation {
     );
   }
 
-  /** 在群体局部平面中查找右摇杆方向附近的存活目标。 */
-  public findBestPlanarTarget(
+  /** 在群体局部平面中查找射线最先经过的存活目标。 */
+  public findFirstPlanarTarget(
     query: Readonly<PlanarTargetQuery>,
     result: MutablePlanarTargetResult,
   ): boolean {
     this.ensureActive();
-    return this.targeting.findBest(this.state, query, result);
+    return this.targeting.findFirst(this.state, query, result);
   }
 
-  /** 对共享宽相位给出的实体执行单槽位瞄准窄相位。 */
+  /** 对共享宽相位给出的实体执行单槽位射线窄相位。 */
   public findPlanarTarget(
     entityIndex: number,
     query: Readonly<PlanarTargetQuery>,

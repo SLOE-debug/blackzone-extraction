@@ -19,6 +19,11 @@ export interface MutableBattlefieldAimTarget extends BattlefieldAimTarget {
   z: number;
 }
 
+/** 怪物平面轮廓与瞄准线段的首次接触结果。 */
+export interface MutableBattlefieldAimRayContact extends MutableBattlefieldAimTarget {
+  segmentProgress: number;
+}
+
 /** 战场世界空间中复用的首个子弹命中结果。 */
 export interface MutableBattlefieldProjectileHit {
   populationId: number;

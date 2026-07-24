@@ -1,5 +1,5 @@
 import {
-  type MutableBattlefieldAimTarget,
+  type MutableBattlefieldAimRayContact,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
@@ -8,13 +8,13 @@ import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-
 export interface BattlefieldMonsterTargetGroup {
   readonly populationId: number;
   readonly crowdPopulation: PlanarCrowdPopulation;
-  writeAimTargetForEntity(
+  writeAimRayContactForEntity(
     entityIndex: number,
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    result: MutableBattlefieldAimRayContact,
   ): boolean;
   writeProjectileHitForEntity(
     entityIndex: number,

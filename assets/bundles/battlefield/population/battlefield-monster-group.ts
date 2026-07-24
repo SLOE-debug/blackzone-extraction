@@ -18,14 +18,11 @@ import { BATTLEFIELD_COMBAT_CONFIG } from '../model/battlefield-combat-config';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
   type BattlefieldMonsterCombatTarget,
-  type MutableBattlefieldAimTarget,
+  type MutableBattlefieldAimRayContact,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
-import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
-
-const AIM_ASSIST_MINIMUM_ALIGNMENT = Math.cos(BATTLEFIELD_AIM_ASSIST.maximumAngleRadians);
 
 interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation,
 PlanarMonsterHitPopulation {
@@ -60,12 +57,10 @@ interface BattlefieldMonsterRepopulationOptions {
 }
 
 interface MutablePlanarTargetQuery extends PlanarTargetQuery {
-  originX: number;
-  originY: number;
-  directionX: number;
-  directionY: number;
-  maximumDistance: number;
-  minimumAlignment: number;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
 }
 
 interface MutablePlanarMonsterCombatTarget extends PlanarMonsterCombatTarget {
@@ -90,18 +85,17 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
   public readonly crowdPopulation: PlanarCrowdPopulation;
   private readonly population: BattlefieldMonsterRuntime;
   private readonly localTargetQuery: MutablePlanarTargetQuery = {
-    originX: 0,
-    originY: 0,
-    directionX: 0,
-    directionY: 1,
-    maximumDistance: BATTLEFIELD_AIM_ASSIST.maximumDistance,
-    minimumAlignment: AIM_ASSIST_MINIMUM_ALIGNMENT,
+    startX: 0,
+    startY: 0,
+    endX: 0,
+    endY: 1,
   };
   private readonly localTargetResult: MutablePlanarTargetResult = {
     entityId: -1,
     x: 0,
     y: 0,
     elevation: 0,
+    segmentProgress: 0,
   };
   private readonly localCombatTarget: MutablePlanarMonsterCombatTarget = {
     x: 0,
@@ -219,44 +213,24 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     }
   }
 
-  /** 把战场世界方向转换到本群体局部平面并执行轻量辅助瞄准。 */
-  public writeAimTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    return this.writeTarget(
-      originX,
-      originZ,
-      directionX,
-      directionZ,
-      AIM_ASSIST_MINIMUM_ALIGNMENT,
-      result,
-    );
-  }
-
-  /** 只对共享空间索引给出的单一实体执行瞄准窄相位。 */
-  public writeAimTargetForEntity(
+  /** 把世界 XZ 线段转换到本群体局部平面并查询实体轮廓首次接触。 */
+  public writeAimRayContactForEntity(
     entityIndex: number,
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    result: MutableBattlefieldAimTarget,
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    result: MutableBattlefieldAimRayContact,
   ): boolean {
     if (this.disposed) {
       return false;
     }
     const config = BATTLEFIELD_MONSTER_SPAWN;
     const query = this.localTargetQuery;
-    query.originX = originX / config.modelScale;
-    query.originY = -originZ / config.modelScale;
-    query.directionX = directionX;
-    query.directionY = -directionZ;
-    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance / config.modelScale;
-    query.minimumAlignment = AIM_ASSIST_MINIMUM_ALIGNMENT;
+    query.startX = startX / config.modelScale;
+    query.startY = -startZ / config.modelScale;
+    query.endX = endX / config.modelScale;
+    query.endY = -endZ / config.modelScale;
     if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
       return false;
     }
@@ -264,6 +238,7 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
     result.y = config.groundOffsetY
       + this.localTargetResult.elevation * config.modelScale;
     result.z = -this.localTargetResult.y * config.modelScale;
+    result.segmentProgress = this.localTargetResult.segmentProgress;
     return true;
   }
 
@@ -310,37 +285,6 @@ export class BattlefieldMonsterGroup implements BattlefieldMonsterTargetGroup {
       return;
     }
     this.population.damage(entityId, amount);
-  }
-
-  /** 把战场世界方向转换到本群体局部平面并执行指定角度的目标查询。 */
-  private writeTarget(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    minimumAlignment: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    const inverseScale = 1 / config.modelScale;
-    const query = this.localTargetQuery;
-    query.originX = originX * inverseScale;
-    query.originY = -originZ * inverseScale;
-    query.directionX = directionX;
-    query.directionY = -directionZ;
-    query.maximumDistance = BATTLEFIELD_AIM_ASSIST.maximumDistance * inverseScale;
-    query.minimumAlignment = minimumAlignment;
-    if (!this.population.findBestPlanarTarget(query, this.localTargetResult)) {
-      return false;
-    }
-    result.x = this.localTargetResult.x * config.modelScale;
-    result.y = config.groundOffsetY
-      + this.localTargetResult.elevation * config.modelScale;
-    result.z = -this.localTargetResult.y * config.modelScale;
-    return true;
   }
 
   /** 释放本群体状态及其在共享渲染批次中的连续区段。 */

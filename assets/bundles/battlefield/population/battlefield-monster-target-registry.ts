@@ -3,22 +3,27 @@ import { type PlanarCrowdSeparationSystem } from '../../../core/monsters/crowd/p
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
   type BattlefieldProjectileSweepQuery,
+  type MutableBattlefieldAimRayContact,
   type MutableBattlefieldAimTarget,
   type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
-import { BATTLEFIELD_AIM_ASSIST } from '../combat/battlefield-aim-assist';
 import {
   type MutableBattlefieldProjectileStatistics,
 } from '../equipment/projectile/model/battlefield-projectile-statistics';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
 
-/** 聚合异构怪物群的辅助瞄准与共享空间索引命中路由。 */
+/** 聚合异构怪物群的纵向目标解析与共享空间索引命中路由。 */
 export class BattlefieldMonsterTargetRegistry {
   private readonly groups: BattlefieldMonsterTargetGroup[] = [];
   private readonly candidates = new PlanarCrowdCandidateBuffer(MAXIMUM_CROWD_CANDIDATES);
-  private readonly aimCandidate: MutableBattlefieldAimTarget = { x: 0, y: 0, z: 0 };
+  private readonly aimCandidate: MutableBattlefieldAimRayContact = {
+    x: 0,
+    y: 0,
+    z: 0,
+    segmentProgress: 0,
+  };
   private readonly hitCandidate: MutableBattlefieldProjectileHit = {
     populationId: 0,
     entityId: -1,
@@ -45,49 +50,54 @@ export class BattlefieldMonsterTargetRegistry {
     }
   }
 
-  public resolveAimTarget(
+  /** 从真实枪口沿手动方向选择武器射程内最先经过的怪物轮廓。 */
+  public resolveElevationAlongSegment(
     originX: number,
     originZ: number,
     directionX: number,
     directionZ: number,
+    maximumDistance: number,
     result: MutableBattlefieldAimTarget,
   ): boolean {
+    validateAimSegment(
+      originX,
+      originZ,
+      directionX,
+      directionZ,
+      maximumDistance,
+    );
     let found = false;
-    let bestScore = Number.POSITIVE_INFINITY;
+    let bestProgress = Number.POSITIVE_INFINITY;
     const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    this.crowd.collectCircleCandidates(
+    const endX = originX + directionX * maximumDistance;
+    const endZ = originZ + directionZ * maximumDistance;
+    this.crowd.collectSegmentCandidates(
       originX * inverseScale,
       -originZ * inverseScale,
-      BATTLEFIELD_AIM_ASSIST.maximumDistance * inverseScale,
+      endX * inverseScale,
+      -endZ * inverseScale,
+      0,
       this.candidates,
     );
     for (let index = 0; index < this.candidates.count; index++) {
       const group = this.findGroup(this.candidates.populationIds[index] ?? 0);
-      if (group === null || !group.writeAimTargetForEntity(
+      if (group === null || !group.writeAimRayContactForEntity(
         this.candidates.entityIndices[index] ?? 0,
         originX,
         originZ,
-        directionX,
-        directionZ,
+        endX,
+        endZ,
         this.aimCandidate,
       )) {
         continue;
       }
-      const deltaX = this.aimCandidate.x - originX;
-      const deltaZ = this.aimCandidate.z - originZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      const distance = Math.sqrt(distanceSquared);
-      const alignment = (deltaX * directionX + deltaZ * directionZ)
-        / Math.max(distance, 0.0001);
-      const score = 1 - alignment
-        + distance / BATTLEFIELD_AIM_ASSIST.maximumDistance * 0.08;
-      if (score >= bestScore) {
+      if (this.aimCandidate.segmentProgress >= bestProgress) {
         continue;
       }
       result.x = this.aimCandidate.x;
       result.y = this.aimCandidate.y;
       result.z = this.aimCandidate.z;
-      bestScore = score;
+      bestProgress = this.aimCandidate.segmentProgress;
       found = true;
     }
     return found;
@@ -176,6 +186,20 @@ export class BattlefieldMonsterTargetRegistry {
       }
     }
     return null;
+  }
+}
+
+function validateAimSegment(
+  originX: number,
+  originZ: number,
+  directionX: number,
+  directionZ: number,
+  maximumDistance: number,
+): void {
+  if (![originX, originZ, directionX, directionZ, maximumDistance].every(Number.isFinite)
+    || maximumDistance <= 0
+    || Math.abs(Math.hypot(directionX, directionZ) - 1) > 0.001) {
+    throw new Error('怪物纵向目标线段必须使用单位方向和有限正射程。');
   }
 }
 

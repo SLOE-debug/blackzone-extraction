@@ -35,14 +35,13 @@ export class BattlefieldControlWorldSystem extends BattlefieldWorldSystem {
     }
     world.weaponFiringRequested = this.playerAim.apply(
       player,
-      monsters,
       camera,
       controls.state,
       toVanguardWeaponPose(weapon.weaponGrip),
       toVanguardWeaponAction(weapon.weaponAction),
       weapon.weaponActionProgress,
       monsters.playerMovementSpeedMultiplier,
-      world.weaponFireIntent,
+      world.weaponFireDirection,
     );
   }
 }

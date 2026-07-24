@@ -21,6 +21,7 @@ import {
   BattlefieldWeaponAttackResult,
 } from '../combat/battlefield-weapon-attack-executor';
 import {
+  type BattlefieldWeaponMuzzlePose,
   type BattlefieldWeaponRootPose,
   type MutableBattlefieldWeaponMuzzlePose,
   writeBattlefieldWeaponMuzzlePose,
@@ -55,11 +56,6 @@ export class BattlefieldPlayerWeaponRuntime {
   private readonly actionState = new BattlefieldWeaponActionState();
   private readonly attackExecutor = new BattlefieldWeaponAttackExecutor();
   private readonly mutableProjectileStatistics = new MutableBattlefieldProjectileStatistics();
-  private readonly muzzlePose: MutableBattlefieldWeaponMuzzlePose = {
-    muzzleX: 0,
-    muzzleY: 0,
-    muzzleZ: 0,
-  };
   private readonly mutableAmmunitionStatus: MutableWeaponAmmunitionStatus = {
     equipmentId: EquipmentId.DesertEagle,
     weaponName: '',
@@ -129,6 +125,26 @@ export class BattlefieldPlayerWeaponRuntime {
     return this.mutableProjectileStatistics;
   }
 
+  /** 当前武器实体弹丸的最大世界射程；未装备武器时返回空值。 */
+  public get projectileMaximumRange(): number | null {
+    return this.definition?.projectile.maximumRange ?? null;
+  }
+
+  /** 从最新 WeaponAimRoot 姿态写出当前枪型的真实枪口。 */
+  public writeMuzzlePose(
+    owner: Readonly<BattlefieldWeaponOwnerPose>,
+    result: MutableBattlefieldWeaponMuzzlePose,
+  ): boolean {
+    this.ensureActive();
+    validateOwnerPose(owner);
+    const heldProfile = this.heldProfile;
+    if (this.definition === null || heldProfile === null) {
+      return false;
+    }
+    writeBattlefieldWeaponMuzzlePose(owner, heldProfile, result);
+    return true;
+  }
+
   /**
    * 装备一件武器，并在成功创建新资源后替换旧武器与在途弹体。
    *
@@ -196,6 +212,7 @@ export class BattlefieldPlayerWeaponRuntime {
     deltaTime: number,
     owner: Readonly<BattlefieldWeaponOwnerPose>,
     fireIntent: Readonly<BattlefieldFireIntent> | null,
+    firingMuzzle: Readonly<BattlefieldWeaponMuzzlePose> | null,
   ): void {
     this.ensureActive();
     validateOwnerPose(owner);
@@ -214,14 +231,12 @@ export class BattlefieldPlayerWeaponRuntime {
       && fireIntent !== null
       && this.actionState.canFire(ammunition)
       && this.projectiles !== null) {
-      const heldProfile = this.heldProfile;
-      if (heldProfile === null) {
-        throw new Error('装备武器缺少枪口展示配置。');
+      if (firingMuzzle === null) {
+        throw new Error('请求射击时缺少当前武器的真实枪口。');
       }
-      writeBattlefieldWeaponMuzzlePose(owner, heldProfile, this.muzzlePose);
       const attackResult = this.attackExecutor.execute(
         definition,
-        this.muzzlePose,
+        firingMuzzle,
         fireIntent,
         ammunition,
         this.projectiles,

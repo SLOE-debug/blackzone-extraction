@@ -9,11 +9,14 @@ import { PlanarCrowdSeparationSystem } from '../../assets/core/monsters/crowd/pl
 import { WorldPhase } from '../../assets/core/world/world-phase';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
+import { BattlefieldWeaponAttackExecutor } from '../../assets/bundles/battlefield/equipment/combat/battlefield-weapon-attack-executor';
+import { createWeaponAmmunition } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition';
+import { WeaponAmmunitionReserve } from '../../assets/bundles/battlefield/equipment/model/weapon-ammunition-reserve';
 import { MutableBattlefieldProjectileStatistics } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-projectile-statistics';
 import { BattlefieldProjectileCombatPopulation } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-projectile-combat-population';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../../assets/bundles/battlefield/model/battlefield-monster-spawn';
 import {
-  type MutableBattlefieldAimTarget,
+  type MutableBattlefieldAimRayContact,
   type MutableBattlefieldProjectileHit,
 } from '../../assets/bundles/battlefield/population/battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from '../../assets/bundles/battlefield/population/battlefield-monster-target-group';
@@ -64,6 +67,45 @@ describe('战场实体弹丸完整伤害链路', () => {
       impactsQueued: 1,
       damageEventsApplied: 1,
     });
+  });
+
+  it('M4A1 从真实枪口取得二十单位目标高度并完成伤害结算', () => {
+    const fixture = createCurveCrawlerChain([20 / WORLD_SCALE]);
+    const definition = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.M4A1);
+    const statistics = new MutableBattlefieldProjectileStatistics();
+    const projectiles = new BattlefieldProjectileCombatPopulation(definition, statistics);
+    const ammunition = createWeaponAmmunition(
+      definition.ammunition,
+      new WeaponAmmunitionReserve(),
+    );
+    const muzzle = { muzzleX: 0.978, muzzleY: 2.5, muzzleZ: 0 };
+    const target = { x: 0, y: 0, z: 0 };
+    const initialHealth = fixture.health[0] ?? 0;
+
+    expect(fixture.registry.resolveElevationAlongSegment(
+      muzzle.muzzleX,
+      muzzle.muzzleZ,
+      1,
+      0,
+      definition.projectile.maximumRange,
+      target,
+    )).toBe(true);
+    new BattlefieldWeaponAttackExecutor().execute(
+      definition,
+      muzzle,
+      { directionX: 1, directionZ: 0, elevationTarget: target },
+      ammunition,
+      projectiles,
+    );
+    for (let frame = 0; frame < 20 && statistics.damageEventsApplied === 0; frame++) {
+      projectiles.integrate(0.05);
+      projectiles.collide(fixture.registry);
+      projectiles.resolveImpacts(fixture.registry);
+    }
+
+    expect(target.x).toBeCloseTo(20, 5);
+    expect(target.y).toBeCloseTo(fixture.aimElevation, 6);
+    expect(fixture.health[0]).toBe(initialHealth - definition.damage);
   });
 
   it('弹道穿过近端腿部可见轮廓时产生完整命中与伤害统计', () => {
@@ -265,6 +307,7 @@ function createChainFixture<TState>(
   const group = new TestProjectileTargetGroup(
     crowdPopulation,
     health,
+    localAimElevation,
     findHit,
   );
   const crowd = new PlanarCrowdSeparationSystem();
@@ -311,6 +354,7 @@ class TestProjectileTargetGroup implements BattlefieldMonsterTargetGroup {
   constructor(
     public readonly crowdPopulation: PlanarCrowdPopulation,
     private readonly health: Float32Array,
+    private readonly localAimElevation: number,
     private readonly findHit: (
       entityIndex: number,
       query: Readonly<PlanarMonsterHitQuery>,
@@ -320,15 +364,31 @@ class TestProjectileTargetGroup implements BattlefieldMonsterTargetGroup {
     this.populationId = crowdPopulation.populationId;
   }
 
-  public writeAimTargetForEntity(
-    _entityIndex: number,
-    _originX: number,
-    _originZ: number,
-    _directionX: number,
-    _directionZ: number,
-    _result: MutableBattlefieldAimTarget,
+  public writeAimRayContactForEntity(
+    entityIndex: number,
+    startX: number,
+    startZ: number,
+    endX: number,
+    endZ: number,
+    result: MutableBattlefieldAimRayContact,
   ): boolean {
-    return false;
+    const inverseScale = 1 / WORLD_SCALE;
+    const query = this.localQuery;
+    query.startX = startX * inverseScale;
+    query.startY = -startZ * inverseScale;
+    query.startElevation = this.localAimElevation;
+    query.endX = endX * inverseScale;
+    query.endY = -endZ * inverseScale;
+    query.endElevation = this.localAimElevation;
+    query.impactRadius = 0;
+    if (!this.findHit(entityIndex, query, this.localHit)) {
+      return false;
+    }
+    result.x = this.localHit.x * WORLD_SCALE;
+    result.y = WORLD_GROUND + this.localHit.elevation * WORLD_SCALE;
+    result.z = -this.localHit.y * WORLD_SCALE;
+    result.segmentProgress = this.localHit.segmentProgress;
+    return true;
   }
 
   public writeProjectileHitForEntity(
