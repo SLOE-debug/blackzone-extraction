@@ -31,10 +31,14 @@ import {
 } from '../action-modules/model/battlefield-combat-module';
 import { type MutableBattlefieldActionPreview } from '../action-modules/model/battlefield-action-preview';
 import {
+  BattlefieldActionGroundPreviewRenderer,
+} from '../action-modules/rendering/battlefield-action-ground-preview-renderer';
+import {
   BattlefieldSkillWheel,
   type MutableBattlefieldSkillWheelInput,
 } from './battlefield-skill-wheel';
-import { BattlefieldActionPreviewHud } from './battlefield-action-preview-hud';
+import { BattlefieldActionTargetMarkerHud } from './battlefield-action-target-marker-hud';
+import { BattlefieldThrowPreviewHud } from './battlefield-throw-preview-hud';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
   [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
@@ -72,7 +76,9 @@ export class BattlefieldControlHud {
   private readonly weaponStatus: BattlefieldWeaponStatusHud;
   private readonly defeatDialog: BattlefieldDefeatDialog;
   private readonly skillWheel: BattlefieldSkillWheel;
-  private readonly actionPreview: BattlefieldActionPreviewHud;
+  private readonly groundPreview: BattlefieldActionGroundPreviewRenderer;
+  private readonly targetMarker: BattlefieldActionTargetMarkerHud;
+  private readonly throwPreview: BattlefieldThrowPreviewHud;
   private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
   private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
   private readonly mutableState: MutableBattlefieldScreenControlState = {
@@ -116,7 +122,9 @@ export class BattlefieldControlHud {
     let weaponStatus: BattlefieldWeaponStatusHud | null = null;
     let defeatDialog: BattlefieldDefeatDialog | null = null;
     let skillWheel: BattlefieldSkillWheel | null = null;
+    let groundPreview: BattlefieldActionGroundPreviewRenderer | null = null;
     try {
+      groundPreview = new BattlefieldActionGroundPreviewRenderer(parent);
       gameplayGraphics = new BattlefieldGameplayGraphics(this.canvas.node);
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
@@ -150,7 +158,9 @@ export class BattlefieldControlHud {
       this.weaponStatus = weaponStatus;
       this.defeatDialog = defeatDialog;
       this.skillWheel = skillWheel;
-      this.actionPreview = new BattlefieldActionPreviewHud(this.canvas.node, worldCamera);
+      this.groundPreview = groundPreview;
+      this.targetMarker = new BattlefieldActionTargetMarkerHud(this.canvas.node, worldCamera);
+      this.throwPreview = new BattlefieldThrowPreviewHud(this.canvas.node, worldCamera);
       this.synchronizeLayout();
       this.synchronizeGameplayGraphics();
       this.canvas.node.active = false;
@@ -164,6 +174,7 @@ export class BattlefieldControlHud {
       movementJoystick?.dispose();
       aimJoystick?.dispose();
       gameplayGraphics?.dispose();
+      groundPreview?.dispose();
       this.canvas.dispose();
       throw error;
     }
@@ -243,8 +254,13 @@ export class BattlefieldControlHud {
     this.skillWheel.presentAvailability(moduleId, reason);
   }
 
-  public presentCombatModulePreview(preview: Readonly<MutableBattlefieldActionPreview>): void {
-    this.actionPreview.present(preview);
+  public presentCombatModulePreview(
+    preview: Readonly<MutableBattlefieldActionPreview>,
+    deltaTime: number,
+  ): void {
+    this.groundPreview.present(preview, deltaTime);
+    this.targetMarker.present(preview);
+    this.throwPreview.present(preview);
     this.synchronizeGameplayGraphics();
   }
 
@@ -297,6 +313,7 @@ export class BattlefieldControlHud {
     this.playerStatus.dispose();
     this.weaponStatus.dispose();
     this.skillWheel.dispose();
+    this.groundPreview.dispose();
     this.equipmentLabel.dispose();
     this.movementJoystick.dispose();
     this.aimJoystick.dispose();
@@ -355,7 +372,8 @@ export class BattlefieldControlHud {
       this.playerStatus,
       this.weaponStatus,
       this.skillWheel,
-      this.actionPreview,
+      this.targetMarker,
+      this.throwPreview,
     );
   }
 

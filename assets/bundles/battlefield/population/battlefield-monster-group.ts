@@ -1,16 +1,8 @@
 import {
-  type MonsterCombatPopulation,
-  type PlanarMonsterCombatTarget,
-} from '../../../core/contracts/monster-combat';
-import {
   type MutablePlanarMonsterHitResult,
-  type PlanarMonsterHitPopulation,
-  type PlanarMonsterHitQuery,
 } from '../../../core/contracts/monster-hit';
 import {
   type MutablePlanarTargetResult,
-  type PlanarTargetPopulation,
-  type PlanarTargetQuery,
 } from '../../../core/contracts/planar-target';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
@@ -28,64 +20,15 @@ import {
   CombatTag,
   type MutablePlanarMonsterManipulationCandidate,
   MonsterBodySize,
-  type PlanarMonsterManipulationPopulation,
 } from '../../../core/contracts/monster-manipulation';
 import { type BattlefieldMonsterManipulationGroup } from './battlefield-monster-manipulation-group';
-
-interface BattlefieldMonsterRuntime extends PlanarTargetPopulation, MonsterCombatPopulation,
-PlanarMonsterHitPopulation, PlanarMonsterManipulationPopulation {
-  readonly count: number;
-  readonly aliveCount: number;
-  maintainAround(options: Readonly<BattlefieldMonsterRepopulationOptions>): void;
-  update(deltaTime: number): void;
-  simulate(deltaTime: number): void;
-  synchronizeRendering(): void;
-  createCrowdPopulation(populationId: number): PlanarCrowdPopulation;
-  findPlanarTarget(
-    entityIndex: number,
-    query: Readonly<PlanarTargetQuery>,
-    result: MutablePlanarTargetResult,
-  ): boolean;
-  findPlanarHit(
-    entityIndex: number,
-    query: Readonly<PlanarMonsterHitQuery>,
-    result: MutablePlanarMonsterHitResult,
-  ): boolean;
-  dispose(): void;
-}
-
-interface BattlefieldMonsterRepopulationOptions {
-  centerX: number;
-  centerY: number;
-  spawnInnerRadius: number;
-  spawnOuterRadius: number;
-  recycleRadius: number;
-  hardRecycleRadius: number;
-  desiredPopulationCount: number;
-}
-
-interface MutablePlanarTargetQuery extends PlanarTargetQuery {
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-}
-
-interface MutablePlanarMonsterCombatTarget extends PlanarMonsterCombatTarget {
-  x: number;
-  y: number;
-  collisionRadius: number;
-}
-
-interface MutablePlanarMonsterHitQuery extends PlanarMonsterHitQuery {
-  startX: number;
-  startY: number;
-  startElevation: number;
-  endX: number;
-  endY: number;
-  endElevation: number;
-  impactRadius: number;
-}
+import {
+  type BattlefieldMonsterRepopulationOptions,
+  type BattlefieldMonsterRuntime,
+  type MutablePlanarMonsterCombatTarget,
+  type MutablePlanarMonsterHitQuery,
+  type MutablePlanarTargetQuery,
+} from './battlefield-monster-group-contracts';
 
 /** 保持一个地图随机怪物群的独立模拟，并接入战场共享怪物渲染批次。 */
 export class BattlefieldMonsterGroup

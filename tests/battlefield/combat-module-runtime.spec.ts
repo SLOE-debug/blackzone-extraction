@@ -3,7 +3,7 @@ import {
   CombatTag,
   MonsterBodySize,
 } from '../../assets/core/contracts/monster-manipulation';
-import { UNCONSTRAINED_PLANAR_MOVEMENT } from '../../assets/core/contracts/planar-movement-constraint';
+import { UNCONSTRAINED_SPATIAL_MOVEMENT } from '../../assets/core/contracts/spatial-movement-constraint';
 import { BattlefieldCombatEventType } from '../../assets/bundles/battlefield/action-modules/events/battlefield-combat-event-type';
 import {
   BattlefieldCombatModuleBehavior,
@@ -33,7 +33,7 @@ describe('抓取与投掷模块第一版闭环', () => {
   it('注册表以统一定义暴露抓取、投掷和预留三个轮盘槽位', () => {
     const runtime = new BattlefieldCombatModuleRuntime(
       new TestMonsterGateway(),
-      UNCONSTRAINED_PLANAR_MOVEMENT,
+      UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
     expect(runtime.registry.ordered).toHaveLength(3);
     expect(runtime.registry.get(BattlefieldCombatModuleId.Grab)).toMatchObject({
@@ -54,11 +54,81 @@ describe('抓取与投掷模块第一版闭环', () => {
     expect(new BattlefieldCombatEventWorldSystem().phase).toBe(WorldPhase.PostSimulation);
   });
 
+  it('技能拖动低于死区时保留最近一次明确战斗瞄准方向', () => {
+    const system = new BattlefieldActionInputWorldSystem();
+    const captured: BattlefieldCombatModuleIntent = createIntent(
+      BattlefieldCombatModuleId.Grab,
+      false,
+      false,
+      0,
+    );
+    let skillAmplitude = 0;
+    let aiming = true;
+    const world = {
+      weaponFiringRequested: false,
+      resources: {
+        performance: {
+          beginStage: () => 0,
+          endStage: () => undefined,
+        },
+        controls: {
+          state: {
+            aiming,
+            aimX: 1,
+            aimY: 0,
+          },
+          consumeCombatModuleInput: (result: {
+            moduleId: BattlefieldCombatModuleId;
+            active: boolean;
+            released: boolean;
+            x: number;
+            y: number;
+            amplitude: number;
+          }) => {
+            result.moduleId = BattlefieldCombatModuleId.Grab;
+            result.active = true;
+            result.released = false;
+            result.x = -1;
+            result.y = 0;
+            result.amplitude = skillAmplitude;
+          },
+        },
+        camera: {
+          writeWorldPlanarDirection: (
+            x: number,
+            y: number,
+            result: { x: number; z: number },
+          ) => {
+            result.x = x;
+            result.z = y;
+          },
+        },
+        player: { heading: 0 },
+        actions: {
+          captureIntent: (intent: Readonly<BattlefieldCombatModuleIntent>) => {
+            Object.assign(captured, intent);
+          },
+        },
+      },
+    };
+
+    system.update(world as never, 1 / 60);
+    expect([captured.directionX, captured.directionZ]).toEqual([1, 0]);
+
+    aiming = false;
+    world.resources.controls.state.aiming = aiming;
+    skillAmplitude = 0.1;
+    system.update(world as never, 1 / 60);
+
+    expect([captured.directionX, captured.directionZ]).toEqual([1, 0]);
+    expect(captured.amplitude).toBe(0);
+  });
+
   it('半血小怪经过抓取后进入携带，再按预览距离投掷并在重击落地时死亡', () => {
     const monsters = new TestMonsterGateway();
     const runtime = new BattlefieldCombatModuleRuntime(
       monsters,
-      UNCONSTRAINED_PLANAR_MOVEMENT,
+      UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
 
     runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
@@ -105,7 +175,7 @@ describe('抓取与投掷模块第一版闭环', () => {
     const monsters = new TestMonsterGateway();
     const runtime = new BattlefieldCombatModuleRuntime(
       monsters,
-      UNCONSTRAINED_PLANAR_MOVEMENT,
+      UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
     grab(runtime);
     runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Throw, false, true, 1));
@@ -120,9 +190,38 @@ describe('抓取与投掷模块第一版闭环', () => {
       BattlefieldCombatEventType.EntityImpact,
     );
   });
+
+  it('目标标记出现后轻微滑动松手仍按锁定身份完成抓取', () => {
+    const monsters = new TestMonsterGateway();
+    monsters.directionSensitive = true;
+    const runtime = new BattlefieldCombatModuleRuntime(
+      monsters,
+      UNCONSTRAINED_SPATIAL_MOVEMENT,
+    );
+
+    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
+    runtime.executeActions(PLAYER, 1 / 60);
+    expect(runtime.preview.valid).toBe(true);
+
+    runtime.captureIntent(createIntent(
+      BattlefieldCombatModuleId.Grab,
+      false,
+      true,
+      1,
+      0.2,
+      Math.sqrt(0.96),
+    ));
+    runtime.executeActions(PLAYER, 1 / 60);
+
+    expect(runtime.carrying).toBe(true);
+    expect(monsters.findCount).toBe(1);
+    expect(monsters.lockedValidationCount).toBe(1);
+  });
 });
 
 function grab(runtime: BattlefieldCombatModuleRuntime): void {
+  runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
+  runtime.executeActions(PLAYER, 1 / 60);
   runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, false, true, 1));
   runtime.executeActions(PLAYER, 1 / 60);
 }
@@ -132,13 +231,15 @@ function createIntent(
   active: boolean,
   released: boolean,
   amplitude: number,
+  directionX = 0,
+  directionZ = 1,
 ): BattlefieldCombatModuleIntent {
   return {
     moduleId,
     active,
     released,
-    directionX: 0,
-    directionZ: 1,
+    directionX,
+    directionZ,
     amplitude,
   };
 }
@@ -150,11 +251,36 @@ class TestMonsterGateway implements BattlefieldActionMonsterGateway {
   public hitEnabled = false;
   public damageApplied = 0;
   public knockbackApplied = 0;
+  public directionSensitive = false;
+  public findCount = 0;
+  public lockedValidationCount = 0;
 
   public findGrabbable(
-    _query: Readonly<BattlefieldGrabTargetQuery>,
+    query: Readonly<BattlefieldGrabTargetQuery>,
     result: MutableBattlefieldManipulationCandidate,
   ): boolean {
+    this.findCount += 1;
+    if (this.directionSensitive && query.directionZ < 0.99) {
+      return false;
+    }
+    this.writeCandidate(result);
+    return !this.carried && !this.thrown && !this.killed;
+  }
+
+  public writeGrabbableCandidate(
+    populationId: number,
+    entityId: number,
+    result: MutableBattlefieldManipulationCandidate,
+  ): boolean {
+    this.lockedValidationCount += 1;
+    if (populationId !== 7 || entityId !== 3 || this.carried || this.thrown || this.killed) {
+      return false;
+    }
+    this.writeCandidate(result);
+    return true;
+  }
+
+  private writeCandidate(result: MutableBattlefieldManipulationCandidate): void {
     Object.assign(result, {
       populationId: 7,
       entityId: 3,
@@ -171,7 +297,6 @@ class TestMonsterGateway implements BattlefieldActionMonsterGateway {
       collisionRadius: 0.7,
       impactStrength: 1.05,
     });
-    return !this.carried && !this.thrown && !this.killed;
   }
 
   public beginCarry(): boolean {

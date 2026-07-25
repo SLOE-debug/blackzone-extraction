@@ -1,5 +1,5 @@
 import { Node } from 'cc';
-import { type PlanarMovementConstraint } from '../../../../core/contracts/planar-movement-constraint';
+import { type SpatialMovementConstraint } from '../../../../core/contracts/spatial-movement-constraint';
 import {
   ChunkWindowTracker,
   type ChunkWindowTransition,
@@ -70,7 +70,12 @@ export class BattlefieldEnvironmentPopulation {
 
   constructor(parent: Node) {
     this.generator.populate(this.centerChunkX, this.centerChunkZ, this.world);
-    this.obstacles.rebuild(this.world, this.centerChunkX, this.centerChunkZ);
+    this.obstacles.rebuild(
+      this.world,
+      this.preparation.prototypes,
+      this.centerChunkX,
+      this.centerChunkZ,
+    );
     const initialTransition = this.chunkWindow.synchronize(
       this.centerChunkX,
       this.centerChunkZ,
@@ -92,7 +97,7 @@ export class BattlefieldEnvironmentPopulation {
   }
 
   /** 玩家移动系统使用的无分配平面障碍约束。 */
-  public get movementConstraint(): PlanarMovementConstraint {
+  public get movementConstraint(): SpatialMovementConstraint {
     return this.obstacles;
   }
 
@@ -120,7 +125,12 @@ export class BattlefieldEnvironmentPopulation {
       throw new Error('上一次环境 Chunk 差集尚未被运行时消费。');
     }
     this.generator.populate(nextChunkX, nextChunkZ, this.world);
-    this.obstacles.rebuild(this.world, nextChunkX, nextChunkZ);
+    this.obstacles.rebuild(
+      this.world,
+      this.preparation.prototypes,
+      nextChunkX,
+      nextChunkZ,
+    );
     const transition = this.chunkWindow.synchronize(nextChunkX, nextChunkZ);
     this.renderer.requestSynchronization(transition);
     this.centerChunkX = nextChunkX;

@@ -11,6 +11,12 @@ import {
 import { type BattlefieldActionMonsterGateway } from '../model/battlefield-action-runtime-contracts';
 import { BattlefieldCombatModuleId } from '../model/battlefield-combat-module';
 import {
+  acquireBattlefieldGrabTargetLock,
+  clearBattlefieldGrabTargetLock,
+  createBattlefieldGrabTargetLock,
+  updateBattlefieldGrabTargetLockPosition,
+} from '../model/battlefield-grab-target-lock';
+import {
   type BattlefieldActionPlayerPose,
   type BattlefieldCombatModuleIntent,
 } from '../model/battlefield-combat-module-intent';
@@ -23,9 +29,11 @@ import {
 } from '../../population/battlefield-monster-contracts';
 
 const PLAYER_POPULATION_ID = 0xfffffffe;
-const GRAB_MAXIMUM_DISTANCE = 3.8;
-const GRAB_LATERAL_DISTANCE = 1.35;
-const GRAB_MINIMUM_ALIGNMENT = Math.cos(Math.PI * 0.23);
+const GRAB_ACQUIRE_MAXIMUM_DISTANCE = 3.8;
+const GRAB_RETAIN_MAXIMUM_DISTANCE = 4.1;
+const GRAB_LATERAL_DISTANCE = 2.2;
+const GRAB_ACQUIRE_MINIMUM_ALIGNMENT = Math.cos(35 * Math.PI / 180);
+const GRAB_RETAIN_MINIMUM_ALIGNMENT = Math.cos(55 * Math.PI / 180);
 const GRAB_LINE_OF_SIGHT_STEPS = 8;
 
 interface MutableGrabQuery extends BattlefieldGrabTargetQuery {
@@ -42,10 +50,11 @@ export class BattlefieldGrabModule {
     originZ: 0,
     directionX: 0,
     directionZ: 1,
-    maximumDistance: GRAB_MAXIMUM_DISTANCE,
+    maximumDistance: GRAB_ACQUIRE_MAXIMUM_DISTANCE,
     maximumLateralDistance: GRAB_LATERAL_DISTANCE,
-    minimumDirectionAlignment: GRAB_MINIMUM_ALIGNMENT,
+    minimumDirectionAlignment: GRAB_ACQUIRE_MINIMUM_ALIGNMENT,
   };
+  private readonly targetLock = createBattlefieldGrabTargetLock();
   private readonly candidate: MutableBattlefieldManipulationCandidate = {
     populationId: 0,
     entityId: -1,
@@ -81,7 +90,7 @@ export class BattlefieldGrabModule {
   ): void {
     const evaluating = intent.active || intent.released;
     if (!evaluating || this.state.carrying || this.state.flying || !player.alive) {
-      this.clearObservedTarget();
+      this.clearTargetLock();
       return;
     }
     const query = this.query;
@@ -89,8 +98,14 @@ export class BattlefieldGrabModule {
     query.originZ = player.z;
     query.directionX = intent.directionX;
     query.directionZ = intent.directionZ;
-    const found = this.monsters.findGrabbable(query, this.candidate)
-      && this.isPathClear(player.x, player.z, this.candidate.x, this.candidate.z);
+    let found = this.targetLock.active
+      && this.validateLockedTarget(player, !intent.released);
+    if (!found && this.targetLock.active) {
+      this.clearTargetLock();
+    }
+    if (!found && intent.active) {
+      found = this.acquireTarget(player);
+    }
     this.writePreview(intent.active, player, found, preview);
     if (found) {
       this.emitBecameGrabbableIfNeeded();
@@ -102,15 +117,18 @@ export class BattlefieldGrabModule {
     }
     if (!found) {
       this.emit(BattlefieldCombatEventType.GrabCancelled, player, this.candidate);
+      this.clearTargetLock();
       return;
     }
     this.emit(BattlefieldCombatEventType.GrabStarted, player, this.candidate);
     if (!this.monsters.beginCarry(this.candidate.populationId, this.candidate.entityId)) {
       this.emit(BattlefieldCombatEventType.GrabCancelled, player, this.candidate);
+      this.clearTargetLock();
       return;
     }
     this.state.beginCarry(this.candidate);
     this.emit(BattlefieldCombatEventType.EntityGrabbed, player, this.candidate);
+    this.clearTargetLock();
   }
 
   private writePreview(
@@ -127,11 +145,11 @@ export class BattlefieldGrabModule {
     preview.valid = found;
     preview.blocked = false;
     preview.startX = player.x;
-    preview.startY = player.y + 0.8;
+    preview.startY = player.y + 0.035;
     preview.startZ = player.z;
-    preview.endX = player.x + this.query.directionX * GRAB_MAXIMUM_DISTANCE;
-    preview.endY = player.y + 0.8;
-    preview.endZ = player.z + this.query.directionZ * GRAB_MAXIMUM_DISTANCE;
+    preview.endX = player.x + this.query.directionX * GRAB_ACQUIRE_MAXIMUM_DISTANCE;
+    preview.endY = preview.startY;
+    preview.endZ = player.z + this.query.directionZ * GRAB_ACQUIRE_MAXIMUM_DISTANCE;
     preview.targetX = found ? this.candidate.x : preview.endX;
     preview.targetY = found ? this.candidate.y + 0.8 : preview.endY;
     preview.targetZ = found ? this.candidate.z : preview.endZ;
@@ -190,6 +208,66 @@ export class BattlefieldGrabModule {
   private clearObservedTarget(): void {
     this.observedPopulationId = -1;
     this.observedEntityId = -1;
+  }
+
+  /** 首次获取目标时执行方向锥和路径检查，并建立稳定身份锁。 */
+  private acquireTarget(player: Readonly<BattlefieldActionPlayerPose>): boolean {
+    if (!this.monsters.findGrabbable(this.query, this.candidate)
+      || !this.isPathClear(player.x, player.z, this.candidate.x, this.candidate.z)) {
+      return false;
+    }
+    acquireBattlefieldGrabTargetLock(
+      this.targetLock,
+      this.candidate.populationId,
+      this.candidate.entityId,
+      this.candidate.x,
+      this.candidate.y,
+      this.candidate.z,
+    );
+    return true;
+  }
+
+  /** 按住阶段使用更宽方向滞后；松手阶段只检查资格、距离和真实阻挡。 */
+  private validateLockedTarget(
+    player: Readonly<BattlefieldActionPlayerPose>,
+    requireRetentionDirection: boolean,
+  ): boolean {
+    const lock = this.targetLock;
+    if (!lock.active || !this.monsters.writeGrabbableCandidate(
+      lock.populationId,
+      lock.entityId,
+      this.candidate,
+    )) {
+      return false;
+    }
+    const deltaX = this.candidate.x - player.x;
+    const deltaZ = this.candidate.z - player.z;
+    const distance = Math.hypot(deltaX, deltaZ);
+    if (distance > GRAB_RETAIN_MAXIMUM_DISTANCE) {
+      return false;
+    }
+    if (requireRetentionDirection && distance > 0.000001) {
+      const alignment = (deltaX * this.query.directionX + deltaZ * this.query.directionZ)
+        / distance;
+      if (alignment < GRAB_RETAIN_MINIMUM_ALIGNMENT) {
+        return false;
+      }
+    }
+    if (!this.isPathClear(player.x, player.z, this.candidate.x, this.candidate.z)) {
+      return false;
+    }
+    updateBattlefieldGrabTargetLockPosition(
+      lock,
+      this.candidate.x,
+      this.candidate.y,
+      this.candidate.z,
+    );
+    return true;
+  }
+
+  private clearTargetLock(): void {
+    clearBattlefieldGrabTargetLock(this.targetLock);
+    this.clearObservedTarget();
   }
 
   private isPathClear(startX: number, startZ: number, endX: number, endZ: number): boolean {

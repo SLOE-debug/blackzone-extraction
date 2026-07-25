@@ -18,7 +18,7 @@ export class BattlefieldActionPresentationWorldSystem extends BattlefieldWorldSy
   public readonly order = 5;
   protected readonly performanceStage = BattlefieldPerformanceStage.Status;
 
-  protected execute(world: BattlefieldWorld): void {
+  protected execute(world: BattlefieldWorld, deltaTime: number): void {
     const { actions, controls } = world.resources;
     controls.setCombatModuleContext(
       actions.carrying ? BattlefieldCombatModuleId.Throw : null,
@@ -29,6 +29,6 @@ export class BattlefieldActionPresentationWorldSystem extends BattlefieldWorldSy
         actions.getUnavailableReason(moduleId),
       );
     }
-    controls.presentCombatModulePreview(actions.preview);
+    controls.presentCombatModulePreview(actions.preview, deltaTime);
   }
 }

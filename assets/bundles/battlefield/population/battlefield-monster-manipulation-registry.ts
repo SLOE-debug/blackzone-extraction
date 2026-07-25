@@ -102,12 +102,28 @@ export class BattlefieldMonsterManipulationRegistry {
     return found;
   }
 
+  /** 绕过方向宽相位，按锁定身份复验实体仍然具备完整抓取资格。 */
+  public writeGrabbableCandidate(
+    populationId: number,
+    entityId: number,
+    result: MutableBattlefieldManipulationCandidate,
+  ): boolean {
+    const group = this.findGroup(populationId);
+    if (group === null
+      || !group.writeManipulationCandidateForEntity(entityId, this.candidate)
+      || !isGrabbableCandidate(this.candidate)) {
+      return false;
+    }
+    copyCandidate(this.candidate, result);
+    return true;
+  }
+
   public beginCarry(populationId: number, entityId: number): boolean {
     const group = this.findGroup(populationId);
     if (group === null || !group.beginCarry(entityId)) {
       return false;
     }
-    group.crowdPopulation.inverseMass[entityId] = 0;
+    group.crowdPopulation.participation[entityId] = 0;
     return true;
   }
 
@@ -137,7 +153,7 @@ export class BattlefieldMonsterManipulationRegistry {
     if (group === null || !group.releaseManipulation(entityId)) {
       return false;
     }
-    group.crowdPopulation.inverseMass[entityId] = 1;
+    group.crowdPopulation.participation[entityId] = 1;
     return true;
   }
 
@@ -146,7 +162,8 @@ export class BattlefieldMonsterManipulationRegistry {
     if (group === null || !group.killManipulated(entityId)) {
       return false;
     }
-    group.crowdPopulation.inverseMass[entityId] = 1;
+    // 死亡生命周期负责当前排除；恢复默认资格可让同一槽位重生后重新加入 Crowd。
+    group.crowdPopulation.participation[entityId] = 1;
     return true;
   }
 

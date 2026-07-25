@@ -209,6 +209,7 @@ class TestAimTargetGroup implements BattlefieldMonsterTargetGroup {
       populationId,
       count,
       lifecycle: new Uint8Array(count).fill(MonsterLifecycleState.Alive),
+      participation: new Uint8Array(count).fill(1),
       previousX: x,
       previousY: y,
       x,

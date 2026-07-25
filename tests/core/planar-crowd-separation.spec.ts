@@ -67,6 +67,26 @@ describe('统一平面 Crowd', () => {
     expect(candidates.count).toBe(1);
     expect(candidates.populationIds[0]).toBe(7);
   });
+
+  it('空中投掷实体移出 Crowd 后不会推动正下方的地面怪物', () => {
+    const groundMonster = createPopulation(11, 0, 1);
+    const thrownMonster = createPopulation(12, 0.3, 1);
+    thrownMonster.participation[0] = 0;
+    const system = new PlanarCrowdSeparationSystem({
+      cellSize: 4,
+      solverIterations: 3,
+      stiffness: 1,
+      maximumCorrectionSpeed: 100,
+    });
+    system.register(groundMonster);
+    system.register(thrownMonster);
+    const groundBefore = groundMonster.x[0] ?? 0;
+
+    system.solve(0.1);
+
+    expect(groundMonster.x[0]).toBe(groundBefore);
+    expect(thrownMonster.x[0]).toBeCloseTo(0.3);
+  });
 });
 
 function createPopulation(
@@ -78,6 +98,7 @@ function createPopulation(
     populationId,
     count: 1,
     lifecycle: Uint8Array.of(MonsterLifecycleState.Alive),
+    participation: Uint8Array.of(1),
     previousX: Float32Array.of(x),
     previousY: Float32Array.of(0),
     x: Float32Array.of(x),

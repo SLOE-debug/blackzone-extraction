@@ -1,4 +1,4 @@
-import { type PlanarMovementConstraint } from '../../../../core/contracts/planar-movement-constraint';
+import { type SpatialMovementConstraint } from '../../../../core/contracts/spatial-movement-constraint';
 import { type MutableBattlefieldProjectileStatistics } from '../../equipment/projectile/model/battlefield-projectile-statistics';
 import {
   type BattlefieldGrabTargetQuery,
@@ -11,6 +11,11 @@ import {
 export interface BattlefieldActionMonsterGateway {
   findGrabbable(
     query: Readonly<BattlefieldGrabTargetQuery>,
+    result: MutableBattlefieldManipulationCandidate,
+  ): boolean;
+  writeGrabbableCandidate(
+    populationId: number,
+    entityId: number,
     result: MutableBattlefieldManipulationCandidate,
   ): boolean;
   beginCarry(populationId: number, entityId: number): boolean;
@@ -43,5 +48,5 @@ export interface BattlefieldActionMonsterGateway {
   ): boolean;
 }
 
-/** 投掷预览只依赖的地图平面约束。 */
-export type BattlefieldThrowMovementConstraint = PlanarMovementConstraint;
+/** 投掷预览依赖的地面落点与三维轨迹环境约束。 */
+export type BattlefieldThrowMovementConstraint = SpatialMovementConstraint;

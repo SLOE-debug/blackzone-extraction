@@ -425,6 +425,18 @@ implements Disposable {
     return !this.disposed && this.manipulations.findGrabbable(query, result);
   }
 
+  public writeGrabbableCandidate(
+    populationId: number,
+    entityId: number,
+    result: MutableBattlefieldManipulationCandidate,
+  ): boolean {
+    return !this.disposed && this.manipulations.writeGrabbableCandidate(
+      populationId,
+      entityId,
+      result,
+    );
+  }
+
   public beginCarry(populationId: number, entityId: number): boolean {
     return !this.disposed && this.manipulations.beginCarry(populationId, entityId);
   }

@@ -75,7 +75,7 @@ export class PlanarCrowdSeparationSystem {
     this.resizeWorkspace();
   }
 
-  /** 重建全部 Alive 怪物共享的空间哈希。 */
+  /** 重建全部 Alive 且明确参与 Crowd 的怪物共享空间哈希。 */
   public rebuild(): void {
     this.bucketHeads.fill(-1);
     this.nextInBucket.fill(-1);
@@ -90,7 +90,8 @@ export class PlanarCrowdSeparationSystem {
       }
       for (let entityIndex = 0; entityIndex < population.count; entityIndex++) {
         if ((population.lifecycle[entityIndex] as MonsterLifecycleState)
-          !== MonsterLifecycleState.Alive) {
+          !== MonsterLifecycleState.Alive
+          || (population.participation[entityIndex] ?? 0) === 0) {
           continue;
         }
         const slot = this.activeCount++;

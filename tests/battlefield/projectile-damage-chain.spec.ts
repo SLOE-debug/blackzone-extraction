@@ -277,6 +277,7 @@ function createVenomLobberChain(localX: number): ProjectileChainFixture<VenomLob
     populationId: 11,
     count: state.count,
     lifecycle: state.data.vitality.state,
+    participation: new Uint8Array(state.count).fill(1),
     previousX: state.data.transform.previousX,
     previousY: state.data.transform.previousY,
     x: state.data.transform.x,

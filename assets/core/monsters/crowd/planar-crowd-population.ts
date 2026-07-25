@@ -3,6 +3,7 @@ export interface PlanarCrowdPopulation {
   readonly populationId: number;
   readonly count: number;
   readonly lifecycle: Uint8Array;
+  readonly participation: Uint8Array;
   readonly previousX: Float32Array;
   readonly previousY: Float32Array;
   readonly x: Float32Array;
@@ -18,6 +19,7 @@ export function validatePlanarCrowdPopulation(
   if (!Number.isSafeInteger(population.populationId) || population.populationId < 0
     || !Number.isSafeInteger(population.count) || population.count <= 0
     || population.lifecycle.length !== population.count
+    || population.participation.length !== population.count
     || population.previousX.length !== population.count
     || population.previousY.length !== population.count
     || population.x.length !== population.count
@@ -27,10 +29,11 @@ export function validatePlanarCrowdPopulation(
     throw new Error('平面 Crowd 群体标识或 SoA 容量无效。');
   }
   for (let index = 0; index < population.count; index++) {
-    if (!Number.isFinite(population.radius[index]) || (population.radius[index] ?? 0) <= 0
+    if ((population.participation[index] ?? 0) > 1
+      || !Number.isFinite(population.radius[index]) || (population.radius[index] ?? 0) <= 0
       || !Number.isFinite(population.inverseMass[index])
       || (population.inverseMass[index] ?? 0) <= 0) {
-      throw new Error('平面 Crowd 半径与逆质量必须是有限正数。');
+      throw new Error('平面 Crowd 参与掩码、半径或逆质量无效。');
     }
   }
 }

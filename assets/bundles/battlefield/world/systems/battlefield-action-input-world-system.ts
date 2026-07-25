@@ -9,6 +9,8 @@ import {
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
+const SKILL_DIRECTION_DEAD_ZONE = 0.18;
+
 /** Input 阶段把技能轮盘手势转换为唯一世界方向模块意图。 */
 export class BattlefieldActionInputWorldSystem extends BattlefieldWorldSystem {
   public readonly phase = WorldPhase.Input;
@@ -23,6 +25,8 @@ export class BattlefieldActionInputWorldSystem extends BattlefieldWorldSystem {
     amplitude: 0,
   };
   private readonly direction: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
+  private readonly lastCombatAimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
+  private hasLastCombatAimDirection = false;
   private readonly intent: BattlefieldCombatModuleIntent = {
     moduleId: BattlefieldCombatModuleId.Grab,
     active: false,
@@ -35,16 +39,21 @@ export class BattlefieldActionInputWorldSystem extends BattlefieldWorldSystem {
   protected execute(world: BattlefieldWorld): void {
     const { controls, camera, player, actions } = world.resources;
     controls.consumeCombatModuleInput(this.input);
-    const hasSkillDirection = this.input.amplitude > 0.000001;
+    const hasSkillDirection = this.input.amplitude >= SKILL_DIRECTION_DEAD_ZONE;
     const hasAimDirection = controls.state.aiming;
     if (hasSkillDirection) {
       camera.writeWorldPlanarDirection(this.input.x, this.input.y, this.direction);
+      this.rememberCombatAimDirection();
     } else if (hasAimDirection) {
       camera.writeWorldPlanarDirection(
         controls.state.aimX,
         controls.state.aimY,
         this.direction,
       );
+      this.rememberCombatAimDirection();
+    } else if (this.hasLastCombatAimDirection) {
+      this.direction.x = this.lastCombatAimDirection.x;
+      this.direction.z = this.lastCombatAimDirection.z;
     } else {
       this.direction.x = Math.sin(player.heading);
       this.direction.z = Math.cos(player.heading);
@@ -61,5 +70,12 @@ export class BattlefieldActionInputWorldSystem extends BattlefieldWorldSystem {
     if (this.input.active || this.input.released) {
       world.weaponFiringRequested = false;
     }
+  }
+
+  /** 保存最近一次明确的技能拖动或右摇杆世界瞄准方向。 */
+  private rememberCombatAimDirection(): void {
+    this.lastCombatAimDirection.x = this.direction.x;
+    this.lastCombatAimDirection.z = this.direction.z;
+    this.hasLastCombatAimDirection = true;
   }
 }

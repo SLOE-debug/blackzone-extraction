@@ -3,7 +3,8 @@ import { type VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { type BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 import { type BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
 import { type BattlefieldSkillWheel } from './battlefield-skill-wheel';
-import { type BattlefieldActionPreviewHud } from './battlefield-action-preview-hud';
+import { type BattlefieldActionTargetMarkerHud } from './battlefield-action-target-marker-hud';
+import { type BattlefieldThrowPreviewHud } from './battlefield-throw-preview-hud';
 
 /**
  * 把双摇杆、玩家血条与武器弹药板压入同一个 Graphics 组件。
@@ -20,7 +21,8 @@ export class BattlefieldGameplayGraphics {
   private playerStatusRevision = -1;
   private weaponStatusRevision = -1;
   private skillWheelRevision = -1;
-  private actionPreviewRevision = -1;
+  private targetMarkerRevision = -1;
+  private throwPreviewRevision = -1;
   private width = -1;
   private height = -1;
   private disposed = false;
@@ -45,7 +47,8 @@ export class BattlefieldGameplayGraphics {
     playerStatus: BattlefieldPlayerStatusHud,
     weaponStatus: BattlefieldWeaponStatusHud,
     skillWheel: BattlefieldSkillWheel,
-    actionPreview: BattlefieldActionPreviewHud,
+    targetMarker: BattlefieldActionTargetMarkerHud,
+    throwPreview: BattlefieldThrowPreviewHud,
   ): void {
     if (this.disposed) {
       return;
@@ -57,7 +60,8 @@ export class BattlefieldGameplayGraphics {
       && playerStatus.graphicsRevision === this.playerStatusRevision
       && weaponStatus.graphicsRevision === this.weaponStatusRevision
       && skillWheel.graphicsRevision === this.skillWheelRevision
-      && actionPreview.graphicsRevision === this.actionPreviewRevision) {
+      && targetMarker.graphicsRevision === this.targetMarkerRevision
+      && throwPreview.graphicsRevision === this.throwPreviewRevision) {
       return;
     }
     if (frameChanged) {
@@ -70,14 +74,16 @@ export class BattlefieldGameplayGraphics {
     aim.draw(this.graphics);
     playerStatus.draw(this.graphics);
     weaponStatus.draw(this.graphics);
-    actionPreview.draw(this.graphics);
+    throwPreview.draw(this.graphics);
+    targetMarker.draw(this.graphics);
     skillWheel.draw(this.graphics);
     this.movementRevision = movement.graphicsRevision;
     this.aimRevision = aim.graphicsRevision;
     this.playerStatusRevision = playerStatus.graphicsRevision;
     this.weaponStatusRevision = weaponStatus.graphicsRevision;
     this.skillWheelRevision = skillWheel.graphicsRevision;
-    this.actionPreviewRevision = actionPreview.graphicsRevision;
+    this.targetMarkerRevision = targetMarker.graphicsRevision;
+    this.throwPreviewRevision = throwPreview.graphicsRevision;
   }
 
   public dispose(): void {

@@ -8,6 +8,7 @@ export function createCurveCrawlerCrowdPopulation(
 ): PlanarCrowdPopulation {
   const radius = new Float32Array(state.count);
   const inverseMass = new Float32Array(state.count);
+  const participation = new Uint8Array(state.count);
   const { morphology } = state.data;
   for (let index = 0; index < state.count; index++) {
     radius[index] = Math.max(
@@ -17,11 +18,13 @@ export function createCurveCrawlerCrowdPopulation(
         + (morphology.legWidth[index] ?? 0) * 0.2,
     );
     inverseMass[index] = 1;
+    participation[index] = 1;
   }
   return Object.freeze({
     populationId,
     count: state.count,
     lifecycle: state.data.vitality.state,
+    participation,
     previousX: state.data.transform.previousX,
     previousY: state.data.transform.previousY,
     x: state.data.transform.x,
