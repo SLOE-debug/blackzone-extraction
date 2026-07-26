@@ -13,11 +13,19 @@ import {
   BattlefieldCombatModuleId,
   BattlefieldCombatModuleUnavailableReason,
 } from '../action-modules/model/battlefield-combat-module';
+import {
+  BattlefieldActionFailureReason,
+} from '../action-modules/model/battlefield-action-failure';
+import { BattlefieldActionReleaseSource } from '../action-modules/model/battlefield-action-release-source';
 import { BattlefieldCombatModuleRegistry } from '../action-modules/registry/battlefield-combat-module-registry';
 import {
   drawBattlefieldSkillWheel,
   type BattlefieldSkillWheelDrawSlot,
 } from './battlefield-skill-wheel-graphics';
+import {
+  BattlefieldSkillGesture,
+  type MutableBattlefieldSkillGestureInput,
+} from './battlefield-skill-gesture';
 
 const CENTER_RADIUS = 38;
 const SIDE_RADIUS = 25;
@@ -25,13 +33,8 @@ const SIDE_OFFSET_X = 70;
 const SIDE_OFFSET_Y = -13;
 const INTERACTION_RADIUS = 54;
 
-export interface MutableBattlefieldSkillWheelInput {
+export interface MutableBattlefieldSkillWheelInput extends MutableBattlefieldSkillGestureInput {
   moduleId: BattlefieldCombatModuleId;
-  active: boolean;
-  released: boolean;
-  x: number;
-  y: number;
-  amplitude: number;
 }
 
 /** 管理三个可见槽位、上下文选择和按住拖动手势。 */
@@ -52,17 +55,13 @@ export class BattlefieldSkillWheel {
     BattlefieldCombatModuleUnavailableReason.ReservedSlot,
   ];
   private readonly slots: BattlefieldSkillWheelDrawSlot[];
+  private readonly gesture = new BattlefieldSkillGesture();
   private manualIndex = 0;
   private contextualModule: BattlefieldCombatModuleId | null = null;
-  private touchId: number | null = null;
-  private keyboardActive = false;
   private inputX = 0;
   private inputY = 0;
   private amplitude = 0;
-  private released = false;
-  private releasedX = 0;
-  private releasedY = 0;
-  private releasedAmplitude = 0;
+  private failureReason = BattlefieldActionFailureReason.None;
   private centerX = 0;
   private centerY = 0;
   private revision = 1;
@@ -106,7 +105,7 @@ export class BattlefieldSkillWheel {
   }
 
   public get active(): boolean {
-    return this.touchId !== null || this.keyboardActive;
+    return this.gesture.active;
   }
 
   public setPosition(x: number, y: number): void {
@@ -147,6 +146,15 @@ export class BattlefieldSkillWheel {
     this.updatePresentation();
   }
 
+  /** 在既有提示标签中显示最近一次动作失败，成功或新动作开始后由运行时清除。 */
+  public presentFailure(reason: BattlefieldActionFailureReason): void {
+    if (this.failureReason === reason) {
+      return;
+    }
+    this.failureReason = reason;
+    this.updatePresentation();
+  }
+
   public cycle(offset: -1 | 1): void {
     const count = this.registry.ordered.length;
     this.manualIndex = (this.manualIndex + offset + count) % count;
@@ -163,12 +171,8 @@ export class BattlefieldSkillWheel {
   }
 
   public setKeyboardActive(active: boolean): void {
-    if (this.keyboardActive === active) {
+    if (!this.gesture.setKeyboardActive(active, this.inputX, this.inputY, this.amplitude)) {
       return;
-    }
-    this.keyboardActive = active;
-    if (!active) {
-      this.queueRelease(this.inputX, this.inputY, this.amplitude);
     }
     this.invalidate();
   }
@@ -176,18 +180,7 @@ export class BattlefieldSkillWheel {
   /** 复制本帧持续输入或唯一松开快照，读取后清除松开标记。 */
   public consumeInput(result: MutableBattlefieldSkillWheelInput): void {
     result.moduleId = this.selectedModule;
-    result.active = this.active;
-    result.released = this.released;
-    if (this.released) {
-      result.x = this.releasedX;
-      result.y = this.releasedY;
-      result.amplitude = this.releasedAmplitude;
-      this.released = false;
-    } else {
-      result.x = this.inputX;
-      result.y = this.inputY;
-      result.amplitude = this.amplitude;
-    }
+    this.gesture.consume(result, this.inputX, this.inputY, this.amplitude);
   }
 
   public draw(graphics: Graphics): void {
@@ -222,17 +215,17 @@ export class BattlefieldSkillWheel {
 
   private readonly handleActionStart = (event: EventTouch): void => {
     const id = event.getID();
-    if (id === null || this.touchId !== null) {
+    if (id === null || !this.gesture.beginTouch(id)) {
       return;
     }
-    this.touchId = id;
     this.updateTouch(event);
     this.invalidate();
     event.propagationStopped = true;
   };
 
   private readonly handleActionMove = (event: EventTouch): void => {
-    if (event.getID() !== this.touchId) {
+    const id = event.getID();
+    if (id === null || !this.gesture.ownsTouch(id)) {
       return;
     }
     this.updateTouch(event);
@@ -240,22 +233,34 @@ export class BattlefieldSkillWheel {
   };
 
   private readonly handleActionEnd = (event: EventTouch): void => {
-    if (event.getID() !== this.touchId) {
+    const id = event.getID();
+    if (id === null || !this.gesture.ownsTouch(id)) {
       return;
     }
     this.updateTouch(event);
-    this.queueRelease(this.inputX, this.inputY, this.amplitude);
-    this.touchId = null;
+    this.gesture.releaseTouch(
+      id,
+      BattlefieldActionReleaseSource.TouchEnd,
+      this.inputX,
+      this.inputY,
+      this.amplitude,
+    );
     this.resetAxis();
     this.invalidate();
     event.propagationStopped = true;
   };
 
   private readonly handleActionCancel = (event: EventTouch): void => {
-    if (event.getID() !== this.touchId) {
+    const id = event.getID();
+    if (id === null || !this.gesture.releaseTouch(
+      id,
+      BattlefieldActionReleaseSource.TouchCancel,
+      this.inputX,
+      this.inputY,
+      this.amplitude,
+    )) {
       return;
     }
-    this.touchId = null;
     this.resetAxis();
     this.invalidate();
     event.propagationStopped = true;
@@ -276,17 +281,8 @@ export class BattlefieldSkillWheel {
     this.invalidate();
   }
 
-  private queueRelease(x: number, y: number, amplitude: number): void {
-    this.released = true;
-    this.releasedX = x;
-    this.releasedY = y;
-    this.releasedAmplitude = amplitude;
-  }
-
   private cancelInput(): void {
-    this.touchId = null;
-    this.keyboardActive = false;
-    this.released = false;
+    this.gesture.cancel();
     this.resetAxis();
   }
 
@@ -321,8 +317,10 @@ export class BattlefieldSkillWheel {
       slot.selected = slotIndex === 1;
       slot.available = this.available[definition.id] ?? false;
     }
-    this.reasonLabel.string = getReasonText(this.reasons[selected]
-      ?? BattlefieldCombatModuleUnavailableReason.ReservedSlot);
+    this.reasonLabel.string = this.failureReason === BattlefieldActionFailureReason.None
+      ? getUnavailableReasonText(this.reasons[selected]
+        ?? BattlefieldCombatModuleUnavailableReason.ReservedSlot)
+      : getFailureReasonText(this.failureReason);
     this.reasonLabel.node.active = this.reasonLabel.string.length > 0;
     this.invalidate();
   }
@@ -357,7 +355,7 @@ function createReasonLabel(parent: Node): Label {
   return label;
 }
 
-function getReasonText(reason: BattlefieldCombatModuleUnavailableReason): string {
+function getUnavailableReasonText(reason: BattlefieldCombatModuleUnavailableReason): string {
   switch (reason) {
     case BattlefieldCombatModuleUnavailableReason.None:
       return '';
@@ -367,5 +365,28 @@ function getReasonText(reason: BattlefieldCombatModuleUnavailableReason): string
       return '需要先抓取目标';
     case BattlefieldCombatModuleUnavailableReason.ReservedSlot:
       return '预留模块位';
+  }
+}
+
+function getFailureReasonText(reason: BattlefieldActionFailureReason): string {
+  switch (reason) {
+    case BattlefieldActionFailureReason.None:
+      return '';
+    case BattlefieldActionFailureReason.TouchCancelled:
+      return '技能触摸已取消';
+    case BattlefieldActionFailureReason.TargetInvalid:
+      return '抓取目标已失效';
+    case BattlefieldActionFailureReason.OutOfRange:
+      return '抓取目标距离过远';
+    case BattlefieldActionFailureReason.PathBlocked:
+      return '抓取路径被阻挡';
+    case BattlefieldActionFailureReason.BeginCarryRejected:
+      return '目标拒绝被抓取';
+    case BattlefieldActionFailureReason.InputBelowDeadZone:
+      return '拖动方向不足';
+    case BattlefieldActionFailureReason.ThrowPathBlocked:
+      return '投掷路径被阻挡';
+    case BattlefieldActionFailureReason.BeginThrowRejected:
+      return '目标无法进入投掷';
   }
 }

@@ -10,6 +10,7 @@ import {
   type MutableBattlefieldManipulationCandidate,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterManipulationGroup } from './battlefield-monster-manipulation-group';
+import { isBattlefieldPlayerGrabbable } from './battlefield-monster-grab-eligibility';
 
 const MAXIMUM_MANIPULATION_CANDIDATES = 256;
 
@@ -75,7 +76,7 @@ export class BattlefieldMonsterManipulationRegistry {
       if (group === null || !group.writeManipulationCandidateForEntity(
         this.candidates.entityIndices[index] ?? 0,
         this.candidate,
-      ) || !isGrabbableCandidate(this.candidate)) {
+      ) || !isBattlefieldPlayerGrabbable(this.candidate)) {
         continue;
       }
       const deltaX = this.candidate.x - query.originX;
@@ -111,7 +112,7 @@ export class BattlefieldMonsterManipulationRegistry {
     const group = this.findGroup(populationId);
     if (group === null
       || !group.writeManipulationCandidateForEntity(entityId, this.candidate)
-      || !isGrabbableCandidate(this.candidate)) {
+      || !isBattlefieldPlayerGrabbable(this.candidate)) {
       return false;
     }
     copyCandidate(this.candidate, result);
@@ -175,15 +176,6 @@ export class BattlefieldMonsterManipulationRegistry {
     }
     return null;
   }
-}
-
-function isGrabbableCandidate(candidate: Readonly<MutableBattlefieldManipulationCandidate>): boolean {
-  return candidate.playerGrabbable
-    && candidate.bodySize === MonsterBodySize.Small
-    && candidate.grabResistance <= 0
-    && (candidate.tags & CombatTag.SmallBody) !== 0
-    && (candidate.tags & CombatTag.Elite) === 0
-    && (candidate.tags & CombatTag.Executable) !== 0;
 }
 
 function validateQuery(query: Readonly<BattlefieldGrabTargetQuery>): void {

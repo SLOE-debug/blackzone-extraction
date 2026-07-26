@@ -1,6 +1,8 @@
 import { BattlefieldGrabModule } from '../actions/battlefield-grab-module';
 import { BattlefieldThrowModule } from '../actions/battlefield-throw-module';
 import { BattlefieldCombatEventBuffer } from '../events/battlefield-combat-event-buffer';
+import { BattlefieldActionFailureState } from '../model/battlefield-action-failure';
+import { BattlefieldActionReleaseSource } from '../model/battlefield-action-release-source';
 import {
   createBattlefieldActionPreview,
   type MutableBattlefieldActionPreview,
@@ -20,6 +22,7 @@ import {
 import { BattlefieldManipulationState } from '../model/battlefield-manipulation-state';
 import { BattlefieldCombatModuleRegistry } from '../registry/battlefield-combat-module-registry';
 import { BattlefieldThrownSimulation } from '../simulation/battlefield-thrown-simulation';
+import { BattlefieldCarriedPoseSystem } from '../simulation/battlefield-carried-pose-system';
 
 interface BattlefieldCombatModuleExecutor {
   execute(
@@ -38,15 +41,20 @@ export class BattlefieldCombatModuleRuntime {
   public readonly registry = new BattlefieldCombatModuleRegistry();
   public readonly events = new BattlefieldCombatEventBuffer();
   public readonly preview = createBattlefieldActionPreview();
+  public readonly diagnostics = new BattlefieldActionFailureState(
+    BattlefieldActionReleaseSource.None,
+  );
   private readonly state = new BattlefieldManipulationState();
   private readonly grab: BattlefieldGrabModule;
   private readonly throwAction: BattlefieldThrowModule;
   private readonly executors: readonly (BattlefieldCombatModuleExecutor | null)[];
   private readonly thrownSimulation: BattlefieldThrownSimulation;
+  private readonly carriedPose: BattlefieldCarriedPoseSystem;
   private readonly intent: BattlefieldCombatModuleIntent = {
     moduleId: BattlefieldCombatModuleId.Grab,
     active: false,
     released: false,
+    releaseSource: BattlefieldActionReleaseSource.None,
     directionX: 0,
     directionZ: 1,
     amplitude: 0,
@@ -64,9 +72,22 @@ export class BattlefieldCombatModuleRuntime {
     private readonly monsters: BattlefieldActionMonsterGateway,
     movement: BattlefieldThrowMovementConstraint,
   ) {
-    this.grab = new BattlefieldGrabModule(this.state, monsters, movement, this.events);
-    this.throwAction = new BattlefieldThrowModule(this.state, monsters, movement, this.events);
+    this.grab = new BattlefieldGrabModule(
+      this.state,
+      monsters,
+      movement,
+      this.events,
+      this.diagnostics,
+    );
+    this.throwAction = new BattlefieldThrowModule(
+      this.state,
+      monsters,
+      movement,
+      this.events,
+      this.diagnostics,
+    );
     this.thrownSimulation = new BattlefieldThrownSimulation(this.state, monsters, this.events);
+    this.carriedPose = new BattlefieldCarriedPoseSystem(this.state, monsters, movement);
     this.executors = Object.freeze([
       this.grab,
       this.throwAction,
@@ -90,9 +111,13 @@ export class BattlefieldCombatModuleRuntime {
     this.intent.moduleId = intent.moduleId;
     this.intent.active = intent.active;
     this.intent.released = intent.released;
+    this.intent.releaseSource = intent.releaseSource;
     this.intent.directionX = intent.directionX;
     this.intent.directionZ = intent.directionZ;
     this.intent.amplitude = intent.amplitude;
+    if (intent.released) {
+      this.diagnostics.noteRelease(intent.releaseSource);
+    }
   }
 
   /** ActionExecution 阶段执行模块并把携带对象绑定到玩家前上方。 */
@@ -100,12 +125,17 @@ export class BattlefieldCombatModuleRuntime {
     this.ensureActive();
     copyPlayerPose(player, this.playerPose);
     resetPreview(this.preview);
+    if (this.intent.active) {
+      this.diagnostics.clear();
+    }
     const executor = this.executors[this.intent.moduleId] ?? null;
     executor?.execute(this.intent, this.playerPose, this.preview);
     if (this.state.carrying) {
-      this.synchronizeCarriedPose(deltaTime);
+      this.carriedPose.update(this.playerPose, deltaTime);
     }
+    this.preview.failureReason = this.diagnostics.reason;
     this.intent.released = false;
+    this.intent.releaseSource = BattlefieldActionReleaseSource.None;
   }
 
   /** MovementAndThrownSimulation 阶段推进低弧线并同步怪物权威姿态。 */
@@ -155,28 +185,6 @@ export class BattlefieldCombatModuleRuntime {
     }
     this.state.clear();
     this.disposed = true;
-  }
-
-  private synchronizeCarriedPose(deltaTime: number): void {
-    const carried = this.state.data.carried;
-    const heading = this.playerPose.heading;
-    const x = this.playerPose.x + Math.sin(heading) * (carried.offsetZ[0] ?? 1.05);
-    const y = this.playerPose.y + (carried.offsetY[0] ?? 1.7);
-    const z = this.playerPose.z + Math.cos(heading) * (carried.offsetZ[0] ?? 1.05);
-    carried.duration[0] = (carried.duration[0] ?? 0) + Math.max(0, deltaTime);
-    carried.x[0] = x;
-    carried.y[0] = y;
-    carried.z[0] = z;
-    if (!this.monsters.synchronizeManipulatedPose(
-      this.state.data.reference.populationId[0] ?? 0,
-      this.state.data.reference.entityId[0] ?? 0,
-      x,
-      y,
-      z,
-      heading,
-    )) {
-      this.state.clear();
-    }
   }
 
   private ensureActive(): void {

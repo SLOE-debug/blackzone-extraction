@@ -111,8 +111,10 @@ implements Disposable {
       );
       this.crowd.register(venomGroup.crowdPopulation);
       this.targets.register(venomGroup);
+      this.manipulations.register(venomGroup);
     } catch (error: unknown) {
       if (venomGroup !== null) {
+        this.manipulations.unregister(venomGroup);
         this.targets.unregister(venomGroup);
         this.crowd.unregister(venomGroup.populationId);
       }
@@ -477,6 +479,7 @@ implements Disposable {
       return;
     }
     this.disposed = true;
+    this.manipulations.unregister(this.venomGroup);
     this.targets.unregister(this.venomGroup);
     this.crowd.unregister(this.venomGroup.populationId);
     this.venomGroup.dispose();

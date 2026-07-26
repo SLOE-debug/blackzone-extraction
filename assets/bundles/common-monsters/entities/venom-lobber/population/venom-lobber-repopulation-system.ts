@@ -2,6 +2,7 @@ import {
   isMonsterLifecycleResident,
   MonsterLifecycleState,
 } from '../../../../../core/contracts/monster-lifecycle';
+import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import {
   MonsterPopulationActivationSystem,
   type MonsterPopulationActivationTarget,
@@ -10,6 +11,7 @@ import { transitionMonsterLifecycle } from '../../../../../core/monsters/monster
 import { randomRange } from '../../../../../core/math/xorshift32';
 import { VenomLobberAction } from '../model/venom-lobber-action';
 import { VENOM_LOBBER_INITIAL_ATTACK_LOCK_SECONDS } from '../model/venom-lobber-lifecycle';
+import { initializeVenomLobberManipulation } from '../model/venom-lobber-manipulation';
 import {
   type VenomLobberRepopulationOptions,
   validateVenomLobberRepopulationOptions,
@@ -90,8 +92,9 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     heading: number,
     stateTime: number,
   ): void {
-    const { identity, transform, vitality, behavior, combat, intent, motion, animation } =
+    const { identity, transform, vitality, manipulation, behavior, combat, intent } =
       this.state.data;
+    const { motion, animation } = this.state.data;
     transform.x[entityIndex] = x;
     transform.y[entityIndex] = y;
     transform.previousX[entityIndex] = x;
@@ -108,6 +111,7 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     vitality.hitTime[entityIndex] = 0;
     vitality.timeSinceHit[entityIndex] = 1;
     vitality.deathEffectSpawned[entityIndex] = 0;
+    initializeVenomLobberManipulation(manipulation, entityIndex);
     behavior.action[entityIndex] = VenomLobberAction.Roam;
     behavior.actionTime[entityIndex] = 0;
     behavior.nextTurnTime[entityIndex] = randomRange(
@@ -183,12 +187,16 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     options: Readonly<VenomLobberRepopulationOptions>,
     visibility: Readonly<{ isVisible(entityIndex: number): boolean }>,
   ): void {
-    const { transform, vitality, motion, intent, combat } = this.state.data;
+    const { transform, vitality, manipulation, motion, intent, combat } = this.state.data;
     const maximumDistanceSquared = options.recycleRadius * options.recycleRadius;
     const hardDistanceSquared = options.hardRecycleRadius * options.hardRecycleRadius;
     for (let index = 0; index < this.state.count; index++) {
       const lifecycle = vitality.state[index] as MonsterLifecycleState;
       if (lifecycle !== MonsterLifecycleState.Alive) {
+        continue;
+      }
+      if ((manipulation.state[index] as MonsterManipulationState)
+        !== MonsterManipulationState.Free) {
         continue;
       }
       const deltaX = (transform.x[index] ?? 0) - options.centerX;

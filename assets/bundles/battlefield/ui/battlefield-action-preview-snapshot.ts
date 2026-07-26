@@ -17,6 +17,7 @@ export function equalsBattlefieldActionPreview(
     && left.active === right.active
     && left.valid === right.valid
     && left.blocked === right.blocked
+    && left.failureReason === right.failureReason
     && left.startX === right.startX
     && left.startY === right.startY
     && left.startZ === right.startZ
@@ -39,6 +40,7 @@ export function copyBattlefieldActionPreview(
   target.active = source.active;
   target.valid = source.valid;
   target.blocked = source.blocked;
+  target.failureReason = source.failureReason;
   target.startX = source.startX;
   target.startY = source.startY;
   target.startZ = source.startZ;

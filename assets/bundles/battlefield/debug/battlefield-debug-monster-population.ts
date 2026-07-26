@@ -136,6 +136,7 @@ export class BattlefieldDebugMonsterPopulation {
     }
     this.crowd.register(group.crowdPopulation);
     this.targets.register(group);
+    this.manipulations.register(group);
     this.venomLobber = group;
   }
 
@@ -144,6 +145,7 @@ export class BattlefieldDebugMonsterPopulation {
     if (group === null) {
       return;
     }
+    this.manipulations.unregister(group);
     this.targets.unregister(group);
     this.manipulations.unregister(group);
     this.crowd.unregister(group.populationId);

@@ -1,10 +1,12 @@
 import { type BattlefieldCombatModuleId } from './battlefield-combat-module';
+import { type BattlefieldActionReleaseSource } from './battlefield-action-release-source';
 
 /** Input 阶段生成、ActionExecution 阶段消费的模块意图。 */
 export interface BattlefieldCombatModuleIntent {
   moduleId: BattlefieldCombatModuleId;
   active: boolean;
   released: boolean;
+  releaseSource: BattlefieldActionReleaseSource;
   directionX: number;
   directionZ: number;
   amplitude: number;

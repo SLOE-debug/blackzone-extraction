@@ -258,6 +258,7 @@ export class BattlefieldControlHud {
     preview: Readonly<MutableBattlefieldActionPreview>,
     deltaTime: number,
   ): void {
+    this.skillWheel.presentFailure(preview.failureReason);
     this.groundPreview.present(preview, deltaTime);
     this.targetMarker.present(preview);
     this.throwPreview.present(preview);

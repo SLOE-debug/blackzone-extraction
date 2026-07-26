@@ -33,9 +33,18 @@ export class BattlefieldManipulationState {
   }
 
   /** 把选中的怪物能力复制到唯一携带槽位。 */
-  public beginCarry(candidate: Readonly<MutableBattlefieldManipulationCandidate>): void {
+  public beginCarry(
+    candidate: Readonly<MutableBattlefieldManipulationCandidate>,
+    directionX: number,
+    directionZ: number,
+    groundY: number,
+  ): void {
     if (this.carrying || this.flying) {
       throw new Error('单一操作槽位已被占用，不能再次抓取。');
+    }
+    if (![directionX, directionZ, groundY].every(Number.isFinite)
+      || Math.abs(Math.hypot(directionX, directionZ) - 1) > 0.001) {
+      throw new Error('抓取必须保存单位抓取方向和有限地面高度。');
     }
     const { reference, carried, carrying, throwable } = this.data;
     reference.active[0] = 1;
@@ -49,8 +58,13 @@ export class BattlefieldManipulationState {
     carried.offsetZ[0] = 1.05;
     carried.duration[0] = 0;
     carried.throwAllowed[0] = 1;
+    carried.startX[0] = candidate.x;
+    carried.startY[0] = groundY;
+    carried.startZ[0] = candidate.z;
+    carried.grabDirectionX[0] = directionX;
+    carried.grabDirectionZ[0] = directionZ;
     carried.x[0] = candidate.x;
-    carried.y[0] = candidate.y;
+    carried.y[0] = groundY;
     carried.z[0] = candidate.z;
     carrying.active[0] = 1;
     carrying.carriedPopulationId[0] = candidate.populationId;
@@ -123,6 +137,11 @@ export class BattlefieldManipulationState {
     carried.offsetZ[0] = 0;
     carried.duration[0] = 0;
     carried.throwAllowed[0] = 0;
+    carried.startX[0] = 0;
+    carried.startY[0] = 0;
+    carried.startZ[0] = 0;
+    carried.grabDirectionX[0] = 0;
+    carried.grabDirectionZ[0] = 0;
     carried.x[0] = 0;
     carried.y[0] = 0;
     carried.z[0] = 0;

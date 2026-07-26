@@ -4,6 +4,7 @@ import { mixRandomSeed, randomRange } from '../../../../../core/math/xorshift32'
 import { TAU } from '../../../../../core/math/scalar';
 import { VenomLobberAction } from './venom-lobber-action';
 import { type NormalizedVenomLobberOptions } from './venom-lobber-options';
+import { initializeVenomLobberManipulation } from './venom-lobber-manipulation';
 import { VENOM_LOBBER_INITIAL_ATTACK_LOCK_SECONDS } from './venom-lobber-lifecycle';
 import {
   VENOM_LOBBER_SCHEMA,
@@ -34,7 +35,7 @@ function initializeState(
   state: VenomLobberState,
   options: Readonly<NormalizedVenomLobberOptions>,
 ): void {
-  const { identity, transform, morphology, vitality } = state.data;
+  const { identity, transform, morphology, vitality, manipulation } = state.data;
   const { behavior, combat, intent, motion, animation } = state.data;
   for (let index = 0; index < state.count; index++) {
     identity.id[index] = index;
@@ -59,6 +60,7 @@ function initializeState(
     vitality.hitTime[index] = 0;
     vitality.timeSinceHit[index] = 1;
     vitality.deathEffectSpawned[index] = 0;
+    initializeVenomLobberManipulation(manipulation, index);
     behavior.action[index] = VenomLobberAction.Roam;
     behavior.actionTime[index] = 0;
     behavior.nextTurnTime[index] = randomRange(identity.randomState, index, 0.8, 3.2);

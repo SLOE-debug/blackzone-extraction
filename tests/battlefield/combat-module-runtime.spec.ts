@@ -1,8 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import {
-  CombatTag,
-  MonsterBodySize,
-} from '../../assets/core/contracts/monster-manipulation';
 import { UNCONSTRAINED_SPATIAL_MOVEMENT } from '../../assets/core/contracts/spatial-movement-constraint';
 import { BattlefieldCombatEventType } from '../../assets/bundles/battlefield/action-modules/events/battlefield-combat-event-type';
 import {
@@ -11,28 +7,25 @@ import {
   BattlefieldCombatModulePrerequisite,
 } from '../../assets/bundles/battlefield/action-modules/model/battlefield-combat-module';
 import { type BattlefieldCombatModuleIntent } from '../../assets/bundles/battlefield/action-modules/model/battlefield-combat-module-intent';
-import { type BattlefieldActionMonsterGateway } from '../../assets/bundles/battlefield/action-modules/model/battlefield-action-runtime-contracts';
+import { BattlefieldActionReleaseSource } from '../../assets/bundles/battlefield/action-modules/model/battlefield-action-release-source';
 import { BattlefieldCombatModuleRuntime } from '../../assets/bundles/battlefield/action-modules/population/battlefield-combat-module-runtime';
-import { type MutableBattlefieldProjectileStatistics } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-projectile-statistics';
-import {
-  type BattlefieldGrabTargetQuery,
-  type BattlefieldProjectileSweepQuery,
-  type MutableBattlefieldManipulationCandidate,
-  type MutableBattlefieldProjectileHit,
-} from '../../assets/bundles/battlefield/population/battlefield-monster-contracts';
 import { WorldPhase } from '../../assets/core/world/world-phase';
 import { BattlefieldActionInputWorldSystem } from '../../assets/bundles/battlefield/world/systems/battlefield-action-input-world-system';
 import { BattlefieldActionExecutionWorldSystem } from '../../assets/bundles/battlefield/world/systems/battlefield-action-execution-world-system';
 import { BattlefieldThrownSimulationWorldSystem } from '../../assets/bundles/battlefield/world/systems/battlefield-thrown-simulation-world-system';
 import { BattlefieldThrownCollisionWorldSystem } from '../../assets/bundles/battlefield/world/systems/battlefield-thrown-collision-world-system';
 import { BattlefieldCombatEventWorldSystem } from '../../assets/bundles/battlefield/world/systems/battlefield-combat-event-world-system';
-
-const PLAYER = { x: 0, y: 0.05, z: 0, heading: 0, alive: true };
+import {
+  createTestCombatIntent,
+  grabTestMonster,
+  TEST_BATTLEFIELD_PLAYER,
+  TestBattlefieldMonsterGateway,
+} from './combat-module-fixture';
 
 describe('抓取与投掷模块第一版闭环', () => {
   it('注册表以统一定义暴露抓取、投掷和预留三个轮盘槽位', () => {
     const runtime = new BattlefieldCombatModuleRuntime(
-      new TestMonsterGateway(),
+      new TestBattlefieldMonsterGateway(),
       UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
     expect(runtime.registry.ordered).toHaveLength(3);
@@ -56,7 +49,7 @@ describe('抓取与投掷模块第一版闭环', () => {
 
   it('技能拖动低于死区时保留最近一次明确战斗瞄准方向', () => {
     const system = new BattlefieldActionInputWorldSystem();
-    const captured: BattlefieldCombatModuleIntent = createIntent(
+    const captured: BattlefieldCombatModuleIntent = createTestCombatIntent(
       BattlefieldCombatModuleId.Grab,
       false,
       false,
@@ -81,6 +74,7 @@ describe('抓取与投掷模块第一版闭环', () => {
             moduleId: BattlefieldCombatModuleId;
             active: boolean;
             released: boolean;
+            releaseSource: BattlefieldActionReleaseSource;
             x: number;
             y: number;
             amplitude: number;
@@ -88,6 +82,7 @@ describe('抓取与投掷模块第一版闭环', () => {
             result.moduleId = BattlefieldCombatModuleId.Grab;
             result.active = true;
             result.released = false;
+            result.releaseSource = BattlefieldActionReleaseSource.None;
             result.x = -1;
             result.y = 0;
             result.amplitude = skillAmplitude;
@@ -122,38 +117,43 @@ describe('抓取与投掷模块第一版闭环', () => {
 
     expect([captured.directionX, captured.directionZ]).toEqual([1, 0]);
     expect(captured.amplitude).toBe(0);
+
+    skillAmplitude = 0.59;
+    system.update(world as never, 1 / 60);
+    expect([captured.directionX, captured.directionZ]).toEqual([-1, 0]);
+    expect(captured.amplitude).toBeCloseTo(0.5, 6);
   });
 
   it('半血小怪经过抓取后进入携带，再按预览距离投掷并在重击落地时死亡', () => {
-    const monsters = new TestMonsterGateway();
+    const monsters = new TestBattlefieldMonsterGateway();
     const runtime = new BattlefieldCombatModuleRuntime(
       monsters,
       UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
 
-    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
-    runtime.executeActions(PLAYER, 1 / 60);
+    runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
     expect(runtime.preview.valid).toBe(true);
     expect(runtime.carrying).toBe(false);
 
-    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, false, true, 1));
-    runtime.executeActions(PLAYER, 1 / 60);
+    runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Grab, false, true, 1));
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
     expect(runtime.carrying).toBe(true);
     expect(monsters.carried).toBe(true);
     expect(Array.from(runtime.events.type.slice(0, runtime.events.count))).toContain(
       BattlefieldCombatEventType.EntityGrabbed,
     );
 
-    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Throw, true, false, 1));
-    runtime.executeActions(PLAYER, 1 / 60);
+    runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Throw, true, false, 1));
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
     expect(runtime.preview.valid).toBe(true);
-    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Throw, false, true, 1));
-    runtime.executeActions(PLAYER, 1 / 60);
+    runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Throw, false, true, 1));
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
     expect(runtime.thrown).toBe(true);
 
     for (let frame = 0; frame < 80 && runtime.thrown; frame++) {
-      runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Throw, false, false, 0));
-      runtime.executeActions(PLAYER, 1 / 60);
+      runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Throw, false, false, 0));
+      runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
       runtime.simulateThrown(1 / 60);
       runtime.resolveThrownCollision();
     }
@@ -172,14 +172,14 @@ describe('抓取与投掷模块第一版闭环', () => {
   });
 
   it('投掷扫掠命中另一只怪物时产生 EntityImpact 并施加伤害', () => {
-    const monsters = new TestMonsterGateway();
+    const monsters = new TestBattlefieldMonsterGateway();
     const runtime = new BattlefieldCombatModuleRuntime(
       monsters,
       UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
-    grab(runtime);
-    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Throw, false, true, 1));
-    runtime.executeActions(PLAYER, 1 / 60);
+    grabTestMonster(runtime);
+    runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Throw, false, true, 1));
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
     monsters.hitEnabled = true;
     runtime.simulateThrown(1 / 60);
     runtime.resolveThrownCollision();
@@ -192,18 +192,18 @@ describe('抓取与投掷模块第一版闭环', () => {
   });
 
   it('目标标记出现后轻微滑动松手仍按锁定身份完成抓取', () => {
-    const monsters = new TestMonsterGateway();
+    const monsters = new TestBattlefieldMonsterGateway();
     monsters.directionSensitive = true;
     const runtime = new BattlefieldCombatModuleRuntime(
       monsters,
       UNCONSTRAINED_SPATIAL_MOVEMENT,
     );
 
-    runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
-    runtime.executeActions(PLAYER, 1 / 60);
+    runtime.captureIntent(createTestCombatIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
     expect(runtime.preview.valid).toBe(true);
 
-    runtime.captureIntent(createIntent(
+    runtime.captureIntent(createTestCombatIntent(
       BattlefieldCombatModuleId.Grab,
       false,
       true,
@@ -211,155 +211,10 @@ describe('抓取与投掷模块第一版闭环', () => {
       0.2,
       Math.sqrt(0.96),
     ));
-    runtime.executeActions(PLAYER, 1 / 60);
+    runtime.executeActions(TEST_BATTLEFIELD_PLAYER, 1 / 60);
 
     expect(runtime.carrying).toBe(true);
     expect(monsters.findCount).toBe(1);
     expect(monsters.lockedValidationCount).toBe(1);
   });
 });
-
-function grab(runtime: BattlefieldCombatModuleRuntime): void {
-  runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, true, false, 1));
-  runtime.executeActions(PLAYER, 1 / 60);
-  runtime.captureIntent(createIntent(BattlefieldCombatModuleId.Grab, false, true, 1));
-  runtime.executeActions(PLAYER, 1 / 60);
-}
-
-function createIntent(
-  moduleId: BattlefieldCombatModuleId,
-  active: boolean,
-  released: boolean,
-  amplitude: number,
-  directionX = 0,
-  directionZ = 1,
-): BattlefieldCombatModuleIntent {
-  return {
-    moduleId,
-    active,
-    released,
-    directionX,
-    directionZ,
-    amplitude,
-  };
-}
-
-class TestMonsterGateway implements BattlefieldActionMonsterGateway {
-  public carried = false;
-  public thrown = false;
-  public killed = false;
-  public hitEnabled = false;
-  public damageApplied = 0;
-  public knockbackApplied = 0;
-  public directionSensitive = false;
-  public findCount = 0;
-  public lockedValidationCount = 0;
-
-  public findGrabbable(
-    query: Readonly<BattlefieldGrabTargetQuery>,
-    result: MutableBattlefieldManipulationCandidate,
-  ): boolean {
-    this.findCount += 1;
-    if (this.directionSensitive && query.directionZ < 0.99) {
-      return false;
-    }
-    this.writeCandidate(result);
-    return !this.carried && !this.thrown && !this.killed;
-  }
-
-  public writeGrabbableCandidate(
-    populationId: number,
-    entityId: number,
-    result: MutableBattlefieldManipulationCandidate,
-  ): boolean {
-    this.lockedValidationCount += 1;
-    if (populationId !== 7 || entityId !== 3 || this.carried || this.thrown || this.killed) {
-      return false;
-    }
-    this.writeCandidate(result);
-    return true;
-  }
-
-  private writeCandidate(result: MutableBattlefieldManipulationCandidate): void {
-    Object.assign(result, {
-      populationId: 7,
-      entityId: 3,
-      x: 0,
-      y: 0.7,
-      z: 2,
-      healthRatio: 0.49,
-      bodySize: MonsterBodySize.Small,
-      grabResistance: 0,
-      playerGrabbable: true,
-      tags: CombatTag.SmallBody | CombatTag.Executable,
-      throwMass: 1.15,
-      maximumThrowDistance: 15,
-      collisionRadius: 0.7,
-      impactStrength: 1.05,
-    });
-  }
-
-  public beginCarry(): boolean {
-    this.carried = true;
-    return true;
-  }
-
-  public beginThrow(): boolean {
-    this.carried = false;
-    this.thrown = true;
-    return true;
-  }
-
-  public synchronizeManipulatedPose(): boolean {
-    return this.carried || this.thrown;
-  }
-
-  public releaseManipulation(): boolean {
-    this.carried = false;
-    this.thrown = false;
-    return true;
-  }
-
-  public killManipulated(): boolean {
-    this.carried = false;
-    this.thrown = false;
-    this.killed = true;
-    return true;
-  }
-
-  public findFirstProjectileHit(
-    query: Readonly<BattlefieldProjectileSweepQuery>,
-    _ignoredPopulationIds: Uint32Array,
-    _ignoredEntityIds: Uint32Array,
-    _ignoredOffset: number,
-    _ignoredCount: number,
-    result: MutableBattlefieldProjectileHit,
-    _statistics: MutableBattlefieldProjectileStatistics,
-  ): boolean {
-    if (!this.hitEnabled) {
-      return false;
-    }
-    result.populationId = 9;
-    result.entityId = 4;
-    result.x = query.endX;
-    result.y = query.endY;
-    result.z = query.endZ;
-    result.segmentProgress = 1;
-    return true;
-  }
-
-  public damageMonster(_populationId: number, _entityId: number, amount: number): boolean {
-    this.damageApplied += amount;
-    return true;
-  }
-
-  public knockbackMonster(
-    _populationId: number,
-    _entityId: number,
-    offsetX: number,
-    offsetZ: number,
-  ): boolean {
-    this.knockbackApplied += Math.hypot(offsetX, offsetZ);
-    return true;
-  }
-}

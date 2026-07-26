@@ -1,3 +1,5 @@
+import { BattlefieldActionFailureReason } from './battlefield-action-failure';
+
 /** 抓取和投掷共用的世界空间预览类型。 */
 export enum BattlefieldActionPreviewType {
   None,
@@ -11,6 +13,7 @@ export interface MutableBattlefieldActionPreview {
   active: boolean;
   valid: boolean;
   blocked: boolean;
+  failureReason: BattlefieldActionFailureReason;
   startX: number;
   startY: number;
   startZ: number;
@@ -30,6 +33,7 @@ export function createBattlefieldActionPreview(): MutableBattlefieldActionPrevie
     active: false,
     valid: false,
     blocked: false,
+    failureReason: BattlefieldActionFailureReason.None,
     startX: 0,
     startY: 0,
     startZ: 0,

@@ -3,6 +3,10 @@ import { type MutableSpatialPosition } from '../../../../core/contracts/spatial-
 import { BattlefieldCombatEventBuffer } from '../events/battlefield-combat-event-buffer';
 import { BattlefieldCombatEventType } from '../events/battlefield-combat-event-type';
 import {
+  BattlefieldActionFailureReason,
+  type BattlefieldActionFailureState,
+} from '../model/battlefield-action-failure';
+import {
   BattlefieldActionPreviewType,
   type MutableBattlefieldActionPreview,
 } from '../model/battlefield-action-preview';
@@ -19,8 +23,8 @@ import { BattlefieldManipulationState } from '../model/battlefield-manipulation-
 import { BATTLEFIELD_MONSTER_SPAWN } from '../../model/battlefield-monster-spawn';
 
 const PLAYER_POPULATION_ID = 0xfffffffe;
-const MINIMUM_INPUT_AMPLITUDE = 0.12;
-const MINIMUM_THROW_DISTANCE = 3.2;
+const FULL_THROW_MINIMUM_DISTANCE = 3.2;
+const MINIMUM_EXECUTABLE_THROW_DISTANCE = 0.35;
 const THROW_SPEED = 17;
 const LANDING_STEPS = 12;
 const LANDING_REFINEMENT_COUNT = 3;
@@ -37,6 +41,7 @@ export class BattlefieldThrowModule {
     private readonly monsters: BattlefieldActionMonsterGateway,
     private readonly movement: BattlefieldThrowMovementConstraint,
     private readonly events: BattlefieldCombatEventBuffer,
+    private readonly diagnostics: BattlefieldActionFailureState,
   ) {}
 
   public execute(
@@ -57,10 +62,10 @@ export class BattlefieldThrowModule {
     }
     const amplitude = clamp01(intent.amplitude);
     const maximumDistance = this.state.data.throwable.maximumDistance[0] ?? 0;
-    const desiredDistance = amplitude < MINIMUM_INPUT_AMPLITUDE
+    const desiredDistance = amplitude <= 0
       ? 0
-      : MINIMUM_THROW_DISTANCE
-        + (maximumDistance - MINIMUM_THROW_DISTANCE) * amplitude;
+      : FULL_THROW_MINIMUM_DISTANCE
+        + (maximumDistance - FULL_THROW_MINIMUM_DISTANCE) * amplitude;
     const distance = this.writeLanding(
       this.state.data.carried.x[0] ?? player.x,
       this.state.data.carried.y[0] ?? player.y,
@@ -70,14 +75,21 @@ export class BattlefieldThrowModule {
       desiredDistance,
       this.state.data.throwable.collisionRadius[0] ?? 0.5,
     );
-    const valid = distance >= MINIMUM_THROW_DISTANCE;
-    this.writePreview(intent.active, intent, distance, valid, preview);
-    if (!intent.released || !valid) {
+    const valid = distance >= MINIMUM_EXECUTABLE_THROW_DISTANCE;
+    this.writePreview(intent.active || intent.released, distance, desiredDistance, valid, preview);
+    if (!intent.released) {
+      return;
+    }
+    if (!valid) {
+      this.diagnostics.fail(amplitude <= 0
+        ? BattlefieldActionFailureReason.InputBelowDeadZone
+        : BattlefieldActionFailureReason.ThrowPathBlocked);
       return;
     }
     const populationId = this.state.data.reference.populationId[0] ?? 0;
     const entityId = this.state.data.reference.entityId[0] ?? 0;
     if (!this.monsters.beginThrow(populationId, entityId)) {
+      this.diagnostics.fail(BattlefieldActionFailureReason.BeginThrowRejected);
       return;
     }
     const duration = Math.max(0.24, distance / THROW_SPEED);
@@ -89,6 +101,7 @@ export class BattlefieldThrowModule {
       duration,
       arcHeight,
     );
+    this.diagnostics.clear();
     this.events.appendRoot(
       BattlefieldCombatEventType.EntityThrown,
       PLAYER_POPULATION_ID,
@@ -184,7 +197,12 @@ export class BattlefieldThrowModule {
         this.resolved.z - targetZ,
       )
         > OBSTACLE_TOLERANCE) {
-        this.blockedProgress = Math.max(0, (step - 1) / LANDING_STEPS);
+        const resolvedForwardDistance = (this.resolved.x - startX) * directionX
+          + (this.resolved.z - startZ) * directionZ;
+        this.blockedProgress = Math.max(
+          (step - 1) / LANDING_STEPS,
+          clamp01(resolvedForwardDistance / Math.max(distance, 0.000001)),
+        );
         return false;
       }
       previousX = targetX;
@@ -197,8 +215,8 @@ export class BattlefieldThrowModule {
 
   private writePreview(
     active: boolean,
-    intent: Readonly<BattlefieldCombatModuleIntent>,
     distance: number,
+    desiredDistance: number,
     valid: boolean,
     preview: MutableBattlefieldActionPreview,
   ): void {
@@ -206,11 +224,10 @@ export class BattlefieldThrowModule {
       return;
     }
     const carried = this.state.data.carried;
-    const maximumDistance = this.state.data.throwable.maximumDistance[0] ?? 0;
     preview.type = BattlefieldActionPreviewType.Throw;
     preview.active = true;
     preview.valid = valid;
-    preview.blocked = valid && distance + 0.01 < maximumDistance * clamp01(intent.amplitude);
+    preview.blocked = distance + 0.01 < desiredDistance;
     preview.startX = carried.x[0] ?? 0;
     preview.startY = carried.y[0] ?? 0;
     preview.startZ = carried.z[0] ?? 0;

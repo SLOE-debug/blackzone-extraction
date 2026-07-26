@@ -5,6 +5,10 @@ import {
 import { BattlefieldCombatEventBuffer } from '../events/battlefield-combat-event-buffer';
 import { BattlefieldCombatEventType } from '../events/battlefield-combat-event-type';
 import {
+  BattlefieldActionFailureReason,
+  type BattlefieldActionFailureState,
+} from '../model/battlefield-action-failure';
+import {
   BattlefieldActionPreviewType,
   type MutableBattlefieldActionPreview,
 } from '../model/battlefield-action-preview';
@@ -31,6 +35,7 @@ import {
 const PLAYER_POPULATION_ID = 0xfffffffe;
 const GRAB_ACQUIRE_MAXIMUM_DISTANCE = 3.8;
 const GRAB_RETAIN_MAXIMUM_DISTANCE = 4.1;
+const GRAB_RELEASE_MAXIMUM_DISTANCE = 4.5;
 const GRAB_LATERAL_DISTANCE = 2.2;
 const GRAB_ACQUIRE_MINIMUM_ALIGNMENT = Math.cos(35 * Math.PI / 180);
 const GRAB_RETAIN_MINIMUM_ALIGNMENT = Math.cos(55 * Math.PI / 180);
@@ -73,6 +78,7 @@ export class BattlefieldGrabModule {
   };
   private observedPopulationId = -1;
   private observedEntityId = -1;
+  private pendingFailure = BattlefieldActionFailureReason.TargetInvalid;
   private readonly resolved: MutablePlanarPosition = { x: 0, z: 0 };
 
   constructor(
@@ -80,6 +86,7 @@ export class BattlefieldGrabModule {
     private readonly monsters: BattlefieldActionMonsterGateway,
     private readonly movement: BattlefieldThrowMovementConstraint,
     private readonly events: BattlefieldCombatEventBuffer,
+    private readonly diagnostics: BattlefieldActionFailureState,
   ) {}
 
   /** 消费本帧抓取意图；此模块从不引用投掷模块。 */
@@ -99,14 +106,18 @@ export class BattlefieldGrabModule {
     query.directionX = intent.directionX;
     query.directionZ = intent.directionZ;
     let found = this.targetLock.active
-      && this.validateLockedTarget(player, !intent.released);
+      && this.validateLockedTarget(
+        player,
+        !intent.released,
+        intent.released ? GRAB_RELEASE_MAXIMUM_DISTANCE : GRAB_RETAIN_MAXIMUM_DISTANCE,
+      );
     if (!found && this.targetLock.active) {
       this.clearTargetLock();
     }
     if (!found && intent.active) {
       found = this.acquireTarget(player);
     }
-    this.writePreview(intent.active, player, found, preview);
+    this.writePreview(evaluating, player, found, preview);
     if (found) {
       this.emitBecameGrabbableIfNeeded();
     } else {
@@ -116,17 +127,25 @@ export class BattlefieldGrabModule {
       return;
     }
     if (!found) {
+      this.diagnostics.fail(this.pendingFailure);
       this.emit(BattlefieldCombatEventType.GrabCancelled, player, this.candidate);
       this.clearTargetLock();
       return;
     }
     this.emit(BattlefieldCombatEventType.GrabStarted, player, this.candidate);
     if (!this.monsters.beginCarry(this.candidate.populationId, this.candidate.entityId)) {
+      this.diagnostics.fail(BattlefieldActionFailureReason.BeginCarryRejected);
       this.emit(BattlefieldCombatEventType.GrabCancelled, player, this.candidate);
       this.clearTargetLock();
       return;
     }
-    this.state.beginCarry(this.candidate);
+    this.state.beginCarry(
+      this.candidate,
+      this.query.directionX,
+      this.query.directionZ,
+      player.y,
+    );
+    this.diagnostics.clear();
     this.emit(BattlefieldCombatEventType.EntityGrabbed, player, this.candidate);
     this.clearTargetLock();
   }
@@ -212,8 +231,12 @@ export class BattlefieldGrabModule {
 
   /** 首次获取目标时执行方向锥和路径检查，并建立稳定身份锁。 */
   private acquireTarget(player: Readonly<BattlefieldActionPlayerPose>): boolean {
-    if (!this.monsters.findGrabbable(this.query, this.candidate)
-      || !this.isPathClear(player.x, player.z, this.candidate.x, this.candidate.z)) {
+    this.pendingFailure = BattlefieldActionFailureReason.TargetInvalid;
+    if (!this.monsters.findGrabbable(this.query, this.candidate)) {
+      return false;
+    }
+    if (!this.isPathClear(player.x, player.z, this.candidate.x, this.candidate.z)) {
+      this.pendingFailure = BattlefieldActionFailureReason.PathBlocked;
       return false;
     }
     acquireBattlefieldGrabTargetLock(
@@ -224,6 +247,7 @@ export class BattlefieldGrabModule {
       this.candidate.y,
       this.candidate.z,
     );
+    this.pendingFailure = BattlefieldActionFailureReason.None;
     return true;
   }
 
@@ -231,6 +255,7 @@ export class BattlefieldGrabModule {
   private validateLockedTarget(
     player: Readonly<BattlefieldActionPlayerPose>,
     requireRetentionDirection: boolean,
+    maximumDistance: number,
   ): boolean {
     const lock = this.targetLock;
     if (!lock.active || !this.monsters.writeGrabbableCandidate(
@@ -238,22 +263,26 @@ export class BattlefieldGrabModule {
       lock.entityId,
       this.candidate,
     )) {
+      this.pendingFailure = BattlefieldActionFailureReason.TargetInvalid;
       return false;
     }
     const deltaX = this.candidate.x - player.x;
     const deltaZ = this.candidate.z - player.z;
     const distance = Math.hypot(deltaX, deltaZ);
-    if (distance > GRAB_RETAIN_MAXIMUM_DISTANCE) {
+    if (distance > maximumDistance) {
+      this.pendingFailure = BattlefieldActionFailureReason.OutOfRange;
       return false;
     }
     if (requireRetentionDirection && distance > 0.000001) {
       const alignment = (deltaX * this.query.directionX + deltaZ * this.query.directionZ)
         / distance;
       if (alignment < GRAB_RETAIN_MINIMUM_ALIGNMENT) {
+        this.pendingFailure = BattlefieldActionFailureReason.TargetInvalid;
         return false;
       }
     }
     if (!this.isPathClear(player.x, player.z, this.candidate.x, this.candidate.z)) {
+      this.pendingFailure = BattlefieldActionFailureReason.PathBlocked;
       return false;
     }
     updateBattlefieldGrabTargetLockPosition(
@@ -262,6 +291,7 @@ export class BattlefieldGrabModule {
       this.candidate.y,
       this.candidate.z,
     );
+    this.pendingFailure = BattlefieldActionFailureReason.None;
     return true;
   }
 
