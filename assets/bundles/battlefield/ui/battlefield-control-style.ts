@@ -8,7 +8,7 @@ const MOVEMENT_PALETTE = Object.freeze({
   handle: new Color(54, 112, 104, 255),
 });
 
-const AIM_PALETTE = Object.freeze({
+const ATTACK_PALETTE = Object.freeze({
   base: new Color(58, 42, 28, 178),
   rim: new Color(172, 119, 68, 235),
   accent: new Color(239, 181, 111, 255),
@@ -28,12 +28,12 @@ export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
     responseExponent: 1.22,
     palette: MOVEMENT_PALETTE,
   }) satisfies VirtualJoystickOptions,
-  aim: Object.freeze({
+  attack: Object.freeze({
     radius: 72,
     handleRadius: 30,
     interactionRadius: 108,
     deadZone: 0.1,
     responseExponent: 1,
-    palette: AIM_PALETTE,
+    palette: ATTACK_PALETTE,
   }) satisfies VirtualJoystickOptions,
 });

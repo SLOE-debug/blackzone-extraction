@@ -1,285 +1,296 @@
 import { type Material, type Node } from 'cc';
+import { WeaponAction, type MeleeWeaponDefinition, type WeaponGrip } from '../../../../core/equipment/equipment';
 import {
-  EquipmentCategory,
-  WeaponAction,
-  type WeaponGrip,
-  type WeaponEquipmentDefinition,
-} from '../../../../core/equipment/equipment';
-import {
-  type BattlefieldEquipmentLibrary,
-} from '../catalog/battlefield-equipment-contracts';
-import { getBattlefieldWeaponPrototype } from '../catalog/battlefield-equipment-catalog';
-import { type HeldWeaponProfile } from '../catalog/battlefield-equipment-prototype';
-import {
-  EquipmentId,
-  type WeaponEquipmentId,
-} from '../catalog/equipment-id';
-import { type BattlefieldFireIntent } from '../../combat/battlefield-fire-intent';
-import { BattlefieldWeaponActionState } from '../combat/battlefield-weapon-action-state';
-import {
-  BattlefieldWeaponAttackExecutor,
-  BattlefieldWeaponAttackResult,
-} from '../combat/battlefield-weapon-attack-executor';
-import {
-  type BattlefieldWeaponMuzzlePose,
-  type BattlefieldWeaponRootPose,
-  type MutableBattlefieldWeaponMuzzlePose,
-  writeBattlefieldWeaponMuzzlePose,
-} from '../combat/battlefield-weapon-muzzle-pose';
-import { type WeaponAmmunition } from '../model/weapon-ammunition';
-import { WeaponAmmunitionInventory } from '../model/weapon-ammunition-inventory';
-import {
-  AMMUNITION_CALIBER_LABEL,
-  type MutableWeaponAmmunitionStatus,
-  type WeaponAmmunitionStatus,
-} from '../model/weapon-ammunition-status';
-import {
-  BattlefieldProjectilePopulation,
-  type BattlefieldProjectileCollisionTarget,
-} from '../projectile/population/battlefield-projectile-population';
-import {
-  MutableBattlefieldProjectileStatistics,
-  type BattlefieldProjectileStatistics,
-} from '../projectile/model/battlefield-projectile-statistics';
-import { createHeldWeaponMaterial } from '../rendering/held-weapon-material';
-import { HeldWeaponRenderer } from '../rendering/held-weapon-renderer';
+  BattlefieldMeleeHitBuffer,
+  type BattlefieldMeleeQuery,
+} from '../../combat/melee/battlefield-melee-query';
+import { BATTLEFIELD_COMBAT_CONFIG } from '../../model/battlefield-combat-config';
+import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
+import { getBattlefieldEquipmentPrototype } from '../catalog/battlefield-equipment-catalog';
+import { EquipmentId } from '../catalog/equipment-id';
+import { BattlefieldCombatEventBuffer, BattlefieldWeaponHitKind } from '../combat/battlefield-combat-event-buffer';
+import { type BattlefieldFacingLockEffect } from '../combat/battlefield-facing-lock-effect';
+import { BattlefieldHammerActionState, type MutableHammerActionEvents } from '../combat/battlefield-hammer-action-state';
+import { BattlefieldWeaponCommandBuffer, BattlefieldWeaponSpecialCommand, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
+import { calculateLaunchVelocity, SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
+import { createHeldEquipmentMaterial } from '../rendering/held-equipment-material';
+import { HeldEquipmentRenderer } from '../rendering/held-equipment-renderer';
 
-/** 武器运行时读取的 WeaponAimRoot 权威姿态与存活状态。 */
-export interface BattlefieldWeaponOwnerPose extends BattlefieldWeaponRootPose {
+const MAXIMUM_MELEE_HITS = 512;
+const KNOCKBACK_DURATION_SECONDS = 0.28;
+const MAGNETIZED_DURATION_SECONDS = 2;
+
+/** 大锤运行时读取的玩家世界姿态。 */
+export interface BattlefieldWeaponOwnerState {
+  readonly positionX: number;
+  readonly positionY: number;
+  readonly positionZ: number;
+  readonly heading: number;
   readonly alive: boolean;
 }
 
-/** 编排玩家唯一武器槽及其弹药、手持渲染、弹体和动作子系统生命周期。 */
+/** 手持渲染读取的角色权威武器根姿态。 */
+export interface BattlefieldWeaponRigPose {
+  readonly rootX: number;
+  readonly rootY: number;
+  readonly rootZ: number;
+  readonly rotationX: number;
+  readonly rotationY: number;
+  readonly rotationZ: number;
+  readonly rotationW: number;
+}
+
+/** 大锤运行时依赖的异构怪物战斗门面。 */
+export interface BattlefieldHammerCombatTarget {
+  collectMeleeHits(query: Readonly<BattlefieldMeleeQuery>, result: BattlefieldMeleeHitBuffer): number;
+  acceptHitSequence(populationId: number, entityId: number, attackSequenceId: number): boolean;
+  damageMonster(populationId: number, entityId: number, amount: number): boolean;
+  applyKnockback(
+    populationId: number,
+    entityId: number,
+    effect: Readonly<{
+      directionX: number;
+      directionZ: number;
+      initialSpeed: number;
+      remainingSeconds: number;
+      resistanceScale: number;
+    }>,
+  ): boolean;
+  applyVerticalLaunch(
+    populationId: number,
+    entityId: number,
+    effect: Readonly<{
+      initialVelocity: number;
+      gravityScale: number;
+      resistanceScale: number;
+    }>,
+  ): boolean;
+  applyMagnetized(
+    populationId: number,
+    entityId: number,
+    skillSequenceId: number,
+    durationSeconds: number,
+  ): boolean;
+  getKnockbackResistance(populationId: number): number;
+  getAirborneResistance(populationId: number): number;
+}
+
+/** HUD 原地读取的大锤连击与技能状态。 */
+export interface BattlefieldHammerStatus {
+  readonly hitCount: number;
+  readonly requiredHits: number;
+  readonly momentumReady: boolean;
+  readonly action: WeaponAction;
+  readonly actionProgress: number;
+}
+
+/** 编排玩家大锤行为、命中查询、事件结算和手持渲染生命周期。 */
 export class BattlefieldPlayerWeaponRuntime {
-  private readonly heldMaterial: Material;
-  private readonly ammunitionInventory = new WeaponAmmunitionInventory();
-  private readonly actionState = new BattlefieldWeaponActionState();
-  private readonly attackExecutor = new BattlefieldWeaponAttackExecutor();
-  private readonly mutableProjectileStatistics = new MutableBattlefieldProjectileStatistics();
-  private readonly mutableAmmunitionStatus: MutableWeaponAmmunitionStatus = {
-    equipmentId: EquipmentId.DesertEagle,
-    weaponName: '',
-    caliber: '',
-    roundsRemaining: 0,
-    magazineCapacity: 0,
-    reserveRounds: 0,
-    reloading: false,
-    reloadProgress: 0,
+  public readonly commands = new BattlefieldWeaponCommandBuffer();
+  private readonly material: Material;
+  private readonly definition: Readonly<MeleeWeaponDefinition<EquipmentId.Sledgehammer>>;
+  private readonly actionState = new BattlefieldHammerActionState();
+  private readonly actionEvents: MutableHammerActionEvents = {
+    swingImpact: false,
+    uppercutImpact: false,
+    spinPulse: false,
+    spinFinal: false,
   };
-  private definition: Readonly<WeaponEquipmentDefinition<WeaponEquipmentId>> | null = null;
-  private grip: WeaponGrip | null = null;
-  private heldProfile: Readonly<HeldWeaponProfile> | null = null;
-  private ammunition: WeaponAmmunition | null = null;
-  private heldRenderer: HeldWeaponRenderer | null = null;
-  private projectiles: BattlefieldProjectilePopulation | null = null;
+  private readonly command: MutableBattlefieldWeaponCommand = {
+    swingRequested: false,
+    directionX: 0,
+    directionZ: 1,
+    startsRight: null,
+    special: BattlefieldWeaponSpecialCommand.None,
+  };
+  private readonly meleeHits = new BattlefieldMeleeHitBuffer(MAXIMUM_MELEE_HITS);
+  private readonly query: {
+    originX: number;
+    originZ: number;
+    directionX: number;
+    directionZ: number;
+    reach: number;
+    arcRadians: number;
+  } = {
+    originX: 0,
+    originZ: 0,
+    directionX: 0,
+    directionZ: 1,
+    reach: 1,
+    arcRadians: Math.PI,
+  };
+  private readonly mutableEvent = {
+    kind: BattlefieldWeaponHitKind.Swing,
+    attackSequenceId: 1,
+    populationId: 0,
+    entityId: 0,
+    directionX: 0,
+    directionZ: 1,
+    damage: 1,
+    knockbackSpeed: 0,
+    knockbackDuration: KNOCKBACK_DURATION_SECONDS,
+    launchVelocity: 0,
+    magnetizedSkillSequence: 0,
+    magnetizedDuration: 0,
+  };
+  private readonly events = new BattlefieldCombatEventBuffer();
+  private readonly renderer: HeldEquipmentRenderer;
+  private readonly statusValue: {
+    hitCount: number;
+    requiredHits: number;
+    momentumReady: boolean;
+    action: WeaponAction;
+    actionProgress: number;
+  };
   private disposed = false;
 
   constructor(
-    private readonly parent: Node,
-    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
+    parent: Node,
+    equipmentLibrary: BattlefieldEquipmentLibrary,
+    private readonly monsters: BattlefieldHammerCombatTarget,
   ) {
-    this.heldMaterial = createHeldWeaponMaterial();
-  }
-
-  /** 当前唯一武器槽中的装备标识。 */
-  public get equippedEquipmentId(): WeaponEquipmentId | null {
-    return this.definition?.id ?? null;
-  }
-
-  /** 当前武器提供给任意角色动画层的中立握持方式。 */
-  public get weaponGrip(): WeaponGrip | null {
-    return this.grip;
-  }
-
-  /** 当前装备交给任意角色动画层采样的中立武器动作。 */
-  public get weaponAction(): WeaponAction {
-    return this.actionState.getAction(this.definition, this.ammunition);
-  }
-
-  /** 当前武器动作的零到一归一化进度。 */
-  public get weaponActionProgress(): number {
-    return this.actionState.getProgress(this.definition, this.ammunition);
-  }
-
-  /** 返回原地刷新的只读 HUD 快照；未装备武器时返回空值。 */
-  public get ammunitionStatus(): Readonly<WeaponAmmunitionStatus> | null {
-    const definition = this.definition;
-    const ammunition = this.ammunition;
-    if (definition === null || ammunition === null) {
-      return null;
-    }
-    const status = this.mutableAmmunitionStatus;
-    status.equipmentId = definition.id;
-    status.weaponName = definition.displayName;
-    status.caliber = AMMUNITION_CALIBER_LABEL[ammunition.ammunitionType];
-    status.roundsRemaining = ammunition.roundsRemaining;
-    status.magazineCapacity = ammunition.capacity;
-    status.reserveRounds = ammunition.reserveRounds;
-    status.reloading = ammunition.reloading;
-    status.reloadProgress = ammunition.reloadProgress;
-    return status;
-  }
-
-  /** 当前帧从弹丸生成到伤害路由的只读观测数据。 */
-  public get projectileStatistics(): Readonly<BattlefieldProjectileStatistics> {
-    return this.mutableProjectileStatistics;
-  }
-
-  /** 当前武器实体弹丸的最大世界射程；未装备武器时返回空值。 */
-  public get projectileMaximumRange(): number | null {
-    return this.definition?.projectile.maximumRange ?? null;
-  }
-
-  /** 从最新 WeaponAimRoot 姿态写出当前枪型的真实枪口。 */
-  public writeMuzzlePose(
-    owner: Readonly<BattlefieldWeaponOwnerPose>,
-    result: MutableBattlefieldWeaponMuzzlePose,
-  ): boolean {
-    this.ensureActive();
-    validateOwnerPose(owner);
-    const heldProfile = this.heldProfile;
-    if (this.definition === null || heldProfile === null) {
-      return false;
-    }
-    writeBattlefieldWeaponMuzzlePose(owner, heldProfile, result);
-    return true;
-  }
-
-  /**
-   * 装备一件武器，并在成功创建新资源后替换旧武器与在途弹体。
-   *
-   * @returns 被替换的旧装备标识；原槽为空时返回空值。
-   */
-  public equip(equipmentId: WeaponEquipmentId): WeaponEquipmentId | null {
-    this.ensureActive();
-    const definition = this.equipmentLibrary.get(equipmentId);
-    const heldProfile = getBattlefieldWeaponPrototype(equipmentId).held;
-    const grip = heldProfile.grip;
-    const ammunition = this.ammunitionInventory.createFreshMagazine(definition);
-    let heldRenderer: HeldWeaponRenderer | null = null;
-    let projectiles: BattlefieldProjectilePopulation | null = null;
+    this.definition = equipmentLibrary.get(EquipmentId.Sledgehammer);
+    this.material = createHeldEquipmentMaterial();
     try {
-      heldRenderer = new HeldWeaponRenderer(this.parent, equipmentId, this.heldMaterial);
-      projectiles = new BattlefieldProjectilePopulation(
-        this.parent,
-        definition,
-        this.mutableProjectileStatistics,
-      );
-      this.ammunitionInventory.provisionFirstAcquisition(definition);
+      this.renderer = new HeldEquipmentRenderer(parent, EquipmentId.Sledgehammer, this.material);
     } catch (error: unknown) {
-      projectiles?.dispose();
-      heldRenderer?.dispose();
+      this.material.destroy();
       throw error;
     }
-    const replacedEquipmentId = this.definition?.id ?? null;
-    this.projectiles?.dispose();
-    this.heldRenderer?.dispose();
-    this.definition = definition;
-    this.grip = grip;
-    this.heldProfile = heldProfile;
-    this.ammunition = ammunition;
-    this.heldRenderer = heldRenderer;
-    this.projectiles = projectiles;
-    this.actionState.reset();
-    return replacedEquipmentId;
+    this.statusValue = {
+      hitCount: 0,
+      requiredHits: this.definition.specialRequiredHits,
+      momentumReady: false,
+      action: WeaponAction.Idle,
+      actionProgress: 0,
+    };
   }
 
-  /** 在武器生成阶段开始前清空上一帧弹丸链路统计。 */
-  public beginProjectileFrame(): void {
-    this.ensureActive();
-    this.mutableProjectileStatistics.reset();
+  public get weaponGrip(): WeaponGrip {
+    return getBattlefieldEquipmentPrototype(EquipmentId.Sledgehammer).held.grip;
   }
 
-  /** 接收一件世界装备；武器进入槽位，弹药则直接加入对应备用库存。 */
-  public receive(equipmentId: EquipmentId): WeaponEquipmentId | null {
+  public get weaponAction(): WeaponAction {
+    return this.actionState.action;
+  }
+
+  public get weaponActionProgress(): number {
+    return this.actionState.progress;
+  }
+
+  public get facingLock(): Readonly<BattlefieldFacingLockEffect> | null {
+    return this.actionState.facingLock;
+  }
+
+  public get movementSpeedScale(): number {
+    return this.actionState.action === WeaponAction.Spin ? 0.36 : 1;
+  }
+
+  public get hammerStatus(): Readonly<BattlefieldHammerStatus> {
+    this.statusValue.hitCount = this.actionState.hitCount;
+    this.statusValue.momentumReady = this.actionState.momentumCharges > 0;
+    this.statusValue.action = this.actionState.action;
+    this.statusValue.actionProgress = this.actionState.progress;
+    return this.statusValue;
+  }
+
+  /** 在 ActionExecution 阶段消费输入并生成近战命中事件。 */
+  public updateActions(deltaTime: number, owner: Readonly<BattlefieldWeaponOwnerState>): void {
     this.ensureActive();
-    const definition = this.equipmentLibrary.get(equipmentId);
-    switch (definition.category) {
-      case EquipmentCategory.Weapon:
-        return this.equip(definition.id);
-      case EquipmentCategory.Ammunition:
-        this.ammunitionInventory.receive(definition);
-        if (this.ammunition?.ammunitionType === definition.ammunitionType
-          && this.ammunition.empty) {
-          this.actionState.requestReload();
-        }
-        return null;
+    this.events.beginFrame();
+    this.commands.consume(this.command);
+    if (owner.alive) {
+      if (this.command.special === BattlefieldWeaponSpecialCommand.Spin) {
+        this.actionState.requestSpin(owner.heading, SLEDGEHAMMER_PROGRESSION.spinDurationSeconds);
+      } else if (this.command.special === BattlefieldWeaponSpecialCommand.Uppercut) {
+        this.actionState.requestUppercut(owner.heading);
+      } else if (this.command.swingRequested) {
+        this.actionState.requestSwing(
+          this.command.directionX,
+          this.command.directionZ,
+          this.command.startsRight,
+        );
+      }
+    }
+    this.actionState.update(
+      Math.max(0, Math.min(deltaTime, 0.05)),
+      this.definition,
+      SLEDGEHAMMER_PROGRESSION.spinPulseIntervalSeconds,
+      this.actionEvents,
+    );
+    if (this.actionEvents.swingImpact) {
+      this.queueHits(owner, BattlefieldWeaponHitKind.Swing);
+    }
+    if (this.actionEvents.uppercutImpact) {
+      this.queueHits(owner, BattlefieldWeaponHitKind.Uppercut);
+    }
+    if (this.actionEvents.spinPulse) {
+      this.queueHits(owner, BattlefieldWeaponHitKind.SpinPulse);
+    }
+    if (this.actionEvents.spinFinal) {
+      this.queueHits(owner, BattlefieldWeaponHitKind.SpinFinal);
     }
   }
 
-  /** 推进武器动作、同步手持姿态，并在允许时只生成新弹丸。 */
-  public updateFiring(
+  /** 在 PostSimulation 阶段统一结算 Damage 与通用 Effect。 */
+  public resolveCombatEvents(): void {
+    this.ensureActive();
+    for (let index = 0; index < this.events.count; index++) {
+      const populationId = this.events.populationId[index] ?? 0;
+      const entityId = this.events.entityId[index] ?? 0;
+      if (!this.monsters.acceptHitSequence(
+        populationId,
+        entityId,
+        this.events.attackSequenceId[index] ?? 0,
+      )) {
+        continue;
+      }
+      this.monsters.damageMonster(populationId, entityId, this.events.damage[index] ?? 0);
+      this.monsters.applyKnockback(populationId, entityId, {
+        directionX: this.events.directionX[index] ?? 0,
+        directionZ: this.events.directionZ[index] ?? 1,
+        initialSpeed: this.events.knockbackSpeed[index] ?? 0,
+        remainingSeconds: this.events.knockbackDuration[index] ?? KNOCKBACK_DURATION_SECONDS,
+        resistanceScale: this.monsters.getKnockbackResistance(populationId),
+      });
+      const launchVelocity = this.events.launchVelocity[index] ?? 0;
+      if (launchVelocity > 0) {
+        this.monsters.applyVerticalLaunch(populationId, entityId, {
+          initialVelocity: launchVelocity,
+          gravityScale: 1,
+          resistanceScale: this.monsters.getAirborneResistance(populationId),
+        });
+      }
+      const magnetizedSequence = this.events.magnetizedSkillSequence[index] ?? 0;
+      if (magnetizedSequence > 0) {
+        this.monsters.applyMagnetized(
+          populationId,
+          entityId,
+          magnetizedSequence,
+          this.events.magnetizedDuration[index] ?? MAGNETIZED_DURATION_SECONDS,
+        );
+      }
+    }
+  }
+
+  /** 在角色动画刷新后同步右手挂点和动作曲线。 */
+  public synchronizeHeldPose(
     deltaTime: number,
-    owner: Readonly<BattlefieldWeaponOwnerPose>,
-    fireIntent: Readonly<BattlefieldFireIntent> | null,
-    firingMuzzle: Readonly<BattlefieldWeaponMuzzlePose> | null,
+    pose: Readonly<BattlefieldWeaponRigPose>,
   ): void {
     this.ensureActive();
-    validateOwnerPose(owner);
-    if (!Number.isFinite(deltaTime)) {
-      throw new Error('玩家武器帧时间必须是有限数值。');
-    }
-    const safeDeltaTime = Math.max(0, deltaTime);
-    const definition = this.definition;
-    const ammunition = this.ammunition;
-    if (definition === null || ammunition === null) {
-      return;
-    }
-
-    this.actionState.update(safeDeltaTime, definition, ammunition);
-    if (owner.alive
-      && fireIntent !== null
-      && this.actionState.canFire(ammunition)
-      && this.projectiles !== null) {
-      if (firingMuzzle === null) {
-        throw new Error('请求射击时缺少当前武器的真实枪口。');
-      }
-      const attackResult = this.attackExecutor.execute(
-        definition,
-        firingMuzzle,
-        fireIntent,
-        ammunition,
-        this.projectiles,
-      );
-      if (attackResult === BattlefieldWeaponAttackResult.Fired) {
-        this.actionState.markFired(definition, ammunition);
-      } else {
-        this.actionState.markEmpty(ammunition);
-      }
-    }
-    this.heldRenderer?.setRigPose(
-      owner.rootX,
-      owner.rootY,
-      owner.rootZ,
-      owner.rotationX,
-      owner.rotationY,
-      owner.rotationZ,
-      owner.rotationW,
+    this.renderer.setRigPose(
+      deltaTime,
+      this.actionState.action,
+      this.actionState.progress,
+      pose.rootX,
+      pose.rootY,
+      pose.rootZ,
+      pose.rotationX,
+      pose.rotationY,
+      pose.rotationZ,
+      pose.rotationW,
     );
-  }
-
-  /** 在 Simulation 阶段推进全部在途弹丸。 */
-  public integrateProjectiles(deltaTime: number): void {
-    this.ensureActive();
-    this.projectiles?.integrate(deltaTime);
-  }
-
-  /** 在 Combat 阶段对本帧弹丸位移执行连续碰撞。 */
-  public collideProjectiles(targets: BattlefieldProjectileCollisionTarget): void {
-    this.ensureActive();
-    this.projectiles?.collide(targets);
-  }
-
-  /** 在 PostSimulation 阶段统一结算弹丸命中。 */
-  public resolveProjectileImpacts(targets: BattlefieldProjectileCollisionTarget): void {
-    this.ensureActive();
-    this.projectiles?.resolveImpacts(targets);
-  }
-
-  /** 在 RenderPreparation 阶段上传实体弹丸最终位置。 */
-  public synchronizeProjectileRendering(): void {
-    this.ensureActive();
-    this.projectiles?.synchronizeRendering();
   }
 
   public dispose(): void {
@@ -287,40 +298,102 @@ export class BattlefieldPlayerWeaponRuntime {
       return;
     }
     this.disposed = true;
-    this.projectiles?.dispose();
-    this.heldRenderer?.dispose();
-    this.heldMaterial.destroy();
-    this.definition = null;
-    this.grip = null;
-    this.heldProfile = null;
-    this.ammunition = null;
-    this.projectiles = null;
-    this.heldRenderer = null;
-    this.actionState.reset();
+    this.renderer.dispose();
+    this.material.destroy();
+  }
+
+  private queueHits(
+    owner: Readonly<BattlefieldWeaponOwnerState>,
+    kind: BattlefieldWeaponHitKind,
+  ): void {
+    const definition = this.definition;
+    const query = this.query;
+    query.originX = owner.positionX;
+    query.originZ = owner.positionZ;
+    query.directionX = this.actionState.directionX;
+    query.directionZ = this.actionState.directionZ;
+    query.reach = kind === BattlefieldWeaponHitKind.SpinPulse
+      || kind === BattlefieldWeaponHitKind.SpinFinal
+      ? definition.reach * 1.12
+      : definition.reach;
+    query.arcRadians = kind === BattlefieldWeaponHitKind.SpinPulse
+      || kind === BattlefieldWeaponHitKind.SpinFinal
+      ? Math.PI * 2
+      : kind === BattlefieldWeaponHitKind.Uppercut
+        ? definition.hitArcRadians * 0.55
+        : definition.hitArcRadians;
+    const hitCount = this.monsters.collectMeleeHits(query, this.meleeHits);
+    for (let index = 0; index < hitCount; index++) {
+      this.writeHitEvent(index, kind, owner);
+    }
+    if (hitCount > 0 && kind === BattlefieldWeaponHitKind.Swing) {
+      this.actionState.recordConfirmedAttack(definition);
+    }
+  }
+
+  private writeHitEvent(
+    hitIndex: number,
+    kind: BattlefieldWeaponHitKind,
+    owner: Readonly<BattlefieldWeaponOwnerState>,
+  ): void {
+    const targetX = this.meleeHits.positionX[hitIndex] ?? owner.positionX;
+    const targetZ = this.meleeHits.positionZ[hitIndex] ?? owner.positionZ;
+    const radialX = targetX - owner.positionX;
+    const radialZ = targetZ - owner.positionZ;
+    const radialLength = Math.hypot(radialX, radialZ);
+    const radial = radialLength > 0.0001;
+    const spin = kind === BattlefieldWeaponHitKind.SpinPulse
+      || kind === BattlefieldWeaponHitKind.SpinFinal;
+    const event = this.mutableEvent;
+    event.kind = kind;
+    event.attackSequenceId = this.actionState.attackSequenceId;
+    event.populationId = this.meleeHits.populationIds[hitIndex] ?? 0;
+    event.entityId = this.meleeHits.entityIds[hitIndex] ?? 0;
+    event.directionX = spin && radial ? radialX / radialLength : this.actionState.directionX;
+    event.directionZ = spin && radial ? radialZ / radialLength : this.actionState.directionZ;
+    event.damage = this.definition.baseDamage * getDamageScale(kind);
+    event.knockbackSpeed = getKnockbackSpeed(kind, this.definition.knockbackImpulse);
+    event.knockbackDuration = KNOCKBACK_DURATION_SECONDS;
+    event.launchVelocity = kind === BattlefieldWeaponHitKind.Uppercut
+      ? calculateLaunchVelocity(
+        BATTLEFIELD_COMBAT_CONFIG.airborneGravity,
+        SLEDGEHAMMER_PROGRESSION.uppercutLaunchHeight,
+      )
+      : 0;
+    event.magnetizedSkillSequence = spin ? this.actionState.skillSequenceId : 0;
+    event.magnetizedDuration = spin ? MAGNETIZED_DURATION_SECONDS : 0;
+    this.events.append(event);
   }
 
   private ensureActive(): void {
     if (this.disposed) {
-      throw new Error('玩家武器运行时已经释放。');
+      throw new Error('玩家武器行为运行时已经释放。');
     }
   }
-
 }
 
-function validateOwnerPose(owner: Readonly<BattlefieldWeaponOwnerPose>): void {
-  if (!Number.isFinite(owner.rootX)
-    || !Number.isFinite(owner.rootY)
-    || !Number.isFinite(owner.rootZ)
-    || !Number.isFinite(owner.rotationX)
-    || !Number.isFinite(owner.rotationY)
-    || !Number.isFinite(owner.rotationZ)
-    || !Number.isFinite(owner.rotationW)
-    || Math.abs(Math.hypot(
-      owner.rotationX,
-      owner.rotationY,
-      owner.rotationZ,
-      owner.rotationW,
-    ) - 1) > 0.002) {
-    throw new Error('玩家武器持有者姿态必须使用有限数值。');
+function getDamageScale(kind: BattlefieldWeaponHitKind): number {
+  switch (kind) {
+    case BattlefieldWeaponHitKind.Swing:
+      return 1;
+    case BattlefieldWeaponHitKind.Uppercut:
+      return 1.25;
+    case BattlefieldWeaponHitKind.SpinPulse:
+      return 0.34;
+    case BattlefieldWeaponHitKind.SpinFinal:
+      return 0.88;
+  }
+}
+
+function getKnockbackSpeed(kind: BattlefieldWeaponHitKind, baseImpulse: number): number {
+  switch (kind) {
+    case BattlefieldWeaponHitKind.Swing:
+      return baseImpulse;
+    case BattlefieldWeaponHitKind.Uppercut:
+      return baseImpulse * 0.35;
+    case BattlefieldWeaponHitKind.SpinPulse:
+      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse * 0.62;
+    case BattlefieldWeaponHitKind.SpinFinal:
+      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse * 1.28;
   }
 }

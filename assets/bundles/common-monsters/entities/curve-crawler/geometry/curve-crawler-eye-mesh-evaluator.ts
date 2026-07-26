@@ -71,6 +71,7 @@ export function evaluateCurveCrawlerEyeMesh(
     radiusY,
     radiusZ,
     fragmentOffset,
+    entityIndex,
     writePositions,
     writeNormals,
   );
@@ -93,6 +94,7 @@ export function evaluateCurveCrawlerEyeMesh(
     radiusY,
     radiusZ,
     fragmentOffset,
+    entityIndex,
     writePositions,
     writeNormals,
   );
@@ -118,6 +120,7 @@ function evaluateEye(
   radiusY: number,
   radiusZ: number,
   fragmentOffset: number,
+  entityIndex: number,
   writePositions: boolean,
   writeNormals: boolean,
 ): void {
@@ -141,7 +144,8 @@ function evaluateEye(
       + (animation.fragmentOffsetX[fragmentIndex] ?? 0),
     originY + forward * headingSine + localY * headingCosine
       + (animation.fragmentOffsetY[fragmentIndex] ?? 0),
-    eyeCenterZ + (animation.fragmentOffsetZ[fragmentIndex] ?? 0),
+    eyeCenterZ + (animation.fragmentOffsetZ[fragmentIndex] ?? 0)
+      + (state.data.effects.rootElevation[entityIndex] ?? 0),
     radiusX,
     radiusY,
     radiusZ,

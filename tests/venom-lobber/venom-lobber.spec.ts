@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
-import {
-  CombatTag,
-  MonsterBodySize,
-  MonsterManipulationState,
-  type MutablePlanarMonsterManipulationCandidate,
-} from '../../assets/core/contracts/monster-manipulation';
 import { VenomLobberLifecyclePoseSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/animation/venom-lobber-lifecycle-pose-system';
 import { VenomLobberCombatSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/behavior/venom-lobber-combat-system';
 import { VenomBombSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/behavior/venom-bomb-system';
@@ -32,7 +26,6 @@ import { VenomPoolState } from '../../assets/bundles/common-monsters/entities/ve
 import { type VenomLobberCombatOptions } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-combat-options';
 import { VenomLobberState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-state';
 import { VenomLobberLifeSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/population/venom-lobber-life-system';
-import { VenomLobberManipulationSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/population/venom-lobber-manipulation-system';
 
 const COMBAT = Object.freeze({
   detectionRadius: 50,
@@ -302,63 +295,6 @@ describe('Venom Lobber 技能与程序化模型', () => {
     expect(system.consumeDamage()).toBeGreaterThan(0);
   });
 
-  it('重型撞击可直接生成持续更久的强化毒池', () => {
-    const system = new VenomBombSystem(1, COMBAT);
-    system.spawnCatalyzedPool(3, -2);
-    const index = Array.from(system.pools.active).findIndex((value) => value !== 0);
-    expect(index).toBeGreaterThanOrEqual(0);
-    expect(system.pools.catalyzed[index] ?? 0).toBe(1);
-    expect(system.pools.duration[index] ?? 0).toBeGreaterThan(COMBAT.poolDurationSeconds);
-  });
-
-  it('低于三成半生命后作为中型重物被抓取，并取消移动与未释放施法', () => {
-    const state = createVenomState();
-    const manipulation = new VenomLobberManipulationSystem();
-    state.data.vitality.state[0] = MonsterLifecycleState.Alive;
-    state.data.vitality.health[0] = 80;
-    state.data.behavior.action[0] = VenomLobberAction.Cast;
-    state.data.combat.castTime[0] = 0.5;
-    state.data.combat.projectileReleased[0] = 0;
-    state.data.intent.targetSpeed[0] = 9;
-    state.data.motion.currentSpeed[0] = 7;
-    const candidate: MutablePlanarMonsterManipulationCandidate = {
-      entityId: -1,
-      x: 0,
-      y: 0,
-      elevation: 0,
-      healthRatio: 1,
-      bodySize: MonsterBodySize.Small,
-      grabResistance: 0,
-      playerGrabbable: false,
-      tags: CombatTag.None,
-      throwMass: 0,
-      maximumThrowDistance: 0,
-      collisionRadius: 0,
-      impactStrength: 0,
-    };
-
-    expect(manipulation.writeCandidate(state, 0, candidate)).toBe(true);
-    expect(candidate.bodySize).toBe(MonsterBodySize.Medium);
-    expect(candidate.tags & CombatTag.Executable).not.toBe(0);
-    expect(candidate.throwMass).toBeGreaterThan(2);
-    expect(manipulation.beginCarry(state, 0)).toBe(true);
-    expect(state.data.manipulation.state[0]).toBe(MonsterManipulationState.Carried);
-    expect(state.data.combat.castTime[0]).toBe(0);
-    expect(state.data.intent.targetSpeed[0]).toBe(0);
-    expect(state.data.motion.currentSpeed[0]).toBe(0);
-
-    const combat = new VenomLobberCombatSystem(1, COMBAT);
-    combat.synchronizeTarget({ x: 8, y: 0, collisionRadius: 0.4 });
-    combat.update(state, 1);
-    expect(Array.from(combat.effects.bombs.active).every((value) => value === 0)).toBe(true);
-    expect(manipulation.synchronizePose(state, 0, 4, -3, 7, 0.6)).toBe(true);
-    new VenomLobberLifecyclePoseSystem().update(state, 0);
-    manipulation.applyPose(state);
-    expect(state.data.animation.rootElevation[0]).toBe(7);
-    expect(manipulation.beginThrow(state, 0)).toBe(true);
-    expect(manipulation.release(state, 0)).toBe(true);
-    expect(state.data.manipulation.state[0]).toBe(MonsterManipulationState.Free);
-  });
 });
 
 function maximumSlotHeight(positions: Float32Array, slotIndex: number): number {

@@ -1,7 +1,4 @@
-import {
-  EquipmentId,
-  type WeaponEquipmentId,
-} from '../catalog/equipment-id';
+import { EquipmentId } from '../catalog/equipment-id';
 import {
   BattlefieldInteractionAction,
   type BattlefieldInteractionProvider,
@@ -18,42 +15,26 @@ export interface BattlefieldEquipmentPickupSource {
   ): boolean;
   getDroppedEquipmentId(instanceId: number): EquipmentId | null;
   removeDroppedEquipment(instanceId: number): boolean;
-  spawnPlayerDiscard(
-    equipmentId: WeaponEquipmentId,
-    x: number,
-    y: number,
-    z: number,
-    heading: number,
-  ): void;
 }
 
-/** 拾取系统依赖的玩家装备接收门面。 */
-export interface BattlefieldEquipmentWeaponSlot {
-  receive(equipmentId: EquipmentId): WeaponEquipmentId | null;
+/** 拾取事务依赖的固定容量物品栏门面。 */
+export interface BattlefieldEquipmentInventory {
+  tryInsert(equipmentId: EquipmentId, stackCount?: number, instanceSeed?: number): boolean;
 }
 
-/** 武器替换系统读取的玩家世界姿态。 */
-export interface BattlefieldEquipmentCarrier {
-  readonly positionX: number;
-  readonly positionY: number;
-  readonly positionZ: number;
-  readonly heading: number;
-}
-
-/** 把宝箱掉落物查询适配为拾取交互，并按类别替换武器或补充备用弹药。 */
+/** 把最近掉落物查询适配为拾取交互，并保证满包时地面物品不会丢失。 */
 export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionProvider {
   private readonly inspection: MutableDroppedEquipmentInspection = {
     instanceId: -1,
-    equipmentId: EquipmentId.DesertEagle,
+    equipmentId: EquipmentId.Sledgehammer,
     x: 0,
     y: 0,
     z: 0,
   };
 
   constructor(
-    private readonly treasures: BattlefieldEquipmentPickupSource,
-    private readonly playerWeapon: BattlefieldEquipmentWeaponSlot,
-    private readonly carrier: BattlefieldEquipmentCarrier,
+    private readonly source: BattlefieldEquipmentPickupSource,
+    private readonly inventory: BattlefieldEquipmentInventory,
   ) {}
 
   public writeNearestInteraction(
@@ -61,11 +42,7 @@ export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionP
     playerZ: number,
     result: MutableBattlefieldInteractionCandidate,
   ): boolean {
-    if (!this.treasures.writeNearestEquipmentInspection(
-      playerX,
-      playerZ,
-      this.inspection,
-    )) {
+    if (!this.source.writeNearestEquipmentInspection(playerX, playerZ, this.inspection)) {
       return false;
     }
     const deltaX = this.inspection.x - playerX;
@@ -85,22 +62,16 @@ export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionP
     if (action !== BattlefieldInteractionAction.PickupEquipment) {
       return false;
     }
-    const equipmentId = this.treasures.getDroppedEquipmentId(sourceId);
+    const equipmentId = this.source.getDroppedEquipmentId(sourceId);
     if (equipmentId === null) {
       return false;
     }
-    const replacedEquipmentId = this.playerWeapon.receive(equipmentId);
-    if (!this.treasures.removeDroppedEquipment(sourceId)) {
-      throw new Error('玩家接收装备后未能移除对应的战场掉落物。');
+    // 实例标识同时作为拾取种子，Chunk 重载后仍能保持同一世界物品身份。
+    if (!this.inventory.tryInsert(equipmentId, 1, sourceId)) {
+      return false;
     }
-    if (replacedEquipmentId !== null) {
-      this.treasures.spawnPlayerDiscard(
-        replacedEquipmentId,
-        this.carrier.positionX,
-        this.carrier.positionY + 1.35,
-        this.carrier.positionZ,
-        this.carrier.heading,
-      );
+    if (!this.source.removeDroppedEquipment(sourceId)) {
+      throw new Error('物品栏提交成功后未能移除对应的战场掉落物。');
     }
     return true;
   }

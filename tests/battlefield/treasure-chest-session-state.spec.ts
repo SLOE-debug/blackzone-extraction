@@ -33,30 +33,30 @@ describe('战场宝箱会话状态', () => {
     const state = new BattlefieldTreasureChestSessionState();
     state.open(
       key,
-      [EquipmentId.DesertEagle, EquipmentId.DesertEagle],
+      [EquipmentId.Sledgehammer, EquipmentId.Sledgehammer],
       0x7a91c3,
     );
 
     expect(state.isOpened(key)).toBe(true);
     expect(state.getScatterSeed(key)).toBe(0x7a91c3);
     expect(state.getRemainingLoot(key)).toEqual([
-      EquipmentId.DesertEagle,
-      EquipmentId.DesertEagle,
+      EquipmentId.Sledgehammer,
+      EquipmentId.Sledgehammer,
     ]);
 
-    state.consumeLoot(key, EquipmentId.DesertEagle);
-    expect(state.getRemainingLoot(key)).toEqual([EquipmentId.DesertEagle]);
-    state.consumeLoot(key, EquipmentId.DesertEagle);
+    state.consumeLoot(key, EquipmentId.Sledgehammer);
+    expect(state.getRemainingLoot(key)).toEqual([EquipmentId.Sledgehammer]);
+    state.consumeLoot(key, EquipmentId.Sledgehammer);
     expect(state.getRemainingLoot(key)).toEqual([]);
   });
 
   it('拒绝重复打开同一稳定宝箱或消费不存在的装备', () => {
     const key = createBattlefieldTreasureChestKey(createChunkCoordinate(1, 2), 0);
     const state = new BattlefieldTreasureChestSessionState();
-    state.open(key, [EquipmentId.DesertEagle], 17);
+    state.open(key, [EquipmentId.Sledgehammer], 17);
 
-    expect(() => state.open(key, [EquipmentId.DesertEagle], 19)).toThrow(/已经记录/);
-    state.consumeLoot(key, EquipmentId.DesertEagle);
-    expect(() => state.consumeLoot(key, EquipmentId.DesertEagle)).toThrow(/不存在/);
+    expect(() => state.open(key, [EquipmentId.Sledgehammer], 19)).toThrow(/已经记录/);
+    state.consumeLoot(key, EquipmentId.Sledgehammer);
+    expect(() => state.consumeLoot(key, EquipmentId.Sledgehammer)).toThrow(/不存在/);
   });
 });

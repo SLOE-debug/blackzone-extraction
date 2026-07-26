@@ -1,28 +1,19 @@
 import { Graphics, Layers, Node, UITransform } from 'cc';
 import { type VirtualJoystick } from '../../../core/ui/virtual-joystick';
+import { type BattlefieldInventoryHud } from '../equipment/inventory/ui/battlefield-inventory-hud';
 import { type BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
-import { type BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
-import { type BattlefieldSkillWheel } from './battlefield-skill-wheel';
-import { type BattlefieldActionTargetMarkerHud } from './battlefield-action-target-marker-hud';
-import { type BattlefieldThrowPreviewHud } from './battlefield-throw-preview-hud';
+import { type BattlefieldSkillButton } from './battlefield-skill-button';
 
-/**
- * 把双摇杆、玩家血条与武器弹药板压入同一个 Graphics 组件。
- *
- * 各交互节点仍独立保留命中区域；只有可见几何集中提交为一个 Graphics 批次，
- * 并且仅在输入、生命值、弹药或布局实际变化时重建路径。
- */
+/** 把双摇杆、生命条、技能键与物品栏压入同一个 Graphics 组件。 */
 export class BattlefieldGameplayGraphics {
   private readonly root: Node;
   private readonly transform: UITransform;
   private readonly graphics: Graphics;
   private movementRevision = -1;
-  private aimRevision = -1;
+  private attackRevision = -1;
   private playerStatusRevision = -1;
-  private weaponStatusRevision = -1;
-  private skillWheelRevision = -1;
-  private targetMarkerRevision = -1;
-  private throwPreviewRevision = -1;
+  private skillRevision = -1;
+  private inventoryRevision = -1;
   private width = -1;
   private height = -1;
   private disposed = false;
@@ -38,17 +29,15 @@ export class BattlefieldGameplayGraphics {
     this.graphics = root.addComponent(Graphics);
   }
 
-  /** 在任一视觉版本变化时清空并重写唯一共享图形批次。 */
+  /** 任一视觉版本变化时清空并重写唯一共享图形批次。 */
   public synchronize(
     width: number,
     height: number,
     movement: VirtualJoystick,
-    aim: VirtualJoystick,
+    attack: VirtualJoystick,
     playerStatus: BattlefieldPlayerStatusHud,
-    weaponStatus: BattlefieldWeaponStatusHud,
-    skillWheel: BattlefieldSkillWheel,
-    targetMarker: BattlefieldActionTargetMarkerHud,
-    throwPreview: BattlefieldThrowPreviewHud,
+    skill: BattlefieldSkillButton,
+    inventory: BattlefieldInventoryHud,
   ): void {
     if (this.disposed) {
       return;
@@ -56,12 +45,10 @@ export class BattlefieldGameplayGraphics {
     const frameChanged = width !== this.width || height !== this.height;
     if (!frameChanged
       && movement.graphicsRevision === this.movementRevision
-      && aim.graphicsRevision === this.aimRevision
+      && attack.graphicsRevision === this.attackRevision
       && playerStatus.graphicsRevision === this.playerStatusRevision
-      && weaponStatus.graphicsRevision === this.weaponStatusRevision
-      && skillWheel.graphicsRevision === this.skillWheelRevision
-      && targetMarker.graphicsRevision === this.targetMarkerRevision
-      && throwPreview.graphicsRevision === this.throwPreviewRevision) {
+      && skill.graphicsRevision === this.skillRevision
+      && inventory.graphicsRevision === this.inventoryRevision) {
       return;
     }
     if (frameChanged) {
@@ -71,19 +58,15 @@ export class BattlefieldGameplayGraphics {
     }
     this.graphics.clear();
     movement.draw(this.graphics);
-    aim.draw(this.graphics);
+    attack.draw(this.graphics);
     playerStatus.draw(this.graphics);
-    weaponStatus.draw(this.graphics);
-    throwPreview.draw(this.graphics);
-    targetMarker.draw(this.graphics);
-    skillWheel.draw(this.graphics);
+    inventory.draw(this.graphics);
+    skill.draw(this.graphics);
     this.movementRevision = movement.graphicsRevision;
-    this.aimRevision = aim.graphicsRevision;
+    this.attackRevision = attack.graphicsRevision;
     this.playerStatusRevision = playerStatus.graphicsRevision;
-    this.weaponStatusRevision = weaponStatus.graphicsRevision;
-    this.skillWheelRevision = skillWheel.graphicsRevision;
-    this.targetMarkerRevision = targetMarker.graphicsRevision;
-    this.throwPreviewRevision = throwPreview.graphicsRevision;
+    this.skillRevision = skill.graphicsRevision;
+    this.inventoryRevision = inventory.graphicsRevision;
   }
 
   public dispose(): void {

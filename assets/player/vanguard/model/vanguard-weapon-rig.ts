@@ -27,28 +27,18 @@ const UNARMED_RIG = profile({
   sockets: sockets(ORIGIN, ORIGIN),
 });
 
-const HANDGUN_RIG = profile({
-  pose: VanguardWeaponPose.Handgun,
-  readyPitch: -0.015,
+const ONE_HAND_HEAVY_RIG = profile({
+  pose: VanguardWeaponPose.OneHandHeavy,
+  readyPitch: -0.035,
   sockets: sockets(
     ORIGIN,
-    point(-0.18, 0.02, 0.16),
-  ),
-});
-
-const LONG_GUN_RIG = profile({
-  pose: VanguardWeaponPose.LongGun,
-  readyPitch: 0.025,
-  sockets: sockets(
     ORIGIN,
-    point(-0.57, 0.03, 0.52),
   ),
 });
 
 const VANGUARD_WEAPON_RIGS = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_RIG,
-  [VanguardWeaponPose.Handgun]: HANDGUN_RIG,
-  [VanguardWeaponPose.LongGun]: LONG_GUN_RIG,
+  [VanguardWeaponPose.OneHandHeavy]: ONE_HAND_HEAVY_RIG,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponRigProfile>>>);
 
 /** 返回由武器姿态枚举登记的刚性挂点配置。 */

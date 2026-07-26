@@ -23,11 +23,5 @@ export enum BattlefieldPerformanceEvent {
   PlayerDamage,
   MonsterBatchGrowth,
   MonsterBatchCapacityAdded,
-  ProjectilesSpawned,
-  ProjectilesIntegrated,
-  ProjectileBroadPhaseCandidates,
-  ProjectileNarrowPhaseHits,
-  ProjectileImpactsQueued,
-  ProjectileDamageEventsApplied,
   Count,
 }

@@ -1,4 +1,4 @@
-/** 接收 WeaponAimRoot 世界位置、旋转与前向轴的可写结构。 */
+/** 接收 WeaponRoot 世界位置、旋转与前向轴的可写结构。 */
 export interface MutableVanguardWeaponRigPose {
   rootX: number;
   rootY: number;

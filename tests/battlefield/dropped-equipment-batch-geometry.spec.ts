@@ -3,6 +3,7 @@ import { getBattlefieldEquipmentPrototype } from '../../assets/bundles/battlefie
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import {
   createDroppedEquipmentBatchGeometry,
+  getDroppedEquipmentActiveIndexCount,
   writeDroppedEquipmentBatchPose,
 } from '../../assets/bundles/battlefield/equipment/geometry/dropped-equipment-batch-geometry';
 
@@ -22,16 +23,16 @@ const TRANSLATION = Object.freeze({
 });
 
 describe('掉落装备批几何', () => {
-  it('把不同装备固定流拼为连续区段并只动态改写位置', () => {
-    const first = getBattlefieldEquipmentPrototype(EquipmentId.DesertEagle).geometry;
-    const second = getBattlefieldEquipmentPrototype(
-      EquipmentId.FiftyActionExpressAmmunition,
-    ).geometry;
+  it('预分配相同原型槽位并使用紧凑索引前缀控制活动数量', () => {
+    const first = getBattlefieldEquipmentPrototype(EquipmentId.Sledgehammer).geometry;
+    const second = first;
     const packed = createDroppedEquipmentBatchGeometry([first, second]);
 
     expect(packed.vertexOffsets).toEqual([0, first.vertexCount]);
     expect(packed.geometry.vertexCount).toBe(first.vertexCount + second.vertexCount);
     expect(packed.geometry.indexCount).toBe(first.indexCount + second.indexCount);
+    expect(packed.indexOffsets).toEqual([0, first.indexCount, first.indexCount * 2]);
+    expect(getDroppedEquipmentActiveIndexCount(packed, 1)).toBe(first.indexCount);
     expect(packed.geometry.index[first.indexCount]).toBe(
       (second.index[0] ?? 0) + first.vertexCount,
     );

@@ -1,5 +1,6 @@
 /** 战场怪物使用世界单位表达的感知、追击与啃咬参数。 */
 export const BATTLEFIELD_COMBAT_CONFIG = Object.freeze({
+  airborneGravity: 24.5,
   monster: Object.freeze({
     detectionRadius: 44,
     disengageRadius: 58,

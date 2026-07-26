@@ -26,17 +26,32 @@ describe('主角第三人称双摇杆移动', () => {
     expect(state.data.transform.heading[0]).toBeGreaterThan(1);
   });
 
-  it('瞄准生效时保持移动方向与角色朝向解耦', () => {
+  it('攻击方向生效时保持移动方向与角色朝向解耦', () => {
     const state = new VanguardState(TEST_OPTIONS);
     const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
     state.data.intent.moveX[0] = 1;
-    state.data.intent.aimZ[0] = -1;
-    state.data.intent.aiming[0] = 1;
+    state.data.intent.attackZ[0] = -1;
+    state.data.intent.attacking[0] = 1;
 
     movement.update(state, 0.1);
 
     expect(state.data.transform.x[0]).toBeGreaterThan(0);
     expect(state.data.transform.heading[0]).toBeGreaterThan(2.5);
+  });
+
+  it('朝向锁定优先于移动和攻击方向且不禁用位移', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
+    state.data.intent.moveX[0] = 1;
+    state.data.intent.attackZ[0] = -1;
+    state.data.intent.attacking[0] = 1;
+    state.data.intent.facingLocked[0] = 1;
+    state.data.intent.lockedHeading[0] = 0.75;
+
+    movement.update(state, 0.1);
+
+    expect(state.data.transform.x[0]).toBeGreaterThan(0);
+    expect(state.data.transform.heading[0]).toBeCloseTo(0.75, 6);
   });
 
   it('不施加地图边界限制并在松开输入后快速减速', () => {

@@ -3,7 +3,7 @@ import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
-/** 在全部怪物完成移动后求解 Crowd，并重建弹丸共享空间索引。 */
+/** 在全部怪物完成自主移动与受力后求解 Crowd 共享空间索引。 */
 export class BattlefieldMonsterSpatialIndexWorldSystem extends BattlefieldWorldSystem {
   public readonly phase = WorldPhase.SpatialIndex;
   public readonly order = 0;

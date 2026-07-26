@@ -1,5 +1,4 @@
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
-import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { damp, dampAngle } from '../../../../../core/math/scalar';
 import { type VenomLobberState } from '../model/venom-lobber-state';
@@ -7,7 +6,7 @@ import { type VenomLobberState } from '../model/venom-lobber-state';
 /** 按连续 SoA 流推进 Venom Lobber 的速度、朝向和位移。 */
 export class VenomLobberMovementSystem implements EntitySystem<VenomLobberState, number> {
   public update(state: VenomLobberState, deltaTime: number): void {
-    const { transform, vitality, manipulation, intent, motion } = state.data;
+    const { transform, vitality, effects, intent, motion } = state.data;
     for (let index = 0; index < state.count; index++) {
       transform.previousX[index] = transform.x[index] ?? 0;
       transform.previousY[index] = transform.y[index] ?? 0;
@@ -15,8 +14,7 @@ export class VenomLobberMovementSystem implements EntitySystem<VenomLobberState,
         motion.currentSpeed[index] = 0;
         continue;
       }
-      if ((manipulation.state[index] as MonsterManipulationState)
-        !== MonsterManipulationState.Free) {
+      if ((effects.externalElevation[index] ?? 0) > 0) {
         motion.currentSpeed[index] = 0;
         continue;
       }

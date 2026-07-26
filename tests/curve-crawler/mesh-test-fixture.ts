@@ -50,6 +50,9 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       state: new Uint8Array(entityCount).fill(MonsterLifecycleState.Alive),
       stateTime: new Float32Array(entityCount),
     },
+    effects: {
+      rootElevation: new Float32Array(entityCount),
+    },
     animation: {
       phase: new Float32Array(Array.from({ length: entityCount }, (_, index) => index * 0.6)),
       bodyPulse: filled(entityCount, 0),

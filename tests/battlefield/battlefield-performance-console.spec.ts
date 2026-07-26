@@ -21,7 +21,7 @@ describe('战场性能控制台表格', () => {
     expect(rows.map((row) => row['阶段'])).toEqual([
       '怪物群体',
       '玩家动画移动',
-      '输入与瞄准',
+      '移动与攻击输入',
     ]);
     expect(rows[0]?.['平均每帧(ms)']).toBe(5);
     expect(rows[0]?.['战场CPU占比']).toBe('50.0%');
@@ -53,7 +53,7 @@ function createReport(): BattlefieldPerformanceConsoleReport {
     drawCalls: 20,
     triangles: 1000,
     instances: 0,
-    stageNames: Object.freeze(['输入与瞄准', '玩家动画移动', '怪物群体']),
+    stageNames: Object.freeze(['移动与攻击输入', '玩家动画移动', '怪物群体']),
     stageTotals: Float64Array.of(10, 30, 50),
     stageMaximums: Float64Array.of(2, 4, 12),
     stageSamples: Uint32Array.of(10, 10, 10),

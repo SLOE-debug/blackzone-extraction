@@ -1,60 +1,36 @@
 import { type StaticSurfaceBufferGeometry } from '../../../../core/geometry/buffer-geometry';
 import { WeaponGrip } from '../../../../core/equipment/equipment';
-import {
-  type BattlefieldEquipmentDefinitionById,
-} from './battlefield-equipment-contracts';
-import {
-  type AmmunitionEquipmentId,
-  EquipmentId,
-  type WeaponEquipmentId,
-} from './equipment-id';
+import { type BattlefieldEquipmentDefinitionById } from './battlefield-equipment-contracts';
+import { EquipmentId } from './equipment-id';
 
 /** 一件装备在世界掉落状态下的稳定展示尺度。 */
 export interface DroppedEquipmentProfile {
   readonly scale: number;
+  readonly boundsRadius: number;
 }
 
-/** 一种武器相对通用 WeaponAimRoot 的程序模型变换。 */
-export interface HeldWeaponProfile {
+/** 一种装备相对角色手部权威挂点的中立程序模型变换。 */
+export interface HeldEquipmentProfile {
   readonly grip: WeaponGrip;
   readonly heldScale: number;
   readonly originRightOffset: number;
   readonly originHeightOffset: number;
   readonly originForwardOffset: number;
-  /** 枪口相对 WeaponAimRoot 的局部右向偏移。 */
-  readonly muzzleRightOffset: number;
-  /** 枪口相对 WeaponAimRoot 的局部高度偏移。 */
-  readonly muzzleHeightOffset: number;
-  /** 枪口相对 WeaponAimRoot 的局部前向偏移。 */
-  readonly muzzleForwardOffset: number;
   readonly rotationXDegrees: number;
   readonly rotationYDegrees: number;
   readonly rotationZDegrees: number;
 }
 
-/** 武器原型同时拥有玩法定义、固定几何和两种展示配置。 */
-export interface BattlefieldWeaponPrototype<TId extends WeaponEquipmentId> {
+/** 一件战场装备同时拥有玩法定义、固定几何和两种展示配置。 */
+export interface BattlefieldEquipmentPrototype<TId extends EquipmentId> {
   readonly id: TId;
   readonly definition: Readonly<BattlefieldEquipmentDefinitionById[TId]>;
   readonly geometry: StaticSurfaceBufferGeometry;
   readonly dropped: Readonly<DroppedEquipmentProfile>;
-  readonly held: Readonly<HeldWeaponProfile>;
-}
-
-/** 弹药原型只拥有玩法定义、固定几何和掉落展示配置。 */
-export interface BattlefieldAmmunitionPrototype<TId extends AmmunitionEquipmentId> {
-  readonly id: TId;
-  readonly definition: Readonly<BattlefieldEquipmentDefinitionById[TId]>;
-  readonly geometry: StaticSurfaceBufferGeometry;
-  readonly dropped: Readonly<DroppedEquipmentProfile>;
+  readonly held: Readonly<HeldEquipmentProfile>;
 }
 
 /** 战场装备标识到完整原型类别的编译期映射。 */
 export type BattlefieldEquipmentPrototypeById = {
-  readonly [TId in WeaponEquipmentId]: BattlefieldWeaponPrototype<TId>;
-} & {
-  readonly [TId in AmmunitionEquipmentId]: BattlefieldAmmunitionPrototype<TId>;
+  readonly [TId in EquipmentId]: BattlefieldEquipmentPrototype<TId>;
 };
-
-/** 战场完整原型清单能够容纳的定义联合。 */
-export type BattlefieldEquipmentPrototype = BattlefieldEquipmentPrototypeById[EquipmentId];

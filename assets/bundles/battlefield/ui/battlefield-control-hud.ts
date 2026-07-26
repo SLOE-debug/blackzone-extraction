@@ -1,19 +1,16 @@
-import {
-  type Camera,
-  type EventKeyboard,
-  input,
-  Input,
-  KeyCode,
-  Node,
-} from 'cc';
+import { type Camera, type EventKeyboard, input, Input, KeyCode, Node } from 'cc';
 import { ScreenUiCanvas } from '../../../core/ui/screen-ui-canvas';
 import { VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { VirtualJoystickActionIcon } from '../../../core/ui/virtual-joystick-graphics';
+import { type BattlefieldEquipmentLibrary } from '../equipment/catalog/battlefield-equipment-contracts';
+import { type BattlefieldInventorySnapshot } from '../equipment/inventory/model/battlefield-inventory-state';
+import { type BattlefieldInventoryRuntime } from '../equipment/inventory/population/battlefield-inventory-runtime';
+import { BattlefieldInventoryHud } from '../equipment/inventory/ui/battlefield-inventory-hud';
+import { type BattlefieldHammerStatus } from '../equipment/population/battlefield-player-weapon-runtime';
 import {
   BattlefieldEquipmentLabelHud,
   type BattlefieldEquipmentLabelPresentation,
 } from '../equipment/ui/battlefield-equipment-label-hud';
-import { type BattlefieldEquipmentLibrary } from '../equipment/catalog/battlefield-equipment-contracts';
 import { BattlefieldInteractionAction } from '../interaction/model/battlefield-interaction';
 import {
   BattlefieldCameraOrbitInput,
@@ -23,22 +20,10 @@ import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
 import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
 import { BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
-import { type WeaponAmmunitionStatus } from '../equipment/model/weapon-ammunition-status';
-import { BattlefieldWeaponStatusHud } from './battlefield-weapon-status-hud';
 import {
-  type BattlefieldCombatModuleId,
-  type BattlefieldCombatModuleUnavailableReason,
-} from '../action-modules/model/battlefield-combat-module';
-import { type MutableBattlefieldActionPreview } from '../action-modules/model/battlefield-action-preview';
-import {
-  BattlefieldActionGroundPreviewRenderer,
-} from '../action-modules/rendering/battlefield-action-ground-preview-renderer';
-import {
-  BattlefieldSkillWheel,
-  type MutableBattlefieldSkillWheelInput,
-} from './battlefield-skill-wheel';
-import { BattlefieldActionTargetMarkerHud } from './battlefield-action-target-marker-hud';
-import { BattlefieldThrowPreviewHud } from './battlefield-throw-preview-hud';
+  BattlefieldSkillButton,
+  BattlefieldSkillButtonCommand,
+} from './battlefield-skill-button';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
   [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
@@ -49,44 +34,41 @@ const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
 export interface BattlefieldScreenControlState {
   readonly moveX: number;
   readonly moveY: number;
-  readonly aimX: number;
-  readonly aimY: number;
-  readonly aiming: boolean;
+  readonly attackX: number;
+  readonly attackY: number;
+  readonly attacking: boolean;
   readonly cameraOrbitDeltaX: number;
 }
 
 interface MutableBattlefieldScreenControlState {
   moveX: number;
   moveY: number;
-  aimX: number;
-  aimY: number;
-  aiming: boolean;
+  attackX: number;
+  attackY: number;
+  attacking: boolean;
   cameraOrbitDeltaX: number;
 }
 
-/** 装配左右虚拟摇杆，并提供便于桌面预览的键盘输入。 */
+/** 装配移动摇杆、攻击摇杆、内嵌技能键和固定物品栏。 */
 export class BattlefieldControlHud {
   public readonly state: BattlefieldScreenControlState;
   private readonly canvas: ScreenUiCanvas;
   private readonly gameplayGraphics: BattlefieldGameplayGraphics;
   private readonly movementJoystick: VirtualJoystick;
-  private readonly aimJoystick: VirtualJoystick;
+  private readonly attackJoystick: VirtualJoystick;
+  private readonly skillButton: BattlefieldSkillButton;
+  private readonly inventoryHud: BattlefieldInventoryHud;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
   private readonly playerStatus: BattlefieldPlayerStatusHud;
-  private readonly weaponStatus: BattlefieldWeaponStatusHud;
   private readonly defeatDialog: BattlefieldDefeatDialog;
-  private readonly skillWheel: BattlefieldSkillWheel;
-  private readonly groundPreview: BattlefieldActionGroundPreviewRenderer;
-  private readonly targetMarker: BattlefieldActionTargetMarkerHud;
-  private readonly throwPreview: BattlefieldThrowPreviewHud;
   private readonly cameraOrbitInput: BattlefieldCameraOrbitInput;
   private readonly cameraAzimuthDelta: MutableBattlefieldCameraAzimuthDelta = { x: 0 };
   private readonly mutableState: MutableBattlefieldScreenControlState = {
     moveX: 0,
     moveY: 0,
-    aimX: 0,
-    aimY: 0,
-    aiming: false,
+    attackX: 0,
+    attackY: 0,
+    attacking: false,
     cameraOrbitDeltaX: 0,
   };
   private layoutWidth = -1;
@@ -95,47 +77,52 @@ export class BattlefieldControlHud {
   private moveDown = false;
   private moveLeft = false;
   private moveRight = false;
-  private aimUp = false;
-  private aimDown = false;
-  private aimLeft = false;
-  private aimRight = false;
+  private attackUp = false;
+  private attackDown = false;
+  private attackLeft = false;
+  private attackRight = false;
   private contextAction: BattlefieldInteractionAction | null = null;
   private contextActionPressed = false;
   private interactionKeyDown = false;
   private inputRegistered = false;
+  private inventoryRevision = -1;
   private disposed = false;
 
   constructor(
     parent: Node,
     worldCamera: Camera,
     equipmentLibrary: BattlefieldEquipmentLibrary,
+    private readonly inventory: BattlefieldInventoryRuntime,
     onReturnToLobbyRequested: () => void,
   ) {
     this.state = this.mutableState;
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
     let gameplayGraphics: BattlefieldGameplayGraphics | null = null;
     let movementJoystick: VirtualJoystick | null = null;
-    let aimJoystick: VirtualJoystick | null = null;
+    let attackJoystick: VirtualJoystick | null = null;
+    let skillButton: BattlefieldSkillButton | null = null;
+    let inventoryHud: BattlefieldInventoryHud | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
     let equipmentLabel: BattlefieldEquipmentLabelHud | null = null;
     let playerStatus: BattlefieldPlayerStatusHud | null = null;
-    let weaponStatus: BattlefieldWeaponStatusHud | null = null;
     let defeatDialog: BattlefieldDefeatDialog | null = null;
-    let skillWheel: BattlefieldSkillWheel | null = null;
-    let groundPreview: BattlefieldActionGroundPreviewRenderer | null = null;
     try {
-      groundPreview = new BattlefieldActionGroundPreviewRenderer(parent);
       gameplayGraphics = new BattlefieldGameplayGraphics(this.canvas.node);
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
         'MovementJoystick',
         BATTLEFIELD_CONTROL_STYLE.movement,
       );
-      aimJoystick = new VirtualJoystick(
+      attackJoystick = new VirtualJoystick(
         this.canvas.node,
-        'AimJoystick',
-        BATTLEFIELD_CONTROL_STYLE.aim,
+        'AttackJoystick',
+        BATTLEFIELD_CONTROL_STYLE.attack,
       );
+      skillButton = new BattlefieldSkillButton(this.canvas.node);
+      inventoryHud = new BattlefieldInventoryHud(this.canvas.node, (slotIndex) => {
+        this.inventory.swapWithSecured(slotIndex);
+        this.synchronizeInventory();
+      });
       cameraOrbitInput = new BattlefieldCameraOrbitInput(this.canvas.node);
       equipmentLabel = new BattlefieldEquipmentLabelHud(
         this.canvas.node,
@@ -143,45 +130,40 @@ export class BattlefieldControlHud {
         equipmentLibrary,
       );
       playerStatus = new BattlefieldPlayerStatusHud(this.canvas.node);
-      weaponStatus = new BattlefieldWeaponStatusHud(this.canvas.node);
       defeatDialog = new BattlefieldDefeatDialog(
         this.canvas.node,
         onReturnToLobbyRequested,
       );
-      skillWheel = new BattlefieldSkillWheel(this.canvas.node);
-      this.movementJoystick = movementJoystick;
-      this.aimJoystick = aimJoystick;
       this.gameplayGraphics = gameplayGraphics;
+      this.movementJoystick = movementJoystick;
+      this.attackJoystick = attackJoystick;
+      this.skillButton = skillButton;
+      this.inventoryHud = inventoryHud;
       this.cameraOrbitInput = cameraOrbitInput;
       this.equipmentLabel = equipmentLabel;
       this.playerStatus = playerStatus;
-      this.weaponStatus = weaponStatus;
       this.defeatDialog = defeatDialog;
-      this.skillWheel = skillWheel;
-      this.groundPreview = groundPreview;
-      this.targetMarker = new BattlefieldActionTargetMarkerHud(this.canvas.node, worldCamera);
-      this.throwPreview = new BattlefieldThrowPreviewHud(this.canvas.node, worldCamera);
+      this.synchronizeInventory();
       this.synchronizeLayout();
       this.synchronizeGameplayGraphics();
       this.canvas.node.active = false;
     } catch (error: unknown) {
-      skillWheel?.dispose();
       defeatDialog?.dispose();
-      weaponStatus?.dispose();
       playerStatus?.dispose();
       equipmentLabel?.dispose();
       cameraOrbitInput?.dispose();
+      inventoryHud?.dispose();
+      skillButton?.dispose();
       movementJoystick?.dispose();
-      aimJoystick?.dispose();
+      attackJoystick?.dispose();
       gameplayGraphics?.dispose();
-      groundPreview?.dispose();
       this.canvas.dispose();
       throw error;
     }
   }
 
-  /** 同步窗口布局，并合并触摸摇杆与桌面键盘状态。 */
-  public update(): void {
+  /** 同步布局，并合并触摸摇杆与桌面键盘状态。 */
+  public update(deltaTime: number): void {
     if (this.disposed) {
       return;
     }
@@ -193,98 +175,78 @@ export class BattlefieldControlHud {
     }
     this.canvas.synchronizeFrame();
     this.synchronizeLayout();
+    this.skillButton.update(deltaTime);
     this.writeMovementState();
-    this.writeAimState();
+    this.writeAttackState();
     this.writeCameraOrbitState();
     this.defeatDialog.update();
-    this.synchronizeGameplayGraphics();
-    if (this.aimJoystick.consumeActionPress()) {
+    this.synchronizeInventory();
+    if (this.attackJoystick.consumeActionPress()) {
       this.contextActionPressed = true;
     }
+    this.synchronizeGameplayGraphics();
   }
 
-  /** 在右侧控制区与瞄准摇杆互斥地显示临时场景操作。 */
+  /** 右摇杆中心显示开启/拾取，但技能键始终保持独立。 */
   public setContextAction(action: BattlefieldInteractionAction | null): void {
     if (this.disposed || this.contextAction === action) {
       return;
     }
     this.contextAction = action;
     this.contextActionPressed = false;
-    this.aimJoystick.setActionIcon(
+    this.attackJoystick.setActionIcon(
       action === null ? null : BATTLEFIELD_INTERACTION_ICONS[action],
     );
     if (action !== null) {
-      this.clearAimState();
+      this.clearAttackState();
     }
     this.synchronizeGameplayGraphics();
   }
 
-  /** 读取并清除触摸或 E 键产生的一次场景操作。 */
   public consumeContextActionPress(): boolean {
     const pressed = this.contextAction !== null && this.contextActionPressed;
     this.contextActionPressed = false;
     return pressed;
   }
 
-  public get selectedCombatModule(): BattlefieldCombatModuleId {
-    return this.skillWheel.selectedModule;
+  public consumeSkillCommand(): BattlefieldSkillButtonCommand {
+    return this.skillButton.consumeCommand();
   }
 
-  public get combatModuleActionActive(): boolean {
-    return this.skillWheel.active;
-  }
-
-  /** 复制并消费技能按钮的唯一松开快照。 */
-  public consumeCombatModuleInput(result: MutableBattlefieldSkillWheelInput): void {
-    this.skillWheel.consumeInput(result);
-  }
-
-  public setCombatModuleContext(moduleId: BattlefieldCombatModuleId | null): void {
-    this.skillWheel.setContextualModule(moduleId);
-  }
-
-  public selectCombatModule(moduleId: BattlefieldCombatModuleId): void {
-    this.skillWheel.select(moduleId);
-  }
-
-  public presentCombatModuleAvailability(
-    moduleId: BattlefieldCombatModuleId,
-    reason: BattlefieldCombatModuleUnavailableReason,
-  ): void {
-    this.skillWheel.presentAvailability(moduleId, reason);
-  }
-
-  public presentCombatModulePreview(
-    preview: Readonly<MutableBattlefieldActionPreview>,
-    deltaTime: number,
-  ): void {
-    this.skillWheel.presentFailure(preview.failureReason);
-    this.groundPreview.present(preview, deltaTime);
-    this.targetMarker.present(preview);
-    this.throwPreview.present(preview);
+  public presentHammerStatus(status: Readonly<BattlefieldHammerStatus>): void {
+    this.skillButton.presentCharge(
+      status.hitCount,
+      status.requiredHits,
+      status.momentumReady,
+    );
     this.synchronizeGameplayGraphics();
   }
 
-  /** 同步靠近玩家的装备世界标签。 */
+  public presentInventory(snapshot: Readonly<BattlefieldInventorySnapshot>): void {
+    this.inventoryRevision = snapshot.revision;
+    this.inventoryHud.present(snapshot);
+    this.synchronizeGameplayGraphics();
+  }
+
+  /** 仅在物品栏版本变化时生成新快照并刷新 HUD。 */
+  public synchronizeInventory(): void {
+    if (this.inventoryRevision === this.inventory.revision) {
+      return;
+    }
+    this.presentInventory(this.inventory.createSnapshot());
+  }
+
   public presentEquipmentLabel(
     presentation: Readonly<BattlefieldEquipmentLabelPresentation> | null,
   ): void {
     this.equipmentLabel.present(presentation);
   }
 
-  /** 同步右上角玩家当前生命值和最大生命值。 */
   public presentPlayerHealth(health: number, maximumHealth: number): void {
     this.playerStatus.present(health, maximumHealth);
     this.synchronizeGameplayGraphics();
   }
 
-  /** 同步右上角当前枪械、口径、弹匣和备用弹药。 */
-  public presentWeaponAmmunition(status: Readonly<WeaponAmmunitionStatus> | null): void {
-    this.weaponStatus.present(status);
-    this.synchronizeGameplayGraphics();
-  }
-
-  /** 显示死亡弹窗，并清除仍残留的场景交互提示。 */
   public showDefeatDialog(): void {
     if (this.disposed) {
       return;
@@ -294,12 +256,10 @@ export class BattlefieldControlHud {
     this.defeatDialog.show();
   }
 
-  /** 同步返回大厅异步加载的等待状态。 */
   public setReturnToLobbyPending(pending: boolean): void {
     this.defeatDialog.setPending(pending);
   }
 
-  /** 解除全局键盘监听并销毁双摇杆 Canvas。 */
   public dispose(): void {
     if (this.disposed) {
       return;
@@ -312,12 +272,11 @@ export class BattlefieldControlHud {
     this.cameraOrbitInput.dispose();
     this.defeatDialog.dispose();
     this.playerStatus.dispose();
-    this.weaponStatus.dispose();
-    this.skillWheel.dispose();
-    this.groundPreview.dispose();
     this.equipmentLabel.dispose();
+    this.inventoryHud.dispose();
+    this.skillButton.dispose();
     this.movementJoystick.dispose();
-    this.aimJoystick.dispose();
+    this.attackJoystick.dispose();
     this.gameplayGraphics.dispose();
     this.canvas.dispose();
     this.inputRegistered = false;
@@ -332,13 +291,13 @@ export class BattlefieldControlHud {
     const style = BATTLEFIELD_CONTROL_STYLE;
     const maximumInteractionRadius = Math.max(
       style.movement.interactionRadius,
-      style.aim.interactionRadius,
+      style.attack.interactionRadius,
     );
     const maximumHorizontalInset = Math.max(
       0,
       width * 0.5
         - style.movement.interactionRadius
-        - style.aim.interactionRadius
+        - style.attack.interactionRadius
         - style.minimumCenterGap * 0.5,
     );
     const horizontalInset = Math.min(style.horizontalEdgeInset, maximumHorizontalInset);
@@ -347,38 +306,32 @@ export class BattlefieldControlHud {
       Math.max(0, height - maximumInteractionRadius * 2),
     );
     const leftX = -width * 0.5 + style.movement.interactionRadius + horizontalInset;
-    const rightX = width * 0.5 - style.aim.interactionRadius - horizontalInset;
-    const centerY = -height * 0.5
-      + maximumInteractionRadius
-      + bottomInset;
+    const rightX = width * 0.5 - style.attack.interactionRadius - horizontalInset;
+    const centerY = -height * 0.5 + maximumInteractionRadius + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
-    this.aimJoystick.setPosition(rightX, centerY);
-    this.skillWheel.setPosition(
-      rightX,
-      Math.min(height * 0.5 - 76, centerY + style.aim.interactionRadius + 76),
+    this.attackJoystick.setPosition(rightX, centerY);
+    this.skillButton.setPosition(
+      rightX + style.attack.radius * 0.62,
+      centerY + style.attack.radius * 0.62,
     );
+    this.inventoryHud.synchronizeLayout(width, height);
     this.playerStatus.synchronizeLayout(width, height);
-    this.weaponStatus.synchronizeLayout(width, height);
     this.layoutWidth = width;
     this.layoutHeight = height;
   }
 
-  /** 把双摇杆、生命条和弹药板同步到唯一 Graphics 组件。 */
   private synchronizeGameplayGraphics(): void {
     this.gameplayGraphics.synchronize(
       this.canvas.transform.width,
       this.canvas.transform.height,
       this.movementJoystick,
-      this.aimJoystick,
+      this.attackJoystick,
       this.playerStatus,
-      this.weaponStatus,
-      this.skillWheel,
-      this.targetMarker,
-      this.throwPreview,
+      this.skillButton,
+      this.inventoryHud,
     );
   }
 
-  /** 左摇杆优先，未触摸时使用 WASD。 */
   private writeMovementState(): void {
     const joystick = this.movementJoystick.value;
     if (joystick.magnitude > 0) {
@@ -393,37 +346,33 @@ export class BattlefieldControlHud {
     this.mutableState.moveY = keyboardY * inverseLength;
   }
 
-  /** 右摇杆优先，未触摸时使用方向键或 IJKL，并把瞄准值归一化。 */
-  private writeAimState(): void {
+  private writeAttackState(): void {
     if (this.contextAction !== null) {
-      this.clearAimState();
+      this.clearAttackState();
       return;
     }
-    const joystick = this.aimJoystick.value;
-    let aimX = joystick.x;
-    let aimY = joystick.y;
+    const joystick = this.attackJoystick.value;
+    let attackX = joystick.x;
+    let attackY = joystick.y;
     let magnitude = joystick.magnitude;
     if (magnitude <= 0) {
-      aimX = Number(this.aimRight) - Number(this.aimLeft);
-      aimY = Number(this.aimUp) - Number(this.aimDown);
-      magnitude = Math.hypot(aimX, aimY);
+      attackX = Number(this.attackRight) - Number(this.attackLeft);
+      attackY = Number(this.attackUp) - Number(this.attackDown);
+      magnitude = Math.hypot(attackX, attackY);
     }
-    // 摇杆自身已经应用 Dead Zone，任何剩余方向都应立即产生射击意图。
-    const aiming = magnitude > 0;
-    const inverseLength = aiming ? 1 / Math.hypot(aimX, aimY) : 0;
-    this.mutableState.aimX = aimX * inverseLength;
-    this.mutableState.aimY = aimY * inverseLength;
-    this.mutableState.aiming = aiming;
+    const attacking = magnitude > 0;
+    const inverseLength = attacking ? 1 / Math.max(Math.hypot(attackX, attackY), 0.0001) : 0;
+    this.mutableState.attackX = attackX * inverseLength;
+    this.mutableState.attackY = attackY * inverseLength;
+    this.mutableState.attacking = attacking;
   }
 
-  /** 场景操作模式下同步清除触摸和键盘残留的瞄准意图。 */
-  private clearAimState(): void {
-    this.mutableState.aimX = 0;
-    this.mutableState.aimY = 0;
-    this.mutableState.aiming = false;
+  private clearAttackState(): void {
+    this.mutableState.attackX = 0;
+    this.mutableState.attackY = 0;
+    this.mutableState.attacking = false;
   }
 
-  /** 只取走水平旋转增量；输入层不产生任何纵向俯仰量。 */
   private writeCameraOrbitState(): void {
     this.cameraOrbitInput.consume(this.cameraAzimuthDelta);
     this.mutableState.cameraOrbitDeltaX = this.cameraAzimuthDelta.x;
@@ -437,7 +386,6 @@ export class BattlefieldControlHud {
     this.setKeyState(event.keyCode, false);
   }
 
-  /** 将类型化按键映射到移动或瞄准职责。 */
   private setKeyState(keyCode: KeyCode, pressed: boolean): void {
     switch (keyCode) {
       case KeyCode.KEY_W:
@@ -458,34 +406,24 @@ export class BattlefieldControlHud {
         }
         this.interactionKeyDown = pressed;
         break;
-      case KeyCode.KEY_Q:
-        if (pressed) {
-          this.skillWheel.cycle(-1);
-        }
-        break;
-      case KeyCode.KEY_R:
-        if (pressed) {
-          this.skillWheel.cycle(1);
-        }
-        break;
       case KeyCode.SPACE:
-        this.skillWheel.setKeyboardActive(pressed);
+        this.skillButton.setKeyboardActive(pressed);
         break;
       case KeyCode.ARROW_UP:
       case KeyCode.KEY_I:
-        this.aimUp = pressed;
+        this.attackUp = pressed;
         break;
       case KeyCode.ARROW_DOWN:
       case KeyCode.KEY_K:
-        this.aimDown = pressed;
+        this.attackDown = pressed;
         break;
       case KeyCode.ARROW_LEFT:
       case KeyCode.KEY_J:
-        this.aimLeft = pressed;
+        this.attackLeft = pressed;
         break;
       case KeyCode.ARROW_RIGHT:
       case KeyCode.KEY_L:
-        this.aimRight = pressed;
+        this.attackRight = pressed;
         break;
     }
   }

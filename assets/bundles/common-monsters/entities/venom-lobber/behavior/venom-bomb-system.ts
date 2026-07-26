@@ -70,17 +70,6 @@ export class VenomBombSystem {
     return this.currentMovementMultiplier;
   }
 
-  /** 重型投掷撞击时直接生成强化毒池，表现毒囊破裂。 */
-  public spawnCatalyzedPool(x: number, y: number): void {
-    this.pools.spawn(
-      x,
-      y,
-      this.options.poolRadius * this.options.catalystRadiusMultiplier,
-      this.options.poolDurationSeconds * this.options.catalystDurationMultiplier,
-      true,
-    );
-  }
-
   private updateBombs(
     deltaTime: number,
     targetActive: boolean,

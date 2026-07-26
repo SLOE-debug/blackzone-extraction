@@ -30,20 +30,24 @@ export class DroppedEquipmentInstanceIdSequence {
   }
 }
 
-/** 管理战场全部宝箱掉落与玩家丢弃装备的统一渲染、动画和近距离查询。 */
+/** 管理固定容量掉落槽位、预热批次、动画和近距离查询。 */
 export class DroppedEquipmentPopulation {
   private readonly material: Material;
-  private readonly items: DroppedEquipmentRuntime[] = [];
+  private readonly items: Array<DroppedEquipmentRuntime | null>;
+  private itemCount = 0;
   private renderer: DroppedEquipmentRenderer | null = null;
   private accentRenderer: DroppedEquipmentAccentRenderer | null = null;
   private disposed = false;
 
-  /** 当前仍在世界中的飞行或落地装备数量。 */
   public get count(): number {
+    return this.itemCount;
+  }
+
+  public get capacity(): number {
     return this.items.length;
   }
 
-  /** 当前掉落物本体与毛笔形信标实际占用的固定全局批次数量。 */
+  /** 预热完成后本体和信标固定占用两个批次，与活动物品数无关。 */
   public get renderBatchCount(): number {
     return (this.renderer === null ? 0 : 1) + (this.accentRenderer === null ? 0 : 1);
   }
@@ -52,20 +56,59 @@ export class DroppedEquipmentPopulation {
     private readonly parent: Node,
     private readonly instanceIds: DroppedEquipmentInstanceIdSequence,
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
+    capacity: number,
   ) {
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw new Error('掉落装备固定容量必须是正整数。');
+    }
+    this.items = Array.from({ length: capacity }, () => null);
     this.material = createDroppedEquipmentMaterial();
   }
 
-  /** 按一一对应的装备标识和轨迹创建整次爆散。 */
+  /** 加载阶段一次性创建 Mesh、Material、Renderer 与最大容量 GPU 缓冲。 */
+  public prewarm(): void {
+    this.ensureActive();
+    if (this.renderer !== null || this.accentRenderer !== null) {
+      return;
+    }
+    let renderer: DroppedEquipmentRenderer | null = null;
+    let accentRenderer: DroppedEquipmentAccentRenderer | null = null;
+    try {
+      renderer = new DroppedEquipmentRenderer(
+        this.parent,
+        this.items,
+        EquipmentId.Sledgehammer,
+        this.material,
+      );
+      accentRenderer = new DroppedEquipmentAccentRenderer(
+        this.parent,
+        this.items,
+        this.equipmentLibrary,
+      );
+    } catch (error: unknown) {
+      accentRenderer?.dispose();
+      renderer?.dispose();
+      throw error;
+    }
+    this.renderer = renderer;
+    this.accentRenderer = accentRenderer;
+  }
+
+  /** 按一一对应的装备标识和轨迹占用连续空闲槽位。 */
   public spawnBurst(
     equipmentIds: readonly EquipmentId[],
     trajectories: readonly Readonly<LootScatterTrajectory>[],
   ): readonly number[] {
     this.ensureActive();
+    this.ensurePrewarmed();
     if (equipmentIds.length !== trajectories.length) {
       throw new Error('掉落装备数量必须与爆散轨迹数量一致。');
     }
-    const created: DroppedEquipmentRuntime[] = [];
+    if (this.itemCount + equipmentIds.length > this.items.length) {
+      throw new Error('活动 Chunk 的掉落装备数量超过预热固定容量。');
+    }
+    const firstSlot = this.itemCount;
+    const instanceIds: number[] = [];
     try {
       for (let index = 0; index < equipmentIds.length; index++) {
         const equipmentId = equipmentIds[index];
@@ -73,24 +116,23 @@ export class DroppedEquipmentPopulation {
         if (equipmentId === undefined || trajectory === undefined) {
           throw new Error('掉落装备或爆散轨迹索引不存在。');
         }
-        const item = new DroppedEquipmentRuntime(
-          this.instanceIds.allocate(),
+        const instanceId = this.instanceIds.allocate();
+        this.items[this.itemCount++] = new DroppedEquipmentRuntime(
+          instanceId,
           equipmentId,
           trajectory,
         );
-        created.push(item);
-        this.items.push(item);
+        instanceIds.push(instanceId);
       }
-      this.rebuildRenderer();
-      return Object.freeze(created.map((item) => item.instanceId));
+      this.synchronizeRendering();
+      return Object.freeze(instanceIds);
     } catch (error: unknown) {
-      for (const item of created) {
-        const itemIndex = this.items.indexOf(item);
-        if (itemIndex >= 0) {
-          this.items.splice(itemIndex, 1);
-        }
-        item.dispose();
+      while (this.itemCount > firstSlot) {
+        const slot = --this.itemCount;
+        this.items[slot]?.dispose();
+        this.items[slot] = null;
       }
+      this.synchronizeRendering();
       throw error;
     }
   }
@@ -99,11 +141,10 @@ export class DroppedEquipmentPopulation {
     if (this.disposed) {
       return;
     }
-    for (const item of this.items) {
-      item.update(deltaTime);
+    for (let index = 0; index < this.itemCount; index++) {
+      this.requireItem(index).update(deltaTime);
     }
-    this.renderer?.update();
-    this.accentRenderer?.update();
+    this.synchronizeRendering();
   }
 
   /** 查找玩家半径内最近且已经稳定落地的装备。 */
@@ -118,7 +159,8 @@ export class DroppedEquipmentPopulation {
     const maximumDistanceSquared = EQUIPMENT_INSPECTION_RADIUS * EQUIPMENT_INSPECTION_RADIUS;
     let bestDistanceSquared = maximumDistanceSquared;
     let best: DroppedEquipmentRuntime | null = null;
-    for (const item of this.items) {
+    for (let index = 0; index < this.itemCount; index++) {
+      const item = this.requireItem(index);
       if (!item.landed) {
         continue;
       }
@@ -141,82 +183,40 @@ export class DroppedEquipmentPopulation {
     return true;
   }
 
-  /** 返回指定落地实例当前携带的装备标识。 */
   public getEquipmentId(instanceId: number): EquipmentId | null {
-    if (this.disposed) {
-      return null;
-    }
-    for (const item of this.items) {
-      if (item.instanceId === instanceId && item.landed) {
-        return item.equipmentId;
-      }
-    }
-    return null;
+    const index = this.findLandedIndex(instanceId);
+    return index < 0 ? null : this.requireItem(index).equipmentId;
   }
 
-  /** 从世界中移除已经被玩家成功装备的落地实例。 */
+  /** 用末尾活动槽位回填空洞，避免索引流重排或渲染器重建。 */
   public remove(instanceId: number): boolean {
     if (this.disposed) {
       return false;
     }
-    const index = this.items.findIndex(
-      (item) => item.instanceId === instanceId && item.landed,
-    );
+    const index = this.findLandedIndex(instanceId);
     if (index < 0) {
       return false;
     }
-    const item = this.items[index];
-    if (item === undefined) {
-      throw new Error('掉落装备索引存在但实例缺失。');
-    }
-    this.items.splice(index, 1);
-    try {
-      this.rebuildRenderer();
-    } catch (error: unknown) {
-      this.items.splice(index, 0, item);
-      throw error;
-    }
-    item.dispose();
+    this.removeAt(index);
+    this.synchronizeRendering();
     return true;
   }
 
-  /**
-   * 批量移除同一运行时所有权范围内的装备，只在完整移除后重建一次共享批次。
-   *
-   * 该入口用于 Chunk 离场，不要求装备已经落地，也不会改变宝箱会话中的剩余战利品。
-   */
+  /** Chunk 离场时批量释放所有权范围内的掉落，并只同步一次活动前缀。 */
   public removeOwned(instanceIds: readonly number[]): void {
     if (this.disposed || instanceIds.length === 0) {
       return;
     }
     const ownedIds = new Set(instanceIds);
-    const removed: Array<Readonly<{
-      index: number;
-      item: DroppedEquipmentRuntime;
-    }>> = [];
-    for (let index = this.items.length - 1; index >= 0; index--) {
-      const item = this.items[index];
-      if (item !== undefined && ownedIds.has(item.instanceId)) {
-        removed.push(Object.freeze({ index, item }));
-        this.items.splice(index, 1);
+    let removed = false;
+    for (let index = this.itemCount - 1; index >= 0; index--) {
+      if (ownedIds.has(this.requireItem(index).instanceId)) {
+        this.removeAt(index);
+        removed = true;
       }
     }
-    if (removed.length === 0) {
-      return;
-    }
-    try {
-      this.rebuildRenderer();
-    } catch (error: unknown) {
-      for (let removedIndex = removed.length - 1; removedIndex >= 0; removedIndex--) {
-        const entry = removed[removedIndex];
-        if (entry !== undefined) {
-          this.items.splice(entry.index, 0, entry.item);
-        }
-      }
-      throw error;
-    }
-    for (const entry of removed) {
-      entry.item.dispose();
+    if (removed) {
+      this.synchronizeRendering();
     }
   }
 
@@ -225,10 +225,11 @@ export class DroppedEquipmentPopulation {
       return;
     }
     this.disposed = true;
-    for (const item of this.items) {
-      item.dispose();
+    for (let index = 0; index < this.itemCount; index++) {
+      this.items[index]?.dispose();
+      this.items[index] = null;
     }
-    this.items.length = 0;
+    this.itemCount = 0;
     this.renderer?.dispose();
     this.accentRenderer?.dispose();
     this.renderer = null;
@@ -236,33 +237,52 @@ export class DroppedEquipmentPopulation {
     this.material.destroy();
   }
 
+  private findLandedIndex(instanceId: number): number {
+    if (this.disposed) {
+      return -1;
+    }
+    for (let index = 0; index < this.itemCount; index++) {
+      const item = this.requireItem(index);
+      if (item.instanceId === instanceId && item.landed) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  private removeAt(index: number): void {
+    const removed = this.requireItem(index);
+    const lastIndex = this.itemCount - 1;
+    if (index !== lastIndex) {
+      this.items[index] = this.requireItem(lastIndex);
+    }
+    this.items[lastIndex] = null;
+    this.itemCount = lastIndex;
+    removed.dispose();
+  }
+
+  private requireItem(index: number): DroppedEquipmentRuntime {
+    const item = this.items[index];
+    if (item === null || item === undefined) {
+      throw new Error('掉落装备活动前缀存在空槽位。');
+    }
+    return item;
+  }
+
+  private synchronizeRendering(): void {
+    this.renderer?.synchronize(this.itemCount);
+    this.accentRenderer?.synchronize(this.itemCount);
+  }
+
+  private ensurePrewarmed(): void {
+    if (this.renderer === null || this.accentRenderer === null) {
+      throw new Error('掉落装备批次必须在场景加载阶段完成预热。');
+    }
+  }
+
   private ensureActive(): void {
     if (this.disposed) {
       throw new Error('掉落装备群体已经释放。');
     }
-  }
-
-  /** 拾取或新增只在低频事件发生时重建固定索引，不把每件装备拆成 Renderer。 */
-  private rebuildRenderer(): void {
-    let nextRenderer: DroppedEquipmentRenderer | null = null;
-    let nextAccentRenderer: DroppedEquipmentAccentRenderer | null = null;
-    try {
-      if (this.items.length > 0) {
-        nextRenderer = new DroppedEquipmentRenderer(this.parent, this.items, this.material);
-        nextAccentRenderer = new DroppedEquipmentAccentRenderer(
-          this.parent,
-          this.items,
-          this.equipmentLibrary,
-        );
-      }
-    } catch (error: unknown) {
-      nextAccentRenderer?.dispose();
-      nextRenderer?.dispose();
-      throw error;
-    }
-    this.accentRenderer?.dispose();
-    this.renderer?.dispose();
-    this.renderer = nextRenderer;
-    this.accentRenderer = nextAccentRenderer;
   }
 }

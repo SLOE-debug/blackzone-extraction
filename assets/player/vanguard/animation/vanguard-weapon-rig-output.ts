@@ -7,7 +7,7 @@ import { type MutableVanguardWeaponRigPose } from '../model/vanguard-weapon-rig-
 
 const EPSILON = 0.000001;
 
-/** 从 WeaponAimRoot 最终 FK 矩阵写出武器运行时的权威根姿态。 */
+/** 从 WeaponRoot 最终 FK 矩阵写出武器运行时的权威根姿态。 */
 export function writeVanguardWeaponRigPose(
   state: VanguardState,
   entityIndex: number,
@@ -17,7 +17,7 @@ export function writeVanguardWeaponRigPose(
   const offset = entityIndex
     * VanguardBone.Count
     * VANGUARD_BONE_MATRIX_COMPONENTS
-    + VanguardBone.WeaponAimRoot * VANGUARD_BONE_MATRIX_COMPONENTS;
+    + VanguardBone.WeaponRoot * VANGUARD_BONE_MATRIX_COMPONENTS;
   const scale = Math.max(Math.hypot(
     matrices[offset] ?? 1,
     matrices[offset + 1] ?? 0,

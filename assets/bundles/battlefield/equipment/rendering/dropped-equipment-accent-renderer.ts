@@ -1,60 +1,48 @@
 import { Node } from 'cc';
-import {
-  type MutableGeometryBounds,
-  type UnlitColorBufferGeometry,
-  writePositionBounds,
-} from '../../../../core/geometry/buffer-geometry';
+import { type MutableGeometryBounds, type UnlitColorBufferGeometry } from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../core/rendering/dynamic-mesh-batch';
+import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
 import {
   createDroppedEquipmentBeamGeometry,
+  DROPPED_EQUIPMENT_BEAM_TOPOLOGY,
   writeDroppedEquipmentBeam,
 } from '../geometry/dropped-equipment-beam-geometry';
-import {
-  EQUIPMENT_RARITY_PALETTE,
-  type EquipmentRarityColor,
-} from '../model/equipment-rarity-palette';
+import { DROPPED_EQUIPMENT_ACCENT_LAYOUT } from '../model/dropped-equipment-accent-layout';
+import { EQUIPMENT_RARITY_PALETTE } from '../model/equipment-rarity-palette';
 import { createDroppedEquipmentBeamMaterial } from './dropped-equipment-beam-material';
 import { type DroppedEquipmentRenderItem } from './dropped-equipment-renderer';
-import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
 
-const BEAM_OPTIONS = Object.freeze({
-  castShadows: false,
-  receiveShadows: false,
-});
+const BEAM_OPTIONS = Object.freeze({ castShadows: false, receiveShadows: false });
+const BEAM_RADIUS = 0.5;
 
-/** 使用单一 Unlit 批次渲染全部掉落物毛笔形光管。 */
+/** 预分配固定容量信标批次，颜色只在槽位身份变化时上传。 */
 export class DroppedEquipmentAccentRenderer {
   private readonly material = createDroppedEquipmentBeamMaterial();
   private readonly geometry: UnlitColorBufferGeometry;
   private readonly batch = new DynamicMeshBatch();
-  private readonly colors: readonly Readonly<EquipmentRarityColor>[];
-  private readonly bounds: MutableGeometryBounds = {
-    minX: 0,
-    minY: 0,
-    minZ: 0,
-    maxX: 0,
-    maxY: 0,
-    maxZ: 0,
-  };
+  private readonly instanceIds: Int32Array;
+  private readonly poseRevisions: Uint32Array;
+  private readonly visibleStates: Uint8Array;
+  private readonly bounds: MutableGeometryBounds = emptyBounds();
+  private activeCount = -1;
   private disposed = false;
 
   constructor(
     parent: Node,
-    private readonly items: readonly DroppedEquipmentRenderItem[],
-    equipmentLibrary: BattlefieldEquipmentLibrary,
+    private readonly items: readonly (DroppedEquipmentRenderItem | null)[],
+    private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
   ) {
     if (items.length === 0) {
       this.material.destroy();
-      throw new Error('掉落装备强调渲染器至少需要一个实例。');
+      throw new Error('掉落装备信标容量必须大于零。');
     }
     this.geometry = createDroppedEquipmentBeamGeometry(items.length);
-    this.colors = Object.freeze(items.map((item) => (
-      EQUIPMENT_RARITY_PALETTE[equipmentLibrary.get(item.equipmentId).rarity]
-    )));
+    this.instanceIds = new Int32Array(items.length);
+    this.instanceIds.fill(-1);
+    this.poseRevisions = new Uint32Array(items.length);
+    this.visibleStates = new Uint8Array(items.length);
     try {
-      const anyVisible = this.writeState();
-      writePositionBounds(this.geometry.positions, this.bounds);
       this.batch.initialize(
         parent,
         'DroppedEquipmentBeamBatch',
@@ -63,7 +51,8 @@ export class DroppedEquipmentAccentRenderer {
         this.bounds,
         BEAM_OPTIONS,
       );
-      this.batch.setVisible(anyVisible);
+      this.batch.setActiveIndexCount(0);
+      this.batch.setVisible(false);
     } catch (error: unknown) {
       this.batch.dispose();
       this.material.destroy();
@@ -71,38 +60,27 @@ export class DroppedEquipmentAccentRenderer {
     }
   }
 
-  /** 同步飞行或落地姿态，并一次提交整批光管顶点。 */
-  public update(): void {
+  public synchronize(activeCount: number): void {
     if (this.disposed) {
       return;
     }
-    const anyVisible = this.writeState();
-    writePositionBounds(this.geometry.positions, this.bounds);
-    this.batch.uploadVertexAttributes(
-      MeshDirty.Position | MeshDirty.Color,
-      this.geometry.vertexCount,
-    );
-    this.batch.updateBounds(this.bounds);
-    this.batch.setVisible(anyVisible);
-  }
-
-  public dispose(): void {
-    if (this.disposed) {
-      return;
-    }
-    this.disposed = true;
-    this.batch.dispose();
-    this.material.destroy();
-  }
-
-  private writeState(): boolean {
-    let anyVisible = false;
-    for (let index = 0; index < this.items.length; index++) {
+    validateActiveCount(activeCount, this.items.length);
+    let positionDirty = activeCount !== this.activeCount;
+    let colorDirty = false;
+    for (let index = 0; index < activeCount; index++) {
       const item = this.items[index];
-      const color = this.colors[index];
-      if (item === undefined || color === undefined) {
-        throw new Error('掉落装备强调效果没有与实例一一对应。');
+      if (item === null || item === undefined) {
+        throw new Error('掉落装备信标活动范围内存在空槽位。');
       }
+      const identityChanged = (this.instanceIds[index] ?? -1) !== item.instanceId;
+      const visibilityChanged = (this.visibleStates[index] ?? 0) !== (item.visible ? 1 : 0);
+      if (!identityChanged && !visibilityChanged
+        && (this.poseRevisions[index] ?? 0) === item.poseRevision) {
+        continue;
+      }
+      const color = EQUIPMENT_RARITY_PALETTE[
+        this.equipmentLibrary.get(item.equipmentId).rarity
+      ];
       writeDroppedEquipmentBeam(
         this.geometry,
         index,
@@ -111,9 +89,80 @@ export class DroppedEquipmentAccentRenderer {
         item.z,
         color,
         item.visible,
+        identityChanged || visibilityChanged,
       );
-      anyVisible ||= item.visible;
+      this.instanceIds[index] = item.instanceId;
+      this.poseRevisions[index] = item.poseRevision;
+      this.visibleStates[index] = item.visible ? 1 : 0;
+      positionDirty = true;
+      colorDirty ||= identityChanged || visibilityChanged;
     }
-    return anyVisible;
+    if ((positionDirty || colorDirty) && activeCount > 0) {
+      const dirty = MeshDirty.Position | (colorDirty ? MeshDirty.Color : MeshDirty.None);
+      this.batch.uploadVertexAttributes(
+        dirty,
+        activeCount * DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam,
+      );
+      writeBeamBounds(this.items, activeCount, this.bounds);
+      this.batch.updateBounds(this.bounds);
+    }
+    if (activeCount !== this.activeCount) {
+      this.batch.setActiveIndexCount(
+        activeCount * DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam,
+      );
+      this.batch.setVisible(activeCount > 0);
+      this.activeCount = activeCount;
+    }
   }
+
+  public dispose(): void {
+    if (!this.disposed) {
+      this.disposed = true;
+      this.batch.dispose();
+      this.material.destroy();
+    }
+  }
+}
+
+function writeBeamBounds(
+  items: readonly (DroppedEquipmentRenderItem | null)[],
+  activeCount: number,
+  result: MutableGeometryBounds,
+): void {
+  const first = items[0];
+  if (first === null || first === undefined || activeCount === 0) {
+    Object.assign(result, emptyBounds());
+    return;
+  }
+  result.minX = first.x - BEAM_RADIUS;
+  result.minY = first.y;
+  result.minZ = first.z - BEAM_RADIUS;
+  result.maxX = first.x + BEAM_RADIUS;
+  result.maxY = first.y + DROPPED_EQUIPMENT_ACCENT_LAYOUT.beamHeight + 0.4;
+  result.maxZ = first.z + BEAM_RADIUS;
+  for (let index = 1; index < activeCount; index++) {
+    const item = items[index];
+    if (item === null || item === undefined) {
+      throw new Error('掉落装备信标活动范围内存在空槽位。');
+    }
+    result.minX = Math.min(result.minX, item.x - BEAM_RADIUS);
+    result.minY = Math.min(result.minY, item.y);
+    result.minZ = Math.min(result.minZ, item.z - BEAM_RADIUS);
+    result.maxX = Math.max(result.maxX, item.x + BEAM_RADIUS);
+    result.maxY = Math.max(
+      result.maxY,
+      item.y + DROPPED_EQUIPMENT_ACCENT_LAYOUT.beamHeight + 0.4,
+    );
+    result.maxZ = Math.max(result.maxZ, item.z + BEAM_RADIUS);
+  }
+}
+
+function validateActiveCount(activeCount: number, capacity: number): void {
+  if (!Number.isInteger(activeCount) || activeCount < 0 || activeCount > capacity) {
+    throw new Error('掉落装备信标活动数量越过固定容量。');
+  }
+}
+
+function emptyBounds(): MutableGeometryBounds {
+  return { minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0 };
 }

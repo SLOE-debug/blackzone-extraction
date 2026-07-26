@@ -30,7 +30,6 @@ describe('战场 Debug 怪物生成', () => {
       { positionX: 2, positionZ: 4, heading: 0 },
       monsters,
       { enabled: false, setEnabled() {} },
-      { selectCombatModule() {} },
     );
 
     controls.spawnMonsterAhead(BattlefieldMonsterId.VenomLobber);

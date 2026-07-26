@@ -8,25 +8,14 @@ export {
 } from './contracts/loading-progress';
 export type { MonsterPopulation } from './contracts/monster-population';
 export {
-  AmmunitionType,
   EquipmentCategory,
   EquipmentRarity,
   WeaponAction,
-  WeaponAmmunitionMode,
-  WeaponClass,
   WeaponGrip,
-  WeaponShotPatternType,
-  type AmmunitionEquipmentDefinition,
+  WeaponKind,
   type EquipmentDefinition,
   type EquipmentLibrary,
-  type MagazineWeaponAmmunitionDefinition,
-  type PelletConeWeaponShotPattern,
-  type SingleWeaponShotPattern,
-  type TubeMagazineWeaponAmmunitionDefinition,
-  type WeaponAmmunitionDefinition,
-  type WeaponEquipmentDefinition,
-  type WeaponProjectileDefinition,
-  type WeaponShotPattern,
+  type MeleeWeaponDefinition,
 } from './equipment/equipment';
 export {
   WeightedLootTable,
@@ -39,22 +28,10 @@ export type {
   PlanarMonsterCombatTarget,
 } from './contracts/monster-combat';
 export type {
-  MutablePlanarMonsterHitResult,
-  PlanarMonsterHitPopulation,
-  PlanarMonsterHitQuery,
-} from './contracts/monster-hit';
-export {
-  CombatTag,
-  MonsterBodySize,
-  MonsterManipulationState,
-  type MutablePlanarMonsterManipulationCandidate,
-  type PlanarMonsterManipulationPopulation,
-} from './contracts/monster-manipulation';
-export type {
-  MutablePlanarTargetResult,
-  PlanarTargetPopulation,
-  PlanarTargetQuery,
-} from './contracts/planar-target';
+  PlanarKnockbackEffect,
+  PlanarMonsterEffectPopulation,
+  VerticalLaunchEffect,
+} from './contracts/monster-effects';
 export {
   MonsterObservationEventType,
   type MonsterObservationEvent,

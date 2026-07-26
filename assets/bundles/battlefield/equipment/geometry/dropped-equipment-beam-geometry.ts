@@ -49,6 +49,7 @@ export function writeDroppedEquipmentBeam(
   z: number,
   color: Readonly<EquipmentRarityColor>,
   visible: boolean,
+  writeColor = true,
 ): void {
   const verticesPerBeam = DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam;
   const capacity = geometry.vertexCount / verticesPerBeam;
@@ -121,6 +122,7 @@ export function writeDroppedEquipmentBeam(
         blue,
         lowerAlpha,
         upperAlpha,
+        writeColor,
       );
     }
   }
@@ -183,13 +185,14 @@ function writeQuad(
   blue: number,
   lowerAlpha: number,
   upperAlpha: number,
+  writeColor: boolean,
 ): number {
-  writeVertex(geometry, firstVertex, lowerA, red, green, blue, lowerAlpha);
-  writeVertex(geometry, firstVertex + 1, lowerB, red, green, blue, lowerAlpha);
-  writeVertex(geometry, firstVertex + 2, upperB, red, green, blue, upperAlpha);
-  writeVertex(geometry, firstVertex + 3, lowerA, red, green, blue, lowerAlpha);
-  writeVertex(geometry, firstVertex + 4, upperB, red, green, blue, upperAlpha);
-  writeVertex(geometry, firstVertex + 5, upperA, red, green, blue, upperAlpha);
+  writeVertex(geometry, firstVertex, lowerA, red, green, blue, lowerAlpha, writeColor);
+  writeVertex(geometry, firstVertex + 1, lowerB, red, green, blue, lowerAlpha, writeColor);
+  writeVertex(geometry, firstVertex + 2, upperB, red, green, blue, upperAlpha, writeColor);
+  writeVertex(geometry, firstVertex + 3, lowerA, red, green, blue, lowerAlpha, writeColor);
+  writeVertex(geometry, firstVertex + 4, upperB, red, green, blue, upperAlpha, writeColor);
+  writeVertex(geometry, firstVertex + 5, upperA, red, green, blue, upperAlpha, writeColor);
   return firstVertex + VERTICES_PER_QUAD;
 }
 
@@ -201,16 +204,19 @@ function writeVertex(
   green: number,
   blue: number,
   alpha: number,
+  writeColor: boolean,
 ): void {
   const positionOffset = vertex * 3;
   geometry.positions[positionOffset] = point.x;
   geometry.positions[positionOffset + 1] = point.y;
   geometry.positions[positionOffset + 2] = point.z;
-  const colorOffset = vertex * 4;
-  geometry.colors[colorOffset] = red;
-  geometry.colors[colorOffset + 1] = green;
-  geometry.colors[colorOffset + 2] = blue;
-  geometry.colors[colorOffset + 3] = alpha;
+  if (writeColor) {
+    const colorOffset = vertex * 4;
+    geometry.colors[colorOffset] = red;
+    geometry.colors[colorOffset + 1] = green;
+    geometry.colors[colorOffset + 2] = blue;
+    geometry.colors[colorOffset + 3] = alpha;
+  }
 }
 
 function collapseBeam(

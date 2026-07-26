@@ -19,6 +19,7 @@ export class DroppedEquipmentRuntime {
   private phase = LootScatterPhase.Waiting;
   private elapsed = 0;
   private disposed = false;
+  private poseRevisionValue = 1;
 
   constructor(
     public readonly instanceId: number,
@@ -60,6 +61,10 @@ export class DroppedEquipmentRuntime {
     return this.pose.rotationZ;
   }
 
+  public get poseRevision(): number {
+    return this.poseRevisionValue;
+  }
+
   /** 推进抛物线、触地缓冲和最终静止状态。 */
   public update(deltaTime: number): void {
     if (this.disposed || this.phase === LootScatterPhase.Landed) {
@@ -67,6 +72,7 @@ export class DroppedEquipmentRuntime {
     }
     this.elapsed += Math.max(0, Math.min(deltaTime, 0.05));
     this.writePose();
+    this.poseRevisionValue++;
   }
 
   public dispose(): void {

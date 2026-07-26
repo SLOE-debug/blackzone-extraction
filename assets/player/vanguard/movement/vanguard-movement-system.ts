@@ -65,17 +65,21 @@ export class VanguardMovementSystem implements EntitySystem<VanguardState, numbe
       transform.x[index] = this.resolvedPosition.x;
       transform.z[index] = this.resolvedPosition.z;
 
-      const aiming = (intent.aiming[index] ?? 0) !== 0;
-      const facingX = aiming ? intent.aimX[index] ?? 0 : moveX;
-      const facingZ = aiming ? intent.aimZ[index] ?? 0 : moveZ;
+      if ((intent.facingLocked[index] ?? 0) !== 0) {
+        transform.heading[index] = intent.lockedHeading[index] ?? transform.heading[index] ?? 0;
+        continue;
+      }
+      const attacking = (intent.attacking[index] ?? 0) !== 0;
+      const facingX = attacking ? intent.attackX[index] ?? 0 : moveX;
+      const facingZ = attacking ? intent.attackZ[index] ?? 0 : moveZ;
       if (facingX * facingX + facingZ * facingZ <= DIRECTION_EPSILON) {
         continue;
       }
       transform.heading[index] = dampAngle(
         transform.heading[index] ?? 0,
         Math.atan2(facingX, facingZ),
-        aiming
-          ? VANGUARD_CONFIG.aimingTurnSharpness
+        attacking
+          ? VANGUARD_CONFIG.attackTurnSharpness
           : VANGUARD_CONFIG.movementTurnSharpness,
         deltaTime,
       );

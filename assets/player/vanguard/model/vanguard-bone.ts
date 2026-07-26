@@ -17,7 +17,7 @@ export enum VanguardBone {
   RightThigh,
   RightShin,
   RightFoot,
-  WeaponAimRoot,
+  WeaponRoot,
   Count,
 }
 

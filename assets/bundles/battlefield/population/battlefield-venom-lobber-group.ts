@@ -1,53 +1,19 @@
 import { type Camera, type Material, Node } from 'cc';
-import {
-  type MutablePlanarMonsterHitResult,
-  type PlanarMonsterHitQuery,
-} from '../../../core/contracts/monster-hit';
-import {
-  type MutablePlanarTargetResult,
-  type PlanarTargetQuery,
-} from '../../../core/contracts/planar-target';
 import { type PlanarMonsterCombatTarget } from '../../../core/contracts/monster-combat';
-import {
-  CombatTag,
-  type MutablePlanarMonsterManipulationCandidate,
-  MonsterBodySize,
-} from '../../../core/contracts/monster-manipulation';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobber-config';
 import {
   type BattlefieldMonsterCombatTarget,
-  type MutableBattlefieldAimRayContact,
-  type MutableBattlefieldManipulationCandidate,
-  type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
-import { type BattlefieldMonsterManipulationGroup } from './battlefield-monster-manipulation-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
-
-interface MutablePlanarTargetQuery extends PlanarTargetQuery {
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-}
 
 interface MutablePlanarCombatTarget extends PlanarMonsterCombatTarget {
   x: number;
   y: number;
   collisionRadius: number;
-}
-
-interface MutablePlanarHitQuery extends PlanarMonsterHitQuery {
-  startX: number;
-  startY: number;
-  startElevation: number;
-  endX: number;
-  endY: number;
-  endElevation: number;
-  impactRadius: number;
 }
 
 interface MutableVenomRepopulationOptions {
@@ -62,60 +28,18 @@ interface MutableVenomRepopulationOptions {
 
 /** 把 Venom Lobber 的局部 ECS 群体适配到战场世界坐标与伤害协议。 */
 export class BattlefieldVenomLobberGroup
-implements BattlefieldMonsterTargetGroup, BattlefieldMonsterManipulationGroup {
+implements BattlefieldMonsterTargetGroup {
   public readonly populationId: number;
   public readonly crowdPopulation: PlanarCrowdPopulation;
+  public readonly knockbackResistanceScale = 0.58;
+  public readonly airborneResistanceScale = 0.42;
   private readonly population: ReturnType<
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createVenomLobber']
   >;
-  private readonly localTargetQuery: MutablePlanarTargetQuery = {
-    startX: 0,
-    startY: 0,
-    endX: 0,
-    endY: 1,
-  };
-  private readonly localTargetResult: MutablePlanarTargetResult = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    elevation: 0,
-    segmentProgress: 0,
-  };
   private readonly localCombatTarget: MutablePlanarCombatTarget = {
     x: 0,
     y: 0,
     collisionRadius: 0,
-  };
-  private readonly localHitQuery: MutablePlanarHitQuery = {
-    startX: 0,
-    startY: 0,
-    startElevation: 0,
-    endX: 0,
-    endY: 0,
-    endElevation: 0,
-    impactRadius: 0,
-  };
-  private readonly localHitResult: MutablePlanarMonsterHitResult = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    elevation: 0,
-    segmentProgress: 0,
-  };
-  private readonly localManipulationCandidate: MutablePlanarMonsterManipulationCandidate = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    elevation: 0,
-    healthRatio: 1,
-    bodySize: MonsterBodySize.Medium,
-    grabResistance: 0,
-    playerGrabbable: false,
-    tags: CombatTag.None,
-    throwMass: 0,
-    maximumThrowDistance: 0,
-    collisionRadius: 0,
-    impactStrength: 0,
   };
   private readonly repopulation: MutableVenomRepopulationOptions = {
     centerX: 0,
@@ -267,140 +191,18 @@ implements BattlefieldMonsterTargetGroup, BattlefieldMonsterManipulationGroup {
     }
   }
 
-  /** 把世界 XZ 线段转换到本群体局部平面并查询实体轮廓首次接触。 */
-  public writeAimRayContactForEntity(
-    entityIndex: number,
-    startX: number,
-    startZ: number,
-    endX: number,
-    endZ: number,
-    result: MutableBattlefieldAimRayContact,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    const query = this.localTargetQuery;
-    query.startX = startX / scale;
-    query.startY = -startZ / scale;
-    query.endX = endX / scale;
-    query.endY = -endZ / scale;
-    if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
-      return false;
-    }
-    result.x = this.localTargetResult.x * scale;
-    result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
-      + this.localTargetResult.elevation * scale;
-    result.z = -this.localTargetResult.y * scale;
-    result.segmentProgress = this.localTargetResult.segmentProgress;
-    return true;
-  }
-
-  public writeProjectileHitForEntity(
-    entityIndex: number,
-    startX: number,
-    startY: number,
-    startZ: number,
-    endX: number,
-    endY: number,
-    endZ: number,
-    impactRadius: number,
-    result: MutableBattlefieldProjectileHit,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const inverseScale = 1 / BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    const query = this.localHitQuery;
-    query.startX = startX * inverseScale;
-    query.startY = -startZ * inverseScale;
-    query.startElevation = (startY - BATTLEFIELD_MONSTER_SPAWN.groundOffsetY) * inverseScale;
-    query.endX = endX * inverseScale;
-    query.endY = -endZ * inverseScale;
-    query.endElevation = (endY - BATTLEFIELD_MONSTER_SPAWN.groundOffsetY) * inverseScale;
-    query.impactRadius = impactRadius * inverseScale;
-    if (!this.population.findPlanarHit(entityIndex, query, this.localHitResult)) {
-      return false;
-    }
-    result.entityId = this.localHitResult.entityId;
-    result.x = this.localHitResult.x * BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
-      + this.localHitResult.elevation * BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    result.z = -this.localHitResult.y * BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    result.segmentProgress = this.localHitResult.segmentProgress;
-    return true;
-  }
-
   public damageMonster(entityId: number, amount: number): void {
     if (!this.disposed) {
       this.population.damage(entityId, amount);
     }
   }
 
-  /** 把 Venom Lobber 局部中型重物能力和姿态转换为战场世界空间。 */
-  public writeManipulationCandidateForEntity(
-    entityIndex: number,
-    result: MutableBattlefieldManipulationCandidate,
-  ): boolean {
-    if (this.disposed || !this.population.writeManipulationCandidate(
-      entityIndex,
-      this.localManipulationCandidate,
-    )) {
-      return false;
-    }
-    const local = this.localManipulationCandidate;
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    result.populationId = this.populationId;
-    result.entityId = local.entityId;
-    result.x = local.x * config.modelScale;
-    result.y = config.groundOffsetY + local.elevation * config.modelScale;
-    result.z = -local.y * config.modelScale;
-    result.healthRatio = local.healthRatio;
-    result.bodySize = local.bodySize;
-    result.grabResistance = local.grabResistance;
-    result.playerGrabbable = local.playerGrabbable;
-    result.tags = local.tags;
-    result.throwMass = local.throwMass;
-    result.maximumThrowDistance = local.maximumThrowDistance * config.modelScale;
-    result.collisionRadius = local.collisionRadius * config.modelScale;
-    result.impactStrength = local.impactStrength;
-    return true;
-  }
-
-  public beginCarry(entityId: number): boolean {
-    return !this.disposed && this.population.beginCarry(entityId);
-  }
-
-  public beginThrow(entityId: number): boolean {
-    return !this.disposed && this.population.beginThrow(entityId);
-  }
-
-  public synchronizeManipulatedPose(
-    entityId: number,
-    x: number,
-    y: number,
-    z: number,
-    heading: number,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    return this.population.synchronizeManipulatedPose(
+  /** 把世界腾空高度转换到 Venom Lobber 自身的正交高度轴。 */
+  public setEffectElevation(entityId: number, elevation: number): boolean {
+    return !this.disposed && this.population.setEffectElevation(
       entityId,
-      x / config.modelScale,
-      -z / config.modelScale,
-      Math.max(0, (y - config.groundOffsetY) / config.modelScale),
-      heading - Math.PI * 0.5,
+      elevation / BATTLEFIELD_MONSTER_SPAWN.modelScale,
     );
-  }
-
-  public releaseManipulation(entityId: number): boolean {
-    return !this.disposed && this.population.releaseManipulation(entityId);
-  }
-
-  public killManipulated(entityId: number): boolean {
-    return !this.disposed && this.population.killManipulated(entityId);
   }
 
   public dispose(): void {

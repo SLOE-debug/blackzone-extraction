@@ -135,7 +135,8 @@ implements EntitySystem<VenomLobberState, number> {
     const animation = state.data.animation;
     const masterProgress = clamp01(animation.lifecycleLegProgress[entityIndex] ?? 0);
     const spawning = lifecycle === MonsterLifecycleState.Spawning;
-    const rootElevation = animation.rootElevation[entityIndex] ?? 0;
+    const rootElevation = (animation.rootElevation[entityIndex] ?? 0)
+      + (state.data.effects.externalElevation[entityIndex] ?? 0);
     const bodyCompression = animation.bodyCompression[entityIndex] ?? 1;
     for (let legId = 0; legId < VENOM_LOBBER_LEG_COUNT; legId++) {
       const path = VENOM_LOBBER_LEG_PATHS[legId];

@@ -40,7 +40,7 @@ export function updateCurveCrawlerBounds(
   state: CurveCrawlerState,
   bounds: CurveCrawlerBounds,
 ): void {
-  const { transform, morphology, vitality, death, animation } = state.data;
+  const { transform, morphology, vitality, effects, death, animation } = state.data;
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let minZ = Number.POSITIVE_INFINITY;
@@ -90,12 +90,13 @@ export function updateCurveCrawlerBounds(
       y - baseReach + minimumFragmentY,
       y - liquidReach - liquidReach * liquidDrain * 1.35,
     );
-    minZ = Math.min(minZ, -Math.max(bodyWidth * 0.15, legWidth));
+    const rootElevation = effects.rootElevation[index] ?? 0;
+    minZ = Math.min(minZ, rootElevation - Math.max(bodyWidth * 0.15, legWidth));
     maxX = Math.max(maxX, x + baseReach + maximumFragmentX, x + liquidReach);
     maxY = Math.max(maxY, y + baseReach + maximumFragmentY, y + liquidReach);
     maxZ = Math.max(
       maxZ,
-      bodyWidth * 0.3 + legLength * 0.76 + legWidth + maximumFragmentZ,
+      rootElevation + bodyWidth * 0.3 + legLength * 0.76 + legWidth + maximumFragmentZ,
     );
   }
 

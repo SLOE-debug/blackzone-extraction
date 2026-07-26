@@ -6,6 +6,6 @@ export const VANGUARD_CONFIG = Object.freeze({
   acceleration: 31,
   deceleration: 38,
   movementTurnSharpness: 11,
-  aimingTurnSharpness: 19,
+  attackTurnSharpness: 19,
   locomotionCyclesPerMeter: 0.34,
 });

@@ -3,25 +3,12 @@ import {
   type PlanarMonsterCombatTarget,
 } from '../../../../../core/contracts/monster-combat';
 import {
-  type MutablePlanarMonsterHitResult,
-  type PlanarMonsterHitPopulation,
-  type PlanarMonsterHitQuery,
-} from '../../../../../core/contracts/monster-hit';
-import {
-  type MutablePlanarTargetResult,
-  type PlanarTargetPopulation,
-  type PlanarTargetQuery,
-} from '../../../../../core/contracts/planar-target';
-import {
   type MonsterObservationEvent,
   type MonsterObservationFootprint,
   type MonsterObservationPopulation,
 } from '../../../../../core/contracts/monster-observation';
 import { type MonsterPopulation } from '../../../../../core/contracts/monster-population';
-import {
-  type MutablePlanarMonsterManipulationCandidate,
-  type PlanarMonsterManipulationPopulation,
-} from '../../../../../core/contracts/monster-manipulation';
+import { type PlanarMonsterEffectPopulation } from '../../../../../core/contracts/monster-effects';
 import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { CurveCrawlerAnimationSystem } from '../animation/curve-crawler-animation-system';
 import { CurveCrawlerEmergenceSystem } from '../animation/curve-crawler-emergence-system';
@@ -48,11 +35,8 @@ import { createCurveCrawlerCrowdPopulation } from './curve-crawler-crowd-populat
 import { CurveCrawlerDeathSystem } from './curve-crawler-death-system';
 import { CurveCrawlerDespawnSystem } from './curve-crawler-despawn-system';
 import { CurveCrawlerHitSystem } from './curve-crawler-hit-system';
-import { CurveCrawlerProjectileHitSystem } from './curve-crawler-projectile-hit-system';
 import { CurveCrawlerRepopulationSystem } from './curve-crawler-repopulation-system';
 import { CurveCrawlerSimulationCadence } from './curve-crawler-simulation-cadence';
-import { CurveCrawlerTargeting } from './curve-crawler-targeting';
-import { CurveCrawlerManipulationSystem } from './curve-crawler-manipulation-system';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
@@ -64,8 +48,7 @@ const MAXIMUM_DELTA_TIME = 0.05;
  */
 export class CurveCrawlerPopulation
 implements MonsterPopulation<CurveCrawlerCommand>, MonsterObservationPopulation,
-MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation,
-PlanarMonsterManipulationPopulation {
+MonsterCombatPopulation, PlanarMonsterEffectPopulation {
   private readonly state: CurveCrawlerState;
   private readonly hit = new CurveCrawlerHitSystem();
   private readonly death = new CurveCrawlerDeathSystem();
@@ -74,9 +57,6 @@ PlanarMonsterManipulationPopulation {
   private readonly combat: CurveCrawlerCombatSystem | null;
   private readonly observation = new CurveCrawlerObservationSystem();
   private readonly movement = new CurveCrawlerMovementSystem();
-  private readonly targeting = new CurveCrawlerTargeting();
-  private readonly projectileHit = new CurveCrawlerProjectileHitSystem();
-  private readonly manipulation = new CurveCrawlerManipulationSystem();
   private readonly repopulation: CurveCrawlerRepopulationSystem;
   private readonly animation = new CurveCrawlerAnimationSystem();
   private readonly emergence = new CurveCrawlerEmergenceSystem();
@@ -223,44 +203,6 @@ PlanarMonsterManipulationPopulation {
     );
   }
 
-  /** 在群体局部平面中查找射线最先经过的存活目标。 */
-  public findFirstPlanarTarget(
-    query: Readonly<PlanarTargetQuery>,
-    result: MutablePlanarTargetResult,
-  ): boolean {
-    this.ensureActive();
-    return this.targeting.findFirst(this.state, query, result);
-  }
-
-  /** 对共享宽相位给出的实体执行单槽位射线窄相位。 */
-  public findPlanarTarget(
-    entityIndex: number,
-    query: Readonly<PlanarTargetQuery>,
-    result: MutablePlanarTargetResult,
-  ): boolean {
-    this.ensureActive();
-    return this.targeting.findEntity(this.state, entityIndex, query, result);
-  }
-
-  /** 在群体局部平面中查找一段子弹位移最先接触的存活实体。 */
-  public findFirstPlanarHit(
-    query: Readonly<PlanarMonsterHitQuery>,
-    result: MutablePlanarMonsterHitResult,
-  ): boolean {
-    this.ensureActive();
-    return this.projectileHit.findFirst(this.state, query, result);
-  }
-
-  /** 只对共享宽相位给出的实体执行精确窄相位查询。 */
-  public findPlanarHit(
-    entityIndex: number,
-    query: Readonly<PlanarMonsterHitQuery>,
-    result: MutablePlanarMonsterHitResult,
-  ): boolean {
-    this.ensureActive();
-    return this.projectileHit.findEntity(this.state, entityIndex, query, result);
-  }
-
   /** 把场景目标同步给自主战斗系统。 */
   public synchronizeCombatTarget(target: Readonly<PlanarMonsterCombatTarget>): void {
     this.ensureActive();
@@ -279,62 +221,14 @@ PlanarMonsterManipulationPopulation {
     return this.ensureCombat().consumeAttackDamage();
   }
 
-  /** 写出一个活动实体的抓取与投掷能力。 */
-  public writeManipulationCandidate(
-    entityIndex: number,
-    result: MutablePlanarMonsterManipulationCandidate,
-  ): boolean {
+  /** 写入独立于死亡碎块动画的通用腾空根高度。 */
+  public setEffectElevation(entityId: number, elevation: number): boolean {
     this.ensureActive();
-    return this.manipulation.writeCandidate(this.state, entityIndex, result);
-  }
-
-  /** 让合法小型实体停止自主行为并进入携带状态。 */
-  public beginCarry(entityId: number): boolean {
-    this.ensureActive();
-    return this.manipulation.beginCarry(this.state, entityId);
-  }
-
-  /** 把当前携带对象切换到投掷状态。 */
-  public beginThrow(entityId: number): boolean {
-    this.ensureActive();
-    return this.manipulation.beginThrow(this.state, entityId);
-  }
-
-  /** 同步外部战斗行为拥有的实体姿态。 */
-  public synchronizeManipulatedPose(
-    entityId: number,
-    x: number,
-    y: number,
-    elevation: number,
-    heading: number,
-  ): boolean {
-    this.ensureActive();
-    return this.manipulation.synchronizePose(
-      this.state,
-      entityId,
-      x,
-      y,
-      elevation,
-      heading,
-    );
-  }
-
-  /** 结束外部接管并恢复地面自由状态。 */
-  public releaseManipulation(entityId: number): boolean {
-    this.ensureActive();
-    return this.manipulation.release(this.state, entityId);
-  }
-
-  /** 复用怪物自身受击与死亡系统完成投掷重击斩杀。 */
-  public killManipulated(entityId: number): boolean {
-    this.ensureActive();
-    if (!this.manipulation.release(this.state, entityId)) {
+    if (!Number.isSafeInteger(entityId) || entityId < 0 || entityId >= this.state.count
+      || !Number.isFinite(elevation) || elevation < 0) {
       return false;
     }
-    if (!this.hit.damage(this.state, entityId, Number.MAX_VALUE)) {
-      return false;
-    }
-    this.death.start(this.state, entityId);
+    this.state.data.effects.rootElevation[entityId] = elevation;
     return true;
   }
 

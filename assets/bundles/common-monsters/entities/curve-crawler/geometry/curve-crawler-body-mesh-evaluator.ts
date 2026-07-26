@@ -188,7 +188,8 @@ export function evaluateCurveCrawlerBodyMesh(
 
     const fragmentOffsetX = animation.fragmentOffsetX[fragmentIndex] ?? 0;
     const fragmentOffsetY = animation.fragmentOffsetY[fragmentIndex] ?? 0;
-    const fragmentOffsetZ = animation.fragmentOffsetZ[fragmentIndex] ?? 0;
+    const fragmentOffsetZ = (animation.fragmentOffsetZ[fragmentIndex] ?? 0)
+      + (state.data.effects.rootElevation[entityIndex] ?? 0);
     legScratch.p0x = originX + p0x * headingCosine - p0y * headingSine + fragmentOffsetX;
     legScratch.p0y = originY + p0x * headingSine + p0y * headingCosine + fragmentOffsetY;
     legScratch.p0z = p0z + fragmentOffsetZ;
@@ -275,7 +276,8 @@ export function evaluateCurveCrawlerBodyMesh(
     abdomenRadiusZ * (
       bodyShape.abdomenCenterHeightScale
       - crouchAmount * bodyShape.abdomenCrouchCenterScale
-    ) + (animation.fragmentOffsetZ[abdomenFragment] ?? 0),
+    ) + (animation.fragmentOffsetZ[abdomenFragment] ?? 0)
+      + (state.data.effects.rootElevation[entityIndex] ?? 0),
     Math.max(bodyLength * 0.48 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.52 * fragmentScale, 0.0001),
     Math.max(abdomenRadiusZ * fragmentScale, 0.0001),
@@ -297,7 +299,8 @@ export function evaluateCurveCrawlerBodyMesh(
       - crouchAmount * bodyShape.thoraxCrouchCenterScale
       - biteAmount * bodyShape.thoraxBiteCenterScale
     )
-      + (animation.fragmentOffsetZ[thoraxFragment] ?? 0),
+      + (animation.fragmentOffsetZ[thoraxFragment] ?? 0)
+      + (state.data.effects.rootElevation[entityIndex] ?? 0),
     Math.max(bodyLength * 0.3 * fragmentScale, 0.0001),
     Math.max(bodyWidth * 0.42 * fragmentScale, 0.0001),
     Math.max(thoraxRadiusZ * fragmentScale, 0.0001),

@@ -38,19 +38,9 @@ export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
     timeSinceHit: entityField(Float32Array, 1),
     deathEffectSpawned: entityField(Uint8Array, 1),
   },
-  manipulation: {
-    grabbable: entityField(Uint8Array, 1),
-    executableHealthRatio: entityField(Float32Array, 1),
-    bodySize: entityField(Uint8Array, 1),
-    grabResistance: entityField(Float32Array, 1),
-    playerGrabbable: entityField(Uint8Array, 1),
-    tags: entityField(Uint32Array, 1),
-    state: entityField(Uint8Array, 1),
-    throwMass: entityField(Float32Array, 1),
-    maximumThrowDistance: entityField(Float32Array, 1),
-    collisionRadius: entityField(Float32Array, 1),
-    impactStrength: entityField(Float32Array, 1),
-    elevation: entityField(Float32Array, 1),
+  effects: {
+    /** 通用腾空模拟与怪物自身出生、死亡高度分开保存。 */
+    externalElevation: entityField(Float32Array, 1),
   },
   behavior: {
     action: entityField(Uint8Array, 1),

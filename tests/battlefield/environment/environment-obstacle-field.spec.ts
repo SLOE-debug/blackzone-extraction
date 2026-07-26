@@ -31,7 +31,7 @@ describe('战场环境平面障碍场', () => {
       .toBeGreaterThanOrEqual(altarRadius + playerRadius - 0.0001);
   });
 
-  it('三维投掷轨迹可以越过高度区间之外的环境障碍', () => {
+  it('三维空间移动可以越过高度区间之外的环境障碍', () => {
     const world = new BattlefieldEnvironmentWorldState();
     new BattlefieldEnvironmentGenerator().populate(0, 0, world);
     const preparation = prepareBattlefieldEnvironment();

@@ -11,7 +11,7 @@ export class BattlefieldSceneInteractionSystem {
   private readonly resolver = new BattlefieldInteractionResolver();
   private readonly equipmentInspection: MutableDroppedEquipmentInspection = {
     instanceId: -1,
-    equipmentId: EquipmentId.DesertEagle,
+    equipmentId: EquipmentId.Sledgehammer,
     x: 0,
     y: 0,
     z: 0,

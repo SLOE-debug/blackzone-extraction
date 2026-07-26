@@ -33,34 +33,21 @@ const UNARMED_STANCE = stance(
   joint(0.81, 1.41, 0.11),
 );
 
-/** 手枪只约束右臂，左臂继续参与自然跑步摆动。 */
-const HANDGUN_STANCE = stance(
+/** 单手重武器让右臂自然下垂，左臂继续参与移动平衡。 */
+const ONE_HAND_HEAVY_STANCE = stance(
   0,
   1,
   joint(-0.76, 0.69, 0),
   joint(-0.69, 1.23, 0.04),
   joint(-0.68, 1.45, 0.1),
-  joint(0.5, 0.38, 0.48, 0.01, -0.025, -0.07),
-  joint(0.34, 0.47, 0.89, 0.015, -0.02, -0.11),
-  joint(0.29, 0.46, 1.12, 0.01, -0.015, -0.14),
-);
-
-/** 长枪使用固定双手骨段，不再通过 IK 反推肩、肘和腕关节。 */
-const LONG_GUN_STANCE = stance(
-  1,
-  1,
-  joint(-0.75, 0.37, 0.6, -0.01, 0.008, -0.04),
-  joint(-0.43, 0.59, 0.98, 0, 0.004, -0.07),
-  joint(-0.49, 0.575, 1.138, 0, 0.005, -0.09),
-  joint(0.525, 0.68, 0.078, 0.02, 0.01, -0.04),
-  joint(0.178, 0.57, 0.481, 0, 0.004, -0.07),
-  joint(0.08, 0.592, 0.618, 0, 0.005, -0.09),
+  joint(0.69, 0.73, 0.09, -0.18, -0.34, 0.44),
+  joint(0.66, 1.25, 0.13, -0.26, -0.48, 0.72),
+  joint(0.64, 1.46, 0.18, -0.31, -0.54, 0.9),
 );
 
 const VANGUARD_WEAPON_STANCES = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_STANCE,
-  [VanguardWeaponPose.Handgun]: HANDGUN_STANCE,
-  [VanguardWeaponPose.LongGun]: LONG_GUN_STANCE,
+  [VanguardWeaponPose.OneHandHeavy]: ONE_HAND_HEAVY_STANCE,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponStance>>>);
 
 /** 返回主角动画系统登记的完整武器姿态。 */

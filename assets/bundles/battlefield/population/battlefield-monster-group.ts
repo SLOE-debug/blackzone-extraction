@@ -1,89 +1,30 @@
-import {
-  type MutablePlanarMonsterHitResult,
-} from '../../../core/contracts/monster-hit';
-import {
-  type MutablePlanarTargetResult,
-} from '../../../core/contracts/planar-target';
 import { FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
 import { BATTLEFIELD_COMBAT_CONFIG } from '../model/battlefield-combat-config';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
   type BattlefieldMonsterCombatTarget,
-  type MutableBattlefieldAimRayContact,
-  type MutableBattlefieldManipulationCandidate,
-  type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
 import {
-  CombatTag,
-  type MutablePlanarMonsterManipulationCandidate,
-  MonsterBodySize,
-} from '../../../core/contracts/monster-manipulation';
-import { type BattlefieldMonsterManipulationGroup } from './battlefield-monster-manipulation-group';
-import {
   type BattlefieldMonsterRepopulationOptions,
   type BattlefieldMonsterRuntime,
   type MutablePlanarMonsterCombatTarget,
-  type MutablePlanarMonsterHitQuery,
-  type MutablePlanarTargetQuery,
 } from './battlefield-monster-group-contracts';
 
 /** 保持一个地图随机怪物群的独立模拟，并接入战场共享怪物渲染批次。 */
 export class BattlefieldMonsterGroup
-implements BattlefieldMonsterTargetGroup, BattlefieldMonsterManipulationGroup {
+implements BattlefieldMonsterTargetGroup {
   public readonly populationId: number;
   public readonly crowdPopulation: PlanarCrowdPopulation;
+  public readonly knockbackResistanceScale = 1;
+  public readonly airborneResistanceScale = 1;
   private readonly population: BattlefieldMonsterRuntime;
-  private readonly localTargetQuery: MutablePlanarTargetQuery = {
-    startX: 0,
-    startY: 0,
-    endX: 0,
-    endY: 1,
-  };
-  private readonly localTargetResult: MutablePlanarTargetResult = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    elevation: 0,
-    segmentProgress: 0,
-  };
   private readonly localCombatTarget: MutablePlanarMonsterCombatTarget = {
     x: 0,
     y: 0,
     collisionRadius: 0,
-  };
-  private readonly localHitQuery: MutablePlanarMonsterHitQuery = {
-    startX: 0,
-    startY: 0,
-    startElevation: 0,
-    endX: 0,
-    endY: 0,
-    endElevation: 0,
-    impactRadius: 0,
-  };
-  private readonly localHitResult: MutablePlanarMonsterHitResult = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    elevation: 0,
-    segmentProgress: 0,
-  };
-  private readonly localManipulationCandidate: MutablePlanarMonsterManipulationCandidate = {
-    entityId: -1,
-    x: 0,
-    y: 0,
-    elevation: 0,
-    healthRatio: 1,
-    bodySize: MonsterBodySize.Small,
-    grabResistance: 0,
-    playerGrabbable: false,
-    tags: CombatTag.None,
-    throwMass: 0,
-    maximumThrowDistance: 0,
-    collisionRadius: 0,
-    impactStrength: 0,
   };
   private combatTargetActive = false;
   private readonly repopulationOptions: BattlefieldMonsterRepopulationOptions = {
@@ -180,72 +121,6 @@ implements BattlefieldMonsterTargetGroup, BattlefieldMonsterManipulationGroup {
     }
   }
 
-  /** 把世界 XZ 线段转换到本群体局部平面并查询实体轮廓首次接触。 */
-  public writeAimRayContactForEntity(
-    entityIndex: number,
-    startX: number,
-    startZ: number,
-    endX: number,
-    endZ: number,
-    result: MutableBattlefieldAimRayContact,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    const query = this.localTargetQuery;
-    query.startX = startX / config.modelScale;
-    query.startY = -startZ / config.modelScale;
-    query.endX = endX / config.modelScale;
-    query.endY = -endZ / config.modelScale;
-    if (!this.population.findPlanarTarget(entityIndex, query, this.localTargetResult)) {
-      return false;
-    }
-    result.x = this.localTargetResult.x * config.modelScale;
-    result.y = config.groundOffsetY
-      + this.localTargetResult.elevation * config.modelScale;
-    result.z = -this.localTargetResult.y * config.modelScale;
-    result.segmentProgress = this.localTargetResult.segmentProgress;
-    return true;
-  }
-
-  /** 查询一段世界空间子弹位移最先接触的本群怪物。 */
-  public writeProjectileHitForEntity(
-    entityIndex: number,
-    startX: number,
-    startY: number,
-    startZ: number,
-    endX: number,
-    endY: number,
-    endZ: number,
-    impactRadius: number,
-    result: MutableBattlefieldProjectileHit,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    const inverseScale = 1 / config.modelScale;
-    const query = this.localHitQuery;
-    query.startX = startX * inverseScale;
-    query.startY = -startZ * inverseScale;
-    query.startElevation = (startY - config.groundOffsetY) * inverseScale;
-    query.endX = endX * inverseScale;
-    query.endY = -endZ * inverseScale;
-    query.endElevation = (endY - config.groundOffsetY) * inverseScale;
-    query.impactRadius = impactRadius * inverseScale;
-    if (!this.population.findPlanarHit(entityIndex, query, this.localHitResult)) {
-      return false;
-    }
-    result.entityId = this.localHitResult.entityId;
-    result.x = this.localHitResult.x * config.modelScale;
-    result.y = config.groundOffsetY
-      + this.localHitResult.elevation * config.modelScale;
-    result.z = -this.localHitResult.y * config.modelScale;
-    result.segmentProgress = this.localHitResult.segmentProgress;
-    return true;
-  }
-
   /** 把伤害路由到本群稳定实体标识。 */
   public damageMonster(entityId: number, amount: number): void {
     if (this.disposed) {
@@ -254,70 +129,12 @@ implements BattlefieldMonsterTargetGroup, BattlefieldMonsterManipulationGroup {
     this.population.damage(entityId, amount);
   }
 
-  /** 把 Curve Crawler 局部能力和姿态转换为战场世界空间。 */
-  public writeManipulationCandidateForEntity(
-    entityIndex: number,
-    result: MutableBattlefieldManipulationCandidate,
-  ): boolean {
-    if (this.disposed || !this.population.writeManipulationCandidate(
-      entityIndex,
-      this.localManipulationCandidate,
-    )) {
-      return false;
-    }
-    const local = this.localManipulationCandidate;
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    result.populationId = this.populationId;
-    result.entityId = local.entityId;
-    result.x = local.x * config.modelScale;
-    result.y = config.groundOffsetY + local.elevation * config.modelScale;
-    result.z = -local.y * config.modelScale;
-    result.healthRatio = local.healthRatio;
-    result.bodySize = local.bodySize;
-    result.grabResistance = local.grabResistance;
-    result.playerGrabbable = local.playerGrabbable;
-    result.tags = local.tags;
-    result.throwMass = local.throwMass;
-    result.maximumThrowDistance = local.maximumThrowDistance * config.modelScale;
-    result.collisionRadius = local.collisionRadius * config.modelScale;
-    result.impactStrength = local.impactStrength;
-    return true;
-  }
-
-  public beginCarry(entityId: number): boolean {
-    return !this.disposed && this.population.beginCarry(entityId);
-  }
-
-  public beginThrow(entityId: number): boolean {
-    return !this.disposed && this.population.beginThrow(entityId);
-  }
-
-  public synchronizeManipulatedPose(
-    entityId: number,
-    x: number,
-    y: number,
-    z: number,
-    heading: number,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    const config = BATTLEFIELD_MONSTER_SPAWN;
-    return this.population.synchronizeManipulatedPose(
+  /** 把世界腾空高度转换到 Curve Crawler 自身的正交高度轴。 */
+  public setEffectElevation(entityId: number, elevation: number): boolean {
+    return !this.disposed && this.population.setEffectElevation(
       entityId,
-      x / config.modelScale,
-      -z / config.modelScale,
-      Math.max(0, (y - config.groundOffsetY) / config.modelScale),
-      heading - Math.PI * 0.5,
+      elevation / BATTLEFIELD_MONSTER_SPAWN.modelScale,
     );
-  }
-
-  public releaseManipulation(entityId: number): boolean {
-    return !this.disposed && this.population.releaseManipulation(entityId);
-  }
-
-  public killManipulated(entityId: number): boolean {
-    return !this.disposed && this.population.killManipulated(entityId);
   }
 
   /** 释放本群体状态及其在共享渲染批次中的连续区段。 */

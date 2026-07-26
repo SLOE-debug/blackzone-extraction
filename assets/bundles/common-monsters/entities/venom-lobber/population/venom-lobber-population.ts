@@ -2,20 +2,7 @@ import {
   type MonsterCombatPopulation,
   type PlanarMonsterCombatTarget,
 } from '../../../../../core/contracts/monster-combat';
-import {
-  type MutablePlanarMonsterHitResult,
-  type PlanarMonsterHitPopulation,
-  type PlanarMonsterHitQuery,
-} from '../../../../../core/contracts/monster-hit';
-import {
-  type MutablePlanarTargetResult,
-  type PlanarTargetPopulation,
-  type PlanarTargetQuery,
-} from '../../../../../core/contracts/planar-target';
-import {
-  type MutablePlanarMonsterManipulationCandidate,
-  type PlanarMonsterManipulationPopulation,
-} from '../../../../../core/contracts/monster-manipulation';
+import { type PlanarMonsterEffectPopulation } from '../../../../../core/contracts/monster-effects';
 import { type Node } from 'cc';
 import { type PlanarCrowdPopulation } from '../../../../../core/monsters/crowd/planar-crowd-population';
 import { VenomLobberAnimationSystem } from '../animation/venom-lobber-animation-system';
@@ -32,19 +19,15 @@ import { VenomLobberState } from '../model/venom-lobber-state';
 import { VenomLobberMovementSystem } from '../movement/venom-lobber-movement-system';
 import { VenomLobberRenderer } from '../rendering/venom-lobber-renderer';
 import { VenomLobberLifeSystem } from './venom-lobber-life-system';
-import { VenomLobberManipulationSystem } from './venom-lobber-manipulation-system';
 import { createVenomLobberCrowdPopulation } from './venom-lobber-crowd-population';
-import { VenomLobberProjectileHitSystem } from './venom-lobber-projectile-hit-system';
 import { VenomLobberRepopulationSystem } from './venom-lobber-repopulation-system';
-import { VenomLobberTargeting } from './venom-lobber-targeting';
 
 const MINIMUM_DELTA_TIME = 1 / 240;
 const MAXIMUM_DELTA_TIME = 0.05;
 
 /** Venom Lobber 群体门面，只负责编排 SoA 系统顺序和批渲染生命周期。 */
 export class VenomLobberPopulation
-implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopulation,
-  PlanarMonsterManipulationPopulation {
+implements MonsterCombatPopulation, PlanarMonsterEffectPopulation {
   private readonly state: VenomLobberState;
   private readonly life: VenomLobberLifeSystem;
   private readonly combat: VenomLobberCombatSystem;
@@ -53,9 +36,6 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
   private readonly lifecyclePose = new VenomLobberLifecyclePoseSystem();
   private readonly legAnimation = new VenomLobberLegAnimationSystem();
   private readonly repopulation: VenomLobberRepopulationSystem;
-  private readonly targeting = new VenomLobberTargeting();
-  private readonly projectileHit = new VenomLobberProjectileHitSystem();
-  private readonly manipulation = new VenomLobberManipulationSystem();
   private readonly renderer: VenomLobberRenderer;
   private disposed = false;
 
@@ -123,12 +103,10 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     }
     const safeDeltaTime = Math.max(MINIMUM_DELTA_TIME, Math.min(deltaTime, MAXIMUM_DELTA_TIME));
     this.life.update(this.state, safeDeltaTime);
-    this.manipulation.updateTags(this.state);
     this.combat.update(this.state, safeDeltaTime);
     this.movement.update(this.state, safeDeltaTime);
     this.animation.update(this.state, safeDeltaTime);
     this.lifecyclePose.update(this.state, safeDeltaTime);
-    this.manipulation.applyPose(this.state);
     this.legAnimation.update(this.state, safeDeltaTime);
   }
 
@@ -142,42 +120,6 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
   public synchronizePostCrowdPose(): void {
     this.ensureActive();
     this.legAnimation.update(this.state, 0);
-  }
-
-  public findFirstPlanarTarget(
-    query: Readonly<PlanarTargetQuery>,
-    result: MutablePlanarTargetResult,
-  ): boolean {
-    this.ensureActive();
-    return this.targeting.findFirst(this.state, query, result);
-  }
-
-  /** 对共享宽相位给出的实体执行单槽位射线窄相位。 */
-  public findPlanarTarget(
-    entityIndex: number,
-    query: Readonly<PlanarTargetQuery>,
-    result: MutablePlanarTargetResult,
-  ): boolean {
-    this.ensureActive();
-    return this.targeting.findEntity(this.state, entityIndex, query, result);
-  }
-
-  public findFirstPlanarHit(
-    query: Readonly<PlanarMonsterHitQuery>,
-    result: MutablePlanarMonsterHitResult,
-  ): boolean {
-    this.ensureActive();
-    return this.projectileHit.findFirst(this.state, query, result);
-  }
-
-  /** 只对共享宽相位给出的实体执行精确窄相位查询。 */
-  public findPlanarHit(
-    entityIndex: number,
-    query: Readonly<PlanarMonsterHitQuery>,
-    result: MutablePlanarMonsterHitResult,
-  ): boolean {
-    this.ensureActive();
-    return this.projectileHit.findEntity(this.state, entityIndex, query, result);
   }
 
   public damage(entityId: number, amount: number): void {
@@ -200,52 +142,14 @@ implements MonsterCombatPopulation, PlanarTargetPopulation, PlanarMonsterHitPopu
     return this.combat.consumeDamage();
   }
 
-  public writeManipulationCandidate(
-    entityIndex: number,
-    result: MutablePlanarMonsterManipulationCandidate,
-  ): boolean {
+  /** 写入独立于出生、死亡姿态的通用腾空高度。 */
+  public setEffectElevation(entityId: number, elevation: number): boolean {
     this.ensureActive();
-    return this.manipulation.writeCandidate(this.state, entityIndex, result);
-  }
-
-  public beginCarry(entityId: number): boolean {
-    this.ensureActive();
-    return this.manipulation.beginCarry(this.state, entityId);
-  }
-
-  public beginThrow(entityId: number): boolean {
-    this.ensureActive();
-    return this.manipulation.beginThrow(this.state, entityId);
-  }
-
-  public synchronizeManipulatedPose(
-    entityId: number,
-    x: number,
-    y: number,
-    elevation: number,
-    heading: number,
-  ): boolean {
-    this.ensureActive();
-    return this.manipulation.synchronizePose(this.state, entityId, x, y, elevation, heading);
-  }
-
-  public releaseManipulation(entityId: number): boolean {
-    this.ensureActive();
-    return this.manipulation.release(this.state, entityId);
-  }
-
-  /** 重型撞击让毒囊破裂生成强化毒池，再进入自身死亡生命周期。 */
-  public killManipulated(entityId: number): boolean {
-    this.ensureActive();
-    if (!this.manipulation.release(this.state, entityId)) {
+    if (!Number.isSafeInteger(entityId) || entityId < 0 || entityId >= this.state.count
+      || !Number.isFinite(elevation) || elevation < 0) {
       return false;
     }
-    const transform = this.state.data.transform;
-    this.combat.effects.spawnCatalyzedPool(
-      transform.x[entityId] ?? 0,
-      transform.y[entityId] ?? 0,
-    );
-    this.life.damage(this.state, entityId, Number.MAX_VALUE);
+    this.state.data.effects.externalElevation[entityId] = elevation;
     return true;
   }
 

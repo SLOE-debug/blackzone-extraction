@@ -128,7 +128,8 @@ export class CurveCrawlerGpuPoseBuffer {
           CurveCrawlerGpuPoseTexel.FragmentFirst + fragment,
           animation.fragmentOffsetX[fragmentOffset + fragment] ?? 0,
           animation.fragmentOffsetY[fragmentOffset + fragment] ?? 0,
-          animation.fragmentOffsetZ[fragmentOffset + fragment] ?? 0,
+          (animation.fragmentOffsetZ[fragmentOffset + fragment] ?? 0)
+            + (state.data.effects.rootElevation[entityIndex] ?? 0),
           animation.fragmentRotation[fragmentOffset + fragment] ?? 0,
         );
       }

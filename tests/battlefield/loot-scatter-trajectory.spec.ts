@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createLootRuntimeRandomSeed } from '../../assets/bundles/battlefield/loot/model/loot-scatter-random-seed';
-import { createPlayerDiscardTrajectory } from '../../assets/bundles/battlefield/loot/model/player-discard-trajectory';
 import {
   createLootScatterTrajectories,
   evaluateLootScatterTrajectory,
@@ -73,22 +72,4 @@ describe('宝箱战利品爆散轨迹', () => {
     expect(first).not.toBe(second);
   });
 
-  it('玩家替换武器只产生脚边的低矮轻抛，不复用宝箱夸张高度', () => {
-    const trajectory = createPlayerDiscardTrajectory(
-      Uint32Array.of(0x38a1),
-      0,
-      4,
-      1.4,
-      2,
-      0.3,
-    );
-    const distance = Math.hypot(
-      trajectory.targetX - trajectory.startX,
-      trajectory.targetZ - trajectory.startZ,
-    );
-    expect(distance).toBeGreaterThanOrEqual(0.9);
-    expect(distance).toBeLessThan(1.55);
-    expect(trajectory.liftHeight).toBeLessThan(0.7);
-    expect(trajectory.flightDuration).toBeLessThan(0.55);
-  });
 });

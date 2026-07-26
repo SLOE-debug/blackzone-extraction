@@ -32,8 +32,7 @@ export function createVanguardBindPoseMatrices(): Float64Array {
     0,
     VanguardWeaponPose.Unarmed,
     0,
-    VanguardWeaponAction.Ready,
-    0,
+    VanguardWeaponAction.Idle,
     0,
   );
   return matrices;
@@ -56,7 +55,6 @@ export function createVanguardBindPoseMatrices(): Float64Array {
  * @param weaponStanceBlend 自然摆臂与武器姿势的混合权重。
  * @param weaponAction 当前武器动作。
  * @param weaponActionProgress 当前武器动作的归一化进度。
- * @param aimPitch 武器相对水平面的瞄准俯仰角。
  */
 export function writeVanguardPoseMatrices(
   matrices: VanguardBoneMatrixArray,
@@ -73,7 +71,6 @@ export function writeVanguardPoseMatrices(
   weaponStanceBlend: number,
   weaponAction: VanguardWeaponAction,
   weaponActionProgress: number,
-  aimPitch: number,
 ): void {
   const entityOffset = entityIndex
     * VanguardBone.Count
@@ -81,9 +78,7 @@ export function writeVanguardPoseMatrices(
   const locomotion = Math.max(0, Math.min(1, locomotionBlend));
   const weaponStance = Math.max(0, Math.min(1, weaponStanceBlend));
   const actionProgress = Math.max(0, Math.min(1, weaponActionProgress));
-  const rawAttackAmount = weaponAction === VanguardWeaponAction.Fire
-    ? 1 - actionProgress
-    : 0;
+  const rawAttackAmount = getWeaponAttackAmount(weaponAction, actionProgress);
   const attackAmount = rawAttackAmount * rawAttackAmount * (3 - rawAttackAmount * 2);
   const strideWave = Math.sin(locomotionPhase);
   const bodyBob = Math.abs(Math.cos(locomotionPhase)) * 0.065 * locomotion;
@@ -388,7 +383,6 @@ export function writeVanguardPoseMatrices(
     rightHandX,
     rightHandY,
     rightHandZ,
-    aimPitch,
     positionX,
     positionY,
     positionZ,
@@ -396,4 +390,27 @@ export function writeVanguardPoseMatrices(
     scale,
   );
 
+}
+
+/** 把多阶段大锤动作统一映射为右臂姿态层的攻击权重。 */
+function getWeaponAttackAmount(
+  action: VanguardWeaponAction,
+  progress: number,
+): number {
+  switch (action) {
+    case VanguardWeaponAction.WindupLeft:
+    case VanguardWeaponAction.WindupRight:
+      return progress * 0.72;
+    case VanguardWeaponAction.SwingLeft:
+    case VanguardWeaponAction.SwingRight:
+      return 1 - progress * 0.35;
+    case VanguardWeaponAction.Uppercut:
+      return Math.sin(progress * Math.PI);
+    case VanguardWeaponAction.Spin:
+      return 0.82;
+    case VanguardWeaponAction.Recover:
+      return (1 - progress) * 0.45;
+    case VanguardWeaponAction.Idle:
+      return 0;
+  }
 }

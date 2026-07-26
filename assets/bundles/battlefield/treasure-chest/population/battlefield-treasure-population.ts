@@ -1,9 +1,6 @@
 import { Node } from 'cc';
 import { type Disposable } from '../../../../core/contracts/disposable';
-import {
-  EquipmentId,
-  type WeaponEquipmentId,
-} from '../../equipment/catalog/equipment-id';
+import { EquipmentId } from '../../equipment/catalog/equipment-id';
 import { type BattlefieldEquipmentLibrary } from '../../equipment/catalog/battlefield-equipment-contracts';
 import { type LootTable } from '../../../../core/loot/weighted-loot-table';
 import {
@@ -21,9 +18,13 @@ import {
   type BattlefieldInteractionProvider,
   type MutableBattlefieldInteractionCandidate,
 } from '../../interaction/model/battlefield-interaction';
-import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
-import { createPlayerDiscardTrajectory } from '../../loot/model/player-discard-trajectory';
-import { createBattlefieldTreasureChestSpawns } from '../model/battlefield-treasure-chest-spawn';
+import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../../environment/model/battlefield-environment-config';
+import { BATTLEFIELD_TREASURE_MAXIMUM_LOOT_COUNT } from '../../loot/model/battlefield-treasure-loot-table';
+import { calculateDroppedEquipmentCapacity } from '../../equipment/model/dropped-equipment-capacity';
+import {
+  BATTLEFIELD_TREASURE_CHEST_GENERATION,
+  createBattlefieldTreasureChestSpawns,
+} from '../model/battlefield-treasure-chest-spawn';
 import { BATTLEFIELD_TREASURE_CHEST_ENVIRONMENT_BLOCKERS } from '../model/battlefield-treasure-chest-environment';
 import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treasure-chest-session-state';
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
@@ -39,7 +40,6 @@ BattlefieldInteractionProvider, Disposable {
   private readonly sessionState = new BattlefieldTreasureChestSessionState();
   private readonly renderer: TreasureChestSharedRenderer;
   private readonly droppedEquipment: DroppedEquipmentPopulation;
-  private readonly discardRandomState = new Uint32Array(1);
   private nextTreasureChestId = 1;
   private disposed = false;
 
@@ -80,12 +80,16 @@ BattlefieldInteractionProvider, Disposable {
         parent,
         this.equipmentInstanceIds,
         equipmentLibrary,
+        calculateDroppedEquipmentCapacity(
+          BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.activeChunkRadius,
+          BATTLEFIELD_TREASURE_CHEST_GENERATION.maximumChestsPerGeneratedChunk,
+          BATTLEFIELD_TREASURE_MAXIMUM_LOOT_COUNT,
+        ),
       );
     } catch (error: unknown) {
       this.renderer.dispose();
       throw error;
     }
-    this.discardRandomState[0] = createLootRuntimeRandomSeed(0x3c6ef35f);
   }
 
   /** 为当前 Chunk 程序化生成宝箱，并把各自运行时登记到作用域。 */
@@ -139,6 +143,7 @@ BattlefieldInteractionProvider, Disposable {
   /** 场景激活前提交加载阶段已经登记的全部初始宝箱。 */
   public completeInitialRendering(): void {
     this.ensureActive();
+    this.droppedEquipment.prewarm();
     this.renderer.synchronize();
   }
 
@@ -235,30 +240,6 @@ BattlefieldInteractionProvider, Disposable {
       }
     }
     return this.droppedEquipment.remove(instanceId);
-  }
-
-  /** 把玩家刚替换下来的武器以克制弧线轻抛到脚边。 */
-  public spawnPlayerDiscard(
-    equipmentId: WeaponEquipmentId,
-    x: number,
-    y: number,
-    z: number,
-    heading: number,
-  ): void {
-    this.ensureActive();
-    this.equipmentLibrary.get(equipmentId);
-    const trajectory = createPlayerDiscardTrajectory(
-      this.discardRandomState,
-      0,
-      x,
-      y,
-      z,
-      heading,
-    );
-    this.droppedEquipment.spawnBurst(
-      Object.freeze([equipmentId]),
-      Object.freeze([trajectory]),
-    );
   }
 
   public dispose(): void {

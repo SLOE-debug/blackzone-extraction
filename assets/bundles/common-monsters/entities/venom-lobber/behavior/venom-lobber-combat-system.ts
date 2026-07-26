@@ -1,6 +1,5 @@
 import { type PlanarMonsterCombatTarget } from '../../../../../core/contracts/monster-combat';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
-import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { VenomLobberAction } from '../model/venom-lobber-action';
 import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-options';
@@ -54,7 +53,7 @@ export class VenomLobberCombatSystem {
 
   public update(state: VenomLobberState, deltaTime: number): void {
     this.pendingMeleeDamage = 0;
-    const { identity, transform, morphology, vitality, manipulation, behavior, combat, intent } =
+    const { identity, transform, morphology, vitality, effects, behavior, combat, intent } =
       state.data;
     for (let index = 0; index < state.count; index++) {
       combat.castCooldown[index] = Math.max(
@@ -70,8 +69,7 @@ export class VenomLobberCombatSystem {
         this.disengage(state, index);
         continue;
       }
-      if ((manipulation.state[index] as MonsterManipulationState)
-        !== MonsterManipulationState.Free) {
+      if ((effects.externalElevation[index] ?? 0) > 0) {
         this.disengage(state, index);
         continue;
       }

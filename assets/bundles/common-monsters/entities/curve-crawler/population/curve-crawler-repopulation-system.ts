@@ -22,11 +22,6 @@ import {
 import { CURVE_CRAWLER_FRAGMENT_COUNT } from '../model/curve-crawler-schema';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
 import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
-import {
-  CombatTag,
-  MonsterManipulationState,
-} from '../../../../../core/contracts/monster-manipulation';
-import { CURVE_CRAWLER_MANIPULATION_PROFILE } from '../model/curve-crawler-manipulation';
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
@@ -105,7 +100,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     options: Readonly<CurveCrawlerRepopulationOptions>,
     visibility: Readonly<{ isVisible(entityIndex: number): boolean }>,
   ): void {
-    const { transform, vitality, manipulation, combat } = this.state.data;
+    const { transform, vitality, effects, combat } = this.state.data;
     const recycleDistanceSquared = options.recycleRadius * options.recycleRadius;
     const hardDistanceSquared = options.hardRecycleRadius * options.hardRecycleRadius;
     for (let index = 0; index < this.state.count; index++) {
@@ -113,8 +108,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
       if (lifecycleState !== MonsterLifecycleState.Alive) {
         continue;
       }
-      if ((manipulation.state[index] as MonsterManipulationState)
-        !== MonsterManipulationState.Free) {
+      if ((effects.rootElevation[index] ?? 0) > 0) {
         continue;
       }
       const deltaX = (transform.x[index] ?? 0) - options.centerX;
@@ -141,7 +135,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     delaySeconds: number,
   ): void {
     const state = this.state;
-    const { identity, transform, morphology, vitality, manipulation, death, behavior, combat } =
+    const { identity, transform, morphology, vitality, effects, death, behavior, combat } =
       state.data;
     const { intent, motion, animation } = state.data;
     const angle = this.spawnSequence * GOLDEN_ANGLE
@@ -180,9 +174,7 @@ implements MonsterPopulationActivationTarget<CurveCrawlerRepopulationOptions> {
     vitality.health[index] = CURVE_CRAWLER_MAX_HEALTH;
     vitality.hitTime[index] = 0;
     vitality.timeSinceHit[index] = 1;
-    manipulation.tags[index] = CURVE_CRAWLER_MANIPULATION_PROFILE.baseTags
-      & ~CombatTag.Executable;
-    manipulation.state[index] = MonsterManipulationState.Free;
+    effects.rootElevation[index] = 0;
     death.stage[index] = CurveCrawlerDeathStage.Bursting;
     death.stageTime[index] = 0;
     behavior.action[index] = CurveCrawlerAction.Crawl;

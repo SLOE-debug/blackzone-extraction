@@ -92,17 +92,18 @@ export class VanguardPopulation {
       === VanguardLifePhase.Alive;
   }
 
-  /** 写入下一帧持续使用的移动与瞄准意图。 */
+  /** 写入下一帧持续使用的移动与攻击朝向意图。 */
   public setControlIntent(intent: Readonly<VanguardControlIntent>): void {
     this.ensureActive();
     validateVanguardControlIntent(intent);
     const data = this.state.data.intent;
     data.moveX[0] = intent.moveX;
     data.moveZ[0] = intent.moveZ;
-    data.aimX[0] = intent.aimX;
-    data.aimZ[0] = intent.aimZ;
-    data.aimPitch[0] = intent.aimPitch;
-    data.aiming[0] = intent.aiming ? 1 : 0;
+    data.attackX[0] = intent.attackX;
+    data.attackZ[0] = intent.attackZ;
+    data.attacking[0] = intent.attacking ? 1 : 0;
+    data.facingLocked[0] = intent.facingLocked ? 1 : 0;
+    data.lockedHeading[0] = intent.lockedHeading;
     data.weaponPose[0] = intent.weaponPose;
     data.weaponAction[0] = intent.weaponAction;
     data.weaponActionProgress[0] = intent.weaponActionProgress;
@@ -116,7 +117,7 @@ export class VanguardPopulation {
     writeVanguardWeaponSockets(this.state, 0, result);
   }
 
-  /** 写出由瞄准、重量、后坐和动作层共同决定的武器权威世界姿态。 */
+  /** 写出由握持姿势和动作层共同决定的武器权威世界姿态。 */
   public writeWeaponRigPose(result: MutableVanguardWeaponRigPose): void {
     this.ensureActive();
     writeVanguardWeaponRigPose(this.state, 0, result);

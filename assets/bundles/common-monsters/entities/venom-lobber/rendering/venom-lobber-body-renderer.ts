@@ -196,7 +196,8 @@ export class VenomLobberBodyRenderer {
     const rootY = transform.y[entityIndex] ?? 0;
     const bodyBob = (animation.bodyBob[entityIndex] ?? 0) - meleeStrike * 0.16;
     const rootForward = animation.rootForward[entityIndex] ?? 0;
-    const rootElevation = animation.rootElevation[entityIndex] ?? 0;
+    const rootElevation = (animation.rootElevation[entityIndex] ?? 0)
+      + (state.data.effects.externalElevation[entityIndex] ?? 0);
     const bodyCompression = animation.bodyCompression[entityIndex] ?? 1;
     const venomSacScale = animation.venomSacScale[entityIndex] ?? 1;
     const venomPressureLoss = clamp01((1 - venomSacScale) / 0.75);

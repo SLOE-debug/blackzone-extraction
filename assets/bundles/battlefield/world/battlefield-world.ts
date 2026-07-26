@@ -1,10 +1,6 @@
 import { WorldScheduler } from '../../../core/world/world-scheduler';
-import {
-  type MutableBattlefieldFireDirection,
-  type MutableBattlefieldFireIntent,
-} from '../combat/battlefield-fire-intent';
 import { type BattlefieldMonsterCombatTarget } from '../population/battlefield-monster-contracts';
-import { type BattlefieldWeaponOwnerPose } from '../equipment/population/battlefield-player-weapon-runtime';
+import { type BattlefieldWeaponOwnerState } from '../equipment/population/battlefield-player-weapon-runtime';
 import { BattlefieldPerformanceStage } from '../debug/battlefield-performance-contracts';
 import { type BattlefieldWorldResources } from './battlefield-world-resources';
 import { BattlefieldCameraWorldSystem } from './systems/battlefield-camera-world-system';
@@ -19,16 +15,10 @@ import { BattlefieldPlayerWorldSystem } from './systems/battlefield-player-world
 import { BattlefieldStatusWorldSystem } from './systems/battlefield-status-world-system';
 import { BattlefieldTreasureWorldSystem } from './systems/battlefield-treasure-world-system';
 import { BattlefieldWeaponWorldSystem } from './systems/battlefield-weapon-world-system';
-import { BattlefieldProjectileCollisionWorldSystem } from './systems/battlefield-projectile-collision-world-system';
-import { BattlefieldProjectileDamageWorldSystem } from './systems/battlefield-projectile-damage-world-system';
-import { BattlefieldProjectileIntegrationWorldSystem } from './systems/battlefield-projectile-integration-world-system';
-import { BattlefieldProjectileRenderingWorldSystem } from './systems/battlefield-projectile-rendering-world-system';
-import { BattlefieldActionInputWorldSystem } from './systems/battlefield-action-input-world-system';
-import { BattlefieldActionExecutionWorldSystem } from './systems/battlefield-action-execution-world-system';
-import { BattlefieldThrownSimulationWorldSystem } from './systems/battlefield-thrown-simulation-world-system';
-import { BattlefieldThrownCollisionWorldSystem } from './systems/battlefield-thrown-collision-world-system';
 import { BattlefieldCombatEventWorldSystem } from './systems/battlefield-combat-event-world-system';
-import { BattlefieldActionPresentationWorldSystem } from './systems/battlefield-action-presentation-world-system';
+import { BattlefieldWeaponInputWorldSystem } from './systems/battlefield-weapon-input-world-system';
+import { BattlefieldWeaponPoseWorldSystem } from './systems/battlefield-weapon-pose-world-system';
+import { BattlefieldMonsterEffectWorldSystem } from './systems/battlefield-monster-effect-world-system';
 
 interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombatTarget {
   x: number;
@@ -36,17 +26,11 @@ interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombat
   collisionRadius: number;
 }
 
-interface MutableBattlefieldWeaponOwnerPose extends BattlefieldWeaponOwnerPose {
-  rootX: number;
-  rootY: number;
-  rootZ: number;
-  rotationX: number;
-  rotationY: number;
-  rotationZ: number;
-  rotationW: number;
-  forwardX: number;
-  forwardY: number;
-  forwardZ: number;
+interface MutableBattlefieldWeaponOwnerState extends BattlefieldWeaponOwnerState {
+  positionX: number;
+  positionY: number;
+  positionZ: number;
+  heading: number;
   alive: boolean;
 }
 
@@ -62,54 +46,32 @@ export class BattlefieldWorld {
     z: 0,
     collisionRadius: 0,
   };
-  public readonly weaponOwnerPose: MutableBattlefieldWeaponOwnerPose = {
-    rootX: 0,
-    rootY: 0,
-    rootZ: 0,
-    rotationX: 0,
-    rotationY: 0,
-    rotationZ: 0,
-    rotationW: 1,
-    forwardX: 0,
-    forwardY: 0,
-    forwardZ: 1,
+  public readonly weaponOwnerState: MutableBattlefieldWeaponOwnerState = {
+    positionX: 0,
+    positionY: 0,
+    positionZ: 0,
+    heading: 0,
     alive: true,
   };
-  public readonly weaponFireDirection: MutableBattlefieldFireDirection = {
-    directionX: 0,
-    directionZ: 1,
-  };
-  public readonly weaponFireIntent: MutableBattlefieldFireIntent = {
-    directionX: 0,
-    directionZ: 1,
-    elevationTarget: { x: 0, y: 0, z: 0 },
-  };
-  public weaponFiringRequested = false;
   public pendingMonsterAttackDamage = 0;
   private defeatPresented = false;
 
   constructor(public readonly resources: Readonly<BattlefieldWorldResources>) {
     this.scheduler.register(new BattlefieldControlWorldSystem());
-    this.scheduler.register(new BattlefieldActionInputWorldSystem());
+    this.scheduler.register(new BattlefieldWeaponInputWorldSystem());
+    this.scheduler.register(new BattlefieldWeaponWorldSystem());
     this.scheduler.register(new BattlefieldPlayerWorldSystem());
-    this.scheduler.register(new BattlefieldActionExecutionWorldSystem());
+    this.scheduler.register(new BattlefieldWeaponPoseWorldSystem());
     this.scheduler.register(new BattlefieldCameraWorldSystem());
     this.scheduler.register(new BattlefieldMonsterWorldSystem());
-    this.scheduler.register(new BattlefieldThrownSimulationWorldSystem());
-    this.scheduler.register(new BattlefieldProjectileIntegrationWorldSystem());
+    this.scheduler.register(new BattlefieldMonsterEffectWorldSystem());
     this.scheduler.register(new BattlefieldEnvironmentWorldSystem());
     this.scheduler.register(new BattlefieldGroundWorldSystem());
     this.scheduler.register(new BattlefieldMonsterSpatialIndexWorldSystem());
-    this.scheduler.register(new BattlefieldProjectileCollisionWorldSystem());
-    this.scheduler.register(new BattlefieldThrownCollisionWorldSystem());
-    this.scheduler.register(new BattlefieldWeaponWorldSystem());
     this.scheduler.register(new BattlefieldMonsterAttackWorldSystem());
-    this.scheduler.register(new BattlefieldProjectileDamageWorldSystem());
     this.scheduler.register(new BattlefieldCombatEventWorldSystem());
     this.scheduler.register(new BattlefieldMonsterRenderingWorldSystem());
-    this.scheduler.register(new BattlefieldProjectileRenderingWorldSystem());
     this.scheduler.register(new BattlefieldStatusWorldSystem());
-    this.scheduler.register(new BattlefieldActionPresentationWorldSystem());
     this.scheduler.register(new BattlefieldTreasureWorldSystem());
     this.scheduler.seal();
   }
@@ -120,7 +82,7 @@ export class BattlefieldWorld {
     performance.beginFrame();
     if (returningToLobby) {
       const startedAt = performance.beginStage();
-      this.resources.controls.update();
+      this.resources.controls.update(deltaTime);
       performance.endStage(BattlefieldPerformanceStage.Control, startedAt);
       performance.endFrame(deltaTime);
       return;
@@ -135,7 +97,6 @@ export class BattlefieldWorld {
       return;
     }
     this.defeatPresented = true;
-    this.weaponFiringRequested = false;
     this.resources.interaction.suspend();
     this.resources.controls.showDefeatDialog();
   }

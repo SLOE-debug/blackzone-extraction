@@ -26,6 +26,7 @@ export interface DroppedEquipmentBatchGeometry {
   readonly geometry: UnlitColorBufferGeometry;
   readonly sources: readonly StaticSurfaceBufferGeometry[];
   readonly vertexOffsets: readonly number[];
+  readonly indexOffsets: readonly number[];
 }
 
 /** 创建一次掉落批次的连续顶点区段并写入固定 Color / Index 流。 */
@@ -36,6 +37,7 @@ export function createDroppedEquipmentBatchGeometry(
     throw new Error('掉落装备批次至少需要一份源几何。');
   }
   const vertexOffsets = createVertexOffsets(sources);
+  const indexOffsets = createIndexOffsets(sources);
   const vertexCount = sources.reduce((total, source) => total + source.vertexCount, 0);
   const indexCount = sources.reduce((total, source) => total + source.indexCount, 0);
   const geometry = createUnlitColorGeometry(
@@ -49,7 +51,21 @@ export function createDroppedEquipmentBatchGeometry(
     geometry,
     sources: Object.freeze([...sources]),
     vertexOffsets,
+    indexOffsets,
   });
+}
+
+/** 返回前若干槽位形成的紧凑索引前缀长度。 */
+export function getDroppedEquipmentActiveIndexCount(
+  packed: Readonly<DroppedEquipmentBatchGeometry>,
+  activeSlotCount: number,
+): number {
+  if (!Number.isInteger(activeSlotCount)
+    || activeSlotCount < 0
+    || activeSlotCount > packed.sources.length) {
+    throw new Error('掉落装备活动槽位数量越界。');
+  }
+  return packed.indexOffsets[activeSlotCount] ?? packed.geometry.indexCount;
 }
 
 /** 把一份源几何按通用仿射矩阵写入目标顶点区段。 */
@@ -86,6 +102,18 @@ function createVertexOffsets(
   for (const source of sources) {
     offsets.push(vertexOffset);
     vertexOffset += source.vertexCount;
+  }
+  return Object.freeze(offsets);
+}
+
+function createIndexOffsets(
+  sources: readonly StaticSurfaceBufferGeometry[],
+): readonly number[] {
+  const offsets: number[] = [0];
+  let indexOffset = 0;
+  for (const source of sources) {
+    indexOffset += source.indexCount;
+    offsets.push(indexOffset);
   }
   return Object.freeze(offsets);
 }

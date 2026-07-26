@@ -8,35 +8,30 @@ import { PlanarCrowdSeparationSystem } from '../../../core/monsters/crowd/planar
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import { BATTLEFIELD_VENOM_LOBBER_CONFIG } from '../model/battlefield-venom-lobber-config';
 import { calculateBattlefieldMonsterTargetCount } from '../model/battlefield-monster-wave-schedule';
+import { BATTLEFIELD_COMBAT_CONFIG } from '../model/battlefield-combat-config';
 import {
-  type BattlefieldProjectileSweepQuery,
-  type BattlefieldGrabTargetQuery,
   type BattlefieldMonsterCombatTarget,
-  type MutableBattlefieldAimTarget,
-  type MutableBattlefieldManipulationCandidate,
-  type MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
-import { BattlefieldMonsterManipulationRegistry } from './battlefield-monster-manipulation-registry';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
   BattlefieldMonsterPerformanceStage,
 } from './battlefield-monster-performance';
 import {
-  type MutableBattlefieldProjectileStatistics,
-} from '../equipment/projectile/model/battlefield-projectile-statistics';
+  type BattlefieldMeleeHitBuffer,
+  type BattlefieldMeleeQuery,
+} from '../combat/melee/battlefield-melee-query';
+import { BattlefieldMonsterEffectRuntime } from '../combat/effects/battlefield-monster-effect-runtime';
+import { type PlanarKnockbackEffect, type VerticalLaunchEffect } from '../../../core/contracts/monster-effects';
 
 const MAXIMUM_WAVE_DELTA_TIME = 0.05;
 const SWARM_POPULATION_ID = 0;
 const VENOM_POPULATION_ID = 1;
 
 export type {
-  BattlefieldAimTarget,
   BattlefieldMonsterCombatTarget,
-  MutableBattlefieldAimTarget,
-  MutableBattlefieldProjectileHit,
 } from './battlefield-monster-contracts';
 
 /**
@@ -53,7 +48,9 @@ implements Disposable {
   private readonly groups: BattlefieldMonsterGroup[] = [];
   private readonly crowd = new PlanarCrowdSeparationSystem();
   private readonly targets = new BattlefieldMonsterTargetRegistry(this.crowd);
-  private readonly manipulations = new BattlefieldMonsterManipulationRegistry(this.crowd);
+  private readonly effects = new BattlefieldMonsterEffectRuntime(
+    BATTLEFIELD_COMBAT_CONFIG.airborneGravity,
+  );
   private readonly venomGroup: BattlefieldVenomLobberGroup;
   private readonly debugMonsters: BattlefieldDebugMonsterPopulation;
   private swarm: BattlefieldMonsterGroup | null = null;
@@ -111,10 +108,10 @@ implements Disposable {
       );
       this.crowd.register(venomGroup.crowdPopulation);
       this.targets.register(venomGroup);
-      this.manipulations.register(venomGroup);
+      this.effects.register(venomGroup);
     } catch (error: unknown) {
       if (venomGroup !== null) {
-        this.manipulations.unregister(venomGroup);
+        this.effects.unregister(venomGroup);
         this.targets.unregister(venomGroup);
         this.crowd.unregister(venomGroup.populationId);
       }
@@ -122,7 +119,7 @@ implements Disposable {
       while (this.groups.length > 0) {
         const group = this.groups.pop();
         if (group !== undefined) {
-          this.manipulations.unregister(group);
+          this.effects.unregister(group);
           this.targets.unregister(group);
           this.crowd.unregister(group.populationId);
           group.dispose();
@@ -145,7 +142,7 @@ implements Disposable {
       this.renderBatch,
       this.crowd,
       this.targets,
-      this.manipulations,
+      this.effects,
       camera,
     );
   }
@@ -360,117 +357,78 @@ implements Disposable {
     this.groups.push(group);
     this.crowd.register(group.crowdPopulation);
     this.targets.register(group);
-    this.manipulations.register(group);
+    this.effects.register(group);
     this.swarm = group;
   }
 
-  /** 从真实枪口沿手动方向选择武器射程内最先经过的怪物轮廓。 */
-  public resolveElevationAlongSegment(
-    originX: number,
-    originZ: number,
-    directionX: number,
-    directionZ: number,
-    maximumDistance: number,
-    result: MutableBattlefieldAimTarget,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    return this.targets.resolveElevationAlongSegment(
-      originX,
-      originZ,
-      directionX,
-      directionZ,
-      maximumDistance,
-      result,
-    );
+  /** 收集一次近战扇形或整圆查询的全部目标。 */
+  public collectMeleeHits(
+    query: Readonly<BattlefieldMeleeQuery>,
+    result: BattlefieldMeleeHitBuffer,
+  ): number {
+    return this.disposed ? 0 : this.targets.collectMeleeHits(query, result);
   }
 
-  /** 查询实体弹丸本帧真实位移最先接触且尚未命中过的怪物。 */
-  public findFirstProjectileHit(
-    query: Readonly<BattlefieldProjectileSweepQuery>,
-    ignoredPopulationIds: Uint32Array,
-    ignoredEntityIds: Uint32Array,
-    ignoredOffset: number,
-    ignoredCount: number,
-    result: MutableBattlefieldProjectileHit,
-    statistics: MutableBattlefieldProjectileStatistics,
-  ): boolean {
-    if (this.disposed) {
-      return false;
-    }
-    return this.targets.findFirstProjectileHit(
-      query,
-      ignoredPopulationIds,
-      ignoredEntityIds,
-      ignoredOffset,
-      ignoredCount,
-      result,
-      statistics,
-    );
-  }
-
-  /** 把 PostSimulation 中的弹丸伤害路由到稳定群体与实体。 */
+  /** 把近战伤害路由到稳定群体与实体。 */
   public damageMonster(populationId: number, entityId: number, amount: number): boolean {
     return !this.disposed && this.targets.damageMonster(populationId, entityId, amount);
   }
 
-  public knockbackMonster(populationId: number, entityId: number, x: number, z: number): boolean {
-    return !this.disposed && this.targets.knockbackMonster(populationId, entityId, x, z);
-  }
-
-  /** 选择玩家方向锥内唯一合法的小型半血怪物。 */
-  public findGrabbable(
-    query: Readonly<BattlefieldGrabTargetQuery>,
-    result: MutableBattlefieldManipulationCandidate,
-  ): boolean {
-    return !this.disposed && this.manipulations.findGrabbable(query, result);
-  }
-
-  public writeGrabbableCandidate(
+  public acceptHitSequence(
     populationId: number,
     entityId: number,
-    result: MutableBattlefieldManipulationCandidate,
+    attackSequenceId: number,
   ): boolean {
-    return !this.disposed && this.manipulations.writeGrabbableCandidate(
+    return !this.disposed && this.effects.acceptHitSequence(
       populationId,
       entityId,
-      result,
+      attackSequenceId,
     );
   }
 
-  public beginCarry(populationId: number, entityId: number): boolean {
-    return !this.disposed && this.manipulations.beginCarry(populationId, entityId);
-  }
-
-  public beginThrow(populationId: number, entityId: number): boolean {
-    return !this.disposed && this.manipulations.beginThrow(populationId, entityId);
-  }
-
-  public synchronizeManipulatedPose(
+  public applyKnockback(
     populationId: number,
     entityId: number,
-    x: number,
-    y: number,
-    z: number,
-    heading: number,
+    effect: Readonly<PlanarKnockbackEffect>,
   ): boolean {
-    return !this.disposed && this.manipulations.synchronizePose(
+    return !this.disposed && this.effects.applyKnockback(populationId, entityId, effect);
+  }
+
+  public applyVerticalLaunch(
+    populationId: number,
+    entityId: number,
+    effect: Readonly<VerticalLaunchEffect>,
+  ): boolean {
+    return !this.disposed && this.effects.applyVerticalLaunch(populationId, entityId, effect);
+  }
+
+  public applyMagnetized(
+    populationId: number,
+    entityId: number,
+    skillSequenceId: number,
+    durationSeconds: number,
+  ): boolean {
+    return !this.disposed && this.effects.applyMagnetized(
       populationId,
       entityId,
-      x,
-      y,
-      z,
-      heading,
+      skillSequenceId,
+      durationSeconds,
     );
   }
 
-  public releaseManipulation(populationId: number, entityId: number): boolean {
-    return !this.disposed && this.manipulations.release(populationId, entityId);
+  public getKnockbackResistance(populationId: number): number {
+    return this.targets.getKnockbackResistance(populationId);
   }
 
-  public killManipulated(populationId: number, entityId: number): boolean {
-    return !this.disposed && this.manipulations.kill(populationId, entityId);
+  public getAirborneResistance(populationId: number): number {
+    return this.targets.getAirborneResistance(populationId);
+  }
+
+  /** 在自主移动之后推进击退、腾空和磁化碰撞。 */
+  public updateEffects(deltaTime: number): void {
+    if (!this.disposed) {
+      this.effects.update(deltaTime);
+    }
   }
 
   /** 释放尸潮状态、共享渲染批次和调试实体。 */
@@ -479,7 +437,7 @@ implements Disposable {
       return;
     }
     this.disposed = true;
-    this.manipulations.unregister(this.venomGroup);
+    this.effects.unregister(this.venomGroup);
     this.targets.unregister(this.venomGroup);
     this.crowd.unregister(this.venomGroup.populationId);
     this.venomGroup.dispose();
@@ -487,7 +445,7 @@ implements Disposable {
     while (this.groups.length > 0) {
       const group = this.groups.pop();
       if (group !== undefined) {
-        this.manipulations.unregister(group);
+        this.effects.unregister(group);
         this.targets.unregister(group);
         this.crowd.unregister(group.populationId);
         group.dispose();

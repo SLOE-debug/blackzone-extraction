@@ -12,7 +12,7 @@ import { VANGUARD_WEAPON_SOCKET_DISTANCE } from './vanguard-weapon-socket-pose';
 
 const POSITION_EPSILON = 0.000001;
 
-/** 让武器根刚性跟随右掌挂点，避免持枪时再由 IK 拉扯人体关节。 */
+/** 让武器根刚性跟随右掌挂点，避免手持装备再由 IK 拉扯人体关节。 */
 export function writeVanguardWeaponRootFrame(
   matrices: VanguardBoneMatrixArray,
   entityOffset: number,
@@ -23,7 +23,6 @@ export function writeVanguardWeaponRootFrame(
   handX: number,
   handY: number,
   handZ: number,
-  aimPitch: number,
   positionX: number,
   positionY: number,
   positionZ: number,
@@ -45,7 +44,7 @@ export function writeVanguardWeaponRootFrame(
     + handDirectionZ * inverseHandLength * VANGUARD_WEAPON_SOCKET_DISTANCE;
   const profile = getVanguardWeaponRigProfile(weaponPose);
   const mainGrip = profile.sockets[VanguardWeaponRigSocket.MainGrip];
-  const pitch = profile.readyPitch - aimPitch;
+  const pitch = profile.readyPitch;
   const pitchCosine = Math.cos(pitch);
   const pitchSine = Math.sin(pitch);
   const rootX = gripX - mainGrip.x;
@@ -54,7 +53,7 @@ export function writeVanguardWeaponRootFrame(
   writePitchFrame(
     matrices,
     entityOffset,
-    VanguardBone.WeaponAimRoot,
+    VanguardBone.WeaponRoot,
     rootX,
     rootY,
     rootZ,

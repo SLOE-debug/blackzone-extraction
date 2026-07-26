@@ -1,6 +1,5 @@
 import { type EntitySystem } from '../../../../../core/entities/entity-system';
 import { MonsterLifecycleState } from '../../../../../core/contracts/monster-lifecycle';
-import { MonsterManipulationState } from '../../../../../core/contracts/monster-manipulation';
 import { nextRandom, randomRange } from '../../../../../core/math/xorshift32';
 import { CurveCrawlerAction } from '../model/curve-crawler-action';
 import { type CurveCrawlerState } from '../model/curve-crawler-state';
@@ -15,7 +14,7 @@ import {
 export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerState, number> {
   /** 推进全部实体的行为状态。 */
   public update(state: CurveCrawlerState, deltaTime: number): void {
-    const { identity, transform, morphology, vitality, manipulation, behavior, combat, intent } =
+    const { identity, transform, morphology, vitality, effects, behavior, combat, intent } =
       state.data;
 
     for (let index = 0; index < state.count; index++) {
@@ -27,8 +26,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
         intent.gaitMultiplier[index] = 0;
         continue;
       }
-      if ((manipulation.state[index] as MonsterManipulationState)
-        !== MonsterManipulationState.Free) {
+      if ((effects.rootElevation[index] ?? 0) > 0) {
         intent.targetSpeed[index] = 0;
         intent.targetBite[index] = 0;
         intent.gaitMultiplier[index] = 0;
@@ -98,13 +96,12 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
 
   /** 让全部实体立即进入短时疾跑状态。 */
   public triggerScuttle(state: CurveCrawlerState): void {
-    const { identity, vitality, manipulation, behavior } = state.data;
+    const { identity, vitality, effects, behavior } = state.data;
     for (let index = 0; index < state.count; index++) {
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         continue;
       }
-      if ((manipulation.state[index] as MonsterManipulationState)
-        !== MonsterManipulationState.Free) {
+      if ((effects.rootElevation[index] ?? 0) > 0) {
         continue;
       }
       behavior.action[index] = CurveCrawlerAction.Scuttle;
