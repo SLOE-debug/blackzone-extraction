@@ -164,6 +164,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
           player,
           monsters,
           this.performanceLogger,
+          playerWeapon.hammerSweepDebug,
         ),
       );
       this.performanceLogger.bindSources(Object.freeze({

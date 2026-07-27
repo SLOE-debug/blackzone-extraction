@@ -1,5 +1,13 @@
-import { lerp } from '../../../core/math/scalar';
 import { VanguardWeaponAction } from '../model/vanguard-weapon-action';
+import {
+  copyVanguardWeaponTrajectoryPose,
+  createVanguardWeaponTrajectoryKeyframe,
+  createVanguardWeaponTrajectoryVelocity,
+  createZeroVanguardWeaponTrajectoryVelocity,
+  interpolateVanguardWeaponTrajectoryPose,
+  type VanguardWeaponTrajectoryKeyframe,
+  writeVanguardWeaponHermitePose,
+} from './vanguard-weapon-trajectory-interpolation';
 
 const EPSILON = 0.000001;
 
@@ -22,9 +30,12 @@ export interface VanguardTwoHandWeaponTrajectoryPose {
   supportGripWeight: number;
 }
 
-type ReadonlyTrajectoryKeyframe = Readonly<VanguardTwoHandWeaponTrajectoryPose>;
+const SWING_WINDUP_SECONDS = 0.28;
+const SWING_CONTACT_SECONDS = 0.34;
+const CHAIN_PREPARE_SECONDS = 0.12;
+const RECOVER_SECONDS = 0.1;
 
-const IDLE_POSE = createKeyframe(
+const IDLE_POSE = createVanguardWeaponTrajectoryKeyframe(
   0.58, 1.68, 0.26,
   0.18, -0.96, 0.22,
   0, 0,
@@ -32,7 +43,7 @@ const IDLE_POSE = createKeyframe(
   1.34, 2.3, 0.82,
   0,
 );
-const LEFT_WINDUP_POSE = createKeyframe(
+const LEFT_WINDUP_POSE = createVanguardWeaponTrajectoryKeyframe(
   -0.08, 2.18, 0.62,
   0.7, -0.1, 0.71,
   -0.2, -0.09,
@@ -40,7 +51,7 @@ const LEFT_WINDUP_POSE = createKeyframe(
   1.76, 2.4, 1.04,
   1,
 );
-const LEFT_FOLLOW_THROUGH_POSE = createKeyframe(
+const LEFT_FOLLOW_THROUGH_POSE = createVanguardWeaponTrajectoryKeyframe(
   -0.08, 2.2, 0.76,
   -0.7, -0.08, 0.71,
   0.14, 0.07,
@@ -48,7 +59,7 @@ const LEFT_FOLLOW_THROUGH_POSE = createKeyframe(
   1.8, 2.42, 1.1,
   1,
 );
-const RIGHT_WINDUP_POSE = createKeyframe(
+const RIGHT_WINDUP_POSE = createVanguardWeaponTrajectoryKeyframe(
   0.08, 2.18, 0.62,
   -0.7, -0.1, 0.71,
   0.2, 0.09,
@@ -56,7 +67,7 @@ const RIGHT_WINDUP_POSE = createKeyframe(
   1.8, 2.42, 1.08,
   1,
 );
-const RIGHT_FOLLOW_THROUGH_POSE = createKeyframe(
+const RIGHT_FOLLOW_THROUGH_POSE = createVanguardWeaponTrajectoryKeyframe(
   0.08, 2.2, 0.76,
   0.7, -0.08, 0.71,
   -0.14, -0.07,
@@ -64,7 +75,7 @@ const RIGHT_FOLLOW_THROUGH_POSE = createKeyframe(
   1.76, 2.38, 1.05,
   1,
 );
-const UPPERCUT_APEX_POSE = createKeyframe(
+const UPPERCUT_APEX_POSE = createVanguardWeaponTrajectoryKeyframe(
   0, 2.18, 0.74,
   0, 0.68, 0.74,
   0, 0,
@@ -72,7 +83,7 @@ const UPPERCUT_APEX_POSE = createKeyframe(
   1.82, 2.5, 1.14,
   1,
 );
-const GROUND_SLAM_RAISED_POSE = createKeyframe(
+const GROUND_SLAM_RAISED_POSE = createVanguardWeaponTrajectoryKeyframe(
   0, 2.52, 0.68,
   0, 0.74, -0.68,
   0, 0,
@@ -80,7 +91,7 @@ const GROUND_SLAM_RAISED_POSE = createKeyframe(
   1.82, 2.55, 0.96,
   1,
 );
-const GROUND_SLAM_IMPACT_POSE = createKeyframe(
+const GROUND_SLAM_IMPACT_POSE = createVanguardWeaponTrajectoryKeyframe(
   0, 2.15, 0.75,
   0, -0.96, 0.28,
   0, 0,
@@ -88,13 +99,35 @@ const GROUND_SLAM_IMPACT_POSE = createKeyframe(
   1.8, 2.24, 1.12,
   1,
 );
-const SPIN_POSE = createKeyframe(
+const SPIN_POSE = createVanguardWeaponTrajectoryKeyframe(
   0, 2.2, 0.72,
   0.98, -0.12, 0.16,
   0, 0,
   -1.82, 2.4, 1.08,
   1.82, 2.4, 1.08,
   1,
+);
+const IDLE_VELOCITY = createZeroVanguardWeaponTrajectoryVelocity();
+const LOOP_TANGENT_SPAN_SECONDS = SWING_CONTACT_SECONDS + CHAIN_PREPARE_SECONDS;
+const LEFT_WINDUP_VELOCITY = createVanguardWeaponTrajectoryVelocity(
+  RIGHT_FOLLOW_THROUGH_POSE,
+  LEFT_FOLLOW_THROUGH_POSE,
+  LOOP_TANGENT_SPAN_SECONDS,
+);
+const LEFT_FOLLOW_THROUGH_VELOCITY = createVanguardWeaponTrajectoryVelocity(
+  LEFT_WINDUP_POSE,
+  RIGHT_WINDUP_POSE,
+  LOOP_TANGENT_SPAN_SECONDS,
+);
+const RIGHT_WINDUP_VELOCITY = createVanguardWeaponTrajectoryVelocity(
+  LEFT_FOLLOW_THROUGH_POSE,
+  RIGHT_FOLLOW_THROUGH_POSE,
+  LOOP_TANGENT_SPAN_SECONDS,
+);
+const RIGHT_FOLLOW_THROUGH_VELOCITY = createVanguardWeaponTrajectoryVelocity(
+  RIGHT_WINDUP_POSE,
+  LEFT_WINDUP_POSE,
+  LOOP_TANGENT_SPAN_SECONDS,
 );
 
 /** 创建供动画系统跨帧复用的完整轨迹输出。 */
@@ -105,7 +138,7 @@ export function createVanguardTwoHandWeaponTrajectoryPose(): VanguardTwoHandWeap
 /**
  * 按动作时间轴写出主握点、锤杆、躯干、双肘和副手参与度。
  *
- * 普通横扫的三个阶段共享完全相同的端点，五次平滑插值让边界位置和速度连续。
+ * 普通横扫以每秒共享切线连接首次蓄力、左右随挥、连段准备与最终恢复。
  */
 export function writeVanguardTwoHandWeaponTrajectory(
   result: VanguardTwoHandWeaponTrajectoryPose,
@@ -117,25 +150,87 @@ export function writeVanguardTwoHandWeaponTrajectory(
   const amount = Math.max(0, Math.min(1, progress));
   switch (action) {
     case VanguardWeaponAction.WindupLeft:
-      interpolatePose(result, IDLE_POSE, LEFT_WINDUP_POSE, smootherStep(amount));
-      result.supportGripWeight = smoothStepRange(0, 0.32, amount);
+      writeVanguardWeaponHermitePose(
+        result,
+        IDLE_POSE,
+        LEFT_WINDUP_POSE,
+        IDLE_VELOCITY,
+        LEFT_WINDUP_VELOCITY,
+        SWING_WINDUP_SECONDS,
+        amount,
+      );
       break;
     case VanguardWeaponAction.WindupRight:
-      interpolatePose(result, IDLE_POSE, RIGHT_WINDUP_POSE, smootherStep(amount));
-      result.supportGripWeight = smoothStepRange(0, 0.32, amount);
+      writeVanguardWeaponHermitePose(
+        result,
+        IDLE_POSE,
+        RIGHT_WINDUP_POSE,
+        IDLE_VELOCITY,
+        RIGHT_WINDUP_VELOCITY,
+        SWING_WINDUP_SECONDS,
+        amount,
+      );
       break;
     case VanguardWeaponAction.SwingLeft:
-      interpolatePose(result, LEFT_WINDUP_POSE, LEFT_FOLLOW_THROUGH_POSE, smootherStep(amount));
+      writeVanguardWeaponHermitePose(
+        result,
+        LEFT_WINDUP_POSE,
+        LEFT_FOLLOW_THROUGH_POSE,
+        LEFT_WINDUP_VELOCITY,
+        LEFT_FOLLOW_THROUGH_VELOCITY,
+        SWING_CONTACT_SECONDS,
+        amount,
+      );
       break;
     case VanguardWeaponAction.SwingRight:
-      interpolatePose(result, RIGHT_WINDUP_POSE, RIGHT_FOLLOW_THROUGH_POSE, smootherStep(amount));
+      writeVanguardWeaponHermitePose(
+        result,
+        RIGHT_WINDUP_POSE,
+        RIGHT_FOLLOW_THROUGH_POSE,
+        RIGHT_WINDUP_VELOCITY,
+        RIGHT_FOLLOW_THROUGH_VELOCITY,
+        SWING_CONTACT_SECONDS,
+        amount,
+      );
+      break;
+    case VanguardWeaponAction.ChainPrepareLeft:
+      writeVanguardWeaponHermitePose(
+        result,
+        RIGHT_FOLLOW_THROUGH_POSE,
+        LEFT_WINDUP_POSE,
+        RIGHT_FOLLOW_THROUGH_VELOCITY,
+        LEFT_WINDUP_VELOCITY,
+        CHAIN_PREPARE_SECONDS,
+        amount,
+      );
+      break;
+    case VanguardWeaponAction.ChainPrepareRight:
+      writeVanguardWeaponHermitePose(
+        result,
+        LEFT_FOLLOW_THROUGH_POSE,
+        RIGHT_WINDUP_POSE,
+        LEFT_FOLLOW_THROUGH_VELOCITY,
+        RIGHT_WINDUP_VELOCITY,
+        CHAIN_PREPARE_SECONDS,
+        amount,
+      );
       break;
     case VanguardWeaponAction.Recover: {
       const start = recoverSide < 0
         ? LEFT_FOLLOW_THROUGH_POSE
         : RIGHT_FOLLOW_THROUGH_POSE;
-      interpolatePose(result, start, IDLE_POSE, smootherStep(amount));
-      result.supportGripWeight = 1 - smoothStepRange(0.65, 1, amount);
+      const startVelocity = recoverSide < 0
+        ? LEFT_FOLLOW_THROUGH_VELOCITY
+        : RIGHT_FOLLOW_THROUGH_VELOCITY;
+      writeVanguardWeaponHermitePose(
+        result,
+        start,
+        IDLE_POSE,
+        startVelocity,
+        IDLE_VELOCITY,
+        RECOVER_SECONDS,
+        amount,
+      );
       break;
     }
     case VanguardWeaponAction.Uppercut:
@@ -144,21 +239,21 @@ export function writeVanguardTwoHandWeaponTrajectory(
       break;
     case VanguardWeaponAction.GroundSlam:
       if (amount < 0.42) {
-        interpolatePose(
+        interpolateVanguardWeaponTrajectoryPose(
           result,
           IDLE_POSE,
           GROUND_SLAM_RAISED_POSE,
           smootherStep(amount / 0.42),
         );
       } else if (amount < 0.74) {
-        interpolatePose(
+        interpolateVanguardWeaponTrajectoryPose(
           result,
           GROUND_SLAM_RAISED_POSE,
           GROUND_SLAM_IMPACT_POSE,
           smootherStep((amount - 0.42) / 0.32),
         );
       } else {
-        interpolatePose(
+        interpolateVanguardWeaponTrajectoryPose(
           result,
           GROUND_SLAM_IMPACT_POSE,
           IDLE_POSE,
@@ -169,112 +264,53 @@ export function writeVanguardTwoHandWeaponTrajectory(
       break;
     case VanguardWeaponAction.Spin:
       if (amount < 0.08) {
-        interpolatePose(result, IDLE_POSE, SPIN_POSE, smootherStep(amount / 0.08));
+        interpolateVanguardWeaponTrajectoryPose(
+          result,
+          IDLE_POSE,
+          SPIN_POSE,
+          smootherStep(amount / 0.08),
+        );
       } else if (amount > 0.92) {
-        interpolatePose(result, SPIN_POSE, IDLE_POSE, smootherStep((amount - 0.92) / 0.08));
+        interpolateVanguardWeaponTrajectoryPose(
+          result,
+          SPIN_POSE,
+          IDLE_POSE,
+          smootherStep((amount - 0.92) / 0.08),
+        );
       } else {
-        copyPose(result, SPIN_POSE);
-        const angle = (amount - 0.08) / 0.84 * Math.PI * 6;
-        result.shaftX = Math.cos(angle) * 0.98;
-        result.shaftZ = Math.sin(angle) * 0.98;
+        copyVanguardWeaponTrajectoryPose(result, SPIN_POSE);
       }
       result.supportGripWeight = getSkillSupportGripWeight(amount, 0.92);
       break;
     case VanguardWeaponAction.Idle:
-      copyPose(result, IDLE_POSE);
+      copyVanguardWeaponTrajectoryPose(result, IDLE_POSE);
       break;
   }
   rotateAndNormalizeShaft(result, yawLag);
 }
 
-function createKeyframe(
-  mainGripX: number,
-  mainGripY: number,
-  mainGripZ: number,
-  shaftX: number,
-  shaftY: number,
-  shaftZ: number,
-  chestYaw: number,
-  pelvisYaw: number,
-  leftElbowPoleX: number,
-  leftElbowPoleY: number,
-  leftElbowPoleZ: number,
-  rightElbowPoleX: number,
-  rightElbowPoleY: number,
-  rightElbowPoleZ: number,
-  supportGripWeight: number,
-): ReadonlyTrajectoryKeyframe {
-  const length = Math.max(Math.hypot(shaftX, shaftY, shaftZ), EPSILON);
-  return Object.freeze({
-    mainGripX,
-    mainGripY,
-    mainGripZ,
-    shaftX: shaftX / length,
-    shaftY: shaftY / length,
-    shaftZ: shaftZ / length,
-    chestYaw,
-    pelvisYaw,
-    leftElbowPoleX,
-    leftElbowPoleY,
-    leftElbowPoleZ,
-    rightElbowPoleX,
-    rightElbowPoleY,
-    rightElbowPoleZ,
-    supportGripWeight,
-  });
-}
-
 function writeRoundTripPose(
   result: VanguardTwoHandWeaponTrajectoryPose,
-  start: ReadonlyTrajectoryKeyframe,
-  apex: ReadonlyTrajectoryKeyframe,
+  start: VanguardWeaponTrajectoryKeyframe,
+  apex: VanguardWeaponTrajectoryKeyframe,
   progress: number,
   apexProgress: number,
 ): void {
   if (progress < apexProgress) {
-    interpolatePose(result, start, apex, smootherStep(progress / apexProgress));
+    interpolateVanguardWeaponTrajectoryPose(
+      result,
+      start,
+      apex,
+      smootherStep(progress / apexProgress),
+    );
   } else {
-    interpolatePose(
+    interpolateVanguardWeaponTrajectoryPose(
       result,
       apex,
       start,
       smootherStep((progress - apexProgress) / (1 - apexProgress)),
     );
   }
-}
-
-function interpolatePose(
-  result: VanguardTwoHandWeaponTrajectoryPose,
-  start: ReadonlyTrajectoryKeyframe,
-  end: ReadonlyTrajectoryKeyframe,
-  amount: number,
-): void {
-  result.mainGripX = lerp(start.mainGripX, end.mainGripX, amount);
-  result.mainGripY = lerp(start.mainGripY, end.mainGripY, amount);
-  result.mainGripZ = lerp(start.mainGripZ, end.mainGripZ, amount);
-  result.shaftX = lerp(start.shaftX, end.shaftX, amount);
-  result.shaftY = lerp(start.shaftY, end.shaftY, amount);
-  result.shaftZ = lerp(start.shaftZ, end.shaftZ, amount);
-  result.chestYaw = lerp(start.chestYaw, end.chestYaw, amount);
-  result.pelvisYaw = lerp(start.pelvisYaw, end.pelvisYaw, amount);
-  result.leftElbowPoleX = lerp(start.leftElbowPoleX, end.leftElbowPoleX, amount);
-  result.leftElbowPoleY = lerp(start.leftElbowPoleY, end.leftElbowPoleY, amount);
-  result.leftElbowPoleZ = lerp(start.leftElbowPoleZ, end.leftElbowPoleZ, amount);
-  result.rightElbowPoleX = lerp(start.rightElbowPoleX, end.rightElbowPoleX, amount);
-  result.rightElbowPoleY = lerp(start.rightElbowPoleY, end.rightElbowPoleY, amount);
-  result.rightElbowPoleZ = lerp(start.rightElbowPoleZ, end.rightElbowPoleZ, amount);
-  result.supportGripWeight = lerp(
-    start.supportGripWeight,
-    end.supportGripWeight,
-    amount,
-  );
-}
-
-function copyPose(
-  result: VanguardTwoHandWeaponTrajectoryPose,
-  source: ReadonlyTrajectoryKeyframe,
-): void {
-  interpolatePose(result, source, source, 0);
 }
 
 function rotateAndNormalizeShaft(

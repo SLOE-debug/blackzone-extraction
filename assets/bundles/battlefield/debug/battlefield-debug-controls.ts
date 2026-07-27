@@ -5,6 +5,7 @@ import {
   type BattlefieldDebugPlayerAnchor,
 } from './battlefield-debug-monster-spawn';
 import { type BattlefieldDebugMonsterSelection } from './battlefield-debug-monster-options';
+import { type BattlefieldHammerSweepDebugSource } from '../equipment/combat/battlefield-hammer-sweep-debug-state';
 
 /** Debug 面板依赖的自动生成配置与精确怪物生成门面。 */
 export interface BattlefieldDebugMonsterSpawner {
@@ -20,6 +21,7 @@ export interface BattlefieldDebugSnapshot {
   readonly orbitCameraEnabled: boolean;
   readonly followCameraPitchDegrees: number;
   readonly performanceDiagnosticsEnabled: boolean;
+  readonly hammerSweepDiagnosticsEnabled: boolean;
   readonly automaticGenerationEnabled: boolean;
   readonly automaticMonsters: BattlefieldDebugMonsterSelection;
 }
@@ -37,6 +39,7 @@ export class BattlefieldDebugControls {
     private readonly player: BattlefieldDebugPlayerAnchor,
     private readonly monsters: BattlefieldDebugMonsterSpawner,
     private readonly diagnostics: BattlefieldDebugPerformanceDiagnostics,
+    public readonly hammerSweepDebug: BattlefieldHammerSweepDebugSource,
   ) {}
 
   /** 获取面板全部控件的当前值。 */
@@ -45,6 +48,7 @@ export class BattlefieldDebugControls {
       orbitCameraEnabled: this.cameraRig.orbitEnabled,
       followCameraPitchDegrees: this.cameraRig.followPitchDegrees,
       performanceDiagnosticsEnabled: this.diagnostics.enabled,
+      hammerSweepDiagnosticsEnabled: this.hammerSweepDebug.enabled,
       automaticGenerationEnabled: this.monsters.automaticGenerationEnabled,
       automaticMonsters: Object.freeze({
         [BattlefieldMonsterId.CurveCrawler]: this.monsters.isAutomaticMonsterEnabled(
@@ -86,6 +90,11 @@ export class BattlefieldDebugControls {
   /** 显式启停高精度分阶段计时和控制台报告。 */
   public setPerformanceDiagnosticsEnabled(value: boolean): void {
     this.diagnostics.setEnabled(value);
+  }
+
+  /** 显式启停锤头轨迹、胶囊半径与命中目标诊断。 */
+  public setHammerSweepDiagnosticsEnabled(value: boolean): void {
+    this.hammerSweepDebug.setEnabled(value);
   }
 
 }

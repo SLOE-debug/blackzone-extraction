@@ -1,5 +1,6 @@
 /** 输入与武器行为运行时之间的无分配单玩家命令缓冲。 */
 export class BattlefieldWeaponCommandBuffer {
+  private attackHeld = false;
   private swingRequested = false;
   private swingDirectionX = 0;
   private swingDirectionZ = 1;
@@ -11,6 +12,11 @@ export class BattlefieldWeaponCommandBuffer {
   private groundSlamDirectionX = 0;
   private groundSlamDirectionZ = 1;
   private spinRequested = false;
+
+  /** 每帧同步普通攻击的持续意图，供状态机决定是否进入下一段。 */
+  public setAttackHeld(held: boolean): void {
+    this.attackHeld = held;
+  }
 
   public requestSwing(
     directionX: number,
@@ -44,6 +50,7 @@ export class BattlefieldWeaponCommandBuffer {
 
   /** 三路特殊命令独立复制，消费后立即清空全部一次性状态。 */
   public consume(result: MutableBattlefieldWeaponCommand): void {
+    result.attackHeld = this.attackHeld;
     result.swingRequested = this.swingRequested;
     result.directionX = this.swingDirectionX;
     result.directionZ = this.swingDirectionZ;
@@ -55,11 +62,16 @@ export class BattlefieldWeaponCommandBuffer {
     result.groundSlamDirectionX = this.groundSlamDirectionX;
     result.groundSlamDirectionZ = this.groundSlamDirectionZ;
     result.spinRequested = this.spinRequested;
-    this.clear();
+    this.clearRequests();
   }
 
   /** 卸下武器或玩家失效时丢弃尚未消费的一次性命令。 */
   public clear(): void {
+    this.attackHeld = false;
+    this.clearRequests();
+  }
+
+  private clearRequests(): void {
     this.swingRequested = false;
     this.uppercutRequested = false;
     this.groundSlamRequested = false;
@@ -68,6 +80,7 @@ export class BattlefieldWeaponCommandBuffer {
 }
 
 export interface MutableBattlefieldWeaponCommand {
+  attackHeld: boolean;
   swingRequested: boolean;
   directionX: number;
   directionZ: number;

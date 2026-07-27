@@ -197,12 +197,54 @@ describe('主角双手大锤姿势', () => {
       VanguardWeaponAction.WindupLeft,
       VanguardWeaponAction.SwingLeft,
       -1,
+      0.28,
+      0.34,
     );
     expectBoundaryVelocityContinuous(
       VanguardWeaponAction.SwingLeft,
       VanguardWeaponAction.Recover,
       -1,
+      0.34,
+      0.1,
     );
+  });
+
+  it('左右连段通过准备段共享端点与非零切线', () => {
+    expectBoundaryVelocityContinuous(
+      VanguardWeaponAction.SwingLeft,
+      VanguardWeaponAction.ChainPrepareRight,
+      -1,
+      0.34,
+      0.12,
+      true,
+    );
+    expectBoundaryVelocityContinuous(
+      VanguardWeaponAction.ChainPrepareRight,
+      VanguardWeaponAction.SwingRight,
+      1,
+      0.12,
+      0.34,
+      true,
+    );
+    expectBoundaryVelocityContinuous(
+      VanguardWeaponAction.SwingRight,
+      VanguardWeaponAction.ChainPrepareLeft,
+      1,
+      0.34,
+      0.12,
+      true,
+    );
+  });
+
+  it('旋风中段锤杆保持角色局部固定，不再叠加第二个三圈旋转', () => {
+    const early = createVanguardTwoHandWeaponTrajectoryPose();
+    const middle = createVanguardTwoHandWeaponTrajectoryPose();
+    const late = createVanguardTwoHandWeaponTrajectoryPose();
+    writeVanguardTwoHandWeaponTrajectory(early, VanguardWeaponAction.Spin, 0.2, 0, 0);
+    writeVanguardTwoHandWeaponTrajectory(middle, VanguardWeaponAction.Spin, 0.5, 0, 0);
+    writeVanguardTwoHandWeaponTrajectory(late, VanguardWeaponAction.Spin, 0.8, 0, 0);
+    expectTrajectoryClose(early, middle);
+    expectTrajectoryClose(middle, late);
   });
 
   it('左右横扫只产生小幅镜像胸腔蓄力，不再让武器根重复旋转', () => {
@@ -361,8 +403,11 @@ function expectBoundaryVelocityContinuous(
   firstAction: VanguardWeaponAction,
   secondAction: VanguardWeaponAction,
   side: -1 | 1,
+  firstDuration: number,
+  secondDuration: number,
+  requireMotion = false,
 ): void {
-  const step = 0.0001;
+  const step = 0.00001;
   const firstBefore = createVanguardTwoHandWeaponTrajectoryPose();
   const boundary = createVanguardTwoHandWeaponTrajectoryPose();
   const secondAfter = createVanguardTwoHandWeaponTrajectoryPose();
@@ -370,8 +415,19 @@ function expectBoundaryVelocityContinuous(
   writeVanguardTwoHandWeaponTrajectory(boundary, firstAction, 1, side, 0);
   writeVanguardTwoHandWeaponTrajectory(secondAfter, secondAction, step, side, 0);
   for (const key of ['mainGripX', 'mainGripY', 'mainGripZ', 'shaftX', 'shaftY', 'shaftZ'] as const) {
-    const incoming = (boundary[key] - firstBefore[key]) / step;
-    const outgoing = (secondAfter[key] - boundary[key]) / step;
-    expect(incoming).toBeCloseTo(outgoing, 4);
+    const incoming = (boundary[key] - firstBefore[key]) / (step * firstDuration);
+    const outgoing = (secondAfter[key] - boundary[key]) / (step * secondDuration);
+    expect(incoming).toBeCloseTo(outgoing, 3);
+  }
+  if (requireMotion) {
+    const speed = Math.hypot(
+      (boundary.mainGripX - firstBefore.mainGripX) / (step * firstDuration),
+      (boundary.mainGripY - firstBefore.mainGripY) / (step * firstDuration),
+      (boundary.mainGripZ - firstBefore.mainGripZ) / (step * firstDuration),
+      (boundary.shaftX - firstBefore.shaftX) / (step * firstDuration),
+      (boundary.shaftY - firstBefore.shaftY) / (step * firstDuration),
+      (boundary.shaftZ - firstBefore.shaftZ) / (step * firstDuration),
+    );
+    expect(speed).toBeGreaterThan(0.1);
   }
 }

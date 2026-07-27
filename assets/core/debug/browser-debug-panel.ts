@@ -180,6 +180,39 @@ export class BrowserDebugPanel {
     body.appendChild(button);
   }
 
+  /** 添加由具体场景持续绘制的诊断画布。 */
+  public addCanvas(label: string, width: number, height: number): HTMLCanvasElement | null {
+    const body = this.body;
+    if (body === null) {
+      return null;
+    }
+    if (label.length === 0
+      || !Number.isSafeInteger(width)
+      || !Number.isSafeInteger(height)
+      || width <= 0
+      || height <= 0) {
+      throw new Error('调试画布标签和尺寸无效。');
+    }
+    const figure = document.createElement('figure');
+    figure.style.margin = '6px 0 0';
+    const caption = document.createElement('figcaption');
+    caption.textContent = label;
+    caption.style.marginBottom = '4px';
+    caption.style.color = this.options.outputColor;
+    caption.style.fontSize = '11px';
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.display = 'block';
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+    canvas.style.background = 'rgba(5, 9, 12, 0.82)';
+    canvas.style.border = '1px solid rgba(255, 255, 255, 0.12)';
+    figure.append(caption, canvas);
+    body.appendChild(figure);
+    return canvas;
+  }
+
   /** 从浏览器页面移除面板。 */
   public dispose(): void {
     this.root?.remove();

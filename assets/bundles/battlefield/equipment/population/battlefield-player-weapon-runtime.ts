@@ -10,6 +10,7 @@ import {
   type BattlefieldHammerOwnerState,
 } from '../combat/battlefield-hammer-combat-runtime';
 import { type BattlefieldFacingLockEffect } from '../combat/battlefield-facing-lock-effect';
+import { type BattlefieldHammerSweepDebugSource } from '../combat/battlefield-hammer-sweep-debug-state';
 import { BattlefieldHammerActionState, type MutableHammerActionEvents } from '../combat/battlefield-hammer-action-state';
 import { BattlefieldWeaponCommandBuffer, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
 import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
@@ -51,6 +52,7 @@ export class BattlefieldPlayerEquipmentRuntime {
     spinFinal: false,
   };
   private readonly command: MutableBattlefieldWeaponCommand = {
+    attackHeld: false,
     swingRequested: false,
     directionX: 0,
     directionZ: 1,
@@ -125,13 +127,27 @@ export class BattlefieldPlayerEquipmentRuntime {
     return this.actionState.action === WeaponAction.Spin ? 0.36 : 1;
   }
 
+  public get hammerSweepDebug(): BattlefieldHammerSweepDebugSource {
+    return this.combat.sweepDebug;
+  }
+
   /** 当前武器可用于自动锁敌的基础近战射程。 */
   public get meleeReach(): number {
     return this.definition?.reach ?? 0;
   }
 
-  /** 输入层只在空闲帧解析新目标，避免动作中无意义地切换候选。 */
-  public get acceptingActionCommand(): boolean {
+  /** 输入层应为首次横扫解析新目标。 */
+  public get needsInitialSwingAim(): boolean {
+    return this.actionState.needsInitialSwingAim;
+  }
+
+  /** 输入层应在预输入窗口为下一击解析并缓存新目标。 */
+  public get canBufferNextSwing(): boolean {
+    return this.actionState.canBufferNextSwing;
+  }
+
+  /** 特殊技能仍只能从空闲状态开始。 */
+  public get acceptingSkillCommand(): boolean {
     return this.actionState.action === WeaponAction.Idle;
   }
 
@@ -203,6 +219,7 @@ export class BattlefieldPlayerEquipmentRuntime {
     this.ensureActive();
     this.combat.beginFrame();
     this.commands.consume(this.command);
+    this.actionState.setAttackHeld(owner.alive && this.command.attackHeld);
     const definition = this.definition;
     if (definition === null) {
       return;

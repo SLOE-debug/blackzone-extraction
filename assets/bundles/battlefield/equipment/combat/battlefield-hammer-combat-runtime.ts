@@ -9,11 +9,16 @@ import { BattlefieldCombatEventBuffer, BattlefieldWeaponHitKind } from './battle
 import { type BattlefieldHammerActionState, type MutableHammerActionEvents } from './battlefield-hammer-action-state';
 import { type BattlefieldHammerCombatTarget } from './battlefield-hammer-combat-target';
 import { BattlefieldHammerHeadSweepState } from './battlefield-hammer-head-sweep-state';
+import {
+  BattlefieldHammerSweepDebugState,
+  type BattlefieldHammerSweepDebugSource,
+} from './battlefield-hammer-sweep-debug-state';
 import { getHammerDamageScale, getHammerKnockbackSpeed } from './battlefield-hammer-impact-profile';
 
 const MAXIMUM_MELEE_HITS = 512;
 const KNOCKBACK_DURATION_SECONDS = 0.28;
 const MAGNETIZED_DURATION_SECONDS = 2;
+const SPIN_SWEEP_ASSIST_MARGIN = 0.15;
 
 /** 大锤战斗层读取的玩家世界姿态。 */
 export interface BattlefieldHammerOwnerState {
@@ -28,6 +33,7 @@ export interface BattlefieldHammerOwnerState {
 export class BattlefieldHammerCombatRuntime {
   private readonly meleeHits = new BattlefieldMeleeHitBuffer(MAXIMUM_MELEE_HITS);
   private readonly hammerHeadSweep = new BattlefieldHammerHeadSweepState();
+  private readonly sweepDebugState = new BattlefieldHammerSweepDebugState();
   private readonly events = new BattlefieldCombatEventBuffer();
   private readonly query: {
     originX: number;
@@ -74,8 +80,13 @@ export class BattlefieldHammerCombatRuntime {
 
   constructor(private readonly monsters: BattlefieldHammerCombatTarget) {}
 
+  public get sweepDebug(): BattlefieldHammerSweepDebugSource {
+    return this.sweepDebugState;
+  }
+
   public beginFrame(): void {
     this.events.beginFrame();
+    this.sweepDebugState.beginFrame();
   }
 
   /** 写入与 Renderer 同源的锤头位置，供下一帧连续胶囊扫掠。 */
@@ -88,6 +99,7 @@ export class BattlefieldHammerCombatRuntime {
 
   public reset(): void {
     this.hammerHeadSweep.reset();
+    this.sweepDebugState.reset();
     this.events.beginFrame();
   }
 
@@ -108,13 +120,23 @@ export class BattlefieldHammerCombatRuntime {
       this.queueHammerSweepHits(owner, actionState, definition, BattlefieldWeaponHitKind.Uppercut);
     }
     if (actionEvents.groundSlamImpact) {
-      this.queueHits(owner, actionState, definition, BattlefieldWeaponHitKind.GroundSlam);
+      this.queueGroundSlamHits(owner, actionState, definition);
     }
-    if (actionEvents.spinPulse) {
-      this.queueHits(owner, actionState, definition, BattlefieldWeaponHitKind.SpinPulse);
+    if (actionState.spinSweepActive && this.hammerHeadSweep.ready) {
+      this.queueHammerSweepHits(
+        owner,
+        actionState,
+        definition,
+        BattlefieldWeaponHitKind.SpinPulse,
+      );
     }
-    if (actionEvents.spinFinal) {
-      this.queueHits(owner, actionState, definition, BattlefieldWeaponHitKind.SpinFinal);
+    if (actionEvents.spinFinal && this.hammerHeadSweep.ready) {
+      this.queueHammerSweepHits(
+        owner,
+        actionState,
+        definition,
+        BattlefieldWeaponHitKind.SpinFinal,
+      );
     }
   }
 
@@ -134,6 +156,7 @@ export class BattlefieldHammerCombatRuntime {
       )) {
         continue;
       }
+      this.sweepDebugState.confirmHit(populationId, entityId);
       if ((this.events.kind[index] as BattlefieldWeaponHitKind)
         === BattlefieldWeaponHitKind.Swing) {
         confirmedSwing = true;
@@ -169,32 +192,27 @@ export class BattlefieldHammerCombatRuntime {
     }
   }
 
-  private queueHits(
+  private queueGroundSlamHits(
     owner: Readonly<BattlefieldHammerOwnerState>,
     actionState: BattlefieldHammerActionState,
     definition: Readonly<MeleeWeaponDefinition>,
-    kind: BattlefieldWeaponHitKind,
   ): void {
     const query = this.query;
-    const groundSlam = kind === BattlefieldWeaponHitKind.GroundSlam;
-    query.originX = groundSlam ? this.hammerHeadSweep.currentX : owner.positionX;
-    query.originZ = groundSlam ? this.hammerHeadSweep.currentZ : owner.positionZ;
+    query.originX = this.hammerHeadSweep.currentX;
+    query.originZ = this.hammerHeadSweep.currentZ;
     query.directionX = actionState.directionX;
     query.directionZ = actionState.directionZ;
-    query.reach = kind === BattlefieldWeaponHitKind.SpinPulse
-      || kind === BattlefieldWeaponHitKind.SpinFinal
-      ? definition.reach * 1.12
-      : groundSlam
-        ? definition.reach * SLEDGEHAMMER_PROGRESSION.groundSlamReachScale
-        : definition.reach;
-    query.arcRadians = kind === BattlefieldWeaponHitKind.SpinPulse
-      || kind === BattlefieldWeaponHitKind.SpinFinal
-      || groundSlam
-      ? Math.PI * 2
-      : definition.hitArcRadians;
+    query.reach = definition.reach * SLEDGEHAMMER_PROGRESSION.groundSlamReachScale;
+    query.arcRadians = Math.PI * 2;
     const hitCount = this.monsters.collectMeleeHits(query, this.meleeHits);
     for (let index = 0; index < hitCount; index++) {
-      this.writeHitEvent(index, kind, owner, actionState, definition);
+      this.writeHitEvent(
+        index,
+        BattlefieldWeaponHitKind.GroundSlam,
+        owner,
+        actionState,
+        definition,
+      );
     }
   }
 
@@ -202,7 +220,10 @@ export class BattlefieldHammerCombatRuntime {
     owner: Readonly<BattlefieldHammerOwnerState>,
     actionState: BattlefieldHammerActionState,
     definition: Readonly<MeleeWeaponDefinition>,
-    kind: BattlefieldWeaponHitKind.Swing | BattlefieldWeaponHitKind.Uppercut,
+    kind: BattlefieldWeaponHitKind.Swing
+      | BattlefieldWeaponHitKind.Uppercut
+      | BattlefieldWeaponHitKind.SpinPulse
+      | BattlefieldWeaponHitKind.SpinFinal,
   ): void {
     const sweep = this.hammerHeadSweep;
     const query = this.sweepQuery;
@@ -210,8 +231,11 @@ export class BattlefieldHammerCombatRuntime {
     query.startZ = sweep.previousZ;
     query.endX = sweep.currentX;
     query.endZ = sweep.currentZ;
-    query.radius = sweep.radius;
+    const spin = kind === BattlefieldWeaponHitKind.SpinPulse
+      || kind === BattlefieldWeaponHitKind.SpinFinal;
+    query.radius = sweep.radius + (spin ? SPIN_SWEEP_ASSIST_MARGIN : 0);
     const hitCount = this.monsters.collectMeleeSweepHits(query, this.meleeHits);
+    this.sweepDebugState.record(query, this.meleeHits, hitCount);
     for (let index = 0; index < hitCount; index++) {
       this.writeHitEvent(index, kind, owner, actionState, definition);
     }

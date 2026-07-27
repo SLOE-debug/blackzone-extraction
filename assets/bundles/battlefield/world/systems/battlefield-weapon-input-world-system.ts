@@ -42,13 +42,18 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
     }
 
     const skills = controls.consumeSkillCommands();
-    if (!player.isAlive || !weapon.equipped || !weapon.acceptingActionCommand) {
+    weapon.commands.setAttackHeld(player.isAlive && weapon.equipped && controlState.attackHeld);
+    if (!player.isAlive || !weapon.equipped) {
       return;
     }
     const attackRequested = controlState.attackPressed || controlState.attackHeld;
-    if (attackRequested) {
+    if (attackRequested
+      && (weapon.needsInitialSwingAim || weapon.canBufferNextSwing)) {
       this.writeAim(world);
       weapon.commands.requestSwing(this.aim.directionX, this.aim.directionZ);
+    }
+    if (!weapon.acceptingSkillCommand) {
+      return;
     }
     if (skills.spinRequested) {
       weapon.commands.requestSpin();

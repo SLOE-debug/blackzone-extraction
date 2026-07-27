@@ -2,6 +2,7 @@ import { BrowserDebugPanel } from '../../../core/debug/browser-debug-panel';
 import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import { type BattlefieldDebugControls } from './battlefield-debug-controls';
 import { BATTLEFIELD_DEBUG_MONSTER_OPTIONS } from './battlefield-debug-monster-options';
+import { BattlefieldHammerSweepDebugVisualization } from './battlefield-hammer-sweep-debug-visualization';
 
 const PANEL_OPTIONS = Object.freeze({
   id: 'battlefield-debug-panel',
@@ -14,6 +15,7 @@ const PANEL_OPTIONS = Object.freeze({
 /** 浏览器预览使用的战场相机与观察动作调试面板。 */
 export class BattlefieldDebugPanel {
   private readonly panel: BrowserDebugPanel;
+  private readonly hammerSweepVisualization: BattlefieldHammerSweepDebugVisualization | null;
 
   constructor(controls: BattlefieldDebugControls) {
     const snapshot = controls.getSnapshot();
@@ -38,6 +40,15 @@ export class BattlefieldDebugPanel {
         controls.setPerformanceDiagnosticsEnabled(value);
       },
     );
+    panel.addSection('武器判定');
+    panel.addBoolean(
+      '锤头扫掠诊断',
+      snapshot.hammerSweepDiagnosticsEnabled,
+      (value) => {
+        controls.setHammerSweepDiagnosticsEnabled(value);
+      },
+    );
+    const sweepCanvas = panel.addCanvas('黄线：轨迹　青色：胶囊　红点：命中', 288, 180);
     panel.addSection('怪物生成');
     panel.addBoolean('是否生成怪物', snapshot.automaticGenerationEnabled, (value) => {
       controls.setAutomaticGenerationEnabled(value);
@@ -55,10 +66,17 @@ export class BattlefieldDebugPanel {
       });
     }
     this.panel = panel;
+    this.hammerSweepVisualization = sweepCanvas === null
+      ? null
+      : new BattlefieldHammerSweepDebugVisualization(
+        sweepCanvas,
+        controls.hammerSweepDebug,
+      );
   }
 
   /** 从浏览器页面移除战场调试面板。 */
   public dispose(): void {
+    this.hammerSweepVisualization?.dispose();
     this.panel.dispose();
   }
 }

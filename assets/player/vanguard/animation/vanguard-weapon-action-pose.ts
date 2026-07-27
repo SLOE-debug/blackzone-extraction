@@ -9,6 +9,9 @@ export function getVanguardWeaponAttackAmount(
     case VanguardWeaponAction.WindupLeft:
     case VanguardWeaponAction.WindupRight:
       return progress * 0.72;
+    case VanguardWeaponAction.ChainPrepareLeft:
+    case VanguardWeaponAction.ChainPrepareRight:
+      return 0.72;
     case VanguardWeaponAction.SwingLeft:
     case VanguardWeaponAction.SwingRight:
       return 1 - progress * 0.35;
@@ -31,9 +34,11 @@ export function getVanguardWeaponAttackSide(
 ): -1 | 0 | 1 {
   switch (action) {
     case VanguardWeaponAction.WindupLeft:
+    case VanguardWeaponAction.ChainPrepareLeft:
     case VanguardWeaponAction.SwingLeft:
       return -1;
     case VanguardWeaponAction.WindupRight:
+    case VanguardWeaponAction.ChainPrepareRight:
     case VanguardWeaponAction.SwingRight:
       return 1;
     case VanguardWeaponAction.Recover:

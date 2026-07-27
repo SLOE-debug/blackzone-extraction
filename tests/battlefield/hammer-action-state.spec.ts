@@ -55,6 +55,71 @@ describe('大锤动作状态', () => {
     expect(state.directionZ).toBeCloseTo(0.8, 6);
   });
 
+  it('持续按住两秒会直接衔接左右连段且第一击后不出现 Idle 帧', () => {
+    const state = new BattlefieldHammerActionState();
+    state.setAttackHeld(true);
+    expect(state.requestSwing(0, 1)).toBe(true);
+    let observedFirstSwing = false;
+    let idleAfterFirstSwing = false;
+    for (let frame = 0; frame < 120; frame++) {
+      if (state.canBufferNextSwing) {
+        expect(state.requestSwing(frame % 2 === 0 ? 1 : -1, 0)).toBe(true);
+      }
+      state.update(1 / 60, DEFINITION, 0.32, EVENTS);
+      observedFirstSwing ||= state.action === WeaponAction.SwingLeft;
+      idleAfterFirstSwing ||= observedFirstSwing && state.action === WeaponAction.Idle;
+    }
+    expect(observedFirstSwing).toBe(true);
+    expect(idleAfterFirstSwing).toBe(false);
+    expect(state.attackSequenceId).toBeGreaterThan(3);
+  });
+
+  it('缓存下一击只在新挥动开始时更新锁定方向', () => {
+    const state = new BattlefieldHammerActionState();
+    state.setAttackHeld(true);
+    state.requestSwing(0, 1);
+    state.update(0.28, DEFINITION, 0.32, EVENTS);
+    state.update(0.21, DEFINITION, 0.32, EVENTS);
+    expect(state.canBufferNextSwing).toBe(true);
+    expect(state.requestSwing(1, 0)).toBe(true);
+    expect(state.directionX).toBe(0);
+    expect(state.directionZ).toBe(1);
+    state.update(0.13, DEFINITION, 0.32, EVENTS);
+    expect(state.action).toBe(WeaponAction.ChainPrepareRight);
+    expect(state.directionX).toBe(1);
+    expect(state.directionZ).toBe(0);
+  });
+
+  it('单帧越过蓄力边界时把剩余时间推进到挥动阶段', () => {
+    const state = new BattlefieldHammerActionState();
+    state.requestSwing(0, 1);
+    state.update(0.3, DEFINITION, 0.32, EVENTS);
+    expect(state.action).toBe(WeaponAction.SwingLeft);
+    expect(state.progress).toBeCloseTo(0.02 / 0.34, 6);
+  });
+
+  it('三种帧率下两秒持续连段产生相同挥击序列数', () => {
+    const sequenceCounts = [30, 60, 120].map(simulateHeldCombo);
+    expect(sequenceCounts[0]).toBe(sequenceCounts[1]);
+    expect(sequenceCounts[1]).toBe(sequenceCounts[2]);
+  });
+
+  it('命中停顿期间仍允许缓存下一击，松开后则完成当前挥动并恢复', () => {
+    const state = new BattlefieldHammerActionState();
+    state.setAttackHeld(true);
+    state.requestSwing(0, 1);
+    state.update(0.33, DEFINITION, 0.32, EVENTS);
+    expect(state.action).toBe(WeaponAction.SwingLeft);
+    expect(state.canBufferNextSwing).toBe(false);
+    state.recordConfirmedAttack(DEFINITION);
+    expect(state.canBufferNextSwing).toBe(true);
+    expect(state.requestSwing(1, 0)).toBe(true);
+    state.update(0.04, DEFINITION, 0.32, EVENTS);
+    expect(state.action).toBe(WeaponAction.SwingLeft);
+    state.setAttackHeld(false);
+    finishCurrentAction(state);
+  });
+
   it('五次确认命中产生一层震势并由升龙消耗', () => {
     const state = new BattlefieldHammerActionState();
     for (let hit = 0; hit < 5; hit++) {
@@ -107,4 +172,18 @@ function finishCurrentAction(state: BattlefieldHammerActionState): void {
     state.update(0.05, DEFINITION, 0.32, EVENTS);
   }
   expect(state.action).toBe(WeaponAction.Idle);
+}
+
+function simulateHeldCombo(framesPerSecond: number): number {
+  const state = new BattlefieldHammerActionState();
+  state.setAttackHeld(true);
+  state.requestSwing(0, 1);
+  const frameTime = 1 / framesPerSecond;
+  for (let frame = 0; frame < framesPerSecond * 2; frame++) {
+    if (state.canBufferNextSwing) {
+      state.requestSwing(0, 1);
+    }
+    state.update(frameTime, DEFINITION, 0.32, EVENTS);
+  }
+  return state.attackSequenceId;
 }
