@@ -17,6 +17,7 @@ import {
   BattlefieldCameraOrbitInput,
   type MutableBattlefieldCameraAzimuthDelta,
 } from './battlefield-camera-orbit-input';
+import { BattlefieldAttackButton } from './battlefield-attack-button';
 import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
 import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
@@ -35,28 +36,26 @@ const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
 export interface BattlefieldScreenControlState {
   readonly moveX: number;
   readonly moveY: number;
-  readonly attackX: number;
-  readonly attackY: number;
-  readonly attacking: boolean;
+  readonly attackPressed: boolean;
+  readonly attackHeld: boolean;
   readonly cameraOrbitDeltaX: number;
 }
 
 interface MutableBattlefieldScreenControlState {
   moveX: number;
   moveY: number;
-  attackX: number;
-  attackY: number;
-  attacking: boolean;
+  attackPressed: boolean;
+  attackHeld: boolean;
   cameraOrbitDeltaX: number;
 }
 
-/** 装配移动摇杆、攻击摇杆、三枚径向技能键和固定物品栏。 */
+/** 装配移动摇杆、普通攻击按钮、三枚径向技能键和固定物品栏。 */
 export class BattlefieldControlHud {
   public readonly state: BattlefieldScreenControlState;
   private readonly canvas: ScreenUiCanvas;
   private readonly gameplayGraphics: BattlefieldGameplayGraphics;
   private readonly movementJoystick: VirtualJoystick;
-  private readonly attackJoystick: VirtualJoystick;
+  private readonly attackButton: BattlefieldAttackButton;
   private readonly radialSkillButtons: BattlefieldRadialSkillButtons;
   private readonly inventoryHud: BattlefieldInventoryHud;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
@@ -67,9 +66,8 @@ export class BattlefieldControlHud {
   private readonly mutableState: MutableBattlefieldScreenControlState = {
     moveX: 0,
     moveY: 0,
-    attackX: 0,
-    attackY: 0,
-    attacking: false,
+    attackPressed: false,
+    attackHeld: false,
     cameraOrbitDeltaX: 0,
   };
   private layoutWidth = -1;
@@ -78,10 +76,8 @@ export class BattlefieldControlHud {
   private moveDown = false;
   private moveLeft = false;
   private moveRight = false;
-  private attackUp = false;
-  private attackDown = false;
-  private attackLeft = false;
-  private attackRight = false;
+  private attackKeyDown = false;
+  private attackKeyPressed = false;
   private contextAction: BattlefieldInteractionAction | null = null;
   private contextActionPressed = false;
   private interactionKeyDown = false;
@@ -100,7 +96,7 @@ export class BattlefieldControlHud {
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
     let gameplayGraphics: BattlefieldGameplayGraphics | null = null;
     let movementJoystick: VirtualJoystick | null = null;
-    let attackJoystick: VirtualJoystick | null = null;
+    let attackButton: BattlefieldAttackButton | null = null;
     let radialSkillButtons: BattlefieldRadialSkillButtons | null = null;
     let inventoryHud: BattlefieldInventoryHud | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
@@ -114,9 +110,8 @@ export class BattlefieldControlHud {
         'MovementJoystick',
         BATTLEFIELD_CONTROL_STYLE.movement,
       );
-      attackJoystick = new VirtualJoystick(
+      attackButton = new BattlefieldAttackButton(
         this.canvas.node,
-        'AttackJoystick',
         BATTLEFIELD_CONTROL_STYLE.attack,
       );
       radialSkillButtons = new BattlefieldRadialSkillButtons(this.canvas.node);
@@ -134,7 +129,7 @@ export class BattlefieldControlHud {
       );
       this.gameplayGraphics = gameplayGraphics;
       this.movementJoystick = movementJoystick;
-      this.attackJoystick = attackJoystick;
+      this.attackButton = attackButton;
       this.radialSkillButtons = radialSkillButtons;
       this.inventoryHud = inventoryHud;
       this.cameraOrbitInput = cameraOrbitInput;
@@ -153,7 +148,7 @@ export class BattlefieldControlHud {
       inventoryHud?.dispose();
       radialSkillButtons?.dispose();
       movementJoystick?.dispose();
-      attackJoystick?.dispose();
+      attackButton?.dispose();
       gameplayGraphics?.dispose();
       this.canvas.dispose();
       throw error;
@@ -178,20 +173,20 @@ export class BattlefieldControlHud {
     this.writeCameraOrbitState();
     this.defeatDialog.update();
     this.synchronizeInventory();
-    if (this.attackJoystick.consumeActionPress()) {
+    if (this.attackButton.consumeActionPress()) {
       this.contextActionPressed = true;
     }
     this.synchronizeGameplayGraphics();
   }
 
-  /** 右摇杆中心显示开启/拾取，但技能键始终保持独立。 */
+  /** 普攻按钮临时显示开启/拾取图案，但技能键始终保持独立。 */
   public setContextAction(action: BattlefieldInteractionAction | null): void {
     if (this.disposed || this.contextAction === action) {
       return;
     }
     this.contextAction = action;
     this.contextActionPressed = false;
-    this.attackJoystick.setActionIcon(
+    this.attackButton.setContextAction(
       action === null ? null : BATTLEFIELD_INTERACTION_ICONS[action],
     );
     if (action !== null) {
@@ -285,7 +280,7 @@ export class BattlefieldControlHud {
     this.inventoryHud.dispose();
     this.radialSkillButtons.dispose();
     this.movementJoystick.dispose();
-    this.attackJoystick.dispose();
+    this.attackButton.dispose();
     this.gameplayGraphics.dispose();
     this.canvas.dispose();
     this.inputRegistered = false;
@@ -318,7 +313,7 @@ export class BattlefieldControlHud {
     const rightX = width * 0.5 - style.attack.interactionRadius - horizontalInset;
     const centerY = -height * 0.5 + maximumInteractionRadius + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
-    this.attackJoystick.setPosition(rightX, centerY);
+    this.attackButton.setPosition(rightX, centerY);
     this.radialSkillButtons.setLayout(rightX, centerY, style.skillOrbitRadius);
     this.inventoryHud.synchronizeLayout(width, height);
     this.playerStatus.synchronizeLayout(width, height);
@@ -331,7 +326,7 @@ export class BattlefieldControlHud {
       this.canvas.transform.width,
       this.canvas.transform.height,
       this.movementJoystick,
-      this.attackJoystick,
+      this.attackButton,
       this.playerStatus,
       this.radialSkillButtons,
       this.inventoryHud,
@@ -357,26 +352,16 @@ export class BattlefieldControlHud {
       this.clearAttackState();
       return;
     }
-    const joystick = this.attackJoystick.value;
-    let attackX = joystick.x;
-    let attackY = joystick.y;
-    let magnitude = joystick.magnitude;
-    if (magnitude <= 0) {
-      attackX = Number(this.attackRight) - Number(this.attackLeft);
-      attackY = Number(this.attackUp) - Number(this.attackDown);
-      magnitude = Math.hypot(attackX, attackY);
-    }
-    const attacking = magnitude > 0;
-    const inverseLength = attacking ? 1 / Math.max(Math.hypot(attackX, attackY), 0.0001) : 0;
-    this.mutableState.attackX = attackX * inverseLength;
-    this.mutableState.attackY = attackY * inverseLength;
-    this.mutableState.attacking = attacking;
+    this.mutableState.attackPressed = this.attackButton.consumeAttackPress()
+      || this.attackKeyPressed;
+    this.mutableState.attackHeld = this.attackButton.held || this.attackKeyDown;
+    this.attackKeyPressed = false;
   }
 
   private clearAttackState(): void {
-    this.mutableState.attackX = 0;
-    this.mutableState.attackY = 0;
-    this.mutableState.attacking = false;
+    this.mutableState.attackPressed = false;
+    this.mutableState.attackHeld = false;
+    this.attackKeyPressed = false;
   }
 
   private writeCameraOrbitState(): void {
@@ -421,21 +406,11 @@ export class BattlefieldControlHud {
       case KeyCode.DIGIT_3:
         this.radialSkillButtons.setKeyboardActive(2, pressed);
         break;
-      case KeyCode.ARROW_UP:
-      case KeyCode.KEY_I:
-        this.attackUp = pressed;
-        break;
-      case KeyCode.ARROW_DOWN:
-      case KeyCode.KEY_K:
-        this.attackDown = pressed;
-        break;
-      case KeyCode.ARROW_LEFT:
-      case KeyCode.KEY_J:
-        this.attackLeft = pressed;
-        break;
-      case KeyCode.ARROW_RIGHT:
-      case KeyCode.KEY_L:
-        this.attackRight = pressed;
+      case KeyCode.SPACE:
+        if (pressed && !this.attackKeyDown && this.contextAction === null) {
+          this.attackKeyPressed = true;
+        }
+        this.attackKeyDown = pressed;
         break;
     }
   }

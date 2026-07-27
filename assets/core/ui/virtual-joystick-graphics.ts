@@ -71,12 +71,12 @@ export function drawVirtualJoystick(
     4,
   );
   if (actionIcon !== null) {
-    drawActionIcon(graphics, actionIcon, centerX, centerY, palette.accent);
+    drawVirtualJoystickActionIcon(graphics, actionIcon, centerX, centerY, palette.accent);
   }
 }
 
 /** 在摇杆帽内部绘制与场景动作对应的无字体矢量图案。 */
-function drawActionIcon(
+export function drawVirtualJoystickActionIcon(
   graphics: Graphics,
   icon: VirtualJoystickActionIcon,
   centerX: number,

@@ -25,6 +25,10 @@ import {
   getVanguardWeaponAttackAmount,
   getVanguardWeaponAttackSide,
 } from './vanguard-weapon-action-pose';
+import {
+  createVanguardTwoHandWeaponTrajectoryPose,
+  type VanguardTwoHandWeaponTrajectoryPose,
+} from './vanguard-two-hand-weapon-trajectory';
 
 /** 创建供程序化人体拓扑预计算绑定坐标使用的中立骨骼矩阵。 */
 export function createVanguardBindPoseMatrices(): Float64Array {
@@ -49,6 +53,7 @@ export function createVanguardBindPoseMatrices(): Float64Array {
     0,
     VANGUARD_WEAPON_ANIMATION_REST_STATE,
     createVanguardTwoHandIkWorkspace(),
+    createVanguardTwoHandWeaponTrajectoryPose(),
   );
   return matrices;
 }
@@ -89,6 +94,7 @@ export function writeVanguardPoseMatrices(
   weaponActionSide: -1 | 0 | 1,
   weaponAnimation: Readonly<VanguardWeaponAnimationPoseState>,
   twoHandIkWorkspace: Float64Array,
+  weaponTrajectory: Readonly<VanguardTwoHandWeaponTrajectoryPose>,
 ): void {
   const entityOffset = entityIndex
     * VanguardBone.Count
@@ -101,6 +107,7 @@ export function writeVanguardPoseMatrices(
   const attackSide = getVanguardWeaponAttackSide(weaponAction, weaponActionSide);
   const signedAttackAmount = attackAmount * attackSide;
   const weaponBodyYaw = weaponAnimation.chestYaw;
+  const weaponPelvisYaw = weaponAnimation.pelvisYaw;
   const strideWave = Math.sin(locomotionPhase);
   const bodyBob = Math.abs(Math.cos(locomotionPhase)) * 0.065 * locomotion;
   const leftStepLift = Math.max(0, strideWave) * 0.36 * locomotion;
@@ -137,7 +144,7 @@ export function writeVanguardPoseMatrices(
     sway,
     VANGUARD_ANATOMY.pelvisY + bodyBob,
     0,
-    weaponBodyYaw * 0.42,
+    weaponPelvisYaw,
     -sway * 0.5,
     positionX,
     positionY,
@@ -337,11 +344,9 @@ export function writeVanguardPoseMatrices(
       positionZ,
       heading,
       scale,
-      weaponAction,
-      actionProgress,
-      weaponActionSide,
       weaponStance,
       weaponAnimation,
+      weaponTrajectory,
       leftShoulderX,
       shoulderY + leftShoulderLift,
       leftShoulderZ,

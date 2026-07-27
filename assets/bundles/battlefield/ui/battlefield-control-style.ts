@@ -1,5 +1,6 @@
 import { Color } from 'cc';
 import { type VirtualJoystickOptions } from '../../../core/ui/virtual-joystick';
+import { type BattlefieldAttackButtonOptions } from './battlefield-attack-button';
 
 const MOVEMENT_PALETTE = Object.freeze({
   base: new Color(25, 48, 49, 178),
@@ -15,7 +16,7 @@ const ATTACK_PALETTE = Object.freeze({
   handle: new Color(151, 91, 50, 255),
 });
 
-/** 战场双摇杆的共享尺寸和职责配色。 */
+/** 战场移动摇杆、普通攻击按钮和技能环的共享尺寸与配色。 */
 export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
   horizontalEdgeInset: 64,
   bottomEdgeInset: 56,
@@ -31,10 +32,7 @@ export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
   }) satisfies VirtualJoystickOptions,
   attack: Object.freeze({
     radius: 72,
-    handleRadius: 30,
     interactionRadius: 108,
-    deadZone: 0.1,
-    responseExponent: 1,
     palette: ATTACK_PALETTE,
-  }) satisfies VirtualJoystickOptions,
+  }) satisfies BattlefieldAttackButtonOptions,
 });

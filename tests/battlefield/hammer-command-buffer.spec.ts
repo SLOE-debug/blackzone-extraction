@@ -15,14 +15,22 @@ describe('大锤独立命令缓冲', () => {
       spinRequested: false,
       groundSlamRequested: false,
       uppercutRequested: false,
+      uppercutDirectionX: 0,
+      uppercutDirectionZ: 1,
+      groundSlamDirectionX: 0,
+      groundSlamDirectionZ: 1,
     };
     buffer.requestSpin();
-    buffer.requestGroundSlam();
-    buffer.requestUppercut();
+    buffer.requestGroundSlam(1, 0);
+    buffer.requestUppercut(0, -1);
     buffer.consume(command);
     expect(command.spinRequested).toBe(true);
     expect(command.groundSlamRequested).toBe(true);
     expect(command.uppercutRequested).toBe(true);
+    expect(command.groundSlamDirectionX).toBe(1);
+    expect(command.groundSlamDirectionZ).toBe(0);
+    expect(command.uppercutDirectionX).toBe(0);
+    expect(command.uppercutDirectionZ).toBe(-1);
 
     buffer.consume(command);
     expect(command.spinRequested).toBe(false);

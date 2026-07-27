@@ -57,6 +57,10 @@ export class BattlefieldPlayerEquipmentRuntime {
     startsRight: null,
     uppercutRequested: false,
     groundSlamRequested: false,
+    uppercutDirectionX: 0,
+    uppercutDirectionZ: 1,
+    groundSlamDirectionX: 0,
+    groundSlamDirectionZ: 1,
     spinRequested: false,
   };
   private readonly combat: BattlefieldHammerCombatRuntime;
@@ -119,6 +123,16 @@ export class BattlefieldPlayerEquipmentRuntime {
 
   public get movementSpeedScale(): number {
     return this.actionState.action === WeaponAction.Spin ? 0.36 : 1;
+  }
+
+  /** 当前武器可用于自动锁敌的基础近战射程。 */
+  public get meleeReach(): number {
+    return this.definition?.reach ?? 0;
+  }
+
+  /** 输入层只在空闲帧解析新目标，避免动作中无意义地切换候选。 */
+  public get acceptingActionCommand(): boolean {
+    return this.actionState.action === WeaponAction.Idle;
   }
 
   public get presentation(): Readonly<EquippedWeaponPresentation> | null {
@@ -197,9 +211,15 @@ export class BattlefieldPlayerEquipmentRuntime {
       if (this.command.spinRequested) {
         this.actionState.requestSpin(owner.heading, SLEDGEHAMMER_PROGRESSION.spinDurationSeconds);
       } else if (this.command.groundSlamRequested) {
-        this.actionState.requestGroundSlam(owner.heading);
+        this.actionState.requestGroundSlam(Math.atan2(
+          this.command.groundSlamDirectionX,
+          this.command.groundSlamDirectionZ,
+        ));
       } else if (this.command.uppercutRequested) {
-        this.actionState.requestUppercut(owner.heading);
+        this.actionState.requestUppercut(Math.atan2(
+          this.command.uppercutDirectionX,
+          this.command.uppercutDirectionZ,
+        ));
       } else if (this.command.swingRequested) {
         this.actionState.requestSwing(
           this.command.directionX,

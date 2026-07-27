@@ -1,10 +1,11 @@
 import { Graphics, Layers, Node, UITransform } from 'cc';
 import { type VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { type BattlefieldInventoryHud } from '../equipment/inventory/ui/battlefield-inventory-hud';
+import { type BattlefieldAttackButton } from './battlefield-attack-button';
 import { type BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 import { type BattlefieldRadialSkillButtons } from './battlefield-radial-skill-buttons';
 
-/** 把双摇杆、生命条、技能键与物品栏压入同一个 Graphics 组件。 */
+/** 把移动摇杆、攻击按钮、生命条、技能键与物品栏压入同一个 Graphics 组件。 */
 export class BattlefieldGameplayGraphics {
   private readonly root: Node;
   private readonly transform: UITransform;
@@ -34,7 +35,7 @@ export class BattlefieldGameplayGraphics {
     width: number,
     height: number,
     movement: VirtualJoystick,
-    attack: VirtualJoystick,
+    attack: BattlefieldAttackButton,
     playerStatus: BattlefieldPlayerStatusHud,
     skills: BattlefieldRadialSkillButtons,
     inventory: BattlefieldInventoryHud,

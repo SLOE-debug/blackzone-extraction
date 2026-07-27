@@ -6,6 +6,10 @@ export class BattlefieldWeaponCommandBuffer {
   private swingStartsRight: boolean | null = null;
   private uppercutRequested = false;
   private groundSlamRequested = false;
+  private uppercutDirectionX = 0;
+  private uppercutDirectionZ = 1;
+  private groundSlamDirectionX = 0;
+  private groundSlamDirectionZ = 1;
   private spinRequested = false;
 
   public requestSwing(
@@ -20,12 +24,18 @@ export class BattlefieldWeaponCommandBuffer {
     this.swingStartsRight = startsRight;
   }
 
-  public requestUppercut(): void {
+  public requestUppercut(directionX: number, directionZ: number): void {
+    validateDirection(directionX, directionZ);
     this.uppercutRequested = true;
+    this.uppercutDirectionX = directionX;
+    this.uppercutDirectionZ = directionZ;
   }
 
-  public requestGroundSlam(): void {
+  public requestGroundSlam(directionX: number, directionZ: number): void {
+    validateDirection(directionX, directionZ);
     this.groundSlamRequested = true;
+    this.groundSlamDirectionX = directionX;
+    this.groundSlamDirectionZ = directionZ;
   }
 
   public requestSpin(): void {
@@ -40,6 +50,10 @@ export class BattlefieldWeaponCommandBuffer {
     result.startsRight = this.swingStartsRight;
     result.uppercutRequested = this.uppercutRequested;
     result.groundSlamRequested = this.groundSlamRequested;
+    result.uppercutDirectionX = this.uppercutDirectionX;
+    result.uppercutDirectionZ = this.uppercutDirectionZ;
+    result.groundSlamDirectionX = this.groundSlamDirectionX;
+    result.groundSlamDirectionZ = this.groundSlamDirectionZ;
     result.spinRequested = this.spinRequested;
     this.clear();
   }
@@ -60,6 +74,10 @@ export interface MutableBattlefieldWeaponCommand {
   startsRight: boolean | null;
   uppercutRequested: boolean;
   groundSlamRequested: boolean;
+  uppercutDirectionX: number;
+  uppercutDirectionZ: number;
+  groundSlamDirectionX: number;
+  groundSlamDirectionZ: number;
   spinRequested: boolean;
 }
 

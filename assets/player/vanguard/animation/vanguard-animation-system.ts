@@ -13,6 +13,10 @@ import {
   writeVanguardWeaponAnimationPoseState,
 } from './vanguard-weapon-animation-state';
 import { createVanguardTwoHandIkWorkspace } from './vanguard-two-hand-heavy-pose';
+import {
+  createVanguardTwoHandWeaponTrajectoryPose,
+  writeVanguardTwoHandWeaponTrajectory,
+} from './vanguard-two-hand-weapon-trajectory';
 
 const IDLE_CYCLE_SECONDS = 6.4;
 
@@ -22,6 +26,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
     ...VANGUARD_WEAPON_ANIMATION_REST_STATE,
   };
   private readonly twoHandIkWorkspace = createVanguardTwoHandIkWorkspace();
+  private readonly weaponTrajectory = createVanguardTwoHandWeaponTrajectoryPose();
 
   /** 在渲染器创建前写入完整绑定姿态。 */
   public initialize(state: VanguardState): void {
@@ -71,7 +76,14 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       if (!weaponReady && (animation.weaponStanceBlend[index] ?? 0) <= 0.01) {
         animation.weaponPose[index] = VanguardWeaponPose.Unarmed;
       }
-      updateVanguardWeaponAnimationState(state.data, index, deltaTime);
+      writeVanguardWeaponAnimationPoseState(state.data, index, this.weaponPoseState);
+      this.sampleWeaponTrajectory(state, index);
+      updateVanguardWeaponAnimationState(
+        state.data,
+        index,
+        deltaTime,
+        this.weaponTrajectory,
+      );
       this.writePose(state, index);
     }
   }
@@ -80,6 +92,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
   private writePose(state: VanguardState, index: number): void {
     const { transform, morphology, intent, animation, pose } = state.data;
     writeVanguardWeaponAnimationPoseState(state.data, index, this.weaponPoseState);
+    this.sampleWeaponTrajectory(state, index);
     writeVanguardPoseMatrices(
       pose.boneMatrices,
       index,
@@ -98,6 +111,19 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       (intent.weaponActionSide[index] ?? 0) as -1 | 0 | 1,
       this.weaponPoseState,
       this.twoHandIkWorkspace,
+      this.weaponTrajectory,
+    );
+  }
+
+  /** 把当前离散动作采样为后续阻尼与 IK 共用的完整目标。 */
+  private sampleWeaponTrajectory(state: VanguardState, index: number): void {
+    const intent = state.data.intent;
+    writeVanguardTwoHandWeaponTrajectory(
+      this.weaponTrajectory,
+      intent.weaponAction[index] as VanguardWeaponAction,
+      intent.weaponActionProgress[index] ?? 0,
+      (intent.weaponActionSide[index] ?? 0) as -1 | 0 | 1,
+      this.weaponPoseState.hammerLag,
     );
   }
 }

@@ -22,10 +22,9 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   weaponActionSide: -1 | 0 | 1;
 }
 
-/** 把左摇杆映射为移动、右摇杆映射为攻击朝向，并在移动前应用朝向锁定。 */
+/** 把左摇杆映射为移动，并在武器动作期间应用权威朝向锁定。 */
 export class BattlefieldPlayerControlController {
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
-  private readonly attackDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
   private readonly intent: MutableVanguardControlIntent = {
     moveX: 0,
     moveZ: 0,
@@ -74,18 +73,9 @@ export class BattlefieldPlayerControlController {
     intent.weaponActionSide = weaponActionSide;
     intent.facingLocked = facingLock !== null;
     intent.lockedHeading = facingLock?.lockedHeading ?? player.heading;
-    if (controls.attacking) {
-      cameraRig.writeWorldPlanarDirection(
-        controls.attackX,
-        controls.attackY,
-        this.attackDirection,
-      );
-      intent.attackX = this.attackDirection.x;
-      intent.attackZ = this.attackDirection.z;
-      intent.attacking = true;
-    } else {
-      intent.attacking = false;
-    }
+    intent.attackX = 0;
+    intent.attackZ = 1;
+    intent.attacking = false;
     if (weaponAction === VanguardWeaponAction.GroundSlam) {
       const stepProgress = Math.max(0, Math.min(
         1,

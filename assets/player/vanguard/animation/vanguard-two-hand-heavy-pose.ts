@@ -1,6 +1,5 @@
 import { lerp } from '../../../core/math/scalar';
 import { VanguardBone, type VanguardBoneMatrixArray } from '../model/vanguard-bone';
-import { VanguardWeaponAction } from '../model/vanguard-weapon-action';
 import {
   getVanguardWeaponRigProfile,
   VanguardWeaponRigSocket,
@@ -9,10 +8,7 @@ import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
 import { type VanguardWeaponAnimationPoseState } from './vanguard-weapon-animation-state';
 import { writeBasisFrame, writeSegmentFrame } from './vanguard-pose-frame';
 import { VANGUARD_WEAPON_SOCKET_DISTANCE } from './vanguard-weapon-socket-pose';
-import {
-  getVanguardTwoHandMainGripAxis,
-  writeVanguardTwoHandShaftDirection,
-} from './vanguard-two-hand-weapon-trajectory';
+import { type VanguardTwoHandWeaponTrajectoryPose } from './vanguard-two-hand-weapon-trajectory';
 
 const EPSILON = 0.000001;
 const UPPER_ARM_LENGTH = 0.72;
@@ -40,11 +36,9 @@ export function writeVanguardTwoHandHeavyPose(
   positionZ: number,
   heading: number,
   scale: number,
-  action: VanguardWeaponAction,
-  progress: number,
-  recoverSide: -1 | 0 | 1,
   stanceBlend: number,
   animation: Readonly<VanguardWeaponAnimationPoseState>,
+  trajectory: Readonly<VanguardTwoHandWeaponTrajectoryPose>,
   leftShoulderX: number,
   leftShoulderY: number,
   leftShoulderZ: number,
@@ -68,7 +62,6 @@ export function writeVanguardTwoHandHeavyPose(
   if (workspace.length < IK_WORKSPACE_SIZE) {
     throw new Error('双手重武器 IK 工作区容量不足。');
   }
-  const clampedProgress = Math.max(0, Math.min(1, progress));
   const mainWeight = Math.max(0, Math.min(1, animation.mainGripWeight * stanceBlend));
   const supportWeight = Math.max(0, Math.min(1, animation.supportGripWeight * stanceBlend));
   const naturalMainX = extendHandSocket(
@@ -126,43 +119,12 @@ export function writeVanguardTwoHandHeavyPose(
     2,
   );
 
-  writeVanguardTwoHandShaftDirection(
-    workspace,
-    action,
-    clampedProgress,
-    recoverSide,
-    animation.hammerLag,
-  );
-  const shaftX = workspace[0] ?? 0;
-  const shaftY = workspace[1] ?? -1;
-  const shaftZ = workspace[2] ?? 0;
-  const desiredMainX = getVanguardTwoHandMainGripAxis(action, clampedProgress, 0);
-  const desiredMainY = getVanguardTwoHandMainGripAxis(action, clampedProgress, 1);
-  const desiredMainZ = getVanguardTwoHandMainGripAxis(action, clampedProgress, 2);
-  const mainX = lerp(naturalMainX, desiredMainX, mainWeight);
-  const mainY = lerp(naturalMainY, desiredMainY, mainWeight);
-  const mainZ = lerp(naturalMainZ, desiredMainZ, mainWeight);
-
-  let fallbackShaftX = naturalSupportX - mainX;
-  let fallbackShaftY = naturalSupportY - mainY;
-  let fallbackShaftZ = naturalSupportZ - mainZ;
-  const fallbackLength = Math.max(
-    Math.hypot(fallbackShaftX, fallbackShaftY, fallbackShaftZ),
-    EPSILON,
-  );
-  fallbackShaftX /= fallbackLength;
-  fallbackShaftY /= fallbackLength;
-  fallbackShaftZ /= fallbackLength;
-  let blendedShaftX = lerp(fallbackShaftX, shaftX, supportWeight);
-  let blendedShaftY = lerp(fallbackShaftY, shaftY, supportWeight);
-  let blendedShaftZ = lerp(fallbackShaftZ, shaftZ, supportWeight);
-  const blendedLength = Math.max(
-    Math.hypot(blendedShaftX, blendedShaftY, blendedShaftZ),
-    EPSILON,
-  );
-  blendedShaftX /= blendedLength;
-  blendedShaftY /= blendedLength;
-  blendedShaftZ /= blendedLength;
+  const shaftX = trajectory.shaftX;
+  const shaftY = trajectory.shaftY;
+  const shaftZ = trajectory.shaftZ;
+  const mainX = lerp(naturalMainX, trajectory.mainGripX, mainWeight);
+  const mainY = lerp(naturalMainY, trajectory.mainGripY, mainWeight);
+  const mainZ = lerp(naturalMainZ, trajectory.mainGripZ, mainWeight);
   const rig = getVanguardWeaponRigProfile(VanguardWeaponPose.TwoHandHeavy);
   const mainSocket = rig.sockets[VanguardWeaponRigSocket.MainGrip];
   const supportSocket = rig.sockets[VanguardWeaponRigSocket.SupportGrip];
@@ -171,9 +133,12 @@ export function writeVanguardTwoHandHeavyPose(
     supportSocket.y - mainSocket.y,
     supportSocket.z - mainSocket.z,
   );
-  const supportX = mainX + blendedShaftX * gripSpacing;
-  const supportY = mainY + blendedShaftY * gripSpacing;
-  const supportZ = mainZ + blendedShaftZ * gripSpacing;
+  const constrainedSupportX = mainX + shaftX * gripSpacing;
+  const constrainedSupportY = mainY + shaftY * gripSpacing;
+  const constrainedSupportZ = mainZ + shaftZ * gripSpacing;
+  const supportX = lerp(naturalSupportX, constrainedSupportX, supportWeight);
+  const supportY = lerp(naturalSupportY, constrainedSupportY, supportWeight);
+  const supportZ = lerp(naturalSupportZ, constrainedSupportZ, supportWeight);
 
   solveArm(
     workspace,
@@ -247,9 +212,9 @@ export function writeVanguardTwoHandHeavyPose(
     mainX,
     mainY,
     mainZ,
-    blendedShaftX,
-    blendedShaftY,
-    blendedShaftZ,
+    shaftX,
+    shaftY,
+    shaftZ,
     positionX,
     positionY,
     positionZ,

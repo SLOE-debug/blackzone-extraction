@@ -13,7 +13,10 @@ import {
   type BattlefieldMonsterCombatTarget,
 } from './battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
-import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
+import {
+  BattlefieldMonsterTargetRegistry,
+  type BattlefieldMeleeTargetSource,
+} from './battlefield-monster-target-registry';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
@@ -196,6 +199,11 @@ implements Disposable {
       this.venomGroup.movementMultiplier,
       this.debugMonsters.movementMultiplier,
     );
+  }
+
+  /** 近战输入层使用的窄目标查询门面。 */
+  public get meleeTargeting(): BattlefieldMeleeTargetSource {
+    return this.targets;
   }
 
   /** 自动波次总开关的当前值。 */

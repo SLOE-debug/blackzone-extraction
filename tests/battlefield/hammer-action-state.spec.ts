@@ -45,6 +45,16 @@ describe('大锤动作状态', () => {
     expect(forwardDot).toBeGreaterThan(0.999);
   });
 
+  it('一次挥动中拒绝新方向并保持动作开始时的目标朝向', () => {
+    const state = new BattlefieldHammerActionState();
+    expect(state.requestSwing(0.6, 0.8)).toBe(true);
+    const lockedHeading = state.facingLock?.lockedHeading;
+    expect(state.requestSwing(-1, 0)).toBe(false);
+    expect(state.facingLock?.lockedHeading).toBe(lockedHeading);
+    expect(state.directionX).toBeCloseTo(0.6, 6);
+    expect(state.directionZ).toBeCloseTo(0.8, 6);
+  });
+
   it('五次确认命中产生一层震势并由升龙消耗', () => {
     const state = new BattlefieldHammerActionState();
     for (let hit = 0; hit < 5; hit++) {
