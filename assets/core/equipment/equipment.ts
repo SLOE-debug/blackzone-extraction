@@ -18,7 +18,14 @@ export enum WeaponKind {
 
 /** 武器向任意角色动画层声明的中立握持方式。 */
 export enum WeaponGrip {
-  OneHandHeavy = 'one-hand-heavy',
+  TwoHandHeavy = 'two-hand-heavy',
+}
+
+/** 武器原型向输入层声明的稳定技能命令。 */
+export enum WeaponSkillCommand {
+  Spin = 'spin',
+  GroundSlam = 'ground-slam',
+  Uppercut = 'uppercut',
 }
 
 /** 武器行为运行时向任意角色动画层声明的中立动作。 */

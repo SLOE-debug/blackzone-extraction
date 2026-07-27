@@ -10,7 +10,8 @@ import { BattlefieldInteractionResolver } from './battlefield-interaction-resolv
 export class BattlefieldSceneInteractionSystem {
   private readonly resolver = new BattlefieldInteractionResolver();
   private readonly equipmentInspection: MutableDroppedEquipmentInspection = {
-    instanceId: -1,
+    worldRuntimeId: -1,
+    itemInstanceSeed: 1,
     equipmentId: EquipmentId.Sledgehammer,
     x: 0,
     y: 0,

@@ -50,6 +50,20 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     weaponStanceBlend: entityField(Float32Array, 1),
     hitFlash: entityField(Float32Array, 1),
   },
+  weaponAnimation: {
+    chestYaw: entityField(Float32Array, 1),
+    chestYawVelocity: entityField(Float32Array, 1),
+    leftElbowPoleX: entityField(Float32Array, 1),
+    leftElbowPoleY: entityField(Float32Array, 1),
+    leftElbowPoleZ: entityField(Float32Array, 1),
+    rightElbowPoleX: entityField(Float32Array, 1),
+    rightElbowPoleY: entityField(Float32Array, 1),
+    rightElbowPoleZ: entityField(Float32Array, 1),
+    mainGripWeight: entityField(Float32Array, 1),
+    supportGripWeight: entityField(Float32Array, 1),
+    hammerLag: entityField(Float32Array, 1),
+    hammerLagVelocity: entityField(Float32Array, 1),
+  },
   pose: {
     boneMatrices: entityField(
       Float32Array,

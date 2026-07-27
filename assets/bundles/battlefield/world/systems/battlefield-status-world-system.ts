@@ -12,7 +12,7 @@ export class BattlefieldStatusWorldSystem extends BattlefieldWorldSystem {
   protected execute(world: BattlefieldWorld): void {
     const { player, weapon, controls } = world.resources;
     controls.presentPlayerHealth(player.health, player.maximumHealth);
-    controls.presentHammerStatus(weapon.hammerStatus);
+    controls.presentEquippedWeapon(weapon.presentation);
     controls.synchronizeInventory();
     world.presentDefeatIfNeeded();
   }

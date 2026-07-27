@@ -1,4 +1,5 @@
 import { EquipmentId } from '../catalog/equipment-id';
+import { validateBattlefieldItemInstanceSeed } from '../model/battlefield-item-instance';
 import {
   evaluateLootScatterTrajectory,
   LootScatterPhase,
@@ -22,10 +23,15 @@ export class DroppedEquipmentRuntime {
   private poseRevisionValue = 1;
 
   constructor(
-    public readonly instanceId: number,
+    public readonly worldRuntimeId: number,
+    public readonly itemInstanceSeed: number,
     public readonly equipmentId: EquipmentId,
     private readonly trajectory: Readonly<LootScatterTrajectory>,
   ) {
+    if (!Number.isSafeInteger(worldRuntimeId) || worldRuntimeId <= 0) {
+      throw new Error('地面装备世界运行时标识必须是正安全整数。');
+    }
+    validateBattlefieldItemInstanceSeed(itemInstanceSeed);
     this.writePose();
   }
 

@@ -72,7 +72,7 @@ export class DroppedEquipmentAccentRenderer {
       if (item === null || item === undefined) {
         throw new Error('掉落装备信标活动范围内存在空槽位。');
       }
-      const identityChanged = (this.instanceIds[index] ?? -1) !== item.instanceId;
+      const identityChanged = (this.instanceIds[index] ?? -1) !== item.worldRuntimeId;
       const visibilityChanged = (this.visibleStates[index] ?? 0) !== (item.visible ? 1 : 0);
       if (!identityChanged && !visibilityChanged
         && (this.poseRevisions[index] ?? 0) === item.poseRevision) {
@@ -91,7 +91,7 @@ export class DroppedEquipmentAccentRenderer {
         item.visible,
         identityChanged || visibilityChanged,
       );
-      this.instanceIds[index] = item.instanceId;
+      this.instanceIds[index] = item.worldRuntimeId;
       this.poseRevisions[index] = item.poseRevision;
       this.visibleStates[index] = item.visible ? 1 : 0;
       positionDirty = true;

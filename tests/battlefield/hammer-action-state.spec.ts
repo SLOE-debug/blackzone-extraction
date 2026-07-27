@@ -37,6 +37,14 @@ describe('大锤动作状态', () => {
     expect(state.action).toBe(WeaponAction.WindupLeft);
   });
 
+  it('普通攻击锁定朝向始终与权威攻击方向同向', () => {
+    const state = new BattlefieldHammerActionState();
+    expect(state.requestSwing(0.6, 0.8)).toBe(true);
+    const heading = state.facingLock?.lockedHeading ?? 0;
+    const forwardDot = Math.sin(heading) * 0.6 + Math.cos(heading) * 0.8;
+    expect(forwardDot).toBeGreaterThan(0.999);
+  });
+
   it('五次确认命中产生一层震势并由升龙消耗', () => {
     const state = new BattlefieldHammerActionState();
     for (let hit = 0; hit < 5; hit++) {
@@ -60,6 +68,11 @@ describe('大锤动作状态', () => {
     expect(state.facingLock?.remainingSeconds).toBeCloseTo(2.6, 6);
     state.update(0.16, DEFINITION, 0.32, EVENTS);
     expect(EVENTS.spinPulse).toBe(true);
+    expect(state.facingLock?.lockedHeading).toBeGreaterThan(1.2);
+    const visualHeading = state.facingLock?.lockedHeading ?? 0;
+    const forwardDot = Math.sin(visualHeading) * Math.sin(visualHeading)
+      + Math.cos(visualHeading) * Math.cos(visualHeading);
+    expect(forwardDot).toBeCloseTo(1, 6);
   });
 
   it('裂地重砸独立消耗震势并在动作中段产生一次冲击', () => {

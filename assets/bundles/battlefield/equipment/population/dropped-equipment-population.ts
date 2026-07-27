@@ -2,6 +2,14 @@ import { type Material, Node } from 'cc';
 import { type LootScatterTrajectory } from '../../loot/model/loot-scatter-trajectory';
 import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
 import { EquipmentId } from '../catalog/equipment-id';
+import {
+  type BattlefieldItemInstance,
+  validateBattlefieldItemInstanceSeed,
+} from '../model/battlefield-item-instance';
+import {
+  createPlayerDiscardTrajectory,
+  type PlayerDiscardTrajectoryRequest,
+} from '../model/player-discard-trajectory';
 import { createDroppedEquipmentMaterial } from '../rendering/dropped-equipment-material';
 import { DroppedEquipmentAccentRenderer } from '../rendering/dropped-equipment-accent-renderer';
 import { DroppedEquipmentRenderer } from '../rendering/dropped-equipment-renderer';
@@ -11,7 +19,8 @@ const EQUIPMENT_INSPECTION_RADIUS = 3.5;
 
 /** HUD 复用的最近落地装备结果。 */
 export interface MutableDroppedEquipmentInspection {
-  instanceId: number;
+  worldRuntimeId: number;
+  itemInstanceSeed: number;
   equipmentId: EquipmentId;
   x: number;
   y: number;
@@ -19,15 +28,21 @@ export interface MutableDroppedEquipmentInspection {
 }
 
 /** 为同一战场中的全部掉落装备分配不会跨宝箱冲突的运行时标识。 */
-export class DroppedEquipmentInstanceIdSequence {
-  private nextInstanceId = 1;
+export class DroppedEquipmentWorldRuntimeIdSequence {
+  private nextWorldRuntimeId = 1;
 
   public allocate(): number {
-    if (!Number.isSafeInteger(this.nextInstanceId)) {
+    if (!Number.isSafeInteger(this.nextWorldRuntimeId)) {
       throw new Error('战场掉落装备实例标识已经耗尽。');
     }
-    return this.nextInstanceId++;
+    return this.nextWorldRuntimeId++;
   }
+}
+
+/** 玩家丢弃一件背包装备时提交给固定掉落池的完整请求。 */
+export interface BattlefieldPlayerDiscardRequest extends PlayerDiscardTrajectoryRequest {
+  readonly equipmentId: EquipmentId;
+  readonly stackCount: number;
 }
 
 /** 管理固定容量掉落槽位、预热批次、动画和近距离查询。 */
@@ -54,7 +69,7 @@ export class DroppedEquipmentPopulation {
 
   constructor(
     private readonly parent: Node,
-    private readonly instanceIds: DroppedEquipmentInstanceIdSequence,
+    private readonly worldRuntimeIds: DroppedEquipmentWorldRuntimeIdSequence,
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
     capacity: number,
   ) {
@@ -96,36 +111,37 @@ export class DroppedEquipmentPopulation {
 
   /** 按一一对应的装备标识和轨迹占用连续空闲槽位。 */
   public spawnBurst(
-    equipmentIds: readonly EquipmentId[],
+    itemInstances: readonly Readonly<BattlefieldItemInstance>[],
     trajectories: readonly Readonly<LootScatterTrajectory>[],
   ): readonly number[] {
     this.ensureActive();
     this.ensurePrewarmed();
-    if (equipmentIds.length !== trajectories.length) {
+    if (itemInstances.length !== trajectories.length) {
       throw new Error('掉落装备数量必须与爆散轨迹数量一致。');
     }
-    if (this.itemCount + equipmentIds.length > this.items.length) {
+    if (this.itemCount + itemInstances.length > this.items.length) {
       throw new Error('活动 Chunk 的掉落装备数量超过预热固定容量。');
     }
     const firstSlot = this.itemCount;
-    const instanceIds: number[] = [];
+    const spawnedWorldRuntimeIds: number[] = [];
     try {
-      for (let index = 0; index < equipmentIds.length; index++) {
-        const equipmentId = equipmentIds[index];
+      for (let index = 0; index < itemInstances.length; index++) {
+        const itemInstance = itemInstances[index];
         const trajectory = trajectories[index];
-        if (equipmentId === undefined || trajectory === undefined) {
+        if (itemInstance === undefined || trajectory === undefined) {
           throw new Error('掉落装备或爆散轨迹索引不存在。');
         }
-        const instanceId = this.instanceIds.allocate();
+        const worldRuntimeId = this.worldRuntimeIds.allocate();
         this.items[this.itemCount++] = new DroppedEquipmentRuntime(
-          instanceId,
-          equipmentId,
+          worldRuntimeId,
+          itemInstance.itemInstanceSeed,
+          itemInstance.equipmentId,
           trajectory,
         );
-        instanceIds.push(instanceId);
+        spawnedWorldRuntimeIds.push(worldRuntimeId);
       }
       this.synchronizeRendering();
-      return Object.freeze(instanceIds);
+      return Object.freeze(spawnedWorldRuntimeIds);
     } catch (error: unknown) {
       while (this.itemCount > firstSlot) {
         const slot = --this.itemCount;
@@ -135,6 +151,33 @@ export class DroppedEquipmentPopulation {
       this.synchronizeRendering();
       throw error;
     }
+  }
+
+  /** 当前固定池是否能原子接纳一件玩家丢弃物。 */
+  public canSpawnPlayerDiscard(): boolean {
+    return !this.disposed && this.itemCount < this.items.length;
+  }
+
+  /** 容量充足时创建新世界身份，并保留装备自身的永久实例种子。 */
+  public trySpawnPlayerDiscard(request: Readonly<BattlefieldPlayerDiscardRequest>): boolean {
+    this.ensureActive();
+    this.ensurePrewarmed();
+    validateBattlefieldItemInstanceSeed(request.itemInstanceSeed);
+    if (!Number.isSafeInteger(request.stackCount) || request.stackCount !== 1) {
+      throw new Error('当前玩家丢弃只接受一件不可堆叠装备。');
+    }
+    if (!this.canSpawnPlayerDiscard()) {
+      return false;
+    }
+    const worldRuntimeId = this.worldRuntimeIds.allocate();
+    this.items[this.itemCount++] = new DroppedEquipmentRuntime(
+      worldRuntimeId,
+      request.itemInstanceSeed,
+      request.equipmentId,
+      createPlayerDiscardTrajectory(request),
+    );
+    this.synchronizeRendering();
+    return true;
   }
 
   public update(deltaTime: number): void {
@@ -176,24 +219,32 @@ export class DroppedEquipmentPopulation {
       return false;
     }
     result.equipmentId = best.equipmentId;
-    result.instanceId = best.instanceId;
+    result.worldRuntimeId = best.worldRuntimeId;
+    result.itemInstanceSeed = best.itemInstanceSeed;
     result.x = best.x;
     result.y = best.y + 0.72;
     result.z = best.z;
     return true;
   }
 
-  public getEquipmentId(instanceId: number): EquipmentId | null {
-    const index = this.findLandedIndex(instanceId);
-    return index < 0 ? null : this.requireItem(index).equipmentId;
+  public getItem(worldRuntimeId: number): Readonly<BattlefieldItemInstance> | null {
+    const index = this.findLandedIndex(worldRuntimeId);
+    if (index < 0) {
+      return null;
+    }
+    const item = this.requireItem(index);
+    return Object.freeze({
+      equipmentId: item.equipmentId,
+      itemInstanceSeed: item.itemInstanceSeed,
+    });
   }
 
   /** 用末尾活动槽位回填空洞，避免索引流重排或渲染器重建。 */
-  public remove(instanceId: number): boolean {
+  public remove(worldRuntimeId: number): boolean {
     if (this.disposed) {
       return false;
     }
-    const index = this.findLandedIndex(instanceId);
+    const index = this.findLandedIndex(worldRuntimeId);
     if (index < 0) {
       return false;
     }
@@ -203,14 +254,14 @@ export class DroppedEquipmentPopulation {
   }
 
   /** Chunk 离场时批量释放所有权范围内的掉落，并只同步一次活动前缀。 */
-  public removeOwned(instanceIds: readonly number[]): void {
-    if (this.disposed || instanceIds.length === 0) {
+  public removeOwned(worldRuntimeIds: readonly number[]): void {
+    if (this.disposed || worldRuntimeIds.length === 0) {
       return;
     }
-    const ownedIds = new Set(instanceIds);
+    const ownedIds = new Set(worldRuntimeIds);
     let removed = false;
     for (let index = this.itemCount - 1; index >= 0; index--) {
-      if (ownedIds.has(this.requireItem(index).instanceId)) {
+      if (ownedIds.has(this.requireItem(index).worldRuntimeId)) {
         this.removeAt(index);
         removed = true;
       }
@@ -237,13 +288,13 @@ export class DroppedEquipmentPopulation {
     this.material.destroy();
   }
 
-  private findLandedIndex(instanceId: number): number {
+  private findLandedIndex(worldRuntimeId: number): number {
     if (this.disposed) {
       return -1;
     }
     for (let index = 0; index < this.itemCount; index++) {
       const item = this.requireItem(index);
-      if (item.instanceId === instanceId && item.landed) {
+      if (item.worldRuntimeId === worldRuntimeId && item.landed) {
         return index;
       }
     }

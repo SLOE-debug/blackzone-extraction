@@ -1,6 +1,7 @@
 import { type StaticSurfaceBufferGeometry } from '../../../../core/geometry/buffer-geometry';
 import { WeaponGrip } from '../../../../core/equipment/equipment';
 import { type BattlefieldEquipmentDefinitionById } from './battlefield-equipment-contracts';
+import { type EquipmentHudProfile } from './equipment-hud-profile';
 import { EquipmentId } from './equipment-id';
 
 /** 一件装备在世界掉落状态下的稳定展示尺度。 */
@@ -14,6 +15,7 @@ export interface HeldEquipmentProfile {
   readonly grip: WeaponGrip;
   readonly heldScale: number;
   readonly mainGripLocalPosition: Readonly<{ x: number; y: number; z: number }>;
+  readonly supportGripLocalPosition: Readonly<{ x: number; y: number; z: number }>;
   readonly hammerHeadLocalPosition: Readonly<{ x: number; y: number; z: number }>;
   readonly hammerHeadRadius: number;
 }
@@ -25,6 +27,7 @@ export interface BattlefieldEquipmentPrototype<TId extends EquipmentId> {
   readonly geometry: StaticSurfaceBufferGeometry;
   readonly dropped: Readonly<DroppedEquipmentProfile>;
   readonly held: Readonly<HeldEquipmentProfile>;
+  readonly hud: Readonly<EquipmentHudProfile>;
 }
 
 /** 战场装备标识到完整原型类别的编译期映射。 */

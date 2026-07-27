@@ -15,7 +15,7 @@ const EQUIPMENT_SURFACE_OPTIONS = Object.freeze({ castShadows: false, receiveSha
 
 /** 掉落物固定槽位读取的稳定姿态契约。 */
 export interface DroppedEquipmentRenderItem {
-  readonly instanceId: number;
+  readonly worldRuntimeId: number;
   readonly equipmentId: EquipmentId;
   readonly poseRevision: number;
   readonly x: number;
@@ -86,12 +86,12 @@ export class DroppedEquipmentRenderer {
       if (item === null || item === undefined || item.equipmentId !== this.equipmentId) {
         throw new Error('掉落装备活动槽位与预热原型不一致。');
       }
-      if ((this.instanceIds[index] ?? -1) === item.instanceId
+      if ((this.instanceIds[index] ?? -1) === item.worldRuntimeId
         && (this.poseRevisions[index] ?? 0) === item.poseRevision) {
         continue;
       }
       this.writePose(index, item);
-      this.instanceIds[index] = item.instanceId;
+      this.instanceIds[index] = item.worldRuntimeId;
       this.poseRevisions[index] = item.poseRevision;
       positionDirty = true;
     }

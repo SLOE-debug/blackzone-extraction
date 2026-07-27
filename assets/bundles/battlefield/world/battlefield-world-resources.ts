@@ -2,7 +2,7 @@ import { type ChunkRuntimeRegistry } from '../../../core/world/chunk-runtime-reg
 import { type VanguardPopulation } from '../../../player/vanguard';
 import { type BattlefieldPerformanceLogger } from '../debug/battlefield-performance-logger';
 import { type BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
-import { type BattlefieldPlayerWeaponRuntime } from '../equipment/population/battlefield-player-weapon-runtime';
+import { type BattlefieldPlayerEquipmentRuntime } from '../equipment/population/battlefield-player-weapon-runtime';
 import { type BattlefieldInventoryRuntime } from '../equipment/inventory/population/battlefield-inventory-runtime';
 import { type BattlefieldSceneInteractionSystem } from '../interaction/population/battlefield-scene-interaction-system';
 import { type BattlefieldMonsterPopulation } from '../population/battlefield-monster-population';
@@ -19,7 +19,7 @@ export interface BattlefieldWorldResources {
   readonly environment: BattlefieldEnvironmentPopulation;
   readonly chunks: ChunkRuntimeRegistry<BattlefieldEnvironmentPopulation>;
   readonly ground: BattlefieldGroundRenderer;
-  readonly weapon: BattlefieldPlayerWeaponRuntime;
+  readonly weapon: BattlefieldPlayerEquipmentRuntime;
   readonly inventory: BattlefieldInventoryRuntime;
   readonly monsters: BattlefieldMonsterPopulation;
   readonly treasures: BattlefieldTreasurePopulation;

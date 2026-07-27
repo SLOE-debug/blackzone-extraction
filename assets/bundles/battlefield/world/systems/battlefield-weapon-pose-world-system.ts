@@ -4,7 +4,7 @@ import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
-/** 在角色动画刷新后把右手权威挂点提交给大锤渲染器。 */
+/** 在角色动画刷新后把双手握点和唯一 WeaponRoot 提交给装备渲染器。 */
 export class BattlefieldWeaponPoseWorldSystem extends BattlefieldWorldSystem {
   public readonly phase = WorldPhase.PreSimulation;
   public readonly order = 20;
@@ -20,6 +20,12 @@ export class BattlefieldWeaponPoseWorldSystem extends BattlefieldWorldSystem {
     forwardX: 0,
     forwardY: 0,
     forwardZ: 1,
+    mainGripX: 0,
+    mainGripY: 0,
+    mainGripZ: 0,
+    supportGripX: 0,
+    supportGripY: 0,
+    supportGripZ: 0,
   };
 
   protected execute(world: BattlefieldWorld): void {

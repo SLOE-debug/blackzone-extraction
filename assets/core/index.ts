@@ -12,6 +12,7 @@ export {
   EquipmentRarity,
   WeaponAction,
   WeaponGrip,
+  WeaponSkillCommand,
   WeaponKind,
   type EquipmentDefinition,
   type EquipmentLibrary,

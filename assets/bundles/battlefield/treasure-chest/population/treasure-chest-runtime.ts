@@ -3,6 +3,10 @@ import { normalizeRandomSeed } from '../../../../core/math/xorshift32';
 import { DroppedEquipmentPopulation } from '../../equipment/population/dropped-equipment-population';
 import { type BattlefieldEquipmentLibrary } from '../../equipment/catalog/battlefield-equipment-contracts';
 import { EquipmentId } from '../../equipment/catalog/equipment-id';
+import {
+  type BattlefieldItemInstance,
+  BattlefieldItemInstanceSeedSequence,
+} from '../../equipment/model/battlefield-item-instance';
 import { createLootRuntimeRandomSeed } from '../../loot/model/loot-scatter-random-seed';
 import { createLootScatterTrajectories } from '../../loot/model/loot-scatter-trajectory';
 import {
@@ -51,6 +55,7 @@ export class TreasureChestRuntime {
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
     private readonly drops: DroppedEquipmentPopulation,
+    private readonly itemInstanceSeeds: BattlefieldItemInstanceSeedSequence,
   ) {
     if (!Number.isSafeInteger(id) || id <= 0) {
       throw new Error('宝箱运行时标识必须是正安全整数。');
@@ -93,10 +98,10 @@ export class TreasureChestRuntime {
     }
     this.lootRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x9e3779b1);
     this.scatterRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x85ebca6b);
-    const equipmentIds = this.rollLoot();
+    const itemInstances = this.rollLoot();
     this.sessionState.open(
       this.spawn.key,
-      equipmentIds,
+      itemInstances,
       this.scatterRandomState[0] ?? 1,
     );
     this.phase = TreasureChestPhase.Opening;
@@ -144,22 +149,22 @@ export class TreasureChestRuntime {
   }
 
   /** 判断一个全局掉落实例当前是否由本宝箱拥有。 */
-  public ownsDroppedEquipment(instanceId: number): boolean {
-    return this.dropInstanceIds.includes(instanceId);
+  public ownsDroppedEquipment(worldRuntimeId: number): boolean {
+    return this.dropInstanceIds.includes(worldRuntimeId);
   }
 
   /** 移除本宝箱掉落群中已经完成拾取的装备实例。 */
-  public removeDroppedEquipment(instanceId: number): boolean {
-    const ownedIndex = this.dropInstanceIds.indexOf(instanceId);
+  public removeDroppedEquipment(worldRuntimeId: number): boolean {
+    const ownedIndex = this.dropInstanceIds.indexOf(worldRuntimeId);
     if (ownedIndex < 0) {
       return false;
     }
-    const equipmentId = this.drops.getEquipmentId(instanceId);
-    if (equipmentId === null || !this.drops.remove(instanceId)) {
+    const item = this.drops.getItem(worldRuntimeId);
+    if (item === null || !this.drops.remove(worldRuntimeId)) {
       return false;
     }
     this.dropInstanceIds.splice(ownedIndex, 1);
-    this.sessionState.consumeLoot(this.spawn.key, equipmentId);
+    this.sessionState.consumeLoot(this.spawn.key, item.itemInstanceSeed);
     return true;
   }
 
@@ -186,37 +191,42 @@ export class TreasureChestRuntime {
   }
 
   /** 第一次开箱时确定并校验整组战利品，后续 Chunk 重载不再重新抽取。 */
-  private rollLoot(): readonly EquipmentId[] {
+  private rollLoot(): readonly Readonly<BattlefieldItemInstance>[] {
     const equipmentIds = this.lootTable.roll(this.lootRandomState, 0);
+    const itemInstances: Readonly<BattlefieldItemInstance>[] = [];
     for (const equipmentId of equipmentIds) {
       this.equipmentLibrary.get(equipmentId);
+      itemInstances.push(Object.freeze({
+        equipmentId,
+        itemInstanceSeed: this.itemInstanceSeeds.allocate(),
+      }));
     }
-    return equipmentIds;
+    return Object.freeze(itemInstances);
   }
 
   /** 使用会话中剩余的装备和首次开箱种子生成当前 Chunk 的掉落实例。 */
   private releaseLoot(): number {
-    const equipmentIds = this.sessionState.getRemainingLoot(this.spawn.key);
+    const itemInstances = this.sessionState.getRemainingLoot(this.spawn.key);
     const scatterSeed = this.sessionState.getScatterSeed(this.spawn.key);
-    if (equipmentIds === null || scatterSeed === null) {
+    if (itemInstances === null || scatterSeed === null) {
       throw new Error(`已打开宝箱缺少会话战利品状态：${this.spawn.key}`);
     }
-    if (equipmentIds.length === 0) {
+    if (itemInstances.length === 0) {
       this.lootReleased = true;
       return 0;
     }
     this.scatterRandomState[0] = scatterSeed;
     const trajectories = createLootScatterTrajectories(
-      equipmentIds.length,
+      itemInstances.length,
       this.scatterRandomState,
       0,
       this.spawn.x,
       this.spawn.y + TREASURE_CHEST_LAYOUT.lootReleaseHeight,
       this.spawn.z,
     );
-    const instanceIds = this.drops.spawnBurst(equipmentIds, trajectories);
-    this.dropInstanceIds.push(...instanceIds);
+    const worldRuntimeIds = this.drops.spawnBurst(itemInstances, trajectories);
+    this.dropInstanceIds.push(...worldRuntimeIds);
     this.lootReleased = true;
-    return equipmentIds.length;
+    return itemInstances.length;
   }
 }

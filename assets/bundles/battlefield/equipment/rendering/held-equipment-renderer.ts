@@ -1,5 +1,4 @@
 import { type Material, Node, Quat } from 'cc';
-import { WeaponAction } from '../../../../core/equipment/equipment';
 import { StaticSurfaceMesh } from '../../../../core/rendering/static-surface-mesh';
 import {
   BattlefieldHammerPoseSolver,
@@ -64,15 +63,12 @@ export class HeldEquipmentRenderer {
 
   /** 用主握点与锤头轨迹反解模型变换，并返回同源锤头权威位置。 */
   public setRigPose(
-    action: WeaponAction,
-    progress: number,
-    recoverSide: -1 | 0 | 1,
     grip: Readonly<BattlefieldHammerGripPose>,
   ): Readonly<MutableBattlefieldHammerWorldPose> {
     if (this.disposed) {
       throw new Error('手持装备渲染器已经释放。');
     }
-    this.poseSolver.solve(this.profile, grip, action, progress, recoverSide, this.worldPose);
+    this.poseSolver.solve(this.profile, grip, this.worldPose);
     this.root.setPosition(this.worldPose.rootX, this.worldPose.rootY, this.worldPose.rootZ);
     this.finalRotation.set(
       this.worldPose.rotationX,

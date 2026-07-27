@@ -27,7 +27,11 @@ describe('纯近战装备清单', () => {
 
   it('手持与掉落原型共用类型化大锤几何', () => {
     const prototype = getBattlefieldEquipmentPrototype(EquipmentId.Sledgehammer);
-    expect(prototype.held.grip).toBe(WeaponGrip.OneHandHeavy);
+    expect(prototype.held.grip).toBe(WeaponGrip.TwoHandHeavy);
+    expect(prototype.held.supportGripLocalPosition.y).toBeLessThan(
+      prototype.held.mainGripLocalPosition.y,
+    );
+    expect(prototype.hud.skills).toHaveLength(3);
     expect(prototype.geometry.vertexCount).toBeGreaterThan(0);
     expect(prototype.geometry.indexCount).toBeGreaterThan(0);
     expect(prototype.dropped.boundsRadius).toBeGreaterThan(0);

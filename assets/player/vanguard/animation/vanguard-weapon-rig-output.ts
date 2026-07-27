@@ -4,6 +4,11 @@ import {
 } from '../model/vanguard-bone';
 import { type VanguardState } from '../model/vanguard-state';
 import { type MutableVanguardWeaponRigPose } from '../model/vanguard-weapon-rig-pose';
+import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
+import {
+  getVanguardWeaponRigProfile,
+  VanguardWeaponRigSocket,
+} from '../model/vanguard-weapon-rig';
 
 const EPSILON = 0.000001;
 
@@ -29,6 +34,22 @@ export function writeVanguardWeaponRigPose(
   result.forwardX = (matrices[offset + 6] ?? 0) / scale;
   result.forwardY = (matrices[offset + 7] ?? 0) / scale;
   result.forwardZ = (matrices[offset + 8] ?? 1) / scale;
+  const weaponPose = state.data.animation.weaponPose[entityIndex] as VanguardWeaponPose;
+  const profile = getVanguardWeaponRigProfile(weaponPose);
+  writeSocketPosition(
+    matrices,
+    offset,
+    profile.sockets[VanguardWeaponRigSocket.MainGrip],
+    result,
+    true,
+  );
+  writeSocketPosition(
+    matrices,
+    offset,
+    profile.sockets[VanguardWeaponRigSocket.SupportGrip],
+    result,
+    false,
+  );
   writeBasisQuaternion(
     result,
     (matrices[offset] ?? 1) / scale,
@@ -41,6 +62,36 @@ export function writeVanguardWeaponRigPose(
     (matrices[offset + 7] ?? 0) / scale,
     (matrices[offset + 8] ?? 1) / scale,
   );
+}
+
+function writeSocketPosition(
+  matrices: Float32Array,
+  offset: number,
+  socket: Readonly<{ x: number; y: number; z: number }>,
+  result: MutableVanguardWeaponRigPose,
+  main: boolean,
+): void {
+  const x = (matrices[offset + 9] ?? 0)
+    + (matrices[offset] ?? 1) * socket.x
+    + (matrices[offset + 3] ?? 0) * socket.y
+    + (matrices[offset + 6] ?? 0) * socket.z;
+  const y = (matrices[offset + 10] ?? 0)
+    + (matrices[offset + 1] ?? 0) * socket.x
+    + (matrices[offset + 4] ?? 1) * socket.y
+    + (matrices[offset + 7] ?? 0) * socket.z;
+  const z = (matrices[offset + 11] ?? 0)
+    + (matrices[offset + 2] ?? 0) * socket.x
+    + (matrices[offset + 5] ?? 0) * socket.y
+    + (matrices[offset + 8] ?? 1) * socket.z;
+  if (main) {
+    result.mainGripX = x;
+    result.mainGripY = y;
+    result.mainGripZ = z;
+  } else {
+    result.supportGripX = x;
+    result.supportGripY = y;
+    result.supportGripZ = z;
+  }
 }
 
 function writeBasisQuaternion(

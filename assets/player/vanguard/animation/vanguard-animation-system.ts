@@ -6,11 +6,23 @@ import { type VanguardState } from '../model/vanguard-state';
 import { VanguardWeaponAction } from '../model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
 import { writeVanguardPoseMatrices } from './vanguard-pose';
+import {
+  type VanguardWeaponAnimationPoseState,
+  updateVanguardWeaponAnimationState,
+  VANGUARD_WEAPON_ANIMATION_REST_STATE,
+  writeVanguardWeaponAnimationPoseState,
+} from './vanguard-weapon-animation-state';
+import { createVanguardTwoHandIkWorkspace } from './vanguard-two-hand-heavy-pose';
 
 const IDLE_CYCLE_SECONDS = 6.4;
 
 /** 负责主角待机细节、旧版直接骨段步态与武器姿势混合。 */
 export class VanguardAnimationSystem implements EntitySystem<VanguardState, number> {
+  private readonly weaponPoseState: VanguardWeaponAnimationPoseState = {
+    ...VANGUARD_WEAPON_ANIMATION_REST_STATE,
+  };
+  private readonly twoHandIkWorkspace = createVanguardTwoHandIkWorkspace();
+
   /** 在渲染器创建前写入完整绑定姿态。 */
   public initialize(state: VanguardState): void {
     for (let index = 0; index < state.count; index++) {
@@ -59,6 +71,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       if (!weaponReady && (animation.weaponStanceBlend[index] ?? 0) <= 0.01) {
         animation.weaponPose[index] = VanguardWeaponPose.Unarmed;
       }
+      updateVanguardWeaponAnimationState(state.data, index, deltaTime);
       this.writePose(state, index);
     }
   }
@@ -66,6 +79,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
   /** 直接把角色局部关节点写成世界空间骨段矩阵。 */
   private writePose(state: VanguardState, index: number): void {
     const { transform, morphology, intent, animation, pose } = state.data;
+    writeVanguardWeaponAnimationPoseState(state.data, index, this.weaponPoseState);
     writeVanguardPoseMatrices(
       pose.boneMatrices,
       index,
@@ -82,6 +96,8 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       intent.weaponAction[index] as VanguardWeaponAction,
       intent.weaponActionProgress[index] ?? 0,
       (intent.weaponActionSide[index] ?? 0) as -1 | 0 | 1,
+      this.weaponPoseState,
+      this.twoHandIkWorkspace,
     );
   }
 }

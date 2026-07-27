@@ -47,7 +47,7 @@ export function validateVanguardControlIntent(
   }
   if (!Number.isInteger(intent.weaponPose)
     || intent.weaponPose < VanguardWeaponPose.Unarmed
-    || intent.weaponPose > VanguardWeaponPose.OneHandHeavy
+    || intent.weaponPose > VanguardWeaponPose.TwoHandHeavy
     || !Number.isInteger(intent.weaponAction)
     || intent.weaponAction < VanguardWeaponAction.Idle
     || intent.weaponAction > VanguardWeaponAction.Recover

@@ -98,7 +98,9 @@ export class BattlefieldHammerActionState {
       return null;
     }
     this.facingLockEffect.source = source;
-    this.facingLockEffect.lockedHeading = this.lockedHeading;
+    this.facingLockEffect.lockedHeading = this.actionValue === WeaponAction.Spin
+      ? this.lockedHeading + this.progress * Math.PI * 6
+      : this.lockedHeading;
     this.facingLockEffect.remainingSeconds = Math.max(0, this.duration - this.elapsed);
     return this.facingLockEffect;
   }
@@ -273,6 +275,22 @@ export class BattlefieldHammerActionState {
       this.hitCountValue = 0;
       this.momentumChargesValue = 1;
     }
+  }
+
+  /** 卸下武器时清空动作、连击、震势和朝向锁定。 */
+  public reset(): void {
+    this.actionValue = WeaponAction.Idle;
+    this.elapsed = 0;
+    this.duration = 1;
+    this.impactEmitted = false;
+    this.nextSpinPulseTime = 0;
+    this.directionXValue = 0;
+    this.directionZValue = 1;
+    this.hitCountValue = 0;
+    this.momentumChargesValue = 0;
+    this.comboRemaining = 0;
+    this.hitStopRemaining = 0;
+    this.poseSideValue = 0;
   }
 
   private canStartAction(): boolean {

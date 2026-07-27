@@ -15,7 +15,17 @@ export interface BattlefieldInventorySlot {
 export interface BattlefieldInventorySnapshot {
   readonly slots: readonly Readonly<BattlefieldInventorySlot>[];
   readonly secured: Readonly<BattlefieldInventorySlot>;
+  readonly selectedInstanceSeed: number | null;
   readonly revision: number;
+}
+
+/** 从普通格暂时提取、可在同一事务内恢复的完整物品。 */
+export interface BattlefieldInventoryTransfer {
+  readonly sourceSlotIndex: number;
+  readonly itemId: EquipmentId;
+  readonly stackCount: number;
+  readonly instanceSeed: number;
+  readonly wasSelected: boolean;
 }
 
 /** 创建不会被调用方修改的空格快照。 */

@@ -18,7 +18,7 @@ describe('事务式物品栏拾取', () => {
         calls.push('insert');
         expect(equipmentId).toBe(EquipmentId.Sledgehammer);
         expect(count).toBe(1);
-        expect(seed).toBe(73);
+        expect(seed).toBe(907);
         return true;
       },
     });
@@ -48,10 +48,15 @@ describe('事务式物品栏拾取', () => {
   });
 });
 
-function createSource(remove: (instanceId: number) => boolean): BattlefieldEquipmentPickupSource {
+function createSource(
+  remove: (worldRuntimeId: number) => boolean,
+): BattlefieldEquipmentPickupSource {
   return {
     writeNearestEquipmentInspection: () => false,
-    getDroppedEquipmentId: () => EquipmentId.Sledgehammer,
+    getDroppedEquipment: () => Object.freeze({
+      equipmentId: EquipmentId.Sledgehammer,
+      itemInstanceSeed: 907,
+    }),
     removeDroppedEquipment: remove,
   };
 }

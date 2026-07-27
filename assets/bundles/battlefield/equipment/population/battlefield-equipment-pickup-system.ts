@@ -1,4 +1,5 @@
 import { EquipmentId } from '../catalog/equipment-id';
+import { type BattlefieldItemInstance } from '../model/battlefield-item-instance';
 import {
   BattlefieldInteractionAction,
   type BattlefieldInteractionProvider,
@@ -13,8 +14,8 @@ export interface BattlefieldEquipmentPickupSource {
     playerZ: number,
     result: MutableDroppedEquipmentInspection,
   ): boolean;
-  getDroppedEquipmentId(instanceId: number): EquipmentId | null;
-  removeDroppedEquipment(instanceId: number): boolean;
+  getDroppedEquipment(worldRuntimeId: number): Readonly<BattlefieldItemInstance> | null;
+  removeDroppedEquipment(worldRuntimeId: number): boolean;
 }
 
 /** 拾取事务依赖的固定容量物品栏门面。 */
@@ -25,7 +26,8 @@ export interface BattlefieldEquipmentInventory {
 /** 把最近掉落物查询适配为拾取交互，并保证满包时地面物品不会丢失。 */
 export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionProvider {
   private readonly inspection: MutableDroppedEquipmentInspection = {
-    instanceId: -1,
+    worldRuntimeId: -1,
+    itemInstanceSeed: 1,
     equipmentId: EquipmentId.Sledgehammer,
     x: 0,
     y: 0,
@@ -47,7 +49,7 @@ export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionP
     }
     const deltaX = this.inspection.x - playerX;
     const deltaZ = this.inspection.z - playerZ;
-    result.sourceId = this.inspection.instanceId;
+    result.sourceId = this.inspection.worldRuntimeId;
     result.action = BattlefieldInteractionAction.PickupEquipment;
     result.x = this.inspection.x;
     result.z = this.inspection.z;
@@ -62,12 +64,11 @@ export class BattlefieldEquipmentPickupSystem implements BattlefieldInteractionP
     if (action !== BattlefieldInteractionAction.PickupEquipment) {
       return false;
     }
-    const equipmentId = this.source.getDroppedEquipmentId(sourceId);
-    if (equipmentId === null) {
+    const item = this.source.getDroppedEquipment(sourceId);
+    if (item === null) {
       return false;
     }
-    // 实例标识同时作为拾取种子，Chunk 重载后仍能保持同一世界物品身份。
-    if (!this.inventory.tryInsert(equipmentId, 1, sourceId)) {
+    if (!this.inventory.tryInsert(item.equipmentId, 1, item.itemInstanceSeed)) {
       return false;
     }
     if (!this.source.removeDroppedEquipment(sourceId)) {

@@ -1,12 +1,17 @@
 import { type BattlefieldEquipmentLibrary } from '../../catalog/battlefield-equipment-contracts';
 import { EquipmentId } from '../../catalog/equipment-id';
 import {
+  type BattlefieldItemInstance,
+  validateBattlefieldItemInstanceSeed,
+} from '../../model/battlefield-item-instance';
+import {
   BATTLEFIELD_INVENTORY_CAPACITY,
   type BattlefieldInventorySlot,
   type BattlefieldInventorySnapshot,
+  type BattlefieldInventoryTransfer,
 } from '../model/battlefield-inventory-state';
 
-/** 固定五格物品栏与独立撤离锁定格的事务式运行时。 */
+/** 固定五格物品栏、独立撤离锁定格与稳定装备选择的事务式运行时。 */
 export class BattlefieldInventoryRuntime {
   private readonly itemIds: Array<EquipmentId | null> = Array.from(
     { length: BATTLEFIELD_INVENTORY_CAPACITY },
@@ -19,6 +24,7 @@ export class BattlefieldInventoryRuntime {
   private securedStackCount = 0;
   private securedInstanceSeed = 0;
   private securedOccupied = false;
+  private selectedInstanceSeedValue: number | null = null;
   private nextInstanceSeed = 1;
   private revisionValue = 1;
 
@@ -28,62 +34,83 @@ export class BattlefieldInventoryRuntime {
     return this.revisionValue;
   }
 
+  /** 当前装备选择绑定永久物品实例，不绑定可变化的格子索引。 */
+  public get selectedInstanceSeed(): number | null {
+    return this.selectedInstanceSeedValue;
+  }
+
   /**
-   * 事务式插入整组物品。
+   * 事务式插入一个完整物品实例。
    *
-   * 容量不足时不会改写任何格子，调用方因此可以安全保留地面物品。
+   * 当前装备均为不可堆叠武器；显式种子已经存在或没有空格时不会改写状态。
    */
   public tryInsert(
     itemId: EquipmentId,
     stackCount = 1,
     instanceSeed?: number,
   ): boolean {
-    if (!Number.isSafeInteger(stackCount) || stackCount <= 0
-      || (instanceSeed !== undefined
-        && (!Number.isSafeInteger(instanceSeed) || instanceSeed <= 0))) {
-      throw new Error('物品栏插入数量和实例种子必须为正安全整数。');
+    if (!Number.isSafeInteger(stackCount) || stackCount <= 0) {
+      throw new Error('物品栏插入数量必须是正安全整数。');
     }
     const definition = this.equipmentLibrary.get(itemId);
-    const maximumStack = definition.maximumStack;
-    let available = 0;
-    for (let index = 0; index < BATTLEFIELD_INVENTORY_CAPACITY; index++) {
-      if ((this.occupied[index] ?? 0) === 0) {
-        available += maximumStack;
-      } else if (this.itemIds[index] === itemId) {
-        available += Math.max(0, maximumStack - (this.stackCounts[index] ?? 0));
-      }
+    if (stackCount > definition.maximumStack) {
+      throw new Error('单个装备实例数量不能超过原型最大堆叠。');
     }
-    if (available < stackCount) {
+    const slotIndex = this.findEmptySlot();
+    if (slotIndex < 0) {
       return false;
     }
     const resolvedInstanceSeed = instanceSeed ?? this.allocateInstanceSeed();
-
-    let remaining = stackCount;
-    for (let index = 0; index < BATTLEFIELD_INVENTORY_CAPACITY && remaining > 0; index++) {
-      if ((this.occupied[index] ?? 0) === 0 || this.itemIds[index] !== itemId) {
-        continue;
-      }
-      const current = this.stackCounts[index] ?? 0;
-      const inserted = Math.min(remaining, maximumStack - current);
-      this.stackCounts[index] = current + inserted;
-      remaining -= inserted;
+    validateBattlefieldItemInstanceSeed(resolvedInstanceSeed);
+    if (this.containsInstance(resolvedInstanceSeed)) {
+      return false;
     }
-    for (let index = 0; index < BATTLEFIELD_INVENTORY_CAPACITY && remaining > 0; index++) {
-      if ((this.occupied[index] ?? 0) !== 0) {
-        continue;
-      }
-      const inserted = Math.min(remaining, maximumStack);
-      this.itemIds[index] = itemId;
-      this.stackCounts[index] = inserted;
-      this.instanceSeeds[index] = resolvedInstanceSeed;
-      this.occupied[index] = 1;
-      remaining -= inserted;
-    }
+    this.writeSlot(slotIndex, itemId, stackCount, resolvedInstanceSeed);
     this.invalidate();
     return true;
   }
 
-  /** 把普通格与撤离锁定格交换，保证锁定格始终不挤占普通容量。 */
+  /** 选择普通格中的稳定物品实例，传入空值则卸下当前装备。 */
+  public selectItem(instanceSeed: number | null): boolean {
+    if (instanceSeed !== null) {
+      validateBattlefieldItemInstanceSeed(instanceSeed);
+      if (this.findOrdinarySlotByInstanceSeed(instanceSeed) < 0) {
+        return false;
+      }
+    }
+    if (this.selectedInstanceSeedValue === instanceSeed) {
+      return false;
+    }
+    this.selectedInstanceSeedValue = instanceSeed;
+    this.invalidate();
+    return true;
+  }
+
+  /** 交换两个普通格；装备选择会随实例移动。 */
+  public swapSlots(first: number, second: number): boolean {
+    this.validateSlotIndex(first);
+    this.validateSlotIndex(second);
+    if (first === second
+      || ((this.occupied[first] ?? 0) === 0 && (this.occupied[second] ?? 0) === 0)) {
+      return false;
+    }
+    const itemId = this.itemIds[first] ?? null;
+    const stackCount = this.stackCounts[first] ?? 0;
+    const instanceSeed = this.instanceSeeds[first] ?? 0;
+    const occupied = this.occupied[first] ?? 0;
+    this.itemIds[first] = this.itemIds[second] ?? null;
+    this.stackCounts[first] = this.stackCounts[second] ?? 0;
+    this.instanceSeeds[first] = this.instanceSeeds[second] ?? 0;
+    this.occupied[first] = this.occupied[second] ?? 0;
+    this.itemIds[second] = itemId;
+    this.stackCounts[second] = stackCount;
+    this.instanceSeeds[second] = instanceSeed;
+    this.occupied[second] = occupied;
+    this.invalidate();
+    return true;
+  }
+
+  /** 把普通格与撤离锁定格交换；进入锁定格的手持物会立即卸下。 */
   public swapWithSecured(slotIndex: number): boolean {
     this.validateSlotIndex(slotIndex);
     if ((this.occupied[slotIndex] ?? 0) === 0 && !this.securedOccupied) {
@@ -101,8 +128,78 @@ export class BattlefieldInventoryRuntime {
     this.securedStackCount = stackCount;
     this.securedInstanceSeed = instanceSeed;
     this.securedOccupied = occupied;
+    this.clearSelectionWhenUnavailable();
     this.invalidate();
     return true;
+  }
+
+  /** 从普通格提取完整实例，供世界丢弃事务提交或回滚。 */
+  public extractSlot(slotIndex: number, amount?: number): BattlefieldInventoryTransfer | null {
+    this.validateSlotIndex(slotIndex);
+    if ((this.occupied[slotIndex] ?? 0) === 0) {
+      return null;
+    }
+    const stackCount = this.stackCounts[slotIndex] ?? 0;
+    if (amount !== undefined && amount !== stackCount) {
+      throw new Error('当前装备实例不支持拆分堆叠。');
+    }
+    const itemId = this.itemIds[slotIndex];
+    const instanceSeed = this.instanceSeeds[slotIndex] ?? 0;
+    if (itemId === null || itemId === undefined || instanceSeed <= 0) {
+      throw new Error('物品栏占用格缺少完整装备身份。');
+    }
+    const transfer = Object.freeze({
+      sourceSlotIndex: slotIndex,
+      itemId,
+      stackCount,
+      instanceSeed,
+      wasSelected: this.selectedInstanceSeedValue === instanceSeed,
+    });
+    this.clearSlot(slotIndex);
+    if (transfer.wasSelected) {
+      this.selectedInstanceSeedValue = null;
+    }
+    this.invalidate();
+    return transfer;
+  }
+
+  /** 把失败世界转移恢复到原格，连同原装备选择一起回滚。 */
+  public restoreTransfer(transfer: Readonly<BattlefieldInventoryTransfer>): void {
+    this.validateSlotIndex(transfer.sourceSlotIndex);
+    validateBattlefieldItemInstanceSeed(transfer.instanceSeed);
+    if ((this.occupied[transfer.sourceSlotIndex] ?? 0) !== 0
+      || this.containsInstance(transfer.instanceSeed)) {
+      throw new Error('物品栏转移无法恢复到已占用或重复实例状态。');
+    }
+    this.writeSlot(
+      transfer.sourceSlotIndex,
+      transfer.itemId,
+      transfer.stackCount,
+      transfer.instanceSeed,
+    );
+    if (transfer.wasSelected) {
+      this.selectedInstanceSeedValue = transfer.instanceSeed;
+    }
+    this.invalidate();
+  }
+
+  /** 返回普通格的不可变快照。 */
+  public getSlot(slotIndex: number): Readonly<BattlefieldInventorySlot> {
+    this.validateSlotIndex(slotIndex);
+    return this.createSlotSnapshot(slotIndex);
+  }
+
+  /** 返回当前选择对应的稳定物品身份。 */
+  public getSelectedItem(): Readonly<BattlefieldItemInstance> | null {
+    const seed = this.selectedInstanceSeedValue;
+    if (seed === null) {
+      return null;
+    }
+    const slotIndex = this.findOrdinarySlotByInstanceSeed(seed);
+    const equipmentId = slotIndex < 0 ? null : this.itemIds[slotIndex];
+    return equipmentId === null || equipmentId === undefined
+      ? null
+      : Object.freeze({ equipmentId, itemInstanceSeed: seed });
   }
 
   /** 生成 HUD 和结算可长期读取的不可变快照。 */
@@ -119,6 +216,7 @@ export class BattlefieldInventoryRuntime {
         instanceSeed: this.securedInstanceSeed,
         occupied: this.securedOccupied,
       }),
+      selectedInstanceSeed: this.selectedInstanceSeedValue,
       revision: this.revisionValue,
     });
   }
@@ -134,11 +232,64 @@ export class BattlefieldInventoryRuntime {
   }
 
   private allocateInstanceSeed(): number {
-    const seed = this.nextInstanceSeed;
-    this.nextInstanceSeed = this.nextInstanceSeed >= 0xffffffff
-      ? 1
-      : this.nextInstanceSeed + 1;
-    return seed;
+    for (let attempt = 0; attempt < 0xffffffff; attempt++) {
+      const seed = this.nextInstanceSeed;
+      this.nextInstanceSeed = this.nextInstanceSeed >= 0xffffffff ? 1 : this.nextInstanceSeed + 1;
+      if (!this.containsInstance(seed)) {
+        return seed;
+      }
+    }
+    throw new Error('物品栏装备实例种子已经耗尽。');
+  }
+
+  private findEmptySlot(): number {
+    for (let index = 0; index < BATTLEFIELD_INVENTORY_CAPACITY; index++) {
+      if ((this.occupied[index] ?? 0) === 0) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  private findOrdinarySlotByInstanceSeed(instanceSeed: number): number {
+    for (let index = 0; index < BATTLEFIELD_INVENTORY_CAPACITY; index++) {
+      if ((this.occupied[index] ?? 0) !== 0
+        && (this.instanceSeeds[index] ?? 0) === instanceSeed) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  private containsInstance(instanceSeed: number): boolean {
+    return this.findOrdinarySlotByInstanceSeed(instanceSeed) >= 0
+      || (this.securedOccupied && this.securedInstanceSeed === instanceSeed);
+  }
+
+  private clearSelectionWhenUnavailable(): void {
+    if (this.selectedInstanceSeedValue !== null
+      && this.findOrdinarySlotByInstanceSeed(this.selectedInstanceSeedValue) < 0) {
+      this.selectedInstanceSeedValue = null;
+    }
+  }
+
+  private writeSlot(
+    slotIndex: number,
+    itemId: EquipmentId,
+    stackCount: number,
+    instanceSeed: number,
+  ): void {
+    this.itemIds[slotIndex] = itemId;
+    this.stackCounts[slotIndex] = stackCount;
+    this.instanceSeeds[slotIndex] = instanceSeed;
+    this.occupied[slotIndex] = 1;
+  }
+
+  private clearSlot(slotIndex: number): void {
+    this.itemIds[slotIndex] = null;
+    this.stackCounts[slotIndex] = 0;
+    this.instanceSeeds[slotIndex] = 0;
+    this.occupied[slotIndex] = 0;
   }
 
   private validateSlotIndex(slotIndex: number): void {

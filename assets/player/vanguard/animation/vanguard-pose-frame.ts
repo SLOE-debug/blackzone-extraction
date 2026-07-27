@@ -213,6 +213,53 @@ export function writeYawPitchFrame(
   );
 }
 
+/** 写入调用方已经正交化的局部基向量，用于双握点共同决定的武器根。 */
+export function writeBasisFrame(
+  matrices: VanguardBoneMatrixArray,
+  entityOffset: number,
+  bone: VanguardBone,
+  originX: number,
+  originY: number,
+  originZ: number,
+  rightX: number,
+  rightY: number,
+  rightZ: number,
+  upX: number,
+  upY: number,
+  upZ: number,
+  forwardX: number,
+  forwardY: number,
+  forwardZ: number,
+  positionX: number,
+  positionY: number,
+  positionZ: number,
+  heading: number,
+  scale: number,
+): void {
+  writeWorldFrame(
+    matrices,
+    entityOffset,
+    bone,
+    originX,
+    originY,
+    originZ,
+    rightX,
+    rightY,
+    rightZ,
+    upX,
+    upY,
+    upZ,
+    forwardX,
+    forwardY,
+    forwardZ,
+    positionX,
+    positionY,
+    positionZ,
+    heading,
+    scale,
+  );
+}
+
 /** 把角色局部矩阵旋转、缩放并平移到世界空间。 */
 function writeWorldFrame(
   matrices: VanguardBoneMatrixArray,

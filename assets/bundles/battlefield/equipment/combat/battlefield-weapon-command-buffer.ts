@@ -41,6 +41,11 @@ export class BattlefieldWeaponCommandBuffer {
     result.uppercutRequested = this.uppercutRequested;
     result.groundSlamRequested = this.groundSlamRequested;
     result.spinRequested = this.spinRequested;
+    this.clear();
+  }
+
+  /** 卸下武器或玩家失效时丢弃尚未消费的一次性命令。 */
+  public clear(): void {
     this.swingRequested = false;
     this.uppercutRequested = false;
     this.groundSlamRequested = false;

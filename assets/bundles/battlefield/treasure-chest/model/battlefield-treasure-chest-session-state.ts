@@ -1,8 +1,11 @@
-import { EquipmentId } from '../../equipment/catalog/equipment-id';
+import {
+  type BattlefieldItemInstance,
+  validateBattlefieldItemInstanceSeed,
+} from '../../equipment/model/battlefield-item-instance';
 import { type BattlefieldTreasureChestKey } from './battlefield-treasure-chest-key';
 
 interface MutableBattlefieldTreasureChestSessionEntry {
-  readonly remainingLoot: EquipmentId[];
+  readonly remainingLoot: BattlefieldItemInstance[];
   readonly scatterSeed: number;
 }
 
@@ -25,7 +28,7 @@ export class BattlefieldTreasureChestSessionState {
   /** 记录第一次打开时已经确定的战利品，禁止同一宝箱重复抽取。 */
   public open(
     key: BattlefieldTreasureChestKey,
-    equipmentIds: readonly EquipmentId[],
+    itemInstances: readonly Readonly<BattlefieldItemInstance>[],
     scatterSeed: number,
   ): void {
     if (this.entries.has(key)) {
@@ -36,8 +39,11 @@ export class BattlefieldTreasureChestSessionState {
       || scatterSeed > 0xffffffff) {
       throw new Error('宝箱战利品爆散种子必须是正安全整数。');
     }
+    for (const item of itemInstances) {
+      validateBattlefieldItemInstanceSeed(item.itemInstanceSeed);
+    }
     this.entries.set(key, {
-      remainingLoot: Array.from(equipmentIds),
+      remainingLoot: itemInstances.map((item) => ({ ...item })),
       scatterSeed,
     });
   }
@@ -45,7 +51,7 @@ export class BattlefieldTreasureChestSessionState {
   /** 返回已打开宝箱尚未拾取的只读装备序列；未打开时返回空值。 */
   public getRemainingLoot(
     key: BattlefieldTreasureChestKey,
-  ): readonly EquipmentId[] | null {
+  ): readonly Readonly<BattlefieldItemInstance>[] | null {
     return this.entries.get(key)?.remainingLoot ?? null;
   }
 
@@ -57,15 +63,18 @@ export class BattlefieldTreasureChestSessionState {
   /** 在玩家成功拾取后从会话状态中消费一件对应装备。 */
   public consumeLoot(
     key: BattlefieldTreasureChestKey,
-    equipmentId: EquipmentId,
+    itemInstanceSeed: number,
   ): void {
     const entry = this.entries.get(key);
     if (entry === undefined) {
       throw new Error(`未打开的宝箱不能消费战利品：${key}`);
     }
-    const index = entry.remainingLoot.indexOf(equipmentId);
+    validateBattlefieldItemInstanceSeed(itemInstanceSeed);
+    const index = entry.remainingLoot.findIndex(
+      (item) => item.itemInstanceSeed === itemInstanceSeed,
+    );
     if (index < 0) {
-      throw new Error(`宝箱会话状态中不存在待消费装备：${equipmentId}`);
+      throw new Error(`宝箱会话状态中不存在待消费装备实例：${itemInstanceSeed}`);
     }
     entry.remainingLoot.splice(index, 1);
   }

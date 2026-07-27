@@ -10,4 +10,10 @@ export interface MutableVanguardWeaponRigPose {
   forwardX: number;
   forwardY: number;
   forwardZ: number;
+  mainGripX: number;
+  mainGripY: number;
+  mainGripZ: number;
+  supportGripX: number;
+  supportGripY: number;
+  supportGripZ: number;
 }

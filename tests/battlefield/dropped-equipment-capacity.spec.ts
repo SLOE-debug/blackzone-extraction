@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { calculateDroppedEquipmentCapacity } from '../../assets/bundles/battlefield/equipment/model/dropped-equipment-capacity';
+import {
+  BATTLEFIELD_MAXIMUM_PLAYER_DISCARDED_EQUIPMENT,
+  calculateDroppedEquipmentCapacity,
+} from '../../assets/bundles/battlefield/equipment/model/dropped-equipment-capacity';
 import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../../assets/bundles/battlefield/environment/model/battlefield-environment-config';
 import { BATTLEFIELD_TREASURE_MAXIMUM_LOOT_COUNT } from '../../assets/bundles/battlefield/loot/model/battlefield-treasure-loot-table';
 import { BATTLEFIELD_TREASURE_CHEST_GENERATION } from '../../assets/bundles/battlefield/treasure-chest/model/battlefield-treasure-chest-spawn';
@@ -10,6 +13,7 @@ describe('掉落装备加载期容量', () => {
       BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.activeChunkRadius,
       BATTLEFIELD_TREASURE_CHEST_GENERATION.maximumChestsPerGeneratedChunk,
       BATTLEFIELD_TREASURE_MAXIMUM_LOOT_COUNT,
-    )).toBe(25);
+      BATTLEFIELD_MAXIMUM_PLAYER_DISCARDED_EQUIPMENT,
+    )).toBe(49);
   });
 });

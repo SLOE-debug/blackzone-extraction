@@ -1,17 +1,19 @@
 import { Color, EventTouch, Graphics, Layers, Node, UITransform } from 'cc';
+import { WeaponSkillCommand } from '../../../core/equipment/equipment';
+import {
+  type EquipmentHudProfile,
+  type WeaponSkillHudPosition,
+  type WeaponSkillHudProfile,
+} from '../equipment/catalog/equipment-hud-profile';
+import { drawBattlefieldSkillIcon } from './battlefield-skill-icon-graphics';
+import { calculateBattlefieldRadialSkillLayout } from './battlefield-radial-skill-layout';
 
 const BUTTON_RADIUS = 31;
 const READY_COLOR = new Color(242, 177, 74, 255);
 const CHARGE_COLOR = new Color(112, 196, 220, 245);
 const EMPTY_COLOR = new Color(74, 91, 98, 190);
 const FILL_COLOR = new Color(45, 53, 55, 225);
-
-/** 三枚径向技能键的固定角度与领域身份。 */
-export enum BattlefieldRadialSkill {
-  Spin,
-  GroundSlam,
-  Uppercut,
-}
+const SKILL_POSITIONS = Object.freeze([0, 1, 2] as const);
 
 /** 世界输入层一次性消费的三路独立技能命令。 */
 export interface BattlefieldRadialSkillCommands {
@@ -26,72 +28,72 @@ interface MutableBattlefieldRadialSkillCommands {
   uppercutRequested: boolean;
 }
 
-/** 统一编排 0°、45°、90° 三枚独立 Node 与独立 Touch ID。 */
+/** 由当前装备原型驱动三枚技能按钮的图标、命令和显隐。 */
 export class BattlefieldRadialSkillButtons {
-  private readonly buttons: Readonly<Record<BattlefieldRadialSkill, BattlefieldRadialSkillButton>>;
+  private readonly buttons: readonly BattlefieldRadialSkillButton[];
   private readonly pending: MutableBattlefieldRadialSkillCommands = createCommands();
   private readonly consumed: MutableBattlefieldRadialSkillCommands = createCommands();
+  private profile: Readonly<EquipmentHudProfile> | null = null;
   private revision = 1;
   private disposed = false;
 
   constructor(parent: Node) {
-    this.buttons = Object.freeze({
-      [BattlefieldRadialSkill.Spin]: new BattlefieldRadialSkillButton(
+    this.buttons = Object.freeze(SKILL_POSITIONS.map((position) => (
+      new BattlefieldRadialSkillButton(
         parent,
-        BattlefieldRadialSkill.Spin,
-        'BattlefieldSpinSkillButton',
+        position,
+        `BattlefieldSkillButton${position + 1}`,
         this.handleRequested,
         this.invalidate,
-      ),
-      [BattlefieldRadialSkill.GroundSlam]: new BattlefieldRadialSkillButton(
-        parent,
-        BattlefieldRadialSkill.GroundSlam,
-        'BattlefieldGroundSlamSkillButton',
-        this.handleRequested,
-        this.invalidate,
-      ),
-      [BattlefieldRadialSkill.Uppercut]: new BattlefieldRadialSkillButton(
-        parent,
-        BattlefieldRadialSkill.Uppercut,
-        'BattlefieldUppercutSkillButton',
-        this.handleRequested,
-        this.invalidate,
-      ),
-    });
+      )
+    )));
   }
 
   public get graphicsRevision(): number {
     return this.revision;
   }
 
-  /** 以右摇杆中心为原点，把技能键放在半径固定的三条射线上。 */
   public setLayout(centerX: number, centerY: number, orbitRadius: number): void {
-    if (![centerX, centerY, orbitRadius].every(Number.isFinite) || orbitRadius <= 0) {
-      throw new Error('径向技能键布局必须使用有限中心和正轨道半径。');
+    const layout = calculateBattlefieldRadialSkillLayout(centerX, centerY, orbitRadius);
+    for (const position of SKILL_POSITIONS) {
+      const point = layout[position];
+      if (point !== undefined) {
+        this.buttons[position]?.setPosition(point.x, point.y);
+      }
     }
-    const diagonal = orbitRadius * Math.SQRT1_2;
-    this.buttons[BattlefieldRadialSkill.Spin].setPosition(
-      centerX + orbitRadius,
-      centerY,
-    );
-    this.buttons[BattlefieldRadialSkill.GroundSlam].setPosition(
-      centerX + diagonal,
-      centerY + diagonal,
-    );
-    this.buttons[BattlefieldRadialSkill.Uppercut].setPosition(
-      centerX,
-      centerY + orbitRadius,
-    );
   }
 
-  /** 三种技能共享震势资源，但保持各自独立的视觉与点击区域。 */
+  /** 同一帧替换当前装备的三枚技能；空手时立即隐藏并清空输入。 */
+  public presentProfile(profile: Readonly<EquipmentHudProfile> | null): void {
+    if (this.profile === profile) {
+      return;
+    }
+    this.profile = profile;
+    const byPosition: Array<Readonly<WeaponSkillHudProfile> | null> = [null, null, null];
+    if (profile !== null) {
+      for (const skill of profile.skills) {
+        if (byPosition[skill.position] !== null) {
+          throw new Error(`装备技能 HUD 位置重复：${skill.position}`);
+        }
+        byPosition[skill.position] = skill;
+      }
+    }
+    for (const position of SKILL_POSITIONS) {
+      this.buttons[position]?.configure(byPosition[position] ?? null);
+    }
+    if (profile === null) {
+      resetCommands(this.pending);
+      resetCommands(this.consumed);
+    }
+    this.invalidate();
+  }
+
   public presentCharge(hitCount: number, requiredHits: number, ready: boolean): void {
-    for (const skill of RADIAL_SKILLS) {
-      this.buttons[skill].presentCharge(hitCount, requiredHits, ready);
+    for (const button of this.buttons) {
+      button.presentCharge(hitCount, requiredHits, ready);
     }
   }
 
-  /** 把当前三路请求复制到稳定快照后分别清空。 */
   public consumeCommands(): Readonly<BattlefieldRadialSkillCommands> {
     const result = this.consumed;
     result.spinRequested = this.pending.spinRequested;
@@ -101,13 +103,13 @@ export class BattlefieldRadialSkillButtons {
     return result;
   }
 
-  public setKeyboardActive(skill: BattlefieldRadialSkill, active: boolean): void {
-    this.buttons[skill].setKeyboardActive(active);
+  public setKeyboardActive(position: WeaponSkillHudPosition, active: boolean): void {
+    this.buttons[position]?.setKeyboardActive(active);
   }
 
   public draw(graphics: Graphics): void {
-    for (const skill of RADIAL_SKILLS) {
-      this.buttons[skill].draw(graphics);
+    for (const button of this.buttons) {
+      button.draw(graphics);
     }
   }
 
@@ -116,22 +118,22 @@ export class BattlefieldRadialSkillButtons {
       return;
     }
     this.disposed = true;
-    for (const skill of RADIAL_SKILLS) {
-      this.buttons[skill].dispose();
+    for (const button of this.buttons) {
+      button.dispose();
     }
     resetCommands(this.pending);
     resetCommands(this.consumed);
   }
 
-  private readonly handleRequested = (skill: BattlefieldRadialSkill): void => {
-    switch (skill) {
-      case BattlefieldRadialSkill.Spin:
+  private readonly handleRequested = (command: WeaponSkillCommand): void => {
+    switch (command) {
+      case WeaponSkillCommand.Spin:
         this.pending.spinRequested = true;
         break;
-      case BattlefieldRadialSkill.GroundSlam:
+      case WeaponSkillCommand.GroundSlam:
         this.pending.groundSlamRequested = true;
         break;
-      case BattlefieldRadialSkill.Uppercut:
+      case WeaponSkillCommand.Uppercut:
         this.pending.uppercutRequested = true;
         break;
     }
@@ -142,9 +144,10 @@ export class BattlefieldRadialSkillButtons {
   };
 }
 
-/** 单枚按钮只管理自己的触点占用和按压边沿。 */
+/** 单枚按钮只管理自身配置、触点占用和按压边沿。 */
 class BattlefieldRadialSkillButton {
   private readonly root: Node;
+  private profile: Readonly<WeaponSkillHudProfile> | null = null;
   private activeTouchId: number | null = null;
   private keyboardActive = false;
   private hitCount = 0;
@@ -156,9 +159,9 @@ class BattlefieldRadialSkillButton {
 
   constructor(
     parent: Node,
-    private readonly skill: BattlefieldRadialSkill,
+    private readonly position: WeaponSkillHudPosition,
     nodeName: string,
-    private readonly request: (skill: BattlefieldRadialSkill) => void,
+    private readonly request: (command: WeaponSkillCommand) => void,
     private readonly invalidate: () => void,
   ) {
     const root = new Node(nodeName);
@@ -168,7 +171,19 @@ class BattlefieldRadialSkillButton {
     root.on(Node.EventType.TOUCH_START, this.handleTouchStart, this);
     root.on(Node.EventType.TOUCH_END, this.handleTouchEnd, this);
     root.on(Node.EventType.TOUCH_CANCEL, this.handleTouchCancel, this);
+    root.active = false;
     this.root = root;
+  }
+
+  public configure(profile: Readonly<WeaponSkillHudProfile> | null): void {
+    if (profile !== null && profile.position !== this.position) {
+      throw new Error('技能 HUD 配置位置与按钮位置不一致。');
+    }
+    this.profile = profile;
+    this.root.active = profile !== null;
+    this.activeTouchId = null;
+    this.keyboardActive = false;
+    this.invalidate();
   }
 
   public setPosition(x: number, y: number): void {
@@ -196,17 +211,23 @@ class BattlefieldRadialSkillButton {
   }
 
   public setKeyboardActive(active: boolean): void {
-    if (this.keyboardActive === active) {
+    const profile = this.profile;
+    const nextActive = active && profile !== null;
+    if (this.keyboardActive === nextActive) {
       return;
     }
-    this.keyboardActive = active;
-    if (active) {
-      this.request(this.skill);
+    this.keyboardActive = nextActive;
+    if (nextActive && profile !== null) {
+      this.request(profile.command);
     }
     this.invalidate();
   }
 
   public draw(graphics: Graphics): void {
+    const profile = this.profile;
+    if (profile === null) {
+      return;
+    }
     const pressed = this.activeTouchId !== null || this.keyboardActive;
     graphics.fillColor = FILL_COLOR;
     graphics.strokeColor = this.ready ? READY_COLOR : EMPTY_COLOR;
@@ -214,9 +235,9 @@ class BattlefieldRadialSkillButton {
     graphics.circle(this.centerX, this.centerY, BUTTON_RADIUS);
     graphics.fill();
     graphics.stroke();
-    drawSkillIcon(
+    drawBattlefieldSkillIcon(
       graphics,
-      this.skill,
+      profile.icon,
       this.centerX,
       this.centerY,
       this.ready ? READY_COLOR : CHARGE_COLOR,
@@ -237,7 +258,6 @@ class BattlefieldRadialSkillButton {
       return;
     }
     this.disposed = true;
-    this.activeTouchId = null;
     if (this.root.isValid) {
       this.root.off(Node.EventType.TOUCH_START, this.handleTouchStart, this);
       this.root.off(Node.EventType.TOUCH_END, this.handleTouchEnd, this);
@@ -248,7 +268,7 @@ class BattlefieldRadialSkillButton {
 
   private readonly handleTouchStart = (event: EventTouch): void => {
     const id = event.getID();
-    if (id !== null && this.activeTouchId === null) {
+    if (id !== null && this.activeTouchId === null && this.profile !== null) {
       this.activeTouchId = id;
       this.invalidate();
     }
@@ -259,7 +279,9 @@ class BattlefieldRadialSkillButton {
     const id = event.getID();
     if (id !== null && this.activeTouchId === id) {
       this.activeTouchId = null;
-      this.request(this.skill);
+      if (this.profile !== null) {
+        this.request(this.profile.command);
+      }
       this.invalidate();
     }
     event.propagationStopped = true;
@@ -275,12 +297,6 @@ class BattlefieldRadialSkillButton {
   };
 }
 
-const RADIAL_SKILLS = Object.freeze([
-  BattlefieldRadialSkill.Spin,
-  BattlefieldRadialSkill.GroundSlam,
-  BattlefieldRadialSkill.Uppercut,
-]);
-
 function createCommands(): MutableBattlefieldRadialSkillCommands {
   return {
     spinRequested: false,
@@ -293,51 +309,4 @@ function resetCommands(commands: MutableBattlefieldRadialSkillCommands): void {
   commands.spinRequested = false;
   commands.groundSlamRequested = false;
   commands.uppercutRequested = false;
-}
-
-function drawSkillIcon(
-  graphics: Graphics,
-  skill: BattlefieldRadialSkill,
-  x: number,
-  y: number,
-  color: Readonly<Color>,
-): void {
-  graphics.strokeColor = color;
-  graphics.fillColor = color;
-  graphics.lineWidth = 4;
-  switch (skill) {
-    case BattlefieldRadialSkill.Spin:
-      graphics.arc(x, y, 13, -Math.PI * 0.15, Math.PI * 1.45, false);
-      graphics.stroke();
-      graphics.moveTo(x - 12, y - 9);
-      graphics.lineTo(x - 17, y - 1);
-      graphics.lineTo(x - 7, y - 2);
-      graphics.close();
-      graphics.fill();
-      break;
-    case BattlefieldRadialSkill.GroundSlam:
-      graphics.moveTo(x, y + 14);
-      graphics.lineTo(x, y - 5);
-      graphics.stroke();
-      graphics.moveTo(x - 8, y + 5);
-      graphics.lineTo(x, y - 5);
-      graphics.lineTo(x + 8, y + 5);
-      graphics.stroke();
-      graphics.moveTo(x - 16, y - 12);
-      graphics.lineTo(x - 6, y - 8);
-      graphics.lineTo(x, y - 14);
-      graphics.lineTo(x + 7, y - 8);
-      graphics.lineTo(x + 16, y - 12);
-      graphics.stroke();
-      break;
-    case BattlefieldRadialSkill.Uppercut:
-      graphics.moveTo(x, y - 14);
-      graphics.lineTo(x, y + 12);
-      graphics.stroke();
-      graphics.moveTo(x - 9, y + 3);
-      graphics.lineTo(x, y + 12);
-      graphics.lineTo(x + 9, y + 3);
-      graphics.stroke();
-      break;
-  }
 }

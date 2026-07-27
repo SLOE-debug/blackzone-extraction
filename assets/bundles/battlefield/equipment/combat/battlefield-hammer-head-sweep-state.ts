@@ -42,4 +42,16 @@ export class BattlefieldHammerHeadSweepState {
   public get ready(): boolean {
     return this.initialized;
   }
+
+  /** 武器切换时移除上一件装备留下的连续扫掠端点。 */
+  public reset(): void {
+    this.previousX = 0;
+    this.previousY = 0;
+    this.previousZ = 0;
+    this.currentX = 0;
+    this.currentY = 0;
+    this.currentZ = 0;
+    this.radius = 0;
+    this.initialized = false;
+  }
 }

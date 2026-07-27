@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { WeaponAction, WeaponGrip } from '../../assets/core/equipment/equipment';
+import { WeaponGrip } from '../../assets/core/equipment/equipment';
 import {
   BattlefieldHammerPoseSolver,
   type MutableBattlefieldHammerWorldPose,
 } from '../../assets/bundles/battlefield/equipment/animation/battlefield-hammer-pose-solver';
 
 const PROFILE = Object.freeze({
-  grip: WeaponGrip.OneHandHeavy,
+  grip: WeaponGrip.TwoHandHeavy,
   heldScale: 0.5,
   mainGripLocalPosition: Object.freeze({ x: 0, y: 0, z: 0 }),
+  supportGripLocalPosition: Object.freeze({ x: 0, y: -0.75, z: 0 }),
   hammerHeadLocalPosition: Object.freeze({ x: 0, y: -3, z: 0 }),
   hammerHeadRadius: 0.8,
 });
@@ -21,30 +22,35 @@ const GRIP = Object.freeze({
   rotationY: 0,
   rotationZ: 0,
   rotationW: 1,
+  mainGripX: 2,
+  mainGripY: 3,
+  mainGripZ: 4,
+  supportGripX: 2,
+  supportGripY: 2.625,
+  supportGripZ: 4,
 });
 
-describe('大锤握点与锤头轨迹求解', () => {
-  it('模型根始终锁在主握点且锤头保持真实锤柄长度', () => {
+describe('大锤双握点与锤头姿态求解', () => {
+  it('主副握点同时锁定且锤头保持真实锤柄长度', () => {
     const result = createPose();
-    new BattlefieldHammerPoseSolver().solve(PROFILE, GRIP, WeaponAction.SwingLeft, 0.6, -1, result);
-    expect(result.rootX).toBeCloseTo(GRIP.rootX, 6);
-    expect(result.rootY).toBeCloseTo(GRIP.rootY, 6);
-    expect(result.rootZ).toBeCloseTo(GRIP.rootZ, 6);
+    new BattlefieldHammerPoseSolver().solve(PROFILE, GRIP, result);
+    expect(result.rootX).toBeCloseTo(GRIP.mainGripX, 6);
+    expect(result.rootY).toBeCloseTo(GRIP.mainGripY, 6);
+    expect(result.rootZ).toBeCloseTo(GRIP.mainGripZ, 6);
     expect(Math.hypot(
-      result.headX - GRIP.rootX,
-      result.headY - GRIP.rootY,
-      result.headZ - GRIP.rootZ,
+      result.headX - GRIP.mainGripX,
+      result.headY - GRIP.mainGripY,
+      result.headZ - GRIP.mainGripZ,
     )).toBeCloseTo(1.5, 6);
   });
 
-  it('左右横扫使用镜像锤头路径而不是共用单一旋转', () => {
-    const solver = new BattlefieldHammerPoseSolver();
-    const left = createPose();
-    const right = createPose();
-    solver.solve(PROFILE, GRIP, WeaponAction.SwingLeft, 0.7, -1, left);
-    solver.solve(PROFILE, GRIP, WeaponAction.SwingRight, 0.7, 1, right);
-    expect(left.headX - GRIP.rootX).toBeCloseTo(-(right.headX - GRIP.rootX), 6);
-    expect(left.headZ).toBeCloseTo(right.headZ, 6);
+  it('副握点偏离模型挂点时拒绝产生视觉与手臂失步', () => {
+    const invalidGrip = { ...GRIP, supportGripX: GRIP.supportGripX + 0.2 };
+    expect(() => new BattlefieldHammerPoseSolver().solve(
+      PROFILE,
+      invalidGrip,
+      createPose(),
+    )).toThrow(/副握点/);
   });
 });
 

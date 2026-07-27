@@ -16,7 +16,7 @@ import { BattlefieldPerformanceLogger } from '../debug/battlefield-performance-l
 import { BattlefieldEnvironmentPopulation } from '../environment/population/battlefield-environment-population';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../equipment/catalog/battlefield-equipment-catalog';
 import { BattlefieldEquipmentPickupSystem } from '../equipment/population/battlefield-equipment-pickup-system';
-import { BattlefieldPlayerWeaponRuntime } from '../equipment/population/battlefield-player-weapon-runtime';
+import { BattlefieldPlayerEquipmentRuntime } from '../equipment/population/battlefield-player-weapon-runtime';
 import { BattlefieldInventoryRuntime } from '../equipment/inventory/population/battlefield-inventory-runtime';
 import { BattlefieldSceneInteractionSystem } from '../interaction/population/battlefield-scene-interaction-system';
 import { BATTLEFIELD_TREASURE_LOOT_TABLE } from '../loot/model/battlefield-treasure-loot-table';
@@ -49,7 +49,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
   private groundRenderer: BattlefieldGroundRenderer | null = null;
   private environment: BattlefieldEnvironmentPopulation | null = null;
   private player: VanguardPopulation | null = null;
-  private playerWeapon: BattlefieldPlayerWeaponRuntime | null = null;
+  private playerWeapon: BattlefieldPlayerEquipmentRuntime | null = null;
   private inventory: BattlefieldInventoryRuntime | null = null;
   private monsters: BattlefieldMonsterPopulation | null = null;
   private treasures: BattlefieldTreasurePopulation | null = null;
@@ -78,7 +78,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     let groundRenderer: BattlefieldGroundRenderer | null = null;
     let environment: BattlefieldEnvironmentPopulation | null = null;
     let player: VanguardPopulation | null = null;
-    let playerWeapon: BattlefieldPlayerWeaponRuntime | null = null;
+    let playerWeapon: BattlefieldPlayerEquipmentRuntime | null = null;
     let inventory: BattlefieldInventoryRuntime | null = null;
     let monsters: BattlefieldMonsterPopulation | null = null;
     let treasures: BattlefieldTreasurePopulation | null = null;
@@ -113,7 +113,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         player.positionX,
         player.positionZ,
       );
-      playerWeapon = new BattlefieldPlayerWeaponRuntime(
+      playerWeapon = new BattlefieldPlayerEquipmentRuntime(
         runtimeRoot,
         BATTLEFIELD_EQUIPMENT_LIBRARY,
         monsters,
@@ -140,7 +140,7 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
         this.handleReturnToLobbyRequested,
       );
       controlHud.presentPlayerHealth(player.health, player.maximumHealth);
-      controlHud.presentHammerStatus(playerWeapon.hammerStatus);
+      controlHud.presentEquippedWeapon(playerWeapon.presentation);
       const equipmentPickup = new BattlefieldEquipmentPickupSystem(
         treasures,
         inventory,

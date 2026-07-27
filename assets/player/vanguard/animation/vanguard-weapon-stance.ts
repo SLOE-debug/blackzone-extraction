@@ -33,21 +33,21 @@ const UNARMED_STANCE = stance(
   joint(0.81, 1.41, 0.11),
 );
 
-/** 单手重武器让右臂自然下垂，左臂继续参与移动平衡。 */
-const ONE_HAND_HEAVY_STANCE = stance(
-  0,
+/** 双手重武器让左右臂共同服从主、副握点 IK。 */
+const TWO_HAND_HEAVY_STANCE = stance(
   1,
-  joint(-0.76, 0.69, 0),
-  joint(-0.69, 1.23, 0.04),
-  joint(-0.68, 1.45, 0.1),
-  joint(0.69, 0.73, 0.09, -0.18, -0.34, 0.44),
-  joint(0.66, 1.25, 0.13, -0.26, -0.48, 0.72),
-  joint(0.64, 1.46, 0.18, -0.31, -0.54, 0.9),
+  1,
+  joint(-0.88, 0.64, 0.22),
+  joint(-0.48, 0.92, 0.42),
+  joint(-0.2, 1.02, 0.5),
+  joint(0.9, 0.62, 0.2),
+  joint(0.52, 0.86, 0.43),
+  joint(0.18, 0.78, 0.52),
 );
 
 const VANGUARD_WEAPON_STANCES = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_STANCE,
-  [VanguardWeaponPose.OneHandHeavy]: ONE_HAND_HEAVY_STANCE,
+  [VanguardWeaponPose.TwoHandHeavy]: TWO_HAND_HEAVY_STANCE,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponStance>>>);
 
 /** 返回主角动画系统登记的完整武器姿态。 */

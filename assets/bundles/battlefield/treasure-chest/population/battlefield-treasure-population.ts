@@ -9,9 +9,11 @@ import {
 } from '../../../../core/world/chunk-runtime-registry';
 import {
   DroppedEquipmentPopulation,
-  DroppedEquipmentInstanceIdSequence,
+  DroppedEquipmentWorldRuntimeIdSequence,
+  type BattlefieldPlayerDiscardRequest,
   type MutableDroppedEquipmentInspection,
 } from '../../equipment/population/dropped-equipment-population';
+import { BattlefieldItemInstanceSeedSequence } from '../../equipment/model/battlefield-item-instance';
 import { BattlefieldEnvironmentPopulation } from '../../environment/population/battlefield-environment-population';
 import {
   BattlefieldInteractionAction,
@@ -20,7 +22,10 @@ import {
 } from '../../interaction/model/battlefield-interaction';
 import { BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG } from '../../environment/model/battlefield-environment-config';
 import { BATTLEFIELD_TREASURE_MAXIMUM_LOOT_COUNT } from '../../loot/model/battlefield-treasure-loot-table';
-import { calculateDroppedEquipmentCapacity } from '../../equipment/model/dropped-equipment-capacity';
+import {
+  BATTLEFIELD_MAXIMUM_PLAYER_DISCARDED_EQUIPMENT,
+  calculateDroppedEquipmentCapacity,
+} from '../../equipment/model/dropped-equipment-capacity';
 import {
   BATTLEFIELD_TREASURE_CHEST_GENERATION,
   createBattlefieldTreasureChestSpawns,
@@ -36,7 +41,8 @@ export class BattlefieldTreasurePopulation
 implements ChunkRuntimeParticipant<BattlefieldEnvironmentPopulation>,
 BattlefieldInteractionProvider, Disposable {
   private readonly chests: TreasureChestRuntime[] = [];
-  private readonly equipmentInstanceIds = new DroppedEquipmentInstanceIdSequence();
+  private readonly equipmentWorldRuntimeIds = new DroppedEquipmentWorldRuntimeIdSequence();
+  private readonly itemInstanceSeeds = new BattlefieldItemInstanceSeedSequence();
   private readonly sessionState = new BattlefieldTreasureChestSessionState();
   private readonly renderer: TreasureChestSharedRenderer;
   private readonly droppedEquipment: DroppedEquipmentPopulation;
@@ -78,12 +84,13 @@ BattlefieldInteractionProvider, Disposable {
     try {
       this.droppedEquipment = new DroppedEquipmentPopulation(
         parent,
-        this.equipmentInstanceIds,
+        this.equipmentWorldRuntimeIds,
         equipmentLibrary,
         calculateDroppedEquipmentCapacity(
           BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.activeChunkRadius,
           BATTLEFIELD_TREASURE_CHEST_GENERATION.maximumChestsPerGeneratedChunk,
           BATTLEFIELD_TREASURE_MAXIMUM_LOOT_COUNT,
+          BATTLEFIELD_MAXIMUM_PLAYER_DISCARDED_EQUIPMENT,
         ),
       );
     } catch (error: unknown) {
@@ -120,6 +127,7 @@ BattlefieldInteractionProvider, Disposable {
         this.equipmentLibrary,
         this.lootTable,
         this.droppedEquipment,
+        this.itemInstanceSeeds,
       );
       this.chests.push(chest);
       scope.own(new TreasureChestOwnership(this.chests, chest));
@@ -222,24 +230,36 @@ BattlefieldInteractionProvider, Disposable {
   }
 
   /** 在宝箱掉落与玩家替换掉落中查找指定装备实例。 */
-  public getDroppedEquipmentId(instanceId: number): EquipmentId | null {
+  public getDroppedEquipment(
+    worldRuntimeId: number,
+  ): ReturnType<DroppedEquipmentPopulation['getItem']> {
     if (this.disposed) {
       return null;
     }
-    return this.droppedEquipment.getEquipmentId(instanceId);
+    return this.droppedEquipment.getItem(worldRuntimeId);
+  }
+
+  /** 在提取背包物品前检查玩家丢弃预留池容量。 */
+  public canSpawnPlayerDiscard(): boolean {
+    return !this.disposed && this.droppedEquipment.canSpawnPlayerDiscard();
+  }
+
+  /** 生成不归属任何 Chunk 宝箱的玩家丢弃物。 */
+  public trySpawnPlayerDiscard(request: Readonly<BattlefieldPlayerDiscardRequest>): boolean {
+    return !this.disposed && this.droppedEquipment.trySpawnPlayerDiscard(request);
   }
 
   /** 从拥有指定实例的掉落群体中移除已经完成拾取的装备。 */
-  public removeDroppedEquipment(instanceId: number): boolean {
+  public removeDroppedEquipment(worldRuntimeId: number): boolean {
     if (this.disposed) {
       return false;
     }
     for (const chest of this.chests) {
-      if (chest.ownsDroppedEquipment(instanceId)) {
-        return chest.removeDroppedEquipment(instanceId);
+      if (chest.ownsDroppedEquipment(worldRuntimeId)) {
+        return chest.removeDroppedEquipment(worldRuntimeId);
       }
     }
-    return this.droppedEquipment.remove(instanceId);
+    return this.droppedEquipment.remove(worldRuntimeId);
   }
 
   public dispose(): void {

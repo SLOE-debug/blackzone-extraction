@@ -38,7 +38,16 @@ function initializeVanguardData(
   data: VanguardData,
   options: Readonly<VanguardPopulationOptions>,
 ): void {
-  const { transform, morphology, intent, motion, vitality, animation, mantle } = data;
+  const {
+    transform,
+    morphology,
+    intent,
+    motion,
+    vitality,
+    animation,
+    weaponAnimation,
+    mantle,
+  } = data;
   transform.x[0] = options.position.x;
   transform.y[0] = options.position.y;
   transform.z[0] = options.position.z;
@@ -70,6 +79,18 @@ function initializeVanguardData(
   animation.weaponPose[0] = VanguardWeaponPose.Unarmed;
   animation.weaponStanceBlend[0] = 0;
   animation.hitFlash[0] = 0;
+  weaponAnimation.chestYaw[0] = 0;
+  weaponAnimation.chestYawVelocity[0] = 0;
+  weaponAnimation.leftElbowPoleX[0] = -1.18;
+  weaponAnimation.leftElbowPoleY[0] = 2.38;
+  weaponAnimation.leftElbowPoleZ[0] = 0.72;
+  weaponAnimation.rightElbowPoleX[0] = 1.18;
+  weaponAnimation.rightElbowPoleY[0] = 2.38;
+  weaponAnimation.rightElbowPoleZ[0] = 0.72;
+  weaponAnimation.mainGripWeight[0] = 0;
+  weaponAnimation.supportGripWeight[0] = 0;
+  weaponAnimation.hammerLag[0] = 0;
+  weaponAnimation.hammerLagVelocity[0] = 0;
   writeVanguardMantleRestState(
     mantle,
     0,

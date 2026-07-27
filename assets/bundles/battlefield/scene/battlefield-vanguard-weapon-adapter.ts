@@ -3,7 +3,7 @@ import { VanguardWeaponAction } from '../../../player/vanguard/model/vanguard-we
 import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weapon-pose';
 
 const VANGUARD_POSE_BY_GRIP = Object.freeze({
-  [WeaponGrip.OneHandHeavy]: VanguardWeaponPose.OneHandHeavy,
+  [WeaponGrip.TwoHandHeavy]: VanguardWeaponPose.TwoHandHeavy,
 }) satisfies Readonly<Record<WeaponGrip, VanguardWeaponPose>>;
 
 const VANGUARD_ACTION_BY_WEAPON_ACTION = Object.freeze({

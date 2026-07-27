@@ -13,7 +13,7 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
 
   protected execute(world: BattlefieldWorld): void {
     const { player, camera, controls, weapon } = world.resources;
-    if (!player.isAlive) {
+    if (!player.isAlive || !weapon.equipped) {
       controls.consumeSkillCommands();
       return;
     }

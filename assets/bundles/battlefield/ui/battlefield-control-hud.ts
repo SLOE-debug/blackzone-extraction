@@ -6,7 +6,8 @@ import { type BattlefieldEquipmentLibrary } from '../equipment/catalog/battlefie
 import { type BattlefieldInventorySnapshot } from '../equipment/inventory/model/battlefield-inventory-state';
 import { type BattlefieldInventoryRuntime } from '../equipment/inventory/population/battlefield-inventory-runtime';
 import { BattlefieldInventoryHud } from '../equipment/inventory/ui/battlefield-inventory-hud';
-import { type BattlefieldHammerStatus } from '../equipment/population/battlefield-player-weapon-runtime';
+import { type BattlefieldInventoryHudCommand } from '../equipment/inventory/ui/battlefield-inventory-hud-command';
+import { type EquippedWeaponPresentation } from '../equipment/model/equipped-weapon-presentation';
 import {
   BattlefieldEquipmentLabelHud,
   type BattlefieldEquipmentLabelPresentation,
@@ -21,7 +22,6 @@ import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
 import { BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 import {
-  BattlefieldRadialSkill,
   BattlefieldRadialSkillButtons,
   type BattlefieldRadialSkillCommands,
 } from './battlefield-radial-skill-buttons';
@@ -120,10 +120,7 @@ export class BattlefieldControlHud {
         BATTLEFIELD_CONTROL_STYLE.attack,
       );
       radialSkillButtons = new BattlefieldRadialSkillButtons(this.canvas.node);
-      inventoryHud = new BattlefieldInventoryHud(this.canvas.node, (slotIndex) => {
-        this.inventory.swapWithSecured(slotIndex);
-        this.synchronizeInventory();
-      });
+      inventoryHud = new BattlefieldInventoryHud(this.canvas.node);
       cameraOrbitInput = new BattlefieldCameraOrbitInput(this.canvas.node);
       equipmentLabel = new BattlefieldEquipmentLabelHud(
         this.canvas.node,
@@ -213,11 +210,23 @@ export class BattlefieldControlHud {
     return this.radialSkillButtons.consumeCommands();
   }
 
-  public presentHammerStatus(status: Readonly<BattlefieldHammerStatus>): void {
+  public consumeInventoryCommand(): Readonly<BattlefieldInventoryHudCommand> | null {
+    return this.inventoryHud.consumeCommand();
+  }
+
+  /** 同一帧替换装备技能配置与当前充能状态；空手时隐藏技能区。 */
+  public presentEquippedWeapon(
+    presentation: Readonly<EquippedWeaponPresentation> | null,
+  ): void {
+    this.radialSkillButtons.presentProfile(presentation?.hud ?? null);
+    if (presentation === null) {
+      this.synchronizeGameplayGraphics();
+      return;
+    }
     this.radialSkillButtons.presentCharge(
-      status.hitCount,
-      status.requiredHits,
-      status.momentumReady,
+      presentation.hitCount,
+      presentation.requiredHits,
+      presentation.momentumReady,
     );
     this.synchronizeGameplayGraphics();
   }
@@ -404,13 +413,13 @@ export class BattlefieldControlHud {
         this.interactionKeyDown = pressed;
         break;
       case KeyCode.DIGIT_1:
-        this.radialSkillButtons.setKeyboardActive(BattlefieldRadialSkill.Spin, pressed);
+        this.radialSkillButtons.setKeyboardActive(0, pressed);
         break;
       case KeyCode.DIGIT_2:
-        this.radialSkillButtons.setKeyboardActive(BattlefieldRadialSkill.GroundSlam, pressed);
+        this.radialSkillButtons.setKeyboardActive(1, pressed);
         break;
       case KeyCode.DIGIT_3:
-        this.radialSkillButtons.setKeyboardActive(BattlefieldRadialSkill.Uppercut, pressed);
+        this.radialSkillButtons.setKeyboardActive(2, pressed);
         break;
       case KeyCode.ARROW_UP:
       case KeyCode.KEY_I:
