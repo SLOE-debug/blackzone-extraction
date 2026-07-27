@@ -3,8 +3,15 @@ export interface SledgehammerProgressionStats {
   /** 策划直接理解的目标腾空高度。 */
   readonly uppercutLaunchHeight: number;
   readonly spinDurationSeconds: number;
+  readonly spinRevolutions: number;
+  readonly spinMovementScale: number;
+  readonly spinDamageTakenScale: number;
+  readonly spinStartupSeconds: number;
+  readonly spinRecoverySeconds: number;
+  readonly spinHitWindowAngle: number;
+  readonly spinSweepSubstepAngle: number;
+  readonly spinMaximumSweepSubsteps: number;
   readonly spinKnockbackImpulse: number;
-  readonly spinPulseIntervalSeconds: number;
   readonly groundSlamReachScale: number;
   readonly groundSlamDamageScale: number;
   readonly groundSlamKnockbackScale: number;
@@ -16,9 +23,16 @@ export interface SledgehammerProgressionStats {
 /** 当前战场默认的大锤成长参数。 */
 export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   uppercutLaunchHeight: 4.8,
-  spinDurationSeconds: 2.6,
+  spinDurationSeconds: 1.45,
+  spinRevolutions: 4,
+  spinMovementScale: 0.62,
+  spinDamageTakenScale: 0.45,
+  spinStartupSeconds: 0.1,
+  spinRecoverySeconds: 0.15,
+  spinHitWindowAngle: Math.PI,
+  spinSweepSubstepAngle: Math.PI / 12,
+  spinMaximumSweepSubsteps: 4,
   spinKnockbackImpulse: 10.5,
-  spinPulseIntervalSeconds: 0.32,
   groundSlamReachScale: 0.68,
   groundSlamDamageScale: 1.48,
   groundSlamKnockbackScale: 1.18,

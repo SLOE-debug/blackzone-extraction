@@ -29,6 +29,7 @@ import {
   createVanguardTwoHandWeaponTrajectoryPose,
   type VanguardTwoHandWeaponTrajectoryPose,
 } from './vanguard-two-hand-weapon-trajectory';
+import { writeVanguardLocomotionLegPose } from './vanguard-locomotion-leg-pose';
 
 /** 创建供程序化人体拓扑预计算绑定坐标使用的中立骨骼矩阵。 */
 export function createVanguardBindPoseMatrices(): Float64Array {
@@ -43,6 +44,8 @@ export function createVanguardBindPoseMatrices(): Float64Array {
     0,
     0,
     1,
+    0,
+    0,
     0,
     0,
     0,
@@ -71,6 +74,8 @@ export function createVanguardBindPoseMatrices(): Float64Array {
  * @param phase 当前待机循环相位。
  * @param locomotionPhase 按真实移动距离推进的步态相位。
  * @param locomotionBlend 待机与移动姿态的混合权重。
+ * @param locomotionForward 相对人物朝向的归一化前后移动量。
+ * @param locomotionRight 相对人物朝向的归一化左右移动量。
  * @param weaponPose 当前武器对应的类型化上身姿态。
  * @param weaponStanceBlend 自然摆臂与武器姿势的混合权重。
  * @param weaponAction 当前武器动作。
@@ -87,6 +92,8 @@ export function writeVanguardPoseMatrices(
   phase: number,
   locomotionPhase: number,
   locomotionBlend: number,
+  locomotionForward: number,
+  locomotionRight: number,
   weaponPose: VanguardWeaponPose,
   weaponStanceBlend: number,
   weaponAction: VanguardWeaponAction,
@@ -109,10 +116,14 @@ export function writeVanguardPoseMatrices(
   const weaponBodyYaw = weaponAnimation.chestYaw;
   const weaponPelvisYaw = weaponAnimation.pelvisYaw;
   const strideWave = Math.sin(locomotionPhase);
+  const backwardScale = locomotionForward < 0 ? 0.68 : 1;
+  const forwardStrideScale = (0.16 + Math.abs(locomotionForward) * 0.84) * backwardScale;
+  const stride = strideWave * 0.72 * locomotion * forwardStrideScale;
+  const contactCrouch = (weaponAction === VanguardWeaponAction.SwingLeft
+    || weaponAction === VanguardWeaponAction.SwingRight
+    || weaponAction === VanguardWeaponAction.Spin) ? attackAmount * 0.11 : 0;
   const bodyBob = Math.abs(Math.cos(locomotionPhase)) * 0.065 * locomotion;
-  const leftStepLift = Math.max(0, strideWave) * 0.36 * locomotion;
-  const rightStepLift = Math.max(0, -strideWave) * 0.36 * locomotion;
-  const stride = strideWave * 0.72 * locomotion;
+  const pelvisBodyBob = bodyBob - contactCrouch;
   const idleWeight = 1 - locomotion * 0.72;
   const breath = Math.sin(phase * 2) * 0.018 * idleWeight;
   const sway = Math.sin(phase) * 0.018 * idleWeight
@@ -142,7 +153,7 @@ export function writeVanguardPoseMatrices(
     entityOffset,
     VanguardBone.Pelvis,
     sway,
-    VANGUARD_ANATOMY.pelvisY + bodyBob,
+    VANGUARD_ANATOMY.pelvisY + pelvisBodyBob,
     0,
     weaponPelvisYaw,
     -sway * 0.5,
@@ -406,57 +417,20 @@ export function writeVanguardPoseMatrices(
     );
   }
 
-  const leftHipX = -VANGUARD_ANATOMY.hipHalfWidth + sway * 0.75;
-  const rightHipX = VANGUARD_ANATOMY.hipHalfWidth + sway * 0.75;
-  const leftKneeY = VANGUARD_ANATOMY.kneeY
-    + leftStepLift * 0.58
-    + Math.max(0, -strideWave) * 0.07 * locomotion;
-  const rightKneeY = VANGUARD_ANATOMY.kneeY + 0.015
-    + rightStepLift * 0.58
-    + Math.max(0, strideWave) * 0.07 * locomotion;
-  const leftAnkleY = VANGUARD_ANATOMY.ankleY + leftStepLift;
-  const rightAnkleY = VANGUARD_ANATOMY.ankleY + rightStepLift;
-  const leftKneeZ = 0.025 + locomotion * 0.2 + stride * 0.58;
-  const rightKneeZ = -0.015 + locomotion * 0.2 - stride * 0.58;
-  const leftAnkleZ = stride * 0.93;
-  const rightAnkleZ = -stride * 0.93;
-  const leftFootZ = VANGUARD_ANATOMY.toeForward + stride * 1.12;
-  const rightFootZ = VANGUARD_ANATOMY.toeForward + 0.015 - stride * 1.12;
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.LeftThigh,
-    leftHipX, VANGUARD_ANATOMY.pelvisY + bodyBob, 0,
-    -0.35, leftKneeY, leftKneeZ,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.LeftShin,
-    -0.35, leftKneeY, leftKneeZ,
-    -0.36, leftAnkleY, leftAnkleZ,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.LeftFoot,
-    -0.36, leftAnkleY, leftAnkleZ,
-    -0.36, VANGUARD_ANATOMY.toeY + leftStepLift, leftFootZ,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.RightThigh,
-    rightHipX, VANGUARD_ANATOMY.pelvisY + bodyBob, 0,
-    0.35, rightKneeY, rightKneeZ,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.RightShin,
-    0.35, rightKneeY, rightKneeZ,
-    0.36, rightAnkleY, rightAnkleZ,
-    positionX, positionY, positionZ, heading, scale,
-  );
-  writeSegmentFrame(
-    matrices, entityOffset, VanguardBone.RightFoot,
-    0.36, rightAnkleY, rightAnkleZ,
-    0.36, VANGUARD_ANATOMY.toeY + rightStepLift, rightFootZ,
-    positionX, positionY, positionZ, heading, scale,
+  writeVanguardLocomotionLegPose(
+    matrices,
+    entityOffset,
+    positionX,
+    positionY,
+    positionZ,
+    heading,
+    scale,
+    locomotionPhase,
+    locomotion,
+    locomotionForward,
+    locomotionRight,
+    sway,
+    pelvisBodyBob,
   );
 
   if (!analyticTwoHand) {

@@ -58,18 +58,21 @@ export class BattlefieldHammerSweepDebugState implements BattlefieldHammerSweepD
     if (!this.enabled) {
       return;
     }
-    this.active = true;
-    this.startX = query.startX;
-    this.startZ = query.startZ;
+    if (!this.active) {
+      this.active = true;
+      this.startX = query.startX;
+      this.startZ = query.startZ;
+      this.radius = query.radius;
+    }
     this.endX = query.endX;
     this.endZ = query.endZ;
-    this.radius = query.radius;
-    this.candidateCount = Math.min(hitCount, MAXIMUM_DEBUG_HITS);
-    for (let index = 0; index < this.candidateCount; index++) {
-      this.candidatePopulationId[index] = hits.populationIds[index] ?? 0;
-      this.candidateEntityId[index] = hits.entityIds[index] ?? 0;
-      this.candidateX[index] = hits.positionX[index] ?? 0;
-      this.candidateZ[index] = hits.positionZ[index] ?? 0;
+    const writableCount = Math.min(hitCount, MAXIMUM_DEBUG_HITS - this.candidateCount);
+    for (let index = 0; index < writableCount; index++) {
+      const target = this.candidateCount++;
+      this.candidatePopulationId[target] = hits.populationIds[index] ?? 0;
+      this.candidateEntityId[target] = hits.entityIds[index] ?? 0;
+      this.candidateX[target] = hits.positionX[index] ?? 0;
+      this.candidateZ[target] = hits.positionZ[index] ?? 0;
     }
   }
 

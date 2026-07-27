@@ -26,8 +26,7 @@ export class BattlefieldPlayerWorldSystem extends BattlefieldWorldSystem {
       weapon.weaponActionProgress,
       weapon.weaponActionSide,
       monsters.playerMovementSpeedMultiplier,
-      weapon.movementSpeedScale,
-      weapon.facingLock,
+      weapon.actionControl,
     );
     player.update(deltaTime);
   }

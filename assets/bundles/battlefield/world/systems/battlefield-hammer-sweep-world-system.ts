@@ -10,6 +10,13 @@ export class BattlefieldHammerSweepWorldSystem extends BattlefieldWorldSystem {
   protected readonly performanceStage = BattlefieldPerformanceStage.Weapon;
 
   protected execute(world: BattlefieldWorld): void {
-    world.resources.weapon.collectCombatHits(world.weaponOwnerState);
+    const { player, weapon } = world.resources;
+    const owner = world.weaponOwnerState;
+    owner.positionX = player.positionX;
+    owner.positionY = player.positionY;
+    owner.positionZ = player.positionZ;
+    owner.heading = player.heading;
+    owner.alive = player.isAlive;
+    weapon.collectCombatHits(owner);
   }
 }

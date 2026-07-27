@@ -9,11 +9,10 @@ import {
   BattlefieldHammerCombatRuntime,
   type BattlefieldHammerOwnerState,
 } from '../combat/battlefield-hammer-combat-runtime';
-import { type BattlefieldFacingLockEffect } from '../combat/battlefield-facing-lock-effect';
+import { type BattlefieldHammerActionControlEffect } from '../combat/battlefield-facing-lock-effect';
 import { type BattlefieldHammerSweepDebugSource } from '../combat/battlefield-hammer-sweep-debug-state';
 import { BattlefieldHammerActionState, type MutableHammerActionEvents } from '../combat/battlefield-hammer-action-state';
 import { BattlefieldWeaponCommandBuffer, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
-import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
 import { type BattlefieldItemInstance } from '../model/battlefield-item-instance';
 import { type EquippedWeaponPresentation } from '../model/equipped-weapon-presentation';
 import { createHeldEquipmentMaterial } from '../rendering/held-equipment-material';
@@ -119,12 +118,24 @@ export class BattlefieldPlayerEquipmentRuntime {
     return this.actionState.poseSide;
   }
 
-  public get facingLock(): Readonly<BattlefieldFacingLockEffect> | null {
-    return this.actionState.facingLock;
+  public get actionControl(): Readonly<BattlefieldHammerActionControlEffect> {
+    return this.actionState.actionControl;
   }
 
-  public get movementSpeedScale(): number {
-    return this.actionState.action === WeaponAction.Spin ? 0.36 : 1;
+  /** 当前怪物聚合攻击对玩家生效的承伤比例。 */
+  public get damageTakenScale(): number {
+    return this.actionState.actionControl.damageTakenScale;
+  }
+
+  /** 当前攻击时间轴持有的目标朝向，供连段限制计算。 */
+  public get attackHeading(): number {
+    return this.actionState.attackHeading;
+  }
+
+  /** 恢复后半已经把身体控制交还左摇杆，应同步释放普通攻击目标迟滞。 */
+  public get shouldReleaseAutoTarget(): boolean {
+    return this.actionState.action === WeaponAction.Recover
+      && this.actionState.progress >= 0.5;
   }
 
   public get hammerSweepDebug(): BattlefieldHammerSweepDebugSource {
@@ -226,7 +237,7 @@ export class BattlefieldPlayerEquipmentRuntime {
     }
     if (owner.alive) {
       if (this.command.spinRequested) {
-        this.actionState.requestSpin(owner.heading, SLEDGEHAMMER_PROGRESSION.spinDurationSeconds);
+        this.actionState.requestSpin(owner.heading);
       } else if (this.command.groundSlamRequested) {
         this.actionState.requestGroundSlam(Math.atan2(
           this.command.groundSlamDirectionX,
@@ -248,7 +259,6 @@ export class BattlefieldPlayerEquipmentRuntime {
     this.actionState.update(
       Math.max(0, Math.min(deltaTime, 0.05)),
       definition,
-      SLEDGEHAMMER_PROGRESSION.spinPulseIntervalSeconds,
       this.actionEvents,
     );
   }

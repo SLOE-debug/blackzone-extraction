@@ -1,8 +1,10 @@
 import { WeaponAction, type MeleeWeaponDefinition } from '../../../../core/equipment/equipment';
+import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
+import { calculateSledgehammerSpinAngle } from '../items/sledgehammer/sledgehammer-spin-timeline';
+import { type BattlefieldHammerActionControlEffect } from './battlefield-facing-lock-effect';
 import {
-  BattlefieldFacingLockSource,
-  type BattlefieldFacingLockEffect,
-} from './battlefield-facing-lock-effect';
+  getHammerActionControlProfile,
+} from './battlefield-hammer-action-control';
 
 const SWING_WINDUP_SECONDS = 0.28;
 const SWING_CONTACT_SECONDS = 0.34;
@@ -30,7 +32,9 @@ export class BattlefieldHammerActionState {
   private elapsed = 0;
   private duration = 1;
   private impactEmitted = false;
-  private nextSpinPulseTime = 0;
+  private nextSpinHitAngle = SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
+  private spinAngleValue = 0;
+  private spinAngleDeltaValue = 0;
   private attackSequenceValue = 0;
   private skillSequenceValue = 0;
   private alternateLeft = true;
@@ -47,13 +51,21 @@ export class BattlefieldHammerActionState {
   private queuedSwing = false;
   private queuedDirectionX = 0;
   private queuedDirectionZ = 1;
-  private readonly facingLockEffect: {
-    source: BattlefieldFacingLockSource;
-    lockedHeading: number;
+  private readonly actionControlEffect: {
+    movementScale: number;
+    facingPolicy: BattlefieldHammerActionControlEffect['facingPolicy'];
+    maximumTurnSpeed: number;
+    autoTargetAllowed: boolean;
+    damageTakenScale: number;
+    desiredHeading: number;
     remainingSeconds: number;
   } = {
-    source: BattlefieldFacingLockSource.HammerSpin,
-    lockedHeading: 0,
+    movementScale: 1,
+    facingPolicy: getHammerActionControlProfile(WeaponAction.Idle, 0).facingPolicy,
+    maximumTurnSpeed: 0,
+    autoTargetAllowed: true,
+    damageTakenScale: 1,
+    desiredHeading: 0,
     remainingSeconds: 0,
   };
 
@@ -105,6 +117,16 @@ export class BattlefieldHammerActionState {
     return this.actionValue === WeaponAction.Spin;
   }
 
+  /** 本次更新内旋风时间轴实际推进的角度，供圆弧扫掠确定子步数。 */
+  public get spinAngleDelta(): number {
+    return this.spinAngleDeltaValue;
+  }
+
+  /** 当前普通攻击或技能持有的权威目标朝向。 */
+  public get attackHeading(): number {
+    return this.lockedHeading;
+  }
+
   /** 空闲时需要输入层为首次挥动解析一次自动目标。 */
   public get needsInitialSwingAim(): boolean {
     return this.actionValue === WeaponAction.Idle;
@@ -119,17 +141,21 @@ export class BattlefieldHammerActionState {
         || this.hitStopRemaining > 0);
   }
 
-  public get facingLock(): Readonly<BattlefieldFacingLockEffect> | null {
-    const source = getFacingLockSource(this.actionValue);
-    if (source === null) {
-      return null;
-    }
-    this.facingLockEffect.source = source;
-    this.facingLockEffect.lockedHeading = this.actionValue === WeaponAction.Spin
-      ? this.lockedHeading + this.progress * Math.PI * 6
+  public get actionControl(): Readonly<BattlefieldHammerActionControlEffect> {
+    const profile = getHammerActionControlProfile(this.actionValue, this.progress);
+    const effect = this.actionControlEffect;
+    effect.movementScale = profile.movementScale;
+    effect.facingPolicy = profile.facingPolicy;
+    effect.maximumTurnSpeed = profile.maximumTurnSpeed;
+    effect.autoTargetAllowed = profile.autoTargetAllowed;
+    effect.damageTakenScale = profile.damageTakenScale;
+    effect.desiredHeading = this.actionValue === WeaponAction.Spin
+      ? this.lockedHeading + this.spinAngleValue
       : this.lockedHeading;
-    this.facingLockEffect.remainingSeconds = Math.max(0, this.duration - this.elapsed);
-    return this.facingLockEffect;
+    effect.remainingSeconds = this.actionValue === WeaponAction.Idle
+      ? 0
+      : Math.max(0, this.duration - this.elapsed);
+    return effect;
   }
 
   public requestSwing(
@@ -182,20 +208,22 @@ export class BattlefieldHammerActionState {
     return true;
   }
 
-  public requestSpin(heading: number, spinDurationSeconds: number): boolean {
+  public requestSpin(heading: number): boolean {
     if (!this.canStartAction() || !this.consumeMomentum()) {
       return false;
     }
     this.beginAction(
       WeaponAction.Spin,
-      Math.max(2, Math.min(3, spinDurationSeconds)),
+      SLEDGEHAMMER_PROGRESSION.spinDurationSeconds,
       Math.sin(heading),
       Math.cos(heading),
     );
     this.lockedHeading = heading;
     this.poseSideValue = 0;
     this.skillSequenceValue = nextSequence(this.skillSequenceValue);
-    this.nextSpinPulseTime = 0.16;
+    this.spinAngleValue = 0;
+    this.spinAngleDeltaValue = 0;
+    this.nextSpinHitAngle = SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
     return true;
   }
 
@@ -218,10 +246,10 @@ export class BattlefieldHammerActionState {
   public update(
     deltaTime: number,
     definition: Readonly<MeleeWeaponDefinition>,
-    spinPulseInterval: number,
     result: MutableHammerActionEvents,
   ): void {
     resetEvents(result);
+    this.spinAngleDeltaValue = 0;
     const frameTime = Math.max(0, deltaTime);
     this.comboRemaining = Math.max(0, this.comboRemaining - frameTime);
     if (this.comboRemaining <= 0 && this.hitCountValue > 0) {
@@ -242,7 +270,7 @@ export class BattlefieldHammerActionState {
       const previousElapsed = this.elapsed;
       this.elapsed += step;
       remaining -= step;
-      this.emitTimelineEvents(previousElapsed, spinPulseInterval, result);
+      this.emitTimelineEvents(previousElapsed, result);
       if (this.elapsed + TIMELINE_EPSILON < this.duration) {
         break;
       }
@@ -255,7 +283,6 @@ export class BattlefieldHammerActionState {
   /** 写出当前动作在本次时间片内跨过的接触点与旋风窗口边界。 */
   private emitTimelineEvents(
     previousElapsed: number,
-    spinPulseInterval: number,
     result: MutableHammerActionEvents,
   ): void {
     switch (this.actionValue) {
@@ -276,11 +303,18 @@ export class BattlefieldHammerActionState {
         }
         break;
       case WeaponAction.Spin:
-        while (this.elapsed >= this.nextSpinPulseTime
-          && this.nextSpinPulseTime < this.duration - 0.04) {
+        {
+          const previousAngle = calculateSledgehammerSpinAngle(previousElapsed);
+          const currentAngle = calculateSledgehammerSpinAngle(this.elapsed);
+          this.spinAngleValue = currentAngle;
+          this.spinAngleDeltaValue += currentAngle - previousAngle;
+        }
+        while (this.spinAngleValue >= this.nextSpinHitAngle
+          && this.nextSpinHitAngle
+            < SLEDGEHAMMER_PROGRESSION.spinRevolutions * Math.PI * 2 - TIMELINE_EPSILON) {
           this.attackSequenceValue = nextSequence(this.attackSequenceValue);
           result.spinPulse = true;
-          this.nextSpinPulseTime += spinPulseInterval;
+          this.nextSpinHitAngle += SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
         }
         break;
       case WeaponAction.Idle:
@@ -338,7 +372,6 @@ export class BattlefieldHammerActionState {
         }
         break;
       case WeaponAction.Spin:
-        this.attackSequenceValue = nextSequence(this.attackSequenceValue);
         result.spinFinal = true;
         this.finishAction();
         break;
@@ -385,7 +418,9 @@ export class BattlefieldHammerActionState {
     this.elapsed = 0;
     this.duration = 1;
     this.impactEmitted = false;
-    this.nextSpinPulseTime = 0;
+    this.nextSpinHitAngle = SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
+    this.spinAngleValue = 0;
+    this.spinAngleDeltaValue = 0;
     this.directionXValue = 0;
     this.directionZValue = 1;
     this.hitCountValue = 0;
@@ -453,25 +488,4 @@ function resetEvents(events: MutableHammerActionEvents): void {
 
 function nextSequence(current: number): number {
   return current >= 0xffffffff ? 1 : current + 1;
-}
-
-function getFacingLockSource(action: WeaponAction): BattlefieldFacingLockSource | null {
-  switch (action) {
-    case WeaponAction.WindupLeft:
-    case WeaponAction.SwingLeft:
-    case WeaponAction.ChainPrepareLeft:
-    case WeaponAction.WindupRight:
-    case WeaponAction.SwingRight:
-    case WeaponAction.ChainPrepareRight:
-    case WeaponAction.Recover:
-      return BattlefieldFacingLockSource.HammerSwing;
-    case WeaponAction.Uppercut:
-      return BattlefieldFacingLockSource.HammerUppercut;
-    case WeaponAction.GroundSlam:
-      return BattlefieldFacingLockSource.HammerGroundSlam;
-    case WeaponAction.Spin:
-      return BattlefieldFacingLockSource.HammerSpin;
-    case WeaponAction.Idle:
-      return null;
-  }
 }

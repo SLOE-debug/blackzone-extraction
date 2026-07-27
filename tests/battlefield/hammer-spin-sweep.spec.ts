@@ -29,7 +29,7 @@ describe('旋风真实锤头扫掠', () => {
     runtime.sweepDebug.setEnabled(true);
     const state = createSpinState();
     runtime.synchronizeHead(createHeadPose(0, 0), 0.369);
-    state.update(0.05, DEFINITION, 0.32, EVENTS);
+    state.update(0.05, DEFINITION, EVENTS);
     runtime.synchronizeHead(createHeadPose(1.8, 0.4), 0.369);
     runtime.collectHits(OWNER, state, EVENTS, DEFINITION);
 
@@ -56,7 +56,7 @@ describe('旋风真实锤头扫掠', () => {
     advanceSpinFrame(runtime, state, 0.05, 1.4, 0.2);
     expect(target.damageCount).toBe(1);
 
-    advanceSpinFrame(runtime, state, 0.06, 1.8, 0.4);
+    advanceSpinFrame(runtime, state, 0.12, 1.8, 0.4);
     expect(EVENTS.spinPulse).toBe(true);
     expect(target.damageCount).toBe(2);
     expect(target.radialQueryCount).toBe(0);
@@ -135,8 +135,8 @@ function createSpinState(): BattlefieldHammerActionState {
   for (let hit = 0; hit < DEFINITION.specialRequiredHits; hit++) {
     state.recordConfirmedAttack(DEFINITION);
   }
-  state.update(0.05, DEFINITION, 0.32, EVENTS);
-  expect(state.requestSpin(0, 2.6)).toBe(true);
+  state.update(0.05, DEFINITION, EVENTS);
+  expect(state.requestSpin(0)).toBe(true);
   return state;
 }
 
@@ -148,7 +148,7 @@ function advanceSpinFrame(
   headZ: number,
 ): void {
   runtime.beginFrame();
-  state.update(deltaTime, DEFINITION, 0.32, EVENTS);
+  state.update(deltaTime, DEFINITION, EVENTS);
   runtime.synchronizeHead(createHeadPose(headX, headZ), 0.369);
   runtime.collectHits(OWNER, state, EVENTS, DEFINITION);
   runtime.resolveEvents(state, DEFINITION);

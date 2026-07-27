@@ -6,6 +6,7 @@ import { BATTLEFIELD_MONSTER_SPAWN } from '../../assets/bundles/battlefield/mode
 import {
   BattlefieldMonsterTargetRegistry,
   distanceSquaredToSegment,
+  type BattlefieldMeleeTargetQuery,
   type MutableBattlefieldMeleeTarget,
 } from '../../assets/bundles/battlefield/population/battlefield-monster-target-registry';
 import { type BattlefieldMonsterTargetGroup } from '../../assets/bundles/battlefield/population/battlefield-monster-target-group';
@@ -35,17 +36,36 @@ describe('锤头 Swept Capsule 窄相位', () => {
       z: 0,
       distanceSquared: 0,
     };
-    expect(registry.writeBestMeleeTarget(0, 0, 5, -1, -1, result)).toBe(true);
+    const query = createTargetQuery();
+    expect(registry.writeBestMeleeTarget(query, result)).toBe(true);
     expect(result.entityId).toBe(0);
-    expect(registry.writeBestMeleeTarget(0, 0, 5, 8, 1, result)).toBe(true);
+    query.preferredPopulationId = 8;
+    query.preferredEntityId = 1;
+    query.preferredTargetBonus = 100;
+    expect(registry.writeBestMeleeTarget(query, result)).toBe(true);
     expect(result.entityId).toBe(1);
 
     population.participation[1] = 0;
     crowd.rebuild();
-    expect(registry.writeBestMeleeTarget(0, 0, 5, 8, 1, result)).toBe(true);
+    expect(registry.writeBestMeleeTarget(query, result)).toBe(true);
     expect(result.entityId).toBe(0);
   });
 });
+
+function createTargetQuery(): Mutable<BattlefieldMeleeTargetQuery> {
+  return {
+    originX: 0,
+    originZ: 0,
+    radius: 5,
+    directionX: 1,
+    directionZ: 0,
+    halfArcRadians: Math.PI * 0.5,
+    angleWeight: 6,
+    preferredPopulationId: -1,
+    preferredEntityId: -1,
+    preferredTargetBonus: 0,
+  };
+}
 
 function createTargetPopulation(): PlanarCrowdPopulation {
   const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
@@ -79,3 +99,5 @@ function createTargetGroup(
     setAirborneEffect: () => false,
   };
 }
+
+type Mutable<T> = { -readonly [TKey in keyof T]: T[TKey] };

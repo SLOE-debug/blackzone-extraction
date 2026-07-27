@@ -1,5 +1,6 @@
 import { VanguardWeaponPose } from './vanguard-weapon-pose';
 import { VanguardWeaponAction } from './vanguard-weapon-action';
+import { VanguardFacingPolicy } from './vanguard-facing-policy';
 
 /** 主角单帧使用的世界平面移动与攻击朝向意图。 */
 export interface VanguardControlIntent {
@@ -13,10 +14,12 @@ export interface VanguardControlIntent {
   readonly attackZ: number;
   /** 是否应由攻击方向而非移动方向控制角色朝向。 */
   readonly attacking: boolean;
-  /** 是否由外部 Effect 在移动求解前锁定人物朝向。 */
-  readonly facingLocked: boolean;
-  /** 朝向锁定生效时使用的世界 Y 轴弧度。 */
-  readonly lockedHeading: number;
+  /** 当前动作使用的强类型朝向策略。 */
+  readonly facingPolicy: VanguardFacingPolicy;
+  /** 软锁、接触锁定或旋转动作追随的世界 Y 轴弧度。 */
+  readonly desiredHeading: number;
+  /** 动作阶段允许的最大转向角速度，零值表示使用普通移动阻尼。 */
+  readonly maximumTurnSpeed: number;
   /** 当前装备要求的类型化上身武器姿态。 */
   readonly weaponPose: VanguardWeaponPose;
   /** 当前武器正在执行的强类型动作。 */
@@ -35,7 +38,8 @@ export function validateVanguardControlIntent(
     || !Number.isFinite(intent.moveZ)
     || !Number.isFinite(intent.attackX)
     || !Number.isFinite(intent.attackZ)
-    || !Number.isFinite(intent.lockedHeading)) {
+    || !Number.isFinite(intent.desiredHeading)
+    || !Number.isFinite(intent.maximumTurnSpeed)) {
     throw new Error('主角移动和攻击意图必须是有限数值。');
   }
   if (Math.hypot(intent.moveX, intent.moveZ) > 1.0001) {
@@ -45,7 +49,11 @@ export function validateVanguardControlIntent(
   if (intent.attacking && Math.abs(attackLength - 1) > 0.001) {
     throw new Error('生效的主角攻击方向必须归一化。');
   }
-  if (!Number.isInteger(intent.weaponPose)
+  if (!Number.isInteger(intent.facingPolicy)
+    || intent.facingPolicy < VanguardFacingPolicy.Free
+    || intent.facingPolicy > VanguardFacingPolicy.SpinDriven
+    || intent.maximumTurnSpeed < 0
+    || !Number.isInteger(intent.weaponPose)
     || intent.weaponPose < VanguardWeaponPose.Unarmed
     || intent.weaponPose > VanguardWeaponPose.TwoHandHeavy
     || !Number.isInteger(intent.weaponAction)

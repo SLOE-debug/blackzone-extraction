@@ -102,8 +102,9 @@ export class VanguardPopulation {
     data.attackX[0] = intent.attackX;
     data.attackZ[0] = intent.attackZ;
     data.attacking[0] = intent.attacking ? 1 : 0;
-    data.facingLocked[0] = intent.facingLocked ? 1 : 0;
-    data.lockedHeading[0] = intent.lockedHeading;
+    data.facingPolicy[0] = intent.facingPolicy;
+    data.desiredHeading[0] = intent.desiredHeading;
+    data.maximumTurnSpeed[0] = intent.maximumTurnSpeed;
     data.weaponPose[0] = intent.weaponPose;
     data.weaponAction[0] = intent.weaponAction;
     data.weaponActionProgress[0] = intent.weaponActionProgress;

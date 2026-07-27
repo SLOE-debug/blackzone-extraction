@@ -13,6 +13,7 @@ import {
 import { writeVanguardMantleRestState } from './vanguard-mantle-state';
 import { VanguardWeaponPose } from './vanguard-weapon-pose';
 import { VanguardWeaponAction } from './vanguard-weapon-action';
+import { VanguardFacingPolicy } from './vanguard-facing-policy';
 
 /** 聚合可复用主角的单实体 SoA 状态。 */
 export class VanguardState {
@@ -65,11 +66,14 @@ function initializeVanguardData(
   intent.weaponAction[0] = VanguardWeaponAction.Idle;
   intent.weaponActionProgress[0] = 0;
   intent.weaponActionSide[0] = 0;
-  intent.facingLocked[0] = 0;
-  intent.lockedHeading[0] = options.heading;
+  intent.facingPolicy[0] = VanguardFacingPolicy.Free;
+  intent.desiredHeading[0] = options.heading;
+  intent.maximumTurnSpeed[0] = 0;
   motion.velocityX[0] = 0;
   motion.velocityZ[0] = 0;
   motion.speed[0] = 0;
+  motion.locomotionForward[0] = 0;
+  motion.locomotionRight[0] = 0;
   vitality.health[0] = VANGUARD_MAX_HEALTH;
   vitality.phase[0] = VanguardLifePhase.Alive;
   vitality.hitTime[0] = 0;

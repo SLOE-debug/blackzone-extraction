@@ -3,10 +3,11 @@ import {
   type MutablePlanarPosition,
   type PlanarMovementConstraint,
 } from '../../../core/contracts/planar-movement-constraint';
-import { dampAngle } from '../../../core/math/scalar';
+import { dampAngle, moveAngleTowards } from '../../../core/math/scalar';
 import { VANGUARD_CONFIG } from '../model/vanguard-config';
 import { VanguardLifePhase } from '../model/vanguard-life';
 import { type VanguardState } from '../model/vanguard-state';
+import { VanguardFacingPolicy } from '../model/vanguard-facing-policy';
 
 const DIRECTION_EPSILON = 0.0001;
 
@@ -24,6 +25,8 @@ export class VanguardMovementSystem implements EntitySystem<VanguardState, numbe
         motion.velocityX[index] = 0;
         motion.velocityZ[index] = 0;
         motion.speed[index] = 0;
+        motion.locomotionForward[index] = 0;
+        motion.locomotionRight[index] = 0;
         continue;
       }
       const moveX = intent.moveX[index] ?? 0;
@@ -65,24 +68,42 @@ export class VanguardMovementSystem implements EntitySystem<VanguardState, numbe
       transform.x[index] = this.resolvedPosition.x;
       transform.z[index] = this.resolvedPosition.z;
 
-      if ((intent.facingLocked[index] ?? 0) !== 0) {
-        transform.heading[index] = intent.lockedHeading[index] ?? transform.heading[index] ?? 0;
-        continue;
+      const currentHeading = transform.heading[index] ?? 0;
+      const facingPolicy = intent.facingPolicy[index] as VanguardFacingPolicy;
+      let nextHeading = currentHeading;
+      if (facingPolicy === VanguardFacingPolicy.SpinDriven) {
+        nextHeading = intent.desiredHeading[index] ?? currentHeading;
+      } else if (facingPolicy === VanguardFacingPolicy.SoftTarget
+        || facingPolicy === VanguardFacingPolicy.ContactLocked) {
+        nextHeading = moveAngleTowards(
+          currentHeading,
+          intent.desiredHeading[index] ?? currentHeading,
+          (intent.maximumTurnSpeed[index] ?? 0) * deltaTime,
+        );
+      } else {
+        const attacking = (intent.attacking[index] ?? 0) !== 0;
+        const facingX = attacking ? intent.attackX[index] ?? 0 : moveX;
+        const facingZ = attacking ? intent.attackZ[index] ?? 0 : moveZ;
+        if (facingX * facingX + facingZ * facingZ > DIRECTION_EPSILON) {
+          const targetHeading = Math.atan2(facingX, facingZ);
+          const maximumTurnSpeed = intent.maximumTurnSpeed[index] ?? 0;
+          nextHeading = maximumTurnSpeed > 0
+            ? moveAngleTowards(currentHeading, targetHeading, maximumTurnSpeed * deltaTime)
+            : dampAngle(
+              currentHeading,
+              targetHeading,
+              attacking
+                ? VANGUARD_CONFIG.attackTurnSharpness
+                : VANGUARD_CONFIG.movementTurnSharpness,
+              deltaTime,
+            );
+        }
       }
-      const attacking = (intent.attacking[index] ?? 0) !== 0;
-      const facingX = attacking ? intent.attackX[index] ?? 0 : moveX;
-      const facingZ = attacking ? intent.attackZ[index] ?? 0 : moveZ;
-      if (facingX * facingX + facingZ * facingZ <= DIRECTION_EPSILON) {
-        continue;
-      }
-      transform.heading[index] = dampAngle(
-        transform.heading[index] ?? 0,
-        Math.atan2(facingX, facingZ),
-        attacking
-          ? VANGUARD_CONFIG.attackTurnSharpness
-          : VANGUARD_CONFIG.movementTurnSharpness,
-        deltaTime,
-      );
+      transform.heading[index] = nextHeading;
+      motion.locomotionForward[index] = actualVelocityX * Math.sin(nextHeading)
+        + actualVelocityZ * Math.cos(nextHeading);
+      motion.locomotionRight[index] = actualVelocityX * Math.cos(nextHeading)
+        - actualVelocityZ * Math.sin(nextHeading);
     }
   }
 }

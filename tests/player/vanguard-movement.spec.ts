@@ -5,6 +5,7 @@ import { VanguardAction } from '../../assets/player/vanguard/model/vanguard-acti
 import { VanguardLifePhase } from '../../assets/player/vanguard/model/vanguard-life';
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
+import { VanguardFacingPolicy } from '../../assets/player/vanguard/model/vanguard-facing-policy';
 
 const TEST_OPTIONS = Object.freeze({
   position: Object.freeze({ x: 0, y: 0.05, z: 0 }),
@@ -39,19 +40,46 @@ describe('主角第三人称双摇杆移动', () => {
     expect(state.data.transform.heading[0]).toBeGreaterThan(2.5);
   });
 
-  it('朝向锁定优先于移动和攻击方向且不禁用位移', () => {
+  it('接触阶段按最大角速度软锁朝向且不禁用位移', () => {
     const state = new VanguardState(TEST_OPTIONS);
     const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
     state.data.intent.moveX[0] = 1;
     state.data.intent.attackZ[0] = -1;
     state.data.intent.attacking[0] = 1;
-    state.data.intent.facingLocked[0] = 1;
-    state.data.intent.lockedHeading[0] = 0.75;
+    state.data.intent.facingPolicy[0] = VanguardFacingPolicy.ContactLocked;
+    state.data.intent.desiredHeading[0] = 0.75;
+    state.data.intent.maximumTurnSpeed[0] = 1;
 
     movement.update(state, 0.1);
 
     expect(state.data.transform.x[0]).toBeGreaterThan(0);
-    expect(state.data.transform.heading[0]).toBeCloseTo(0.75, 6);
+    expect(state.data.transform.heading[0]).toBeCloseTo(0.1, 6);
+    expect(state.data.motion.locomotionRight[0]).toBeGreaterThan(3);
+  });
+
+  it('旋转驱动策略直接采用动作时间轴朝向', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
+    state.data.intent.facingPolicy[0] = VanguardFacingPolicy.SpinDriven;
+    state.data.intent.desiredHeading[0] = 2.4;
+
+    movement.update(state, 0.1);
+
+    expect(state.data.transform.heading[0]).toBeCloseTo(2.4, 6);
+  });
+
+  it('把世界速度投影为人物局部前后与左右分量', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
+    state.data.intent.moveX[0] = 1;
+    state.data.intent.facingPolicy[0] = VanguardFacingPolicy.ContactLocked;
+    state.data.intent.desiredHeading[0] = 0;
+    state.data.intent.maximumTurnSpeed[0] = Math.PI * 0.5;
+
+    movement.update(state, 0.1);
+
+    expect(Math.abs(state.data.motion.locomotionForward[0] ?? 0)).toBeLessThan(0.001);
+    expect(state.data.motion.locomotionRight[0]).toBeCloseTo(3.1, 5);
   });
 
   it('不施加地图边界限制并在松开输入后快速减速', () => {

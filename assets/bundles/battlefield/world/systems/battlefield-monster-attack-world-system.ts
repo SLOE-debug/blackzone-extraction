@@ -5,6 +5,7 @@ import {
 } from '../../debug/battlefield-performance-contracts';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
+import { calculateBattlefieldMonsterDamage } from '../../combat/battlefield-player-defense';
 
 /** 在 Combat 尾部把怪物领域模拟产生的聚合攻击伤害回写玩家。 */
 export class BattlefieldMonsterAttackWorldSystem extends BattlefieldWorldSystem {
@@ -18,8 +19,9 @@ export class BattlefieldMonsterAttackWorldSystem extends BattlefieldWorldSystem 
     if (damage <= 0) {
       return;
     }
-    const { player, performance } = world.resources;
-    performance.recordEvent(BattlefieldPerformanceEvent.PlayerDamage, damage);
-    player.damage(damage);
+    const { player, performance, weapon } = world.resources;
+    const appliedDamage = calculateBattlefieldMonsterDamage(damage, weapon.damageTakenScale);
+    performance.recordEvent(BattlefieldPerformanceEvent.PlayerDamage, appliedDamage);
+    player.damage(appliedDamage);
   }
 }

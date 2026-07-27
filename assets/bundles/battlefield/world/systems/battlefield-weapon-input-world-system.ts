@@ -37,7 +37,8 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       this.movementDirection.x,
       this.movementDirection.z,
     );
-    if (!controlState.attackHeld && !controlState.attackPressed) {
+    if ((!controlState.attackHeld && !controlState.attackPressed)
+      || weapon.shouldReleaseAutoTarget) {
       this.targetResolver.releaseTarget();
     }
 
@@ -48,8 +49,9 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
     }
     const attackRequested = controlState.attackPressed || controlState.attackHeld;
     if (attackRequested
+      && (weapon.actionControl.autoTargetAllowed || weapon.canBufferNextSwing)
       && (weapon.needsInitialSwingAim || weapon.canBufferNextSwing)) {
-      this.writeAim(world);
+      this.writeAim(world, weapon.canBufferNextSwing ? weapon.attackHeading : null);
       weapon.commands.requestSwing(this.aim.directionX, this.aim.directionZ);
     }
     if (!weapon.acceptingSkillCommand) {
@@ -59,17 +61,17 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       weapon.commands.requestSpin();
     }
     if (skills.groundSlamRequested) {
-      this.writeAim(world);
+      this.writeAim(world, null);
       weapon.commands.requestGroundSlam(this.aim.directionX, this.aim.directionZ);
     }
     if (skills.uppercutRequested) {
-      this.writeAim(world);
+      this.writeAim(world, null);
       weapon.commands.requestUppercut(this.aim.directionX, this.aim.directionZ);
     }
   }
 
   /** 为普通横扫、上挑和重砸统一解析一次动作开始方向。 */
-  private writeAim(world: BattlefieldWorld): void {
+  private writeAim(world: BattlefieldWorld, turnReferenceHeading: number | null): void {
     const { player, weapon, monsters } = world.resources;
     this.targetResolver.writeAim(
       monsters.meleeTargeting,
@@ -79,6 +81,7 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       this.movementDirection.x,
       this.movementDirection.z,
       player.heading,
+      turnReferenceHeading,
       this.aim,
     );
   }

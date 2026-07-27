@@ -1,14 +1,7 @@
-/** 能够占有人物朝向的稳定来源。 */
-export enum BattlefieldFacingLockSource {
-  HammerSwing = 'hammer-swing',
-  HammerUppercut = 'hammer-uppercut',
-  HammerGroundSlam = 'hammer-ground-slam',
-  HammerSpin = 'hammer-spin',
-}
+import { type HammerActionControlProfile } from './battlefield-hammer-action-control';
 
-/** 左摇杆仍可移动时独立锁定人物朝向的 Effect。 */
-export interface BattlefieldFacingLockEffect {
-  readonly source: BattlefieldFacingLockSource;
-  readonly lockedHeading: number;
+/** 大锤动作时间轴向角色控制层提交的无分配控制快照。 */
+export interface BattlefieldHammerActionControlEffect extends HammerActionControlProfile {
+  readonly desiredHeading: number;
   readonly remainingSeconds: number;
 }

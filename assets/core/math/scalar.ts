@@ -17,6 +17,13 @@ export function dampAngle(current: number, target: number, sharpness: number, de
   return current + difference * (1 - Math.exp(-sharpness * deltaTime));
 }
 
+/** 按最短方向把角度推进不超过指定弧度，并保留连续角度表达。 */
+export function moveAngleTowards(current: number, target: number, maximumDelta: number): number {
+  const difference = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  const delta = Math.max(-maximumDelta, Math.min(maximumDelta, difference));
+  return current + delta;
+}
+
 /** 将角度约束到零至完整圆周之间。 */
 export function wrapAngle(angle: number): number {
   const wrapped = angle % TAU;

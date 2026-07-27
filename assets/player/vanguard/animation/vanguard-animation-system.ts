@@ -49,9 +49,16 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
           + deltaTime / IDLE_CYCLE_SECONDS * TAU,
       );
       const speed = motion.speed[index] ?? 0;
+      const locomotionForward = (motion.locomotionForward[index] ?? 0)
+        / VANGUARD_CONFIG.maximumMoveSpeed;
+      const locomotionRight = (motion.locomotionRight[index] ?? 0)
+        / VANGUARD_CONFIG.maximumMoveSpeed;
+      const reversing = locomotionForward < -0.05
+        && Math.abs(locomotionForward) >= Math.abs(locomotionRight) * 0.35;
       animation.locomotionPhase[index] = wrapAngle(
         (animation.locomotionPhase[index] ?? 0)
-          + speed * VANGUARD_CONFIG.locomotionCyclesPerMeter * TAU * deltaTime,
+          + speed * VANGUARD_CONFIG.locomotionCyclesPerMeter * TAU * deltaTime
+            * (reversing ? -1 : 1),
       );
       animation.locomotionBlend[index] = damp(
         animation.locomotionBlend[index] ?? 0,
@@ -104,6 +111,10 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       animation.idlePhase[index] ?? 0,
       animation.locomotionPhase[index] ?? 0,
       animation.locomotionBlend[index] ?? 0,
+      Math.max(-1, Math.min(1,
+        (state.data.motion.locomotionForward[index] ?? 0) / VANGUARD_CONFIG.maximumMoveSpeed)),
+      Math.max(-1, Math.min(1,
+        (state.data.motion.locomotionRight[index] ?? 0) / VANGUARD_CONFIG.maximumMoveSpeed)),
       animation.weaponPose[index] as VanguardWeaponPose,
       animation.weaponStanceBlend[index] ?? 0,
       intent.weaponAction[index] as VanguardWeaponAction,

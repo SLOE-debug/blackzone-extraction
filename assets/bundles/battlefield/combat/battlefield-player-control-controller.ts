@@ -2,7 +2,8 @@ import { type VanguardControlIntent } from '../../../player/vanguard/model/vangu
 import { VanguardWeaponAction } from '../../../player/vanguard/model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weapon-pose';
 import { type VanguardPopulation } from '../../../player/vanguard/population/vanguard-population';
-import { type BattlefieldFacingLockEffect } from '../equipment/combat/battlefield-facing-lock-effect';
+import { type VanguardFacingPolicy } from '../../../player/vanguard/model/vanguard-facing-policy';
+import { type BattlefieldHammerActionControlEffect } from '../equipment/combat/battlefield-facing-lock-effect';
 import { SLEDGEHAMMER_PROGRESSION } from '../equipment/items/sledgehammer/sledgehammer-progression';
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
 import { type MutableBattlefieldPlanarDirection } from '../scene/battlefield-camera-direction';
@@ -14,8 +15,9 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   attackX: number;
   attackZ: number;
   attacking: boolean;
-  facingLocked: boolean;
-  lockedHeading: number;
+  facingPolicy: VanguardFacingPolicy;
+  desiredHeading: number;
+  maximumTurnSpeed: number;
   weaponPose: VanguardWeaponPose;
   weaponAction: VanguardWeaponAction;
   weaponActionProgress: number;
@@ -31,8 +33,9 @@ export class BattlefieldPlayerControlController {
     attackX: 0,
     attackZ: 1,
     attacking: false,
-    facingLocked: false,
-    lockedHeading: 0,
+    facingPolicy: 0,
+    desiredHeading: 0,
+    maximumTurnSpeed: 0,
     weaponPose: VanguardWeaponPose.Unarmed,
     weaponAction: VanguardWeaponAction.Idle,
     weaponActionProgress: 0,
@@ -49,12 +52,11 @@ export class BattlefieldPlayerControlController {
     weaponActionProgress: number,
     weaponActionSide: -1 | 0 | 1,
     movementSpeedMultiplier: number,
-    weaponMovementScale: number,
-    facingLock: Readonly<BattlefieldFacingLockEffect> | null,
+    actionControl: Readonly<BattlefieldHammerActionControlEffect>,
   ): void {
-    if (![movementSpeedMultiplier, weaponMovementScale].every(Number.isFinite)
+    if (![movementSpeedMultiplier, actionControl.movementScale].every(Number.isFinite)
       || movementSpeedMultiplier <= 0 || movementSpeedMultiplier > 1
-      || weaponMovementScale <= 0 || weaponMovementScale > 1) {
+      || actionControl.movementScale <= 0 || actionControl.movementScale > 1) {
       throw new Error('玩家移动乘数必须位于零到一之间。');
     }
     cameraRig.queueOrbitRotation(controls.cameraOrbitDeltaX);
@@ -64,15 +66,16 @@ export class BattlefieldPlayerControlController {
       this.movementDirection,
     );
     const intent = this.intent;
-    const speedScale = movementSpeedMultiplier * weaponMovementScale;
+    const speedScale = movementSpeedMultiplier * actionControl.movementScale;
     intent.moveX = this.movementDirection.x * speedScale;
     intent.moveZ = this.movementDirection.z * speedScale;
     intent.weaponPose = weaponPose;
     intent.weaponAction = weaponAction;
     intent.weaponActionProgress = weaponActionProgress;
     intent.weaponActionSide = weaponActionSide;
-    intent.facingLocked = facingLock !== null;
-    intent.lockedHeading = facingLock?.lockedHeading ?? player.heading;
+    intent.facingPolicy = actionControl.facingPolicy;
+    intent.desiredHeading = actionControl.desiredHeading;
+    intent.maximumTurnSpeed = actionControl.maximumTurnSpeed;
     intent.attackX = 0;
     intent.attackZ = 1;
     intent.attacking = false;

@@ -21,14 +21,24 @@ export interface MutableBattlefieldMeleeTarget {
   distanceSquared: number;
 }
 
+/** 自动近战目标查询使用的世界扇区、评分权重与稳定目标偏好。 */
+export interface BattlefieldMeleeTargetQuery {
+  readonly originX: number;
+  readonly originZ: number;
+  readonly radius: number;
+  readonly directionX: number;
+  readonly directionZ: number;
+  readonly halfArcRadians: number;
+  readonly angleWeight: number;
+  readonly preferredPopulationId: number;
+  readonly preferredEntityId: number;
+  readonly preferredTargetBonus: number;
+}
+
 /** 输入层只读依赖的近战目标查询门面。 */
 export interface BattlefieldMeleeTargetSource {
   writeBestMeleeTarget(
-    originX: number,
-    originZ: number,
-    radius: number,
-    preferredPopulationId: number,
-    preferredEntityId: number,
+    query: Readonly<BattlefieldMeleeTargetQuery>,
     result: MutableBattlefieldMeleeTarget,
   ): boolean;
 }
@@ -56,42 +66,39 @@ export class BattlefieldMonsterTargetRegistry {
   }
 
   /**
-   * 从共享圆形宽相位中写出最近存活目标；指定目标仍有效时优先保留它。
+   * 从共享圆形宽相位中按前方扇区、距离、角度与目标偏好写出最佳存活目标。
    *
-   * @param originX 查询中心世界 X。
-   * @param originZ 查询中心世界 Z。
-   * @param radius 目标中心允许进入的世界半径。
-   * @param preferredPopulationId 希望维持的群体标识，负数表示无偏好。
-   * @param preferredEntityId 希望维持的实体标识，负数表示无偏好。
+   * @param query 查询中心、前方扇区和距离角度联合评分配置。
    * @param result 调用方长期复用的结果对象。
    * @returns 是否找到合法目标。
    */
   public writeBestMeleeTarget(
-    originX: number,
-    originZ: number,
-    radius: number,
-    preferredPopulationId: number,
-    preferredEntityId: number,
+    query: Readonly<BattlefieldMeleeTargetQuery>,
     result: MutableBattlefieldMeleeTarget,
   ): boolean {
-    if (!Number.isFinite(originX)
-      || !Number.isFinite(originZ)
-      || !Number.isFinite(radius)
-      || radius <= 0
-      || !Number.isSafeInteger(preferredPopulationId)
-      || !Number.isSafeInteger(preferredEntityId)) {
+    if (![query.originX, query.originZ, query.radius, query.directionX, query.directionZ,
+      query.halfArcRadians, query.angleWeight, query.preferredTargetBonus].every(Number.isFinite)
+      || query.radius <= 0
+      || query.halfArcRadians <= 0
+      || query.halfArcRadians > Math.PI
+      || query.angleWeight < 0
+      || query.preferredTargetBonus < 0
+      || Math.abs(Math.hypot(query.directionX, query.directionZ) - 1) > 0.001
+      || !Number.isSafeInteger(query.preferredPopulationId)
+      || !Number.isSafeInteger(query.preferredEntityId)) {
       throw new Error('近战自动目标查询参数无效。');
     }
     const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
     const inverseScale = 1 / scale;
     this.crowd.collectCircleCandidates(
-      originX * inverseScale,
-      -originZ * inverseScale,
-      radius * inverseScale,
+      query.originX * inverseScale,
+      -query.originZ * inverseScale,
+      query.radius * inverseScale,
       this.candidates,
     );
     let found = false;
-    let bestDistanceSquared = Number.POSITIVE_INFINITY;
+    let bestScore = Number.POSITIVE_INFINITY;
+    const minimumAlignment = Math.cos(query.halfArcRadians);
     for (let index = 0; index < this.candidates.count; index++) {
       const populationId = this.candidates.populationIds[index] ?? 0;
       const entityId = this.candidates.entityIndices[index] ?? 0;
@@ -103,21 +110,30 @@ export class BattlefieldMonsterTargetRegistry {
       }
       const x = (crowd.x[entityId] ?? 0) * scale;
       const z = -(crowd.y[entityId] ?? 0) * scale;
-      const deltaX = x - originX;
-      const deltaZ = z - originZ;
+      const deltaX = x - query.originX;
+      const deltaZ = z - query.originZ;
       const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      if (distanceSquared > radius * radius) {
+      if (distanceSquared > query.radius * query.radius) {
         continue;
       }
-      if (populationId === preferredPopulationId && entityId === preferredEntityId) {
-        writeMeleeTarget(result, populationId, entityId, x, z, distanceSquared);
-        return true;
+      const distance = Math.sqrt(distanceSquared);
+      const alignment = distance <= DIRECTION_EPSILON
+        ? 1
+        : (deltaX * query.directionX + deltaZ * query.directionZ) / distance;
+      if (alignment < minimumAlignment) {
+        continue;
       }
-      if (!found || distanceSquared < bestDistanceSquared
-        || (distanceSquared === bestDistanceSquared
+      const preferred = populationId === query.preferredPopulationId
+        && entityId === query.preferredEntityId;
+      const angleDifference = Math.acos(Math.max(-1, Math.min(1, alignment)));
+      const score = distanceSquared
+        + angleDifference * query.angleWeight
+        - (preferred ? query.preferredTargetBonus : 0);
+      if (!found || score < bestScore
+        || (score === bestScore
           && isStableTargetBefore(populationId, entityId, result.populationId, result.entityId))) {
         found = true;
-        bestDistanceSquared = distanceSquared;
+        bestScore = score;
         writeMeleeTarget(result, populationId, entityId, x, z, distanceSquared);
       }
     }
