@@ -16,6 +16,7 @@ import { type MutableHammerActionEvents } from '../combat/battlefield-hammer-act
 import { BattlefieldWeaponCommandBuffer, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
 import { type BattlefieldItemInstance } from '../model/battlefield-item-instance';
 import { type EquippedWeaponPresentation } from '../model/equipped-weapon-presentation';
+import { SledgehammerSpinKnockbackTuning } from '../items/sledgehammer/sledgehammer-spin-knockback-tuning';
 import { createHeldEquipmentMaterial } from '../rendering/held-equipment-material';
 import { HeldEquipmentRenderer } from '../rendering/held-equipment-renderer';
 
@@ -62,6 +63,7 @@ export class BattlefieldPlayerEquipmentRuntime {
     groundSlamDirectionZ: 1,
     spinRequested: false,
   };
+  private readonly spinKnockbackTuning = new SledgehammerSpinKnockbackTuning();
   private readonly combat: BattlefieldHammerCombatRuntime;
   private renderer: HeldEquipmentRenderer | null = null;
   private equippedItemIdValue: WeaponEquipmentId | null = null;
@@ -83,7 +85,7 @@ export class BattlefieldPlayerEquipmentRuntime {
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
     monsters: BattlefieldHammerCombatTarget,
   ) {
-    this.combat = new BattlefieldHammerCombatRuntime(monsters);
+    this.combat = new BattlefieldHammerCombatRuntime(monsters, this.spinKnockbackTuning);
   }
 
   public get equipped(): boolean {
@@ -127,6 +129,11 @@ export class BattlefieldPlayerEquipmentRuntime {
 
   public get hammerSweepDebug(): BattlefieldHammerSweepDebugSource {
     return this.combat.sweepDebug;
+  }
+
+  /** 当前战场会话中供右上角 Debug 实时修改的旋风击退参数。 */
+  public get hammerSpinKnockbackTuning(): SledgehammerSpinKnockbackTuning {
+    return this.spinKnockbackTuning;
   }
 
   /** 当前武器可用于自动锁敌的基础近战射程。 */

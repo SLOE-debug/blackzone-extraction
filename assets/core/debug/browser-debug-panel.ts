@@ -34,6 +34,9 @@ export class BrowserDebugPanel {
 
     const body = document.createElement('div');
     body.style.padding = '6px 10px 10px';
+    body.style.maxHeight = 'calc(100vh - 68px)';
+    body.style.overflowY = 'auto';
+    body.style.overscrollBehavior = 'contain';
     root.appendChild(body);
     updateHeaderText(header, options.title, false);
     header.addEventListener('click', () => {

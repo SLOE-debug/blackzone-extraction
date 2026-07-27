@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
 import { PlanarKnockbackCombineMode } from '../../assets/core/contracts/monster-effects';
 import { BattlefieldMonsterEffectRuntime } from '../../assets/bundles/battlefield/combat/effects/battlefield-monster-effect-runtime';
-import { type BattlefieldMonsterTargetGroup } from '../../assets/bundles/battlefield/population/battlefield-monster-target-group';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../../assets/bundles/battlefield/model/battlefield-monster-spawn';
 import {
   type PlanarCrowdCollisionSource,
@@ -13,7 +11,11 @@ import { calculateSpinPulseDamageScale } from '../../assets/bundles/battlefield/
 import { SLEDGEHAMMER_PROGRESSION } from '../../assets/bundles/battlefield/equipment/items/sledgehammer/sledgehammer-progression';
 import { ALL_BATTLEFIELD_MONSTER_IDS, BattlefieldMonsterId } from '../../assets/bundles/battlefield/model/battlefield-monster-id';
 import { BATTLEFIELD_MONSTER_LAUNCH_RESPONSES } from '../../assets/bundles/battlefield/model/battlefield-monster-launch-responses';
-import { type MonsterLaunchResponse } from '../../assets/core/contracts/monster-effects';
+import {
+  createKineticTestKnockback as createKnockback,
+  createMonsterEffectRuntime as createEffects,
+  createMonsterEffectTestGroup as createGroup,
+} from './monster-effects-test-fixture';
 
 describe('怪物通用受力 Effect', () => {
   it('同一攻击序列对同一实体只接受一次', () => {
@@ -62,6 +64,7 @@ describe('怪物通用受力 Effect', () => {
       horizontalSpeed: 9.2,
       horizontalDrag: 1.15,
       gravityScale: 1,
+      landingDamageBase: 0,
     });
     effects.update(0.05);
     expect(group.crowdPopulation.x[0]).toBeGreaterThan(0);
@@ -150,6 +153,7 @@ describe('怪物通用受力 Effect', () => {
       horizontalSpeed: 9.2,
       horizontalDrag: 1.15,
       gravityScale: 1,
+      landingDamageBase: 0,
     });
     let peak = 0;
     for (let frame = 0; frame < 80; frame++) {
@@ -208,7 +212,7 @@ describe('怪物通用受力 Effect', () => {
     );
   });
 
-  it('五百只怪与九十六个载体只执行局部 Crowd 候选查询', () => {
+  it('五百只怪与一百二十八个载体只执行局部 Crowd 候选查询', () => {
     const positions = Array.from({ length: 500 }, (_, index) => index * 20);
     const group = createGroup(11, positions);
     const crowd = new PlanarCrowdSeparationSystem();
@@ -217,101 +221,15 @@ describe('怪物通用受力 Effect', () => {
     const collisionSource = new TrackingCollisionSource(crowd);
     const effects = new BattlefieldMonsterEffectRuntime(20, collisionSource);
     effects.register(group);
-    for (let entityId = 0; entityId < 96; entityId++) {
+    for (let entityId = 0; entityId < 128; entityId++) {
       effects.applyKnockback(11, entityId, createKnockback(10));
       effects.applyKineticCarrier(11, entityId, 30, 100, 90);
     }
     effects.update(0.01);
-    expect(collisionSource.segmentQueryCount).toBe(96);
+    expect(collisionSource.segmentQueryCount).toBe(128);
     expect(collisionSource.maximumCandidateCount).toBeLessThan(500);
   });
 });
-
-function createGroup(
-  populationId: number,
-  positions: readonly number[],
-  launchResponse: Readonly<MonsterLaunchResponse> = {
-    launchable: true,
-    heightScale: 1,
-    horizontalScale: 1,
-    knockbackScale: 1,
-  },
-) {
-  const count = positions.length;
-  const lifecycle = new Uint8Array(count);
-  lifecycle.fill(MonsterLifecycleState.Alive);
-  const participation = new Uint8Array(count);
-  participation.fill(1);
-  const x = Float32Array.from(positions);
-  const y = new Float32Array(count);
-  const radius = new Float32Array(count);
-  radius.fill(0.5);
-  const inverseMass = new Float32Array(count);
-  inverseMass.fill(1);
-  const elevations = new Float32Array(count);
-  const airborne = new Uint8Array(count);
-  const damageEvents: Array<{ entityId: number; amount: number }> = [];
-  return {
-    populationId,
-    launchResponse,
-    crowdPopulation: {
-      populationId,
-      count,
-      lifecycle,
-      participation,
-      previousX: Float32Array.from(positions),
-      previousY: new Float32Array(count),
-      x,
-      y,
-      radius,
-      inverseMass,
-    },
-    elevations,
-    airborne,
-    damageEvents,
-    damageMonster(entityId: number, amount: number) {
-      damageEvents.push({ entityId, amount });
-    },
-    setAirborneEffect(entityId: number, active: boolean, elevation: number) {
-      airborne[entityId] = active ? 1 : 0;
-      elevations[entityId] = elevation;
-      return true;
-    },
-  } satisfies BattlefieldMonsterTargetGroup & {
-    readonly elevations: Float32Array;
-    readonly airborne: Uint8Array;
-    readonly damageEvents: Array<{ entityId: number; amount: number }>;
-  };
-}
-
-function createEffects(
-  gravity: number,
-  ...groups: BattlefieldMonsterTargetGroup[]
-): {
-  readonly effects: BattlefieldMonsterEffectRuntime;
-  readonly crowd: PlanarCrowdSeparationSystem;
-} {
-  const crowd = new PlanarCrowdSeparationSystem();
-  const effects = new BattlefieldMonsterEffectRuntime(gravity, crowd);
-  for (const group of groups) {
-    crowd.register(group.crowdPopulation);
-    effects.register(group);
-  }
-  crowd.rebuild();
-  return { effects, crowd };
-}
-
-function createKnockback(initialSpeed: number) {
-  return {
-    directionX: 1,
-    directionZ: 0,
-    initialSpeed,
-    remainingSeconds: 1,
-    resistanceScale: 1,
-    combineMode: PlanarKnockbackCombineMode.Accumulate,
-    maximumSpeed: 38,
-  } as const;
-}
 
 class TrackingCollisionSource implements PlanarCrowdCollisionSource {
   public segmentQueryCount = 0;

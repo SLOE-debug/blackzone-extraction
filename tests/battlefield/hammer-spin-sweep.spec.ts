@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { type PlanarKnockbackEffect } from '../../assets/core/contracts/monster-effects';
 import { type BattlefieldMeleeHitBuffer, type BattlefieldMeleeQuery, type BattlefieldMeleeSweepQuery } from '../../assets/bundles/battlefield/combat/melee/battlefield-melee-query';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
@@ -7,6 +8,7 @@ import { type MutableHammerActionEvents } from '../../assets/bundles/battlefield
 import { type BattlefieldHammerCombatTarget } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-combat-target';
 import { BattlefieldHammerCombatRuntime, type BattlefieldHammerOwnerState } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-combat-runtime';
 import { type BattlefieldHammerWorldPose } from '../../assets/bundles/battlefield/equipment/model/battlefield-hammer-world-pose';
+import { SledgehammerSpinKnockbackTuning } from '../../assets/bundles/battlefield/equipment/items/sledgehammer/sledgehammer-spin-knockback-tuning';
 
 const DEFINITION = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.Sledgehammer);
 const OWNER: BattlefieldHammerOwnerState = Object.freeze({
@@ -26,7 +28,10 @@ const EVENTS: MutableHammerActionEvents = {
 describe('旋风真实锤头扫掠', () => {
   it('逐帧查询上一帧到当前帧的锤头胶囊并仅增加小幅辅助余量', () => {
     const target = new RecordingCombatTarget();
-    const runtime = new BattlefieldHammerCombatRuntime(target);
+    const runtime = new BattlefieldHammerCombatRuntime(
+      target,
+      new SledgehammerSpinKnockbackTuning(),
+    );
     runtime.sweepDebug.setEnabled(true);
     const state = createSpinState();
     runtime.synchronizeHead(createHeadPose(0, 0), 0.369);
@@ -48,7 +53,10 @@ describe('旋风真实锤头扫掠', () => {
 
   it('同一脉冲窗口内同一怪物只受伤一次，跨窗口后可再次命中', () => {
     const target = new RecordingCombatTarget(true);
-    const runtime = new BattlefieldHammerCombatRuntime(target);
+    const runtime = new BattlefieldHammerCombatRuntime(
+      target,
+      new SledgehammerSpinKnockbackTuning(),
+    );
     runtime.sweepDebug.setEnabled(true);
     const state = createSpinState();
     runtime.synchronizeHead(createHeadPose(0, 0), 0.369);
@@ -64,12 +72,67 @@ describe('旋风真实锤头扫掠', () => {
     expect(runtime.sweepDebug.hitCount).toBe(1);
     expect(runtime.sweepDebug.getHitX(0)).toBeCloseTo(1, 6);
   });
+
+  it('普通脉冲同时产生径向与切向冲量，终结打击恢复纯径向并显著提速', () => {
+    const target = new RecordingCombatTarget(true);
+    const runtime = new BattlefieldHammerCombatRuntime(
+      target,
+      new SledgehammerSpinKnockbackTuning(),
+    );
+    const state = createSpinState();
+    runtime.synchronizeHead(createHeadPose(0, 0), 0.369);
+
+    advanceSpinFrame(runtime, state, 0.05, 1, 0);
+    const pulse = target.knockbacks[0];
+    expect(pulse?.directionX).toBeGreaterThan(0);
+    expect(pulse?.directionZ).toBeGreaterThan(0);
+    expect(pulse?.initialSpeed).toBeGreaterThanOrEqual(32);
+    expect(pulse?.initialSpeed).toBeLessThan(32.1);
+
+    advanceSpinFrame(runtime, state, 1.4, 1.2, 0);
+    expect(EVENTS.spinFinal).toBe(true);
+    const final = target.knockbacks.at(-1);
+    expect(final?.directionX).toBeCloseTo(1, 6);
+    expect(final?.directionZ).toBeCloseTo(0, 6);
+    expect(final?.initialSpeed).toBeCloseTo(80, 6);
+    expect(final?.initialSpeed).toBeGreaterThan(pulse?.initialSpeed ?? 0);
+    expect(final?.maximumSpeed).toBe(80);
+  });
+
+  it('运行时直接读取右上角调参对象的最新旋风击退值', () => {
+    const target = new RecordingCombatTarget(true);
+    const tuning = new SledgehammerSpinKnockbackTuning();
+    tuning.setImpulse(20);
+    tuning.setPulseMinimumScale(1);
+    tuning.setPulseMaximumScale(1);
+    tuning.setMaximumSpeed(70);
+    tuning.setDurationSeconds(0.8);
+    tuning.setPulseRadialWeight(1);
+    tuning.setPulseTangentialWeight(0);
+    const runtime = new BattlefieldHammerCombatRuntime(target, tuning);
+    const state = createSpinState();
+    runtime.synchronizeHead(createHeadPose(0, 0), 0.369);
+
+    advanceSpinFrame(runtime, state, 0.05, 1, 0);
+    const pulse = target.knockbacks[0];
+    expect(pulse?.initialSpeed).toBe(20);
+    expect(pulse?.remainingSeconds).toBeCloseTo(0.8, 6);
+    expect(pulse?.maximumSpeed).toBe(70);
+    expect(pulse?.directionX).toBeCloseTo(1, 6);
+    expect(pulse?.directionZ).toBeCloseTo(0, 6);
+
+    tuning.setImpulse(25);
+    tuning.setFinalScale(3);
+    advanceSpinFrame(runtime, state, 1.4, 1.2, 0);
+    expect(target.knockbacks.at(-1)?.initialSpeed).toBe(75);
+  });
 });
 
 class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
   public radialQueryCount = 0;
   public sweepQueryCount = 0;
   public damageCount = 0;
+  public readonly knockbacks: PlanarKnockbackEffect[] = [];
   public lastSweep: BattlefieldMeleeSweepQuery | null = null;
   private readonly acceptedSequences = new Set<number>();
 
@@ -92,7 +155,7 @@ class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
     this.lastSweep = { ...query };
     result.reset();
     if (this.includeHit) {
-      result.include(7, 11, 1, 0.2);
+      result.include(7, 11, 1, 0);
     }
     return result.count;
   }
@@ -110,7 +173,12 @@ class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
     return true;
   }
 
-  public applyKnockback(): boolean {
+  public applyKnockback(
+    _populationId: number,
+    _entityId: number,
+    effect: Readonly<PlanarKnockbackEffect>,
+  ): boolean {
+    this.knockbacks.push({ ...effect });
     return true;
   }
 

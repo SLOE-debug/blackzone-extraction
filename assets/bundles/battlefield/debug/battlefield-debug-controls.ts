@@ -6,6 +6,10 @@ import {
 } from './battlefield-debug-monster-spawn';
 import { type BattlefieldDebugMonsterSelection } from './battlefield-debug-monster-options';
 import { type BattlefieldHammerSweepDebugSource } from '../equipment/combat/battlefield-hammer-sweep-debug-state';
+import {
+  type SledgehammerSpinKnockbackTuning,
+  type SledgehammerSpinKnockbackValues,
+} from '../equipment/items/sledgehammer/sledgehammer-spin-knockback-tuning';
 
 /** Debug 面板依赖的自动生成配置与精确怪物生成门面。 */
 export interface BattlefieldDebugMonsterSpawner {
@@ -22,6 +26,7 @@ export interface BattlefieldDebugSnapshot {
   readonly followCameraPitchDegrees: number;
   readonly performanceDiagnosticsEnabled: boolean;
   readonly hammerSweepDiagnosticsEnabled: boolean;
+  readonly spinKnockback: Readonly<SledgehammerSpinKnockbackValues>;
   readonly automaticGenerationEnabled: boolean;
   readonly automaticMonsters: BattlefieldDebugMonsterSelection;
 }
@@ -40,6 +45,7 @@ export class BattlefieldDebugControls {
     private readonly monsters: BattlefieldDebugMonsterSpawner,
     private readonly diagnostics: BattlefieldDebugPerformanceDiagnostics,
     public readonly hammerSweepDebug: BattlefieldHammerSweepDebugSource,
+    private readonly spinKnockback: SledgehammerSpinKnockbackTuning,
   ) {}
 
   /** 获取面板全部控件的当前值。 */
@@ -49,6 +55,7 @@ export class BattlefieldDebugControls {
       followCameraPitchDegrees: this.cameraRig.followPitchDegrees,
       performanceDiagnosticsEnabled: this.diagnostics.enabled,
       hammerSweepDiagnosticsEnabled: this.hammerSweepDebug.enabled,
+      spinKnockback: this.spinKnockback.getSnapshot(),
       automaticGenerationEnabled: this.monsters.automaticGenerationEnabled,
       automaticMonsters: Object.freeze({
         [BattlefieldMonsterId.CurveCrawler]: this.monsters.isAutomaticMonsterEnabled(
@@ -95,6 +102,38 @@ export class BattlefieldDebugControls {
   /** 显式启停锤头轨迹、胶囊半径与命中目标诊断。 */
   public setHammerSweepDiagnosticsEnabled(value: boolean): void {
     this.hammerSweepDebug.setEnabled(value);
+  }
+
+  public setSpinKnockbackImpulse(value: number): void {
+    this.spinKnockback.setImpulse(value);
+  }
+
+  public setSpinPulseMinimumScale(value: number): void {
+    this.spinKnockback.setPulseMinimumScale(value);
+  }
+
+  public setSpinPulseMaximumScale(value: number): void {
+    this.spinKnockback.setPulseMaximumScale(value);
+  }
+
+  public setSpinFinalScale(value: number): void {
+    this.spinKnockback.setFinalScale(value);
+  }
+
+  public setSpinMaximumKnockbackSpeed(value: number): void {
+    this.spinKnockback.setMaximumSpeed(value);
+  }
+
+  public setSpinKnockbackDurationSeconds(value: number): void {
+    this.spinKnockback.setDurationSeconds(value);
+  }
+
+  public setSpinPulseRadialWeight(value: number): void {
+    this.spinKnockback.setPulseRadialWeight(value);
+  }
+
+  public setSpinPulseTangentialWeight(value: number): void {
+    this.spinKnockback.setPulseTangentialWeight(value);
   }
 
 }

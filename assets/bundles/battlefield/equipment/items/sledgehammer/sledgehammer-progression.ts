@@ -9,6 +9,7 @@ export interface SledgehammerProgressionStats {
   readonly uppercutHorizontalSpeed: number;
   readonly uppercutHorizontalDrag: number;
   readonly uppercutDamageScale: number;
+  readonly uppercutLandingDamageScale: number;
   readonly spinDurationSeconds: number;
   readonly spinRevolutions: number;
   readonly spinMovementScale: number;
@@ -24,6 +25,8 @@ export interface SledgehammerProgressionStats {
   readonly spinPulseMinimumKnockbackScale: number;
   readonly spinPulseMaximumKnockbackScale: number;
   readonly spinFinalKnockbackScale: number;
+  readonly spinPulseRadialWeight: number;
+  readonly spinPulseTangentialWeight: number;
   readonly spinPulseBaseDamageScale: number;
   readonly spinRepeatDamageStep: number;
   readonly spinRepeatDamageMaximumBonus: number;
@@ -44,6 +47,7 @@ export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   uppercutHorizontalSpeed: 9.2,
   uppercutHorizontalDrag: 1.15,
   uppercutDamageScale: 1.2,
+  uppercutLandingDamageScale: 0.9,
   spinDurationSeconds: 1.45,
   spinRevolutions: 4,
   spinMovementScale: 0.62,
@@ -52,13 +56,15 @@ export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   spinHitWindowAngle: Math.PI,
   spinSweepSubstepAngle: Math.PI / 12,
   spinMaximumSweepSubsteps: 4,
-  spinKnockbackImpulse: 13.5,
+  spinKnockbackImpulse: 40,
   spinKnockbackCombineMode: PlanarKnockbackCombineMode.Accumulate,
-  spinMaximumKnockbackSpeed: 38,
-  spinKnockbackDurationSeconds: 0.4,
-  spinPulseMinimumKnockbackScale: 0.72,
-  spinPulseMaximumKnockbackScale: 1.08,
-  spinFinalKnockbackScale: 1.65,
+  spinMaximumKnockbackSpeed: 80,
+  spinKnockbackDurationSeconds: 1,
+  spinPulseMinimumKnockbackScale: 0.8,
+  spinPulseMaximumKnockbackScale: 1.35,
+  spinFinalKnockbackScale: 2,
+  spinPulseRadialWeight: 0.82,
+  spinPulseTangentialWeight: 0.57,
   spinPulseBaseDamageScale: 0.42,
   spinRepeatDamageStep: 0.06,
   spinRepeatDamageMaximumBonus: 0.24,

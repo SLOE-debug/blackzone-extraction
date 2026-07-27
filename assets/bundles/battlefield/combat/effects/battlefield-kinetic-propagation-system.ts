@@ -6,6 +6,10 @@ import {
   type BattlefieldKineticPropagationConfig,
 } from './battlefield-kinetic-propagation-config';
 import { BattlefieldKineticPairLedger } from './battlefield-kinetic-pair-ledger';
+import {
+  calculateKineticResistance,
+  calculatePropagationFloor,
+} from './battlefield-kinetic-propagation-profile';
 import { type BattlefieldMonsterEffectGroupState } from './battlefield-monster-effect-state';
 
 const VELOCITY_EPSILON = 0.0001;
@@ -208,15 +212,25 @@ export class BattlefieldKineticPropagationSystem {
     if (pair.damageAllowed) {
       this.applyCollisionDamage(sourceState, sourceEntity, targetState, targetEntity, closingSpeed);
     }
-    const transferredSpeed = closingSpeed
-      * this.config.transferRatio
-      * targetState.group.launchResponse.knockbackScale;
+    const nextGeneration = (sourceState.kineticGeneration[sourceEntity] ?? 0) + 1;
+    const resistance = calculateKineticResistance(
+      targetState.group.launchResponse.knockbackScale,
+    );
+    const physicalTransferredSpeed = closingSpeed * this.config.transferRatio * resistance;
+    const propagationFloor = nextGeneration <= this.config.maximumGeneration
+      ? calculatePropagationFloor(nextGeneration, this.config)
+      : 0;
+    const transferredSpeed = Math.min(
+      this.config.maximumSpeed,
+      Math.max(physicalTransferredSpeed, propagationFloor),
+    );
     writeKnockbackVelocity(
       targetState,
       targetEntity,
       targetVelocityX + normalX * transferredSpeed,
       targetVelocityZ + normalZ * transferredSpeed,
       this.config.maximumSpeed,
+      this.config.propagatedKnockbackDurationSeconds,
     );
     writeKnockbackVelocity(
       sourceState,
@@ -224,8 +238,16 @@ export class BattlefieldKineticPropagationSystem {
       sourceVelocityX * this.config.sourceRetention,
       sourceVelocityZ * this.config.sourceRetention,
       this.config.maximumSpeed,
+      0,
     );
-    this.propagateCarrier(sourceState, sourceEntity, targetState, targetEntity, frameId);
+    this.propagateCarrier(
+      sourceState,
+      sourceEntity,
+      targetState,
+      targetEntity,
+      nextGeneration,
+      frameId,
+    );
   }
 
   private applyCollisionDamage(
@@ -262,9 +284,9 @@ export class BattlefieldKineticPropagationSystem {
     sourceEntity: number,
     targetState: BattlefieldMonsterEffectGroupState,
     targetEntity: number,
+    generation: number,
     frameId: number,
   ): void {
-    const generation = (sourceState.kineticGeneration[sourceEntity] ?? 0) + 1;
     if (generation > this.config.maximumGeneration) {
       return;
     }
@@ -321,6 +343,7 @@ function writeKnockbackVelocity(
   velocityX: number,
   velocityZ: number,
   maximumSpeed: number,
+  minimumDuration: number,
 ): void {
   const rawSpeed = Math.hypot(velocityX, velocityZ);
   if (rawSpeed <= VELOCITY_EPSILON) {
@@ -333,7 +356,10 @@ function writeKnockbackVelocity(
   state.knockbackDirectionX[entityId] = velocityX / rawSpeed;
   state.knockbackDirectionZ[entityId] = velocityZ / rawSpeed;
   state.knockbackSpeed[entityId] = speed;
-  const remaining = Math.max(state.knockbackRemaining[entityId] ?? 0, 0.2);
+  const remaining = Math.max(
+    state.knockbackRemaining[entityId] ?? 0,
+    minimumDuration,
+  );
   state.knockbackRemaining[entityId] = remaining;
   state.knockbackDuration[entityId] = remaining;
 }

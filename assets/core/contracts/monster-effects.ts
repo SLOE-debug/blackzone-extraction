@@ -41,6 +41,8 @@ export interface DirectionalLaunchEffect {
   readonly horizontalSpeed: number;
   readonly horizontalDrag: number;
   readonly gravityScale: number;
+  /** 用于落地伤害计算的基础伤害；零表示本次腾空不造成落地伤害。 */
+  readonly landingDamageBase: number;
 }
 
 /** 怪物领域状态接收的独立腾空状态与外部高度。 */

@@ -3,6 +3,7 @@ import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import { type BattlefieldDebugControls } from './battlefield-debug-controls';
 import { BATTLEFIELD_DEBUG_MONSTER_OPTIONS } from './battlefield-debug-monster-options';
 import { BattlefieldHammerSweepDebugVisualization } from './battlefield-hammer-sweep-debug-visualization';
+import { SLEDGEHAMMER_SPIN_KNOCKBACK_TUNING_RANGES } from '../equipment/items/sledgehammer/sledgehammer-spin-knockback-tuning';
 
 const PANEL_OPTIONS = Object.freeze({
   id: 'battlefield-debug-panel',
@@ -49,6 +50,73 @@ export class BattlefieldDebugPanel {
       },
     );
     const sweepCanvas = panel.addCanvas('黄线：轨迹　青色：胶囊　红点：命中', 288, 180);
+    const spinKnockback = snapshot.spinKnockback;
+    const tuningRanges = SLEDGEHAMMER_SPIN_KNOCKBACK_TUNING_RANGES;
+    panel.addSection('旋风击退调参（实时）');
+    panel.addNumber(
+      '基础冲量',
+      tuningRanges.impulse.minimum,
+      tuningRanges.impulse.maximum,
+      tuningRanges.impulse.step,
+      spinKnockback.impulse,
+      (value) => controls.setSpinKnockbackImpulse(value),
+    );
+    panel.addNumber(
+      '前段倍率',
+      tuningRanges.pulseMinimumScale.minimum,
+      tuningRanges.pulseMinimumScale.maximum,
+      tuningRanges.pulseMinimumScale.step,
+      spinKnockback.pulseMinimumScale,
+      (value) => controls.setSpinPulseMinimumScale(value),
+    );
+    panel.addNumber(
+      '后段倍率',
+      tuningRanges.pulseMaximumScale.minimum,
+      tuningRanges.pulseMaximumScale.maximum,
+      tuningRanges.pulseMaximumScale.step,
+      spinKnockback.pulseMaximumScale,
+      (value) => controls.setSpinPulseMaximumScale(value),
+    );
+    panel.addNumber(
+      '终结倍率',
+      tuningRanges.finalScale.minimum,
+      tuningRanges.finalScale.maximum,
+      tuningRanges.finalScale.step,
+      spinKnockback.finalScale,
+      (value) => controls.setSpinFinalScale(value),
+    );
+    panel.addNumber(
+      '速度上限',
+      tuningRanges.maximumSpeed.minimum,
+      tuningRanges.maximumSpeed.maximum,
+      tuningRanges.maximumSpeed.step,
+      spinKnockback.maximumSpeed,
+      (value) => controls.setSpinMaximumKnockbackSpeed(value),
+    );
+    panel.addNumber(
+      '持续时间',
+      tuningRanges.durationSeconds.minimum,
+      tuningRanges.durationSeconds.maximum,
+      tuningRanges.durationSeconds.step,
+      spinKnockback.durationSeconds,
+      (value) => controls.setSpinKnockbackDurationSeconds(value),
+    );
+    panel.addNumber(
+      '径向权重',
+      tuningRanges.pulseRadialWeight.minimum,
+      tuningRanges.pulseRadialWeight.maximum,
+      tuningRanges.pulseRadialWeight.step,
+      spinKnockback.pulseRadialWeight,
+      (value) => controls.setSpinPulseRadialWeight(value),
+    );
+    panel.addNumber(
+      '切向权重',
+      tuningRanges.pulseTangentialWeight.minimum,
+      tuningRanges.pulseTangentialWeight.maximum,
+      tuningRanges.pulseTangentialWeight.step,
+      spinKnockback.pulseTangentialWeight,
+      (value) => controls.setSpinPulseTangentialWeight(value),
+    );
     panel.addSection('怪物生成');
     panel.addBoolean('是否生成怪物', snapshot.automaticGenerationEnabled, (value) => {
       controls.setAutomaticGenerationEnabled(value);

@@ -8,6 +8,7 @@ import {
 import { type PlanarCrowdCollisionSource } from '../../../../core/monsters/crowd/planar-crowd-separation-system';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../../model/battlefield-monster-spawn';
 import { type BattlefieldMonsterTargetGroup } from '../../population/battlefield-monster-target-group';
+import { BATTLEFIELD_AIRBORNE_IMPACT_CONFIG } from './battlefield-airborne-impact-config';
 import { BattlefieldKineticPropagationSystem } from './battlefield-kinetic-propagation-system';
 import {
   BattlefieldMonsterEffectGroupState,
@@ -142,6 +143,10 @@ export class BattlefieldMonsterEffectRuntime {
     const verticalVelocity = Math.sqrt(2 * effectiveGravity * targetHeight);
     state.verticalVelocity[entityId] = verticalVelocity;
     state.gravityScale[entityId] = effect.gravityScale;
+    state.landingDamageBase[entityId] = Math.max(
+      state.landingDamageBase[entityId] ?? 0,
+      effect.landingDamageBase,
+    );
     state.airborneActive[entityId] = 1;
     return true;
   }
@@ -248,21 +253,52 @@ export class BattlefieldMonsterEffectRuntime {
       const damping = Math.exp(-(state.airborneHorizontalDrag[entityId] ?? 0) * deltaTime);
       state.airborneVelocityX[entityId] = (state.airborneVelocityX[entityId] ?? 0) * damping;
       state.airborneVelocityZ[entityId] = (state.airborneVelocityZ[entityId] ?? 0) * damping;
-      velocity -= this.gravity * (state.gravityScale[entityId] ?? 1) * deltaTime;
-      elevation += velocity * deltaTime;
-      if (elevation <= 0 && velocity <= 0) {
+      const effectiveGravity = this.gravity * (state.gravityScale[entityId] ?? 1);
+      const nextVelocity = velocity - effectiveGravity * deltaTime;
+      const nextElevation = elevation + nextVelocity * deltaTime;
+      if (nextElevation <= 0 && nextVelocity <= 0) {
+        this.resolveLandingDamage(state, entityId, -nextVelocity);
         elevation = 0;
         velocity = 0;
         airborne = false;
         state.airborneVelocityX[entityId] = 0;
         state.airborneVelocityZ[entityId] = 0;
         state.airborneHorizontalDrag[entityId] = 0;
+        state.landingDamageBase[entityId] = 0;
+      } else {
+        elevation = nextElevation;
+        velocity = nextVelocity;
       }
       state.elevation[entityId] = elevation;
       state.verticalVelocity[entityId] = velocity;
       state.airborneActive[entityId] = airborne ? 1 : 0;
     }
     state.group.setAirborneEffect(entityId, airborne, elevation);
+  }
+
+  /** 仅在真实触地帧按向下速度结算一次待处理的落地伤害。 */
+  private resolveLandingDamage(
+    state: BattlefieldMonsterEffectGroupState,
+    entityId: number,
+    impactSpeed: number,
+  ): void {
+    const baseDamage = state.landingDamageBase[entityId] ?? 0;
+    const config = BATTLEFIELD_AIRBORNE_IMPACT_CONFIG;
+    if (baseDamage <= 0 || impactSpeed < config.minimumDamageImpactSpeed) {
+      return;
+    }
+    const speedRange = Math.max(
+      EFFECT_EPSILON,
+      config.fullDamageImpactSpeed - config.minimumDamageImpactSpeed,
+    );
+    const normalizedSpeed = Math.max(
+      0,
+      Math.min(1, (impactSpeed - config.minimumDamageImpactSpeed) / speedRange),
+    );
+    const easedSpeed = normalizedSpeed * normalizedSpeed * (3 - 2 * normalizedSpeed);
+    const damageScale = config.minimumDamageScale
+      + (config.maximumDamageScale - config.minimumDamageScale) * easedSpeed;
+    state.group.damageMonster(entityId, baseDamage * damageScale);
   }
 
   private findState(populationId: number): BattlefieldMonsterEffectGroupState | null {
@@ -292,7 +328,14 @@ function updateKnockback(
     + (state.knockbackDirectionX[entityId] ?? 0) * speed * deltaTime * inverseScale;
   crowd.y[entityId] = (crowd.y[entityId] ?? 0)
     - (state.knockbackDirectionZ[entityId] ?? 0) * speed * deltaTime * inverseScale;
-  state.knockbackRemaining[entityId] = Math.max(0, remaining - deltaTime);
+  const nextRemaining = Math.max(0, remaining - deltaTime);
+  state.knockbackRemaining[entityId] = nextRemaining;
+  if (nextRemaining <= 0) {
+    state.knockbackDirectionX[entityId] = 0;
+    state.knockbackDirectionZ[entityId] = 0;
+    state.knockbackSpeed[entityId] = 0;
+    state.knockbackDuration[entityId] = 0;
+  }
 }
 
 function validateKnockback(effect: Readonly<PlanarKnockbackEffect>): void {
@@ -311,11 +354,13 @@ function validateKnockback(effect: Readonly<PlanarKnockbackEffect>): void {
 
 function validateDirectionalLaunch(effect: Readonly<DirectionalLaunchEffect>): void {
   if (![effect.directionX, effect.directionZ, effect.targetHeight,
-    effect.horizontalSpeed, effect.horizontalDrag, effect.gravityScale].every(Number.isFinite)
+    effect.horizontalSpeed, effect.horizontalDrag, effect.gravityScale,
+    effect.landingDamageBase].every(Number.isFinite)
     || Math.abs(Math.hypot(effect.directionX, effect.directionZ) - 1) > 0.001
     || effect.targetHeight < 0
     || effect.horizontalSpeed < 0
     || effect.horizontalDrag < 0
+    || effect.landingDamageBase < 0
     || effect.gravityScale <= 0) {
     throw new Error('方向腾空 Effect 参数无效。');
   }
@@ -337,6 +382,7 @@ function resetEntityEffect(state: BattlefieldMonsterEffectGroupState, entityId: 
   state.airborneVelocityX[entityId] = 0;
   state.airborneVelocityZ[entityId] = 0;
   state.airborneHorizontalDrag[entityId] = 0;
+  state.landingDamageBase[entityId] = 0;
   state.airborneActive[entityId] = 0;
   state.kineticRemaining[entityId] = 0;
   state.kineticSequence[entityId] = 0;

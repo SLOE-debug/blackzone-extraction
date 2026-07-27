@@ -5,6 +5,7 @@ import {
 } from '../../combat/melee/battlefield-melee-query';
 import { type BattlefieldHammerWorldPose } from '../model/battlefield-hammer-world-pose';
 import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
+import { type SledgehammerSpinKnockbackValues } from '../items/sledgehammer/sledgehammer-spin-knockback-tuning';
 import { BattlefieldCombatEventBuffer, BattlefieldWeaponHitKind } from './battlefield-combat-event-buffer';
 import { type BattlefieldHammerActionState } from './battlefield-hammer-action-state';
 import { type MutableHammerActionEvents } from './battlefield-hammer-action-events';
@@ -83,7 +84,10 @@ export class BattlefieldHammerCombatRuntime {
     kineticDamageBudget: 0,
   };
 
-  constructor(private readonly monsters: BattlefieldHammerCombatTarget) {}
+  constructor(
+    private readonly monsters: BattlefieldHammerCombatTarget,
+    private readonly spinKnockback: Readonly<SledgehammerSpinKnockbackValues>,
+  ) {}
 
   public get sweepDebug(): BattlefieldHammerSweepDebugSource {
     return this.sweepDebugState;
@@ -189,6 +193,8 @@ export class BattlefieldHammerCombatRuntime {
           horizontalSpeed: SLEDGEHAMMER_PROGRESSION.uppercutHorizontalSpeed,
           horizontalDrag: SLEDGEHAMMER_PROGRESSION.uppercutHorizontalDrag,
           gravityScale: 1,
+          landingDamageBase: definition.baseDamage
+            * SLEDGEHAMMER_PROGRESSION.uppercutLandingDamageScale,
         });
       } else {
         const knockbackSpeed = this.events.knockbackSpeed[index] ?? 0;
@@ -205,7 +211,7 @@ export class BattlefieldHammerCombatRuntime {
             ? SLEDGEHAMMER_PROGRESSION.spinKnockbackCombineMode
             : PlanarKnockbackCombineMode.Replace,
           maximumSpeed: spin
-            ? SLEDGEHAMMER_PROGRESSION.spinMaximumKnockbackSpeed
+            ? this.spinKnockback.maximumSpeed
             : Math.max(knockbackSpeed, 0.001),
         });
       }
@@ -369,6 +375,19 @@ export class BattlefieldHammerCombatRuntime {
     const radialKnockback = spin || kind === BattlefieldWeaponHitKind.GroundSlam;
     let directionX = radialKnockback && radial ? radialX / radialLength : actionState.directionX;
     let directionZ = radialKnockback && radial ? radialZ / radialLength : actionState.directionZ;
+    if (kind === BattlefieldWeaponHitKind.SpinPulse && radial) {
+      const normalizedRadialX = radialX / radialLength;
+      const normalizedRadialZ = radialZ / radialLength;
+      const mixedX = normalizedRadialX * this.spinKnockback.pulseRadialWeight
+        - normalizedRadialZ * this.spinKnockback.pulseTangentialWeight;
+      const mixedZ = normalizedRadialZ * this.spinKnockback.pulseRadialWeight
+        + normalizedRadialX * this.spinKnockback.pulseTangentialWeight;
+      const mixedLength = Math.hypot(mixedX, mixedZ);
+      if (mixedLength > 0.0001) {
+        directionX = mixedX / mixedLength;
+        directionZ = mixedZ / mixedLength;
+      }
+    }
     if (kind === BattlefieldWeaponHitKind.Uppercut && radial) {
       const mixedX = actionState.directionX * 0.65 + radialX / radialLength * 0.35;
       const mixedZ = actionState.directionZ * 0.65 + radialZ / radialLength * 0.35;
@@ -388,9 +407,10 @@ export class BattlefieldHammerCombatRuntime {
       kind,
       definition.knockbackImpulse,
       actionState.progress,
+      this.spinKnockback,
     );
     event.knockbackDuration = spin
-      ? SLEDGEHAMMER_PROGRESSION.spinKnockbackDurationSeconds
+      ? this.spinKnockback.durationSeconds
       : KNOCKBACK_DURATION_SECONDS;
     event.launchHeight = kind === BattlefieldWeaponHitKind.Uppercut
       ? SLEDGEHAMMER_PROGRESSION.uppercutLaunchHeight

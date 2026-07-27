@@ -13,6 +13,7 @@ import { type MutableHammerActionEvents } from '../../assets/bundles/battlefield
 import { type BattlefieldHammerCombatTarget } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-combat-target';
 import { BattlefieldHammerCombatRuntime } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-combat-runtime';
 import { SLEDGEHAMMER_PROGRESSION } from '../../assets/bundles/battlefield/equipment/items/sledgehammer/sledgehammer-progression';
+import { SledgehammerSpinKnockbackTuning } from '../../assets/bundles/battlefield/equipment/items/sledgehammer/sledgehammer-spin-knockback-tuning';
 
 const DEFINITION = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.Sledgehammer);
 const EVENTS: MutableHammerActionEvents = {
@@ -25,7 +26,10 @@ const EVENTS: MutableHammerActionEvents = {
 describe('大锤自动群体上挑', () => {
   it('使用玩家前方扇区命中整组怪物并按各自径向形成斜向飞散', () => {
     const target = new UppercutTarget();
-    const runtime = new BattlefieldHammerCombatRuntime(target);
+    const runtime = new BattlefieldHammerCombatRuntime(
+      target,
+      new SledgehammerSpinKnockbackTuning(),
+    );
     const state = createAutomaticUppercutState();
     runtime.beginFrame();
     state.update(0.21, DEFINITION, EVENTS);
@@ -53,6 +57,9 @@ describe('大锤自动群体上挑', () => {
     expect(target.knockbackCount).toBe(0);
     expect(target.launches.every((effect) => effect.horizontalSpeed === 9.2)).toBe(true);
     expect(target.launches.every((effect) => Math.abs(effect.targetHeight - 4.2) < 0.001))
+      .toBe(true);
+    expect(target.launches.every((effect) => effect.landingDamageBase
+      === DEFINITION.baseDamage * SLEDGEHAMMER_PROGRESSION.uppercutLandingDamageScale))
       .toBe(true);
     expect(target.launches[0]?.directionX).not.toBe(target.launches[4]?.directionX);
   });

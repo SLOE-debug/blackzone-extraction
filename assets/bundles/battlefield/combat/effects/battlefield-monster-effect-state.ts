@@ -16,6 +16,7 @@ export class BattlefieldMonsterEffectGroupState {
   public readonly airborneVelocityZ: Float32Array;
   public readonly airborneHorizontalDrag: Float32Array;
   public readonly gravityScale: Float32Array;
+  public readonly landingDamageBase: Float32Array;
   public readonly airborneActive: Uint8Array;
   public readonly kineticSequence: Uint32Array;
   public readonly kineticRemaining: Float32Array;
@@ -42,6 +43,7 @@ export class BattlefieldMonsterEffectGroupState {
     this.airborneVelocityZ = new Float32Array(count);
     this.airborneHorizontalDrag = new Float32Array(count);
     this.gravityScale = new Float32Array(count);
+    this.landingDamageBase = new Float32Array(count);
     this.airborneActive = new Uint8Array(count);
     this.kineticSequence = new Uint32Array(count);
     this.kineticRemaining = new Float32Array(count);

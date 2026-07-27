@@ -1,5 +1,6 @@
 import { BattlefieldWeaponHitKind } from './battlefield-combat-event-buffer';
 import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
+import { type SledgehammerSpinKnockbackValues } from '../items/sledgehammer/sledgehammer-spin-knockback-tuning';
 
 /** 返回不同大锤命中事件相对基础伤害的倍率。 */
 export function getHammerDamageScale(
@@ -25,6 +26,7 @@ export function getHammerKnockbackSpeed(
   kind: BattlefieldWeaponHitKind,
   baseImpulse: number,
   spinProgress: number,
+  spinKnockback: Readonly<SledgehammerSpinKnockbackValues>,
 ): number {
   switch (kind) {
     case BattlefieldWeaponHitKind.Swing:
@@ -34,11 +36,10 @@ export function getHammerKnockbackSpeed(
     case BattlefieldWeaponHitKind.GroundSlam:
       return baseImpulse * SLEDGEHAMMER_PROGRESSION.groundSlamKnockbackScale;
     case BattlefieldWeaponHitKind.SpinPulse:
-      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse
-        * calculateSpinPulseKnockbackScale(spinProgress);
+      return spinKnockback.impulse
+        * calculateSpinPulseKnockbackScale(spinProgress, spinKnockback);
     case BattlefieldWeaponHitKind.SpinFinal:
-      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse
-        * SLEDGEHAMMER_PROGRESSION.spinFinalKnockbackScale;
+      return spinKnockback.impulse * spinKnockback.finalScale;
   }
 }
 
@@ -56,14 +57,15 @@ export function calculateSpinPulseDamageScale(targetHitCount: number): number {
 }
 
 /** 前段保留怪物，随后按旋风进度平方增强径向击退。 */
-export function calculateSpinPulseKnockbackScale(spinProgress: number): number {
+export function calculateSpinPulseKnockbackScale(
+  spinProgress: number,
+  spinKnockback: Readonly<SledgehammerSpinKnockbackValues>,
+): number {
   if (!Number.isFinite(spinProgress)) {
     throw new Error('旋风进度必须是有限数值。');
   }
-  const progression = SLEDGEHAMMER_PROGRESSION;
   const progress = Math.max(0, Math.min(1, spinProgress));
-  return progression.spinPulseMinimumKnockbackScale
-    + (progression.spinPulseMaximumKnockbackScale
-      - progression.spinPulseMinimumKnockbackScale)
+  return spinKnockback.pulseMinimumScale
+    + (spinKnockback.pulseMaximumScale - spinKnockback.pulseMinimumScale)
       * progress * progress;
 }
