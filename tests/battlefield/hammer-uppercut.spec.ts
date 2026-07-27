@@ -52,7 +52,8 @@ describe('大锤自动群体上挑', () => {
     expect(target.launches).toHaveLength(5);
     expect(target.knockbackCount).toBe(0);
     expect(target.launches.every((effect) => effect.horizontalSpeed === 9.2)).toBe(true);
-    expect(target.launches.every((effect) => effect.verticalSpeed > 0)).toBe(true);
+    expect(target.launches.every((effect) => Math.abs(effect.targetHeight - 4.2) < 0.001))
+      .toBe(true);
     expect(target.launches[0]?.directionX).not.toBe(target.launches[4]?.directionX);
   });
 });
@@ -112,11 +113,11 @@ class UppercutTarget implements BattlefieldHammerCombatTarget {
     return true;
   }
 
-  public applyMagnetized(): boolean { return true; }
+  public recordSpinHit(): number { return 1; }
+
+  public applyKineticCarrier(): boolean { return true; }
 
   public getKnockbackResistance(): number { return 1; }
-
-  public getAirborneResistance(): number { return 1; }
 }
 
 function createAutomaticUppercutState(): BattlefieldHammerActionState {

@@ -26,12 +26,30 @@ export const DEFAULT_PLANAR_CROWD_SEPARATION_OPTIONS = Object.freeze({
   maximumCorrectionSpeed: 52,
 }) satisfies Readonly<PlanarCrowdSeparationOptions>;
 
+/** Effect 等只读消费者依赖的 Crowd 局部候选查询门面。 */
+export interface PlanarCrowdCollisionSource {
+  collectSegmentCandidates(
+    startX: number,
+    startY: number,
+    endX: number,
+    endY: number,
+    queryRadius: number,
+    result: PlanarCrowdCandidateBuffer,
+  ): number;
+  collectCircleCandidates(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    result: PlanarCrowdCandidateBuffer,
+  ): number;
+}
+
 /**
  * 在 Battlefield World 级别统一约束全部怪物群体，并提供共享宽相位空间查询。
  *
  * 注册只发生在群体创建或销毁阶段；逐帧重建与求解只复用预分配 TypedArray。
  */
-export class PlanarCrowdSeparationSystem {
+export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
   private readonly populations: PlanarCrowdPopulation[] = [];
   private bucketHeads = new Int32Array(1);
   private nextInBucket = new Int32Array(0);

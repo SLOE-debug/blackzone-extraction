@@ -122,15 +122,15 @@ class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
     return true;
   }
 
-  public applyMagnetized(): boolean {
+  public recordSpinHit(): number {
+    return this.damageCount + 1;
+  }
+
+  public applyKineticCarrier(): boolean {
     return true;
   }
 
   public getKnockbackResistance(): number {
-    return 1;
-  }
-
-  public getAirborneResistance(): number {
     return 1;
   }
 }

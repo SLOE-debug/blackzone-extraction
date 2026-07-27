@@ -12,14 +12,17 @@ import {
   type BattlefieldMonsterRuntime,
   type MutablePlanarMonsterCombatTarget,
 } from './battlefield-monster-group-contracts';
+import { BattlefieldMonsterId } from '../model/battlefield-monster-id';
+import { BATTLEFIELD_MONSTER_LAUNCH_RESPONSES } from '../model/battlefield-monster-launch-responses';
 
 /** 保持一个地图随机怪物群的独立模拟，并接入战场共享怪物渲染批次。 */
 export class BattlefieldMonsterGroup
 implements BattlefieldMonsterTargetGroup {
   public readonly populationId: number;
   public readonly crowdPopulation: PlanarCrowdPopulation;
-  public readonly knockbackResistanceScale = 1;
-  public readonly airborneResistanceScale = 1;
+  public readonly launchResponse = BATTLEFIELD_MONSTER_LAUNCH_RESPONSES[
+    BattlefieldMonsterId.CurveCrawler
+  ];
   private readonly population: BattlefieldMonsterRuntime;
   private readonly localCombatTarget: MutablePlanarMonsterCombatTarget = {
     x: 0,

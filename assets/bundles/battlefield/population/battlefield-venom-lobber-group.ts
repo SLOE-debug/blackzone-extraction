@@ -9,6 +9,8 @@ import {
 } from './battlefield-monster-contracts';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { type PlanarCrowdPopulation } from '../../../core/monsters/crowd/planar-crowd-population';
+import { BattlefieldMonsterId } from '../model/battlefield-monster-id';
+import { BATTLEFIELD_MONSTER_LAUNCH_RESPONSES } from '../model/battlefield-monster-launch-responses';
 
 interface MutablePlanarCombatTarget extends PlanarMonsterCombatTarget {
   x: number;
@@ -31,8 +33,9 @@ export class BattlefieldVenomLobberGroup
 implements BattlefieldMonsterTargetGroup {
   public readonly populationId: number;
   public readonly crowdPopulation: PlanarCrowdPopulation;
-  public readonly knockbackResistanceScale = 0.58;
-  public readonly airborneResistanceScale = 0.42;
+  public readonly launchResponse = BATTLEFIELD_MONSTER_LAUNCH_RESPONSES[
+    BattlefieldMonsterId.VenomLobber
+  ];
   private readonly population: ReturnType<
     RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createVenomLobber']
   >;

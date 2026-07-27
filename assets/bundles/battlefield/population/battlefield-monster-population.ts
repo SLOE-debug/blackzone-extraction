@@ -27,6 +27,7 @@ import {
 } from './battlefield-monster-performance';
 import { BattlefieldMonsterEffectRuntime } from '../combat/effects/battlefield-monster-effect-runtime';
 import { BattlefieldMonsterCombatFacade } from './battlefield-monster-combat-facade';
+import { BattlefieldMonsterWorldRegistry } from './battlefield-monster-world-registry';
 
 const MAXIMUM_WAVE_DELTA_TIME = 0.05;
 const SWARM_POPULATION_ID = 0;
@@ -52,6 +53,12 @@ implements Disposable {
   private readonly targets = new BattlefieldMonsterTargetRegistry(this.crowd);
   private readonly effects = new BattlefieldMonsterEffectRuntime(
     BATTLEFIELD_COMBAT_CONFIG.airborneGravity,
+    this.crowd,
+  );
+  private readonly worldRegistry = new BattlefieldMonsterWorldRegistry(
+    this.crowd,
+    this.targets,
+    this.effects,
   );
   public readonly combatTarget = new BattlefieldMonsterCombatFacade(
     this.targets,
@@ -113,22 +120,16 @@ implements Disposable {
         VENOM_POPULATION_ID,
         camera,
       );
-      this.crowd.register(venomGroup.crowdPopulation);
-      this.targets.register(venomGroup);
-      this.effects.register(venomGroup);
+      this.worldRegistry.register(venomGroup);
     } catch (error: unknown) {
       if (venomGroup !== null) {
-        this.effects.unregister(venomGroup);
-        this.targets.unregister(venomGroup);
-        this.crowd.unregister(venomGroup.populationId);
+        this.worldRegistry.unregister(venomGroup);
       }
       venomGroup?.dispose();
       while (this.groups.length > 0) {
         const group = this.groups.pop();
         if (group !== undefined) {
-          this.effects.unregister(group);
-          this.targets.unregister(group);
-          this.crowd.unregister(group.populationId);
+          this.worldRegistry.unregister(group);
           group.dispose();
         }
       }
@@ -147,9 +148,7 @@ implements Disposable {
       surfaceMaterialTemplate,
       commonMonsters,
       this.renderBatch,
-      this.crowd,
-      this.targets,
-      this.effects,
+      this.worldRegistry,
       camera,
     );
   }
@@ -380,13 +379,11 @@ implements Disposable {
       SWARM_POPULATION_ID,
     );
     this.groups.push(group);
-    this.crowd.register(group.crowdPopulation);
-    this.targets.register(group);
-    this.effects.register(group);
+    this.worldRegistry.register(group);
     this.swarm = group;
   }
 
-  /** 在自主移动之后推进击退、腾空和磁化碰撞。 */
+  /** 在自主移动之后推进击退、腾空和动量传播。 */
   public updateEffects(deltaTime: number): void {
     if (!this.disposed) {
       this.effects.update(deltaTime);
@@ -399,17 +396,13 @@ implements Disposable {
       return;
     }
     this.disposed = true;
-    this.effects.unregister(this.venomGroup);
-    this.targets.unregister(this.venomGroup);
-    this.crowd.unregister(this.venomGroup.populationId);
+    this.worldRegistry.unregister(this.venomGroup);
     this.venomGroup.dispose();
     this.debugMonsters.dispose();
     while (this.groups.length > 0) {
       const group = this.groups.pop();
       if (group !== undefined) {
-        this.effects.unregister(group);
-        this.targets.unregister(group);
-        this.crowd.unregister(group.populationId);
+        this.worldRegistry.unregister(group);
         group.dispose();
       }
     }

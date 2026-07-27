@@ -3,7 +3,7 @@ import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
 
-/** 在怪物自主移动后叠加击退、腾空和磁化碰撞效果。 */
+/** 在怪物自主移动后叠加击退、腾空和动量传播效果。 */
 export class BattlefieldMonsterEffectWorldSystem extends BattlefieldWorldSystem {
   public readonly phase = WorldPhase.Simulation;
   public readonly order = 10;

@@ -1,13 +1,11 @@
 import { type Camera, type Material, Node } from 'cc';
 import { type FeatureId } from '../../../core/contracts/runtime-id';
 import { type RegisteredFeaturePlugin } from '../../../core/features/feature-plugin';
-import { type PlanarCrowdSeparationSystem } from '../../../core/monsters/crowd/planar-crowd-separation-system';
 import { BattlefieldMonsterId } from '../model/battlefield-monster-id';
 import { type BattlefieldMonsterCombatTarget } from '../population/battlefield-monster-contracts';
 import { BattlefieldMonsterGroup } from '../population/battlefield-monster-group';
-import { type BattlefieldMonsterTargetRegistry } from '../population/battlefield-monster-target-registry';
-import { type BattlefieldMonsterEffectRuntime } from '../combat/effects/battlefield-monster-effect-runtime';
 import { BattlefieldVenomLobberGroup } from '../population/battlefield-venom-lobber-group';
+import { type BattlefieldMonsterWorldRegistry } from '../population/battlefield-monster-world-registry';
 
 const DEBUG_CURVE_CRAWLER_SEED = 0x51d3b9;
 const DEBUG_CURVE_CRAWLER_WORLD_DIAMETER = 0.01;
@@ -27,9 +25,7 @@ export class BattlefieldDebugMonsterPopulation {
     private readonly curveCrawlerBatch: ReturnType<
       RegisteredFeaturePlugin<FeatureId.CommonMonsters>['createCurveCrawlerBatch']
     >,
-    private readonly crowd: PlanarCrowdSeparationSystem,
-    private readonly targets: BattlefieldMonsterTargetRegistry,
-    private readonly effects: BattlefieldMonsterEffectRuntime,
+    private readonly worldRegistry: BattlefieldMonsterWorldRegistry,
     private readonly camera: Camera,
   ) {}
 
@@ -118,9 +114,7 @@ export class BattlefieldDebugMonsterPopulation {
       1,
       DEBUG_CURVE_CRAWLER_POPULATION_ID,
     );
-    this.crowd.register(group.crowdPopulation);
-    this.targets.register(group);
-    this.effects.register(group);
+    this.worldRegistry.register(group);
     this.curveCrawler = group;
   }
 
@@ -140,9 +134,7 @@ export class BattlefieldDebugMonsterPopulation {
       group.dispose();
       throw new Error('Debug Venom Lobber 单槽位未能进入出生生命周期。');
     }
-    this.crowd.register(group.crowdPopulation);
-    this.targets.register(group);
-    this.effects.register(group);
+    this.worldRegistry.register(group);
     this.venomLobber = group;
   }
 
@@ -151,9 +143,7 @@ export class BattlefieldDebugMonsterPopulation {
     if (group === null) {
       return;
     }
-    this.targets.unregister(group);
-    this.effects.unregister(group);
-    this.crowd.unregister(group.populationId);
+    this.worldRegistry.unregister(group);
     group.dispose();
     this.curveCrawler = null;
   }
@@ -163,9 +153,7 @@ export class BattlefieldDebugMonsterPopulation {
     if (group === null) {
       return;
     }
-    this.targets.unregister(group);
-    this.effects.unregister(group);
-    this.crowd.unregister(group.populationId);
+    this.worldRegistry.unregister(group);
     group.dispose();
     this.venomLobber = null;
   }

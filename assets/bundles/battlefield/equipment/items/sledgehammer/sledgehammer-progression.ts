@@ -20,8 +20,14 @@ export interface SledgehammerProgressionStats {
   readonly spinKnockbackImpulse: number;
   readonly spinKnockbackCombineMode: PlanarKnockbackCombineMode;
   readonly spinMaximumKnockbackSpeed: number;
-  readonly spinPulseKnockbackScale: number;
+  readonly spinKnockbackDurationSeconds: number;
+  readonly spinPulseMinimumKnockbackScale: number;
+  readonly spinPulseMaximumKnockbackScale: number;
   readonly spinFinalKnockbackScale: number;
+  readonly spinPulseBaseDamageScale: number;
+  readonly spinRepeatDamageStep: number;
+  readonly spinRepeatDamageMaximumBonus: number;
+  readonly spinFinalDamageScale: number;
   readonly groundSlamReachScale: number;
   readonly groundSlamDamageScale: number;
   readonly groundSlamKnockbackScale: number;
@@ -46,11 +52,17 @@ export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   spinHitWindowAngle: Math.PI,
   spinSweepSubstepAngle: Math.PI / 12,
   spinMaximumSweepSubsteps: 4,
-  spinKnockbackImpulse: 10.5,
+  spinKnockbackImpulse: 13.5,
   spinKnockbackCombineMode: PlanarKnockbackCombineMode.Accumulate,
-  spinMaximumKnockbackSpeed: 28,
-  spinPulseKnockbackScale: 0.62,
-  spinFinalKnockbackScale: 1.28,
+  spinMaximumKnockbackSpeed: 38,
+  spinKnockbackDurationSeconds: 0.4,
+  spinPulseMinimumKnockbackScale: 0.72,
+  spinPulseMaximumKnockbackScale: 1.08,
+  spinFinalKnockbackScale: 1.65,
+  spinPulseBaseDamageScale: 0.42,
+  spinRepeatDamageStep: 0.06,
+  spinRepeatDamageMaximumBonus: 0.24,
+  spinFinalDamageScale: 1.05,
   groundSlamReachScale: 0.68,
   groundSlamDamageScale: 1.48,
   groundSlamKnockbackScale: 1.18,
@@ -58,15 +70,3 @@ export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   groundSlamStepDurationProgress: 0.42,
   groundSlamStepInputScale: 0.34,
 }) satisfies Readonly<SledgehammerProgressionStats>;
-
-/** 把目标高度转换为给定重力下的垂直初速度。 */
-export function calculateLaunchVelocity(
-  gravity: number,
-  targetHeight: number,
-): number {
-  if (!Number.isFinite(gravity) || gravity <= 0
-    || !Number.isFinite(targetHeight) || targetHeight < 0) {
-    throw new Error('大锤腾空重力必须为有限正数，目标高度必须为有限非负数。');
-  }
-  return Math.sqrt(2 * gravity * targetHeight);
-}

@@ -291,8 +291,12 @@ function createTargetGroup(
   return {
     populationId: crowdPopulation.populationId,
     crowdPopulation,
-    knockbackResistanceScale: 1,
-    airborneResistanceScale: 1,
+    launchResponse: {
+      launchable: true,
+      heightScale: 1,
+      horizontalScale: 1,
+      knockbackScale: 1,
+    },
     damageMonster: () => undefined,
     setAirborneEffect: () => false,
   };

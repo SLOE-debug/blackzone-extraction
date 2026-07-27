@@ -18,9 +18,9 @@ export class BattlefieldCombatEventBuffer {
   public readonly damage: Float32Array;
   public readonly knockbackSpeed: Float32Array;
   public readonly knockbackDuration: Float32Array;
-  public readonly launchVelocity: Float32Array;
-  public readonly magnetizedSkillSequence: Uint32Array;
-  public readonly magnetizedDuration: Float32Array;
+  public readonly launchHeight: Float32Array;
+  public readonly kineticSkillSequence: Uint32Array;
+  public readonly kineticDamageBudget: Float32Array;
   private eventCount = 0;
 
   constructor(public readonly capacity = 512) {
@@ -36,9 +36,9 @@ export class BattlefieldCombatEventBuffer {
     this.damage = new Float32Array(capacity);
     this.knockbackSpeed = new Float32Array(capacity);
     this.knockbackDuration = new Float32Array(capacity);
-    this.launchVelocity = new Float32Array(capacity);
-    this.magnetizedSkillSequence = new Uint32Array(capacity);
-    this.magnetizedDuration = new Float32Array(capacity);
+    this.launchHeight = new Float32Array(capacity);
+    this.kineticSkillSequence = new Uint32Array(capacity);
+    this.kineticDamageBudget = new Float32Array(capacity);
   }
 
   public get count(): number {
@@ -64,9 +64,9 @@ export class BattlefieldCombatEventBuffer {
     this.damage[index] = event.damage;
     this.knockbackSpeed[index] = event.knockbackSpeed;
     this.knockbackDuration[index] = event.knockbackDuration;
-    this.launchVelocity[index] = event.launchVelocity;
-    this.magnetizedSkillSequence[index] = event.magnetizedSkillSequence;
-    this.magnetizedDuration[index] = event.magnetizedDuration;
+    this.launchHeight[index] = event.launchHeight;
+    this.kineticSkillSequence[index] = event.kineticSkillSequence;
+    this.kineticDamageBudget[index] = event.kineticDamageBudget;
   }
 }
 
@@ -80,21 +80,22 @@ export interface BattlefieldCombatEvent {
   readonly damage: number;
   readonly knockbackSpeed: number;
   readonly knockbackDuration: number;
-  readonly launchVelocity: number;
-  readonly magnetizedSkillSequence: number;
-  readonly magnetizedDuration: number;
+  readonly launchHeight: number;
+  readonly kineticSkillSequence: number;
+  readonly kineticDamageBudget: number;
 }
 
 function validateEvent(event: Readonly<BattlefieldCombatEvent>): void {
   if (![event.attackSequenceId, event.populationId, event.entityId,
     event.directionX, event.directionZ, event.damage, event.knockbackSpeed,
-    event.knockbackDuration, event.launchVelocity, event.magnetizedSkillSequence,
-    event.magnetizedDuration].every(Number.isFinite)
+    event.knockbackDuration, event.launchHeight, event.kineticSkillSequence,
+    event.kineticDamageBudget].every(Number.isFinite)
     || !Number.isSafeInteger(event.attackSequenceId) || event.attackSequenceId <= 0
     || event.damage <= 0
     || event.knockbackSpeed < 0
     || event.knockbackDuration <= 0
-    || event.launchVelocity < 0
+    || event.launchHeight < 0
+    || event.kineticDamageBudget < 0
     || Math.abs(Math.hypot(event.directionX, event.directionZ) - 1) > 0.001) {
     throw new Error('近战命中事件参数无效。');
   }

@@ -22,15 +22,25 @@ export interface VerticalLaunchEffect {
   readonly resistanceScale: number;
 }
 
-/** 同时拥有水平与垂直初速度的方向腾空 Effect。 */
+/** 怪物对平面击退与方向腾空的显式响应能力。 */
+export interface MonsterLaunchResponse {
+  readonly launchable: boolean;
+  /** 目标腾空高度倍率。 */
+  readonly heightScale: number;
+  /** 水平飞行速度倍率。 */
+  readonly horizontalScale: number;
+  /** 普通平面击退倍率。 */
+  readonly knockbackScale: number;
+}
+
+/** 同时描述水平飞行与目标腾空高度的方向腾空 Effect。 */
 export interface DirectionalLaunchEffect {
   readonly directionX: number;
   readonly directionZ: number;
+  readonly targetHeight: number;
   readonly horizontalSpeed: number;
-  readonly verticalSpeed: number;
   readonly horizontalDrag: number;
   readonly gravityScale: number;
-  readonly resistanceScale: number;
 }
 
 /** 怪物领域状态接收的独立腾空状态与外部高度。 */

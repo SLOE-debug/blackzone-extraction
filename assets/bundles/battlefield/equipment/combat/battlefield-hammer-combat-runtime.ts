@@ -3,9 +3,8 @@ import { PlanarKnockbackCombineMode } from '../../../../core/contracts/monster-e
 import {
   BattlefieldMeleeHitBuffer,
 } from '../../combat/melee/battlefield-melee-query';
-import { BATTLEFIELD_COMBAT_CONFIG } from '../../model/battlefield-combat-config';
 import { type BattlefieldHammerWorldPose } from '../model/battlefield-hammer-world-pose';
-import { calculateLaunchVelocity, SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
+import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
 import { BattlefieldCombatEventBuffer, BattlefieldWeaponHitKind } from './battlefield-combat-event-buffer';
 import { type BattlefieldHammerActionState } from './battlefield-hammer-action-state';
 import { type MutableHammerActionEvents } from './battlefield-hammer-action-events';
@@ -20,8 +19,8 @@ import { BattlefieldHammerSpinArcSampler } from './battlefield-hammer-spin-arc-s
 
 const MAXIMUM_MELEE_HITS = 512;
 const KNOCKBACK_DURATION_SECONDS = 0.28;
-const MAGNETIZED_DURATION_SECONDS = 2;
 const SPIN_SWEEP_ASSIST_MARGIN = 0.15;
+const SPIN_KINETIC_DAMAGE_BUDGET_SCALE = 0.9;
 
 /** 大锤战斗层读取的玩家世界姿态。 */
 export interface BattlefieldHammerOwnerState {
@@ -79,9 +78,9 @@ export class BattlefieldHammerCombatRuntime {
     damage: 1,
     knockbackSpeed: 0,
     knockbackDuration: KNOCKBACK_DURATION_SECONDS,
-    launchVelocity: 0,
-    magnetizedSkillSequence: 0,
-    magnetizedDuration: 0,
+    launchHeight: 0,
+    kineticSkillSequence: 0,
+    kineticDamageBudget: 0,
   };
 
   constructor(private readonly monsters: BattlefieldHammerCombatTarget) {}
@@ -148,7 +147,7 @@ export class BattlefieldHammerCombatRuntime {
     }
   }
 
-  /** 统一提交 Damage、击退、腾空和磁化效果，并回写确认命中。 */
+  /** 统一提交 Damage、击退、腾空和动量载体效果，并回写确认命中。 */
   public resolveEvents(
     actionState: BattlefieldHammerActionState,
     definition: Readonly<MeleeWeaponDefinition>,
@@ -170,17 +169,26 @@ export class BattlefieldHammerCombatRuntime {
         confirmedSwing = true;
       }
       const kind = this.events.kind[index] as BattlefieldWeaponHitKind;
-      this.monsters.damageMonster(populationId, entityId, this.events.damage[index] ?? 0);
-      const launchVelocity = this.events.launchVelocity[index] ?? 0;
-      if (kind === BattlefieldWeaponHitKind.Uppercut && launchVelocity > 0) {
+      const spinHitCount = kind === BattlefieldWeaponHitKind.SpinPulse
+        ? this.monsters.recordSpinHit(
+          populationId,
+          entityId,
+          this.events.kineticSkillSequence[index] ?? 0,
+        )
+        : 0;
+      const damage = kind === BattlefieldWeaponHitKind.SpinPulse
+        ? definition.baseDamage * getHammerDamageScale(kind, spinHitCount)
+        : this.events.damage[index] ?? 0;
+      this.monsters.damageMonster(populationId, entityId, damage);
+      const launchHeight = this.events.launchHeight[index] ?? 0;
+      if (kind === BattlefieldWeaponHitKind.Uppercut && launchHeight > 0) {
         this.monsters.applyDirectionalLaunch(populationId, entityId, {
           directionX: this.events.directionX[index] ?? 0,
           directionZ: this.events.directionZ[index] ?? 1,
+          targetHeight: launchHeight,
           horizontalSpeed: SLEDGEHAMMER_PROGRESSION.uppercutHorizontalSpeed,
-          verticalSpeed: launchVelocity,
           horizontalDrag: SLEDGEHAMMER_PROGRESSION.uppercutHorizontalDrag,
           gravityScale: 1,
-          resistanceScale: this.monsters.getAirborneResistance(populationId),
         });
       } else {
         const knockbackSpeed = this.events.knockbackSpeed[index] ?? 0;
@@ -201,13 +209,14 @@ export class BattlefieldHammerCombatRuntime {
             : Math.max(knockbackSpeed, 0.001),
         });
       }
-      const magnetizedSequence = this.events.magnetizedSkillSequence[index] ?? 0;
-      if (magnetizedSequence > 0) {
-        this.monsters.applyMagnetized(
+      const kineticSequence = this.events.kineticSkillSequence[index] ?? 0;
+      if (kineticSequence > 0) {
+        this.monsters.applyKineticCarrier(
           populationId,
           entityId,
-          magnetizedSequence,
-          this.events.magnetizedDuration[index] ?? MAGNETIZED_DURATION_SECONDS,
+          kineticSequence,
+          definition.baseDamage,
+          this.events.kineticDamageBudget[index] ?? 0,
         );
       }
     }
@@ -375,16 +384,21 @@ export class BattlefieldHammerCombatRuntime {
     event.directionX = directionX;
     event.directionZ = directionZ;
     event.damage = definition.baseDamage * getHammerDamageScale(kind);
-    event.knockbackSpeed = getHammerKnockbackSpeed(kind, definition.knockbackImpulse);
-    event.knockbackDuration = KNOCKBACK_DURATION_SECONDS;
-    event.launchVelocity = kind === BattlefieldWeaponHitKind.Uppercut
-      ? calculateLaunchVelocity(
-        BATTLEFIELD_COMBAT_CONFIG.airborneGravity,
-        SLEDGEHAMMER_PROGRESSION.uppercutLaunchHeight,
-      )
+    event.knockbackSpeed = getHammerKnockbackSpeed(
+      kind,
+      definition.knockbackImpulse,
+      actionState.progress,
+    );
+    event.knockbackDuration = spin
+      ? SLEDGEHAMMER_PROGRESSION.spinKnockbackDurationSeconds
+      : KNOCKBACK_DURATION_SECONDS;
+    event.launchHeight = kind === BattlefieldWeaponHitKind.Uppercut
+      ? SLEDGEHAMMER_PROGRESSION.uppercutLaunchHeight
       : 0;
-    event.magnetizedSkillSequence = spin ? actionState.skillSequenceId : 0;
-    event.magnetizedDuration = spin ? MAGNETIZED_DURATION_SECONDS : 0;
+    event.kineticSkillSequence = spin ? actionState.skillSequenceId : 0;
+    event.kineticDamageBudget = spin
+      ? definition.baseDamage * SPIN_KINETIC_DAMAGE_BUDGET_SCALE
+      : 0;
     this.events.append(event);
   }
 }

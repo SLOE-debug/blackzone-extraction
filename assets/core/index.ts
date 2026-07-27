@@ -30,6 +30,7 @@ export type {
 } from './contracts/monster-combat';
 export type {
   DirectionalLaunchEffect,
+  MonsterLaunchResponse,
   PlanarKnockbackEffect,
   PlanarMonsterEffectPopulation,
   VerticalLaunchEffect,

@@ -3,3 +3,9 @@ export enum BattlefieldMonsterId {
   CurveCrawler = 'curve-crawler',
   VenomLobber = 'venom-lobber',
 }
+
+/** 全部可生成怪物标识；新增类型时必须同步进入强类型集成遍历。 */
+export const ALL_BATTLEFIELD_MONSTER_IDS = Object.freeze([
+  BattlefieldMonsterId.CurveCrawler,
+  BattlefieldMonsterId.VenomLobber,
+] as const satisfies readonly BattlefieldMonsterId[]);

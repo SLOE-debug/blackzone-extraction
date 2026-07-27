@@ -74,25 +74,33 @@ export class BattlefieldMonsterCombatFacade implements BattlefieldHammerCombatTa
     return this.isActive() && this.effects.applyDirectionalLaunch(populationId, entityId, effect);
   }
 
-  public applyMagnetized(
+  public recordSpinHit(
     populationId: number,
     entityId: number,
     skillSequenceId: number,
-    durationSeconds: number,
+  ): number {
+    return this.isActive()
+      ? this.effects.recordSpinHit(populationId, entityId, skillSequenceId)
+      : 0;
+  }
+
+  public applyKineticCarrier(
+    populationId: number,
+    entityId: number,
+    skillSequenceId: number,
+    baseDamage: number,
+    damageBudget: number,
   ): boolean {
-    return this.isActive() && this.effects.applyMagnetized(
+    return this.isActive() && this.effects.applyKineticCarrier(
       populationId,
       entityId,
       skillSequenceId,
-      durationSeconds,
+      baseDamage,
+      damageBudget,
     );
   }
 
   public getKnockbackResistance(populationId: number): number {
     return this.targets.getKnockbackResistance(populationId);
-  }
-
-  public getAirborneResistance(populationId: number): number {
-    return this.targets.getAirborneResistance(populationId);
   }
 }

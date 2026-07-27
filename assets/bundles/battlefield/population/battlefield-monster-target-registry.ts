@@ -150,11 +150,7 @@ export class BattlefieldMonsterTargetRegistry {
   }
 
   public getKnockbackResistance(populationId: number): number {
-    return this.findGroup(populationId)?.knockbackResistanceScale ?? 0;
-  }
-
-  public getAirborneResistance(populationId: number): number {
-    return this.findGroup(populationId)?.airborneResistanceScale ?? 0;
+    return this.findGroup(populationId)?.launchResponse.knockbackScale ?? 0;
   }
 
   /** 按稳定群体标识路由伤害。 */

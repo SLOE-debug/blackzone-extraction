@@ -33,12 +33,17 @@ export interface BattlefieldHammerCombatTarget {
     entityId: number,
     effect: Readonly<DirectionalLaunchEffect>,
   ): boolean;
-  applyMagnetized(
+  recordSpinHit(
     populationId: number,
     entityId: number,
     skillSequenceId: number,
-    durationSeconds: number,
+  ): number;
+  applyKineticCarrier(
+    populationId: number,
+    entityId: number,
+    skillSequenceId: number,
+    baseDamage: number,
+    damageBudget: number,
   ): boolean;
   getKnockbackResistance(populationId: number): number;
-  getAirborneResistance(populationId: number): number;
 }
