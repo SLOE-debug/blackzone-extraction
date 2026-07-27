@@ -6,10 +6,12 @@ import { BATTLEFIELD_MONSTER_SPAWN } from '../../assets/bundles/battlefield/mode
 import {
   BattlefieldMonsterTargetRegistry,
   distanceSquaredToSegment,
-  type BattlefieldMeleeTargetQuery,
-  type MutableBattlefieldMeleeTarget,
 } from '../../assets/bundles/battlefield/population/battlefield-monster-target-registry';
 import { type BattlefieldMonsterTargetGroup } from '../../assets/bundles/battlefield/population/battlefield-monster-target-group';
+import {
+  type BattlefieldMeleeAttackDirectionQuery,
+} from '../../assets/bundles/battlefield/combat/battlefield-melee-attack-direction';
+import { createMutableMeleeAttackDirection } from '../../assets/bundles/battlefield/combat/battlefield-melee-target-resolver';
 
 describe('锤头 Swept Capsule 窄相位', () => {
   it('使用有限线段最近点并正确处理端点外目标', () => {
@@ -29,41 +31,37 @@ describe('锤头 Swept Capsule 窄相位', () => {
     crowd.rebuild();
     const registry = new BattlefieldMonsterTargetRegistry(crowd);
     registry.register(createTargetGroup(population));
-    const result: MutableBattlefieldMeleeTarget = {
-      populationId: -1,
-      entityId: -1,
-      x: 0,
-      z: 0,
-      distanceSquared: 0,
-    };
+    const result = createMutableMeleeAttackDirection();
     const query = createTargetQuery();
-    expect(registry.writeBestMeleeTarget(query, result)).toBe(true);
-    expect(result.entityId).toBe(0);
+    expect(registry.writeBestMeleeAttackDirection(query, result)).toBe(true);
+    expect(result.anchorEntityId).toBe(0);
     query.preferredPopulationId = 8;
     query.preferredEntityId = 1;
-    query.preferredTargetBonus = 100;
-    expect(registry.writeBestMeleeTarget(query, result)).toBe(true);
-    expect(result.entityId).toBe(1);
+    expect(registry.writeBestMeleeAttackDirection(query, result)).toBe(true);
+    expect(result.anchorEntityId).toBe(1);
+    expect(result.targetRetained).toBe(true);
 
     population.participation[1] = 0;
     crowd.rebuild();
-    expect(registry.writeBestMeleeTarget(query, result)).toBe(true);
-    expect(result.entityId).toBe(0);
+    expect(registry.writeBestMeleeAttackDirection(query, result)).toBe(true);
+    expect(result.anchorEntityId).toBe(0);
   });
 });
 
-function createTargetQuery(): Mutable<BattlefieldMeleeTargetQuery> {
+function createTargetQuery(): Mutable<BattlefieldMeleeAttackDirectionQuery> {
   return {
     originX: 0,
     originZ: 0,
-    radius: 5,
-    directionX: 1,
-    directionZ: 0,
-    halfArcRadians: Math.PI * 0.5,
-    angleWeight: 6,
+    acquireRadius: 5,
+    releaseRadius: 7,
+    attackReach: 4,
+    attackArcRadians: Math.PI * 0.74,
+    closeThreatRadius: 2.4,
+    currentHeading: Math.PI * 0.5,
+    previousAttackHeading: null,
     preferredPopulationId: -1,
     preferredEntityId: -1,
-    preferredTargetBonus: 0,
+    maximumTurnRadians: Math.PI,
   };
 }
 

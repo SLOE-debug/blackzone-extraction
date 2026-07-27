@@ -1,7 +1,8 @@
 import { WorldPhase } from '../../../../core/world/world-phase';
 import {
   BattlefieldMeleeTargetResolver,
-  type MutableBattlefieldMeleeAim,
+  createMutableMeleeAttackDirection,
+  type BattlefieldMeleeAttackDirectionRequest,
 } from '../../combat/battlefield-melee-target-resolver';
 import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance-contracts';
 import { type MutableBattlefieldPlanarDirection } from '../../scene/battlefield-camera-direction';
@@ -17,12 +18,15 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
   protected readonly performanceStage = BattlefieldPerformanceStage.Control;
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
   private readonly targetResolver = new BattlefieldMeleeTargetResolver();
-  private readonly aim: MutableBattlefieldMeleeAim = {
-    directionX: 0,
-    directionZ: 1,
-    targeted: false,
-    populationId: -1,
-    entityId: -1,
+  private readonly aim = createMutableMeleeAttackDirection();
+  private readonly attackDirectionRequest: Mutable<BattlefieldMeleeAttackDirectionRequest> = {
+    originX: 0,
+    originZ: 0,
+    acquireRadius: 1,
+    attackReach: 1,
+    attackArcRadians: Math.PI,
+    currentHeading: 0,
+    previousAttackHeading: null,
   };
 
   protected execute(world: BattlefieldWorld): void {
@@ -37,21 +41,26 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       this.movementDirection.x,
       this.movementDirection.z,
     );
-    if ((!controlState.attackHeld && !controlState.attackPressed)
-      || weapon.shouldReleaseAutoTarget) {
+    const skills = controls.consumeSkillCommands();
+    const skillRequested = skills.spinRequested
+      || skills.groundSlamRequested
+      || skills.uppercutRequested;
+    if (!player.isAlive
+      || !weapon.equipped
+      || (!controlState.attackHeld && !controlState.attackPressed)
+      || skillRequested) {
       this.targetResolver.releaseTarget();
     }
-
-    const skills = controls.consumeSkillCommands();
     weapon.commands.setAttackHeld(player.isAlive && weapon.equipped && controlState.attackHeld);
     if (!player.isAlive || !weapon.equipped) {
       return;
     }
     const attackRequested = controlState.attackPressed || controlState.attackHeld;
-    if (attackRequested
+    if (!skillRequested
+      && attackRequested
       && (weapon.actionControl.autoTargetAllowed || weapon.canBufferNextSwing)
       && (weapon.needsInitialSwingAim || weapon.canBufferNextSwing)) {
-      this.writeAim(world, weapon.canBufferNextSwing ? weapon.attackHeading : null);
+      this.writeAttackDirection(world, weapon.canBufferNextSwing ? weapon.attackHeading : null);
       weapon.commands.requestSwing(this.aim.directionX, this.aim.directionZ);
     }
     if (!weapon.acceptingSkillCommand) {
@@ -61,28 +70,35 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       weapon.commands.requestSpin();
     }
     if (skills.groundSlamRequested) {
-      this.writeAim(world, null);
+      this.writeAttackDirection(world, null);
       weapon.commands.requestGroundSlam(this.aim.directionX, this.aim.directionZ);
     }
     if (skills.uppercutRequested) {
-      this.writeAim(world, null);
+      this.writeAttackDirection(world, null);
       weapon.commands.requestUppercut(this.aim.directionX, this.aim.directionZ);
     }
   }
 
   /** 为普通横扫、上挑和重砸统一解析一次动作开始方向。 */
-  private writeAim(world: BattlefieldWorld, turnReferenceHeading: number | null): void {
+  private writeAttackDirection(
+    world: BattlefieldWorld,
+    previousAttackHeading: number | null,
+  ): void {
     const { player, weapon, monsters } = world.resources;
-    this.targetResolver.writeAim(
+    const request = this.attackDirectionRequest;
+    request.originX = player.positionX;
+    request.originZ = player.positionZ;
+    request.acquireRadius = weapon.meleeReach + AUTO_TARGET_RADIUS_PADDING;
+    request.attackReach = weapon.meleeReach;
+    request.attackArcRadians = weapon.meleeHitArcRadians;
+    request.currentHeading = player.heading;
+    request.previousAttackHeading = previousAttackHeading;
+    this.targetResolver.writeBestAttackDirection(
       monsters.meleeTargeting,
-      player.positionX,
-      player.positionZ,
-      weapon.meleeReach + AUTO_TARGET_RADIUS_PADDING,
-      this.movementDirection.x,
-      this.movementDirection.z,
-      player.heading,
-      turnReferenceHeading,
+      request,
       this.aim,
     );
   }
 }
+
+type Mutable<T> = { -readonly [TKey in keyof T]: T[TKey] };

@@ -4,8 +4,10 @@ import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import {
   BattlefieldHammerActionState,
-  type MutableHammerActionEvents,
 } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-action-state';
+import {
+  type MutableHammerActionEvents,
+} from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-action-events';
 
 const DEFINITION = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.Sledgehammer);
 const EVENTS: MutableHammerActionEvents = {
@@ -18,38 +20,45 @@ const EVENTS: MutableHammerActionEvents = {
 describe('大锤动作状态', () => {
   it('普通挥动左右交替且每次只产生一个攻击序列', () => {
     const state = new BattlefieldHammerActionState();
-    expect(state.requestSwing(1, 0)).toBe(true);
+    expect(state.requestSwing(1, 0, 0)).toBe(true);
     expect(state.action).toBe(WeaponAction.WindupLeft);
     const firstSequence = state.attackSequenceId;
     finishCurrentAction(state);
 
-    expect(state.requestSwing(0, 1)).toBe(true);
+    expect(state.requestSwing(0, 1, 0)).toBe(true);
     expect(state.action).toBe(WeaponAction.WindupRight);
     expect(state.attackSequenceId).toBe(firstSequence + 1);
   });
 
   it('横向拨杆决定首次起手，同侧连续攻击仍自动交替', () => {
     const state = new BattlefieldHammerActionState();
-    expect(state.requestSwing(1, 0, true)).toBe(true);
+    expect(state.requestSwing(1, 0, 0, true)).toBe(true);
     expect(state.action).toBe(WeaponAction.WindupRight);
     finishCurrentAction(state);
-    expect(state.requestSwing(1, 0, true)).toBe(true);
+    expect(state.requestSwing(1, 0, 0, true)).toBe(true);
     expect(state.action).toBe(WeaponAction.WindupLeft);
   });
 
   it('普通攻击锁定朝向始终与权威攻击方向同向', () => {
     const state = new BattlefieldHammerActionState();
-    expect(state.requestSwing(0.6, 0.8)).toBe(true);
+    expect(state.requestSwing(0.6, 0.8, 0)).toBe(true);
     const heading = state.actionControl.desiredHeading;
     const forwardDot = Math.sin(heading) * 0.6 + Math.cos(heading) * 0.8;
     expect(forwardDot).toBeGreaterThan(0.999);
   });
 
+  it('首次前摇面对背后目标时把动态转速写入动作控制', () => {
+    const state = new BattlefieldHammerActionState();
+    expect(state.requestSwing(0, -1, 0)).toBe(true);
+    expect(state.actionControl.maximumTurnSpeed).toBeGreaterThan(3 * Math.PI);
+    expect(state.actionControl.maximumTurnSpeed).toBeLessThanOrEqual(6 * Math.PI);
+  });
+
   it('一次挥动中拒绝新方向并保持动作开始时的目标朝向', () => {
     const state = new BattlefieldHammerActionState();
-    expect(state.requestSwing(0.6, 0.8)).toBe(true);
+    expect(state.requestSwing(0.6, 0.8, 0)).toBe(true);
     const lockedHeading = state.actionControl.desiredHeading;
-    expect(state.requestSwing(-1, 0)).toBe(false);
+    expect(state.requestSwing(-1, 0, 0)).toBe(false);
     expect(state.actionControl.desiredHeading).toBe(lockedHeading);
     expect(state.directionX).toBeCloseTo(0.6, 6);
     expect(state.directionZ).toBeCloseTo(0.8, 6);
@@ -58,12 +67,12 @@ describe('大锤动作状态', () => {
   it('持续按住两秒会直接衔接左右连段且第一击后不出现 Idle 帧', () => {
     const state = new BattlefieldHammerActionState();
     state.setAttackHeld(true);
-    expect(state.requestSwing(0, 1)).toBe(true);
+    expect(state.requestSwing(0, 1, 0)).toBe(true);
     let observedFirstSwing = false;
     let idleAfterFirstSwing = false;
     for (let frame = 0; frame < 120; frame++) {
       if (state.canBufferNextSwing) {
-        expect(state.requestSwing(frame % 2 === 0 ? 1 : -1, 0)).toBe(true);
+        expect(state.requestSwing(frame % 2 === 0 ? 1 : -1, 0, 0)).toBe(true);
       }
       state.update(1 / 60, DEFINITION, EVENTS);
       observedFirstSwing ||= state.action === WeaponAction.SwingLeft;
@@ -77,11 +86,11 @@ describe('大锤动作状态', () => {
   it('缓存下一击只在新挥动开始时更新锁定方向', () => {
     const state = new BattlefieldHammerActionState();
     state.setAttackHeld(true);
-    state.requestSwing(0, 1);
+    state.requestSwing(0, 1, 0);
     state.update(0.28, DEFINITION, EVENTS);
     state.update(0.21, DEFINITION, EVENTS);
     expect(state.canBufferNextSwing).toBe(true);
-    expect(state.requestSwing(1, 0)).toBe(true);
+    expect(state.requestSwing(1, 0, 0)).toBe(true);
     expect(state.directionX).toBe(0);
     expect(state.directionZ).toBe(1);
     state.update(0.13, DEFINITION, EVENTS);
@@ -92,7 +101,7 @@ describe('大锤动作状态', () => {
 
   it('单帧越过蓄力边界时把剩余时间推进到挥动阶段', () => {
     const state = new BattlefieldHammerActionState();
-    state.requestSwing(0, 1);
+    state.requestSwing(0, 1, 0);
     state.update(0.3, DEFINITION, EVENTS);
     expect(state.action).toBe(WeaponAction.SwingLeft);
     expect(state.progress).toBeCloseTo(0.02 / 0.34, 6);
@@ -107,13 +116,13 @@ describe('大锤动作状态', () => {
   it('命中停顿期间仍允许缓存下一击，松开后则完成当前挥动并恢复', () => {
     const state = new BattlefieldHammerActionState();
     state.setAttackHeld(true);
-    state.requestSwing(0, 1);
+    state.requestSwing(0, 1, 0);
     state.update(0.33, DEFINITION, EVENTS);
     expect(state.action).toBe(WeaponAction.SwingLeft);
     expect(state.canBufferNextSwing).toBe(false);
     state.recordConfirmedAttack(DEFINITION);
     expect(state.canBufferNextSwing).toBe(true);
-    expect(state.requestSwing(1, 0)).toBe(true);
+    expect(state.requestSwing(1, 0, 0)).toBe(true);
     state.update(0.04, DEFINITION, EVENTS);
     expect(state.action).toBe(WeaponAction.SwingLeft);
     state.setAttackHeld(false);
@@ -194,11 +203,11 @@ function finishCurrentAction(state: BattlefieldHammerActionState): void {
 function simulateHeldCombo(framesPerSecond: number): number {
   const state = new BattlefieldHammerActionState();
   state.setAttackHeld(true);
-  state.requestSwing(0, 1);
+  state.requestSwing(0, 1, 0);
   const frameTime = 1 / framesPerSecond;
   for (let frame = 0; frame < framesPerSecond * 2; frame++) {
     if (state.canBufferNextSwing) {
-      state.requestSwing(0, 1);
+      state.requestSwing(0, 1, 0);
     }
     state.update(frameTime, DEFINITION, EVENTS);
   }

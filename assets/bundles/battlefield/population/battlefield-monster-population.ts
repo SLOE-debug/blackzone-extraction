@@ -15,8 +15,10 @@ import {
 import { BattlefieldMonsterGroup } from './battlefield-monster-group';
 import {
   BattlefieldMonsterTargetRegistry,
-  type BattlefieldMeleeTargetSource,
 } from './battlefield-monster-target-registry';
+import {
+  type BattlefieldMeleeAttackDirectionSource,
+} from '../combat/battlefield-melee-attack-direction';
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
@@ -202,7 +204,7 @@ implements Disposable {
   }
 
   /** 近战输入层使用的窄目标查询门面。 */
-  public get meleeTargeting(): BattlefieldMeleeTargetSource {
+  public get meleeTargeting(): BattlefieldMeleeAttackDirectionSource {
     return this.targets;
   }
 

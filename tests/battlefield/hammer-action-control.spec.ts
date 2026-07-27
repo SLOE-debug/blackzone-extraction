@@ -4,6 +4,7 @@ import { getHammerActionControlProfile } from '../../assets/bundles/battlefield/
 import { SLEDGEHAMMER_PROGRESSION } from '../../assets/bundles/battlefield/equipment/items/sledgehammer/sledgehammer-progression';
 import { VanguardFacingPolicy } from '../../assets/player/vanguard/model/vanguard-facing-policy';
 import { calculateSledgehammerSpinAngle } from '../../assets/bundles/battlefield/equipment/items/sledgehammer/sledgehammer-spin-timeline';
+import { calculateRequiredWindupTurnSpeed } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-windup-turn';
 
 describe('大锤统一动作控制配置', () => {
   it('普通攻击各阶段使用独立移速与有限转向策略', () => {
@@ -13,16 +14,24 @@ describe('大锤统一动作控制配置', () => {
     const recoverEarly = getHammerActionControlProfile(WeaponAction.Recover, 0.25);
     const recoverLate = getHammerActionControlProfile(WeaponAction.Recover, 0.75);
 
-    expect(windup.movementScale).toBe(0.65);
+    expect(windup.movementScale).toBe(0.85);
     expect(windup.maximumTurnSpeed).toBeCloseTo(3 * Math.PI, 6);
-    expect(swing.movementScale).toBe(0.35);
+    expect(swing.movementScale).toBe(0.65);
     expect(swing.facingPolicy).toBe(VanguardFacingPolicy.ContactLocked);
-    expect(swing.maximumTurnSpeed).toBeCloseTo(Math.PI * 0.5, 6);
-    expect(chain.movementScale).toBe(0.55);
-    expect(chain.maximumTurnSpeed).toBeCloseTo(Math.PI * 2, 6);
-    expect(recoverEarly.movementScale).toBe(0.55);
-    expect(recoverLate.movementScale).toBe(0.8);
+    expect(swing.maximumTurnSpeed).toBeCloseTo(Math.PI * 2 / 3, 6);
+    expect(chain.movementScale).toBe(0.75);
+    expect(chain.maximumTurnSpeed).toBeCloseTo(Math.PI * 4, 6);
+    expect(recoverEarly.movementScale).toBe(0.75);
+    expect(recoverEarly.maximumTurnSpeed).toBeCloseTo(Math.PI, 6);
+    expect(recoverLate.movementScale).toBe(0.95);
     expect(recoverLate.facingPolicy).toBe(VanguardFacingPolicy.Free);
+  });
+
+  it('首次前摇按背后目标角差提高转速且不产生瞬移', () => {
+    const speed = calculateRequiredWindupTurnSpeed(0, Math.PI, 0.28);
+    expect(speed).toBeCloseTo(Math.PI / (0.28 * 0.85), 6);
+    expect(speed).toBeGreaterThan(3 * Math.PI);
+    expect(speed).toBeLessThanOrEqual(6 * Math.PI);
   });
 
   it('旋风统一声明高速移动与百分之四十五承伤', () => {

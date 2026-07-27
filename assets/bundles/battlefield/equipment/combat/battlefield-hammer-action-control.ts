@@ -15,35 +15,35 @@ export interface HammerActionControlProfile {
 
 const IDLE_CONTROL = createProfile(1, VanguardFacingPolicy.Free, 0, true, 1);
 const WINDUP_CONTROL = createProfile(
-  0.65,
+  0.85,
   VanguardFacingPolicy.SoftTarget,
   540 * DEGREES_TO_RADIANS,
   true,
   1,
 );
 const SWING_CONTROL = createProfile(
-  0.35,
+  0.65,
   VanguardFacingPolicy.ContactLocked,
-  90 * DEGREES_TO_RADIANS,
+  120 * DEGREES_TO_RADIANS,
   false,
   1,
 );
 const CHAIN_PREPARE_CONTROL = createProfile(
-  0.55,
+  0.75,
   VanguardFacingPolicy.SoftTarget,
-  360 * DEGREES_TO_RADIANS,
+  720 * DEGREES_TO_RADIANS,
   true,
   1,
 );
 const RECOVER_EARLY_CONTROL = createProfile(
-  0.55,
+  0.75,
   VanguardFacingPolicy.ContactLocked,
-  90 * DEGREES_TO_RADIANS,
+  180 * DEGREES_TO_RADIANS,
   false,
   1,
 );
 const RECOVER_LATE_CONTROL = createProfile(
-  0.8,
+  0.95,
   VanguardFacingPolicy.Free,
   720 * DEGREES_TO_RADIANS,
   false,

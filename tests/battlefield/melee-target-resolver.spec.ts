@@ -1,162 +1,299 @@
 import { describe, expect, it } from 'vitest';
+import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
+import { type PlanarCrowdPopulation } from '../../assets/core/monsters/crowd/planar-crowd-population';
+import { PlanarCrowdSeparationSystem } from '../../assets/core/monsters/crowd/planar-crowd-separation-system';
+import { BATTLEFIELD_MONSTER_SPAWN } from '../../assets/bundles/battlefield/model/battlefield-monster-spawn';
+import {
+  MeleeTargetSwitchReason,
+} from '../../assets/bundles/battlefield/combat/battlefield-melee-attack-direction';
 import {
   BattlefieldMeleeTargetResolver,
-  type MutableBattlefieldMeleeAim,
+  createMutableMeleeAttackDirection,
+  type BattlefieldMeleeAttackDirectionRequest,
 } from '../../assets/bundles/battlefield/combat/battlefield-melee-target-resolver';
 import {
-  type BattlefieldMeleeTargetQuery,
-  type BattlefieldMeleeTargetSource,
-  type MutableBattlefieldMeleeTarget,
-} from '../../assets/bundles/battlefield/population/battlefield-monster-target-registry';
+  shouldSwitchMeleeAttackDirection,
+} from '../../assets/bundles/battlefield/population/battlefield-melee-attack-direction-score';
+import { BattlefieldMonsterTargetRegistry } from '../../assets/bundles/battlefield/population/battlefield-monster-target-registry';
+import { type BattlefieldMonsterTargetGroup } from '../../assets/bundles/battlefield/population/battlefield-monster-target-group';
 
-describe('近战自动目标与方向回退', () => {
-  it('有左摇杆输入时只在移动方向左右七十度内选择目标', () => {
+describe('近战怪群方向规划与目标稳定', () => {
+  it('撤退时仍会选择移动方向反侧的范围内怪物', () => {
+    const fixture = new TargetFixture([{ x: 2, z: 2 }]);
     const resolver = new BattlefieldMeleeTargetResolver();
-    const targets = new FakeTargetSource([
-      { populationId: 2, entityId: 7, x: 0, z: -1 },
-      { populationId: 2, entityId: 8, x: 1, z: 3 },
+    const result = createMutableMeleeAttackDirection();
+    resolver.observeMovement(-1, -1);
+
+    resolver.writeBestAttackDirection(
+      fixture.registry,
+      createRequest(-Math.PI * 0.75),
+      result,
+    );
+
+    expect(result.targeted).toBe(true);
+    expect(result.anchorEntityId).toBe(0);
+    expect(result.directionX).toBeGreaterThan(0);
+    expect(result.directionZ).toBeGreaterThan(0);
+  });
+
+  it('首次攻击能够选择人物正后方的唯一怪物', () => {
+    const fixture = new TargetFixture([{ x: 0, z: -2 }]);
+    const resolver = new BattlefieldMeleeTargetResolver();
+    const result = createMutableMeleeAttackDirection();
+
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+
+    expect(result.targeted).toBe(true);
+    expect(result.directionX).toBeCloseTo(0, 5);
+    expect(result.directionZ).toBeLessThan(-0.999);
+  });
+
+  it('四只稍远怪物组成的方向优先于单只近身怪物', () => {
+    const fixture = new TargetFixture([
+      { x: 0, z: 1.4 },
+      { x: -0.6, z: -3 },
+      { x: -0.2, z: -3.1 },
+      { x: 0.2, z: -3.1 },
+      { x: 0.6, z: -3 },
     ]);
-    const aim = createAim();
-    resolver.writeAim(targets, 0, 0, 5, 0, 1, 0, null, aim);
-    expect(aim.targeted).toBe(true);
-    expect(aim.entityId).toBe(8);
-    expect(aim.directionX).toBeCloseTo(1 / Math.sqrt(10), 6);
-    expect(aim.directionZ).toBeCloseTo(3 / Math.sqrt(10), 6);
+    const resolver = new BattlefieldMeleeTargetResolver();
+    const result = createMutableMeleeAttackDirection();
+
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+
+    expect(result.targeted).toBe(true);
+    expect(result.expectedHitCount).toBe(4);
+    expect(result.directionZ).toBeLessThan(0);
+    expect(result.anchorEntityId).not.toBe(0);
   });
 
-  it('距离相近时通过角度权重优先选择更符合摇杆意图的目标', () => {
+  it('按住攻击且目标仍在释放半径内时保留稳定目标', () => {
+    const fixture = new TargetFixture([{ x: 0, z: 4.8 }]);
     const resolver = new BattlefieldMeleeTargetResolver();
-    const targets = new FakeTargetSource([
-      { populationId: 1, entityId: 1, x: 1.81, z: 0.85 },
-      { populationId: 1, entityId: 2, x: 0, z: 3 },
-    ]);
-    const aim = createAim();
-    resolver.writeAim(targets, 0, 0, 5, 0, 1, 0, null, aim);
-    expect(aim.entityId).toBe(2);
+    const result = createMutableMeleeAttackDirection();
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+    expect(result.anchorEntityId).toBe(0);
+
+    fixture.move(0, 0, -6.5);
+    resolver.observeMovement(0, -1);
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(Math.PI, 0), result);
+
+    expect(result.targeted).toBe(true);
+    expect(result.anchorEntityId).toBe(0);
+    expect(result.targetRetained).toBe(true);
+    expect(Math.abs(result.heading)).toBeGreaterThan(160 * Math.PI / 180);
   });
 
-  it('无目标时依次使用当前移动、最后移动与人物朝向', () => {
-    const targets = new FakeTargetSource([]);
+  it('松开攻击会立即清空稳定目标并记录释放原因', () => {
+    const fixture = new TargetFixture([{ x: 0, z: 2 }]);
     const resolver = new BattlefieldMeleeTargetResolver();
-    const aim = createAim();
-    resolver.writeAim(targets, 0, 0, 5, 0.6, 0.8, 0, null, aim);
-    expect(aim.directionX).toBeCloseTo(0.6, 6);
-    expect(aim.directionZ).toBeCloseTo(0.8, 6);
-    resolver.observeMovement(-1, 0);
-    resolver.writeAim(targets, 0, 0, 5, 0, 0, 0, null, aim);
-    expect(aim.directionX).toBeCloseTo(-1, 6);
-    expect(aim.directionZ).toBeCloseTo(0, 6);
-
-    const withoutHistory = new BattlefieldMeleeTargetResolver();
-    withoutHistory.writeAim(targets, 0, 0, 5, 0, 0, Math.PI * 0.5, null, aim);
-    expect(aim.directionX).toBeCloseTo(1, 6);
-    expect(aim.directionZ).toBeCloseTo(0, 6);
-  });
-
-  it('持续攻击保留前方原目标并把每击方向修正限制在四十度', () => {
-    const sourceTargets = [
-      { populationId: 1, entityId: 3, x: 0, z: 2 },
-      { populationId: 1, entityId: 4, x: 1, z: 3 },
-    ];
-    const targets = new FakeTargetSource(sourceTargets);
-    const resolver = new BattlefieldMeleeTargetResolver();
-    const aim = createAim();
-    resolver.writeAim(targets, 0, 0, 5, 0, 1, 0, null, aim);
-    expect(aim.entityId).toBe(3);
-
-    sourceTargets[0]!.x = 5.02;
-    sourceTargets[0]!.z = 2.9;
-    resolver.writeAim(targets, 0, 0, 5, 0, 1, 0, 0, aim);
-    expect(aim.entityId).toBe(3);
-    expect(Math.atan2(aim.directionX, aim.directionZ)).toBeCloseTo(40 * Math.PI / 180, 6);
-  });
-
-  it('原目标失效后换目标最多修正七十度且不自动选择背后目标', () => {
-    const sourceTargets = [{ populationId: 1, entityId: 3, x: 0, z: 2 }];
-    const targets = new FakeTargetSource(sourceTargets);
-    const resolver = new BattlefieldMeleeTargetResolver();
-    const aim = createAim();
-    resolver.writeAim(targets, 0, 0, 5, 0, 0, 0, null, aim);
-    sourceTargets[0] = { populationId: 1, entityId: 4, x: 2, z: 0 };
-    resolver.writeAim(targets, 0, 0, 5, 0, 0, 0, 0, aim);
-    expect(aim.entityId).toBe(4);
-    expect(Math.atan2(aim.directionX, aim.directionZ)).toBeCloseTo(70 * Math.PI / 180, 6);
+    const result = createMutableMeleeAttackDirection();
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
 
     resolver.releaseTarget();
-    sourceTargets[0] = { populationId: 1, entityId: 5, x: 0, z: -1 };
-    resolver.writeAim(targets, 0, 0, 5, 0, 1, 0, null, aim);
-    expect(aim.targeted).toBe(false);
-    expect(aim.directionZ).toBeCloseTo(1, 6);
+
+    expect(resolver.debugState.anchorEntityId).toBe(-1);
+    expect(resolver.debugState.targetRetained).toBe(false);
+    expect(resolver.debugState.targetSwitchReason).toBe(MeleeTargetSwitchReason.AttackReleased);
+  });
+
+  it('稳定目标死亡后在下一段切向侧后方怪群', () => {
+    const fixture = new TargetFixture([
+      { x: 0, z: 2 },
+      { x: -0.6, z: -3, active: false },
+      { x: 0, z: -3.1, active: false },
+      { x: 0.6, z: -3, active: false },
+    ]);
+    const resolver = new BattlefieldMeleeTargetResolver();
+    const result = createMutableMeleeAttackDirection();
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+    expect(result.anchorEntityId).toBe(0);
+
+    fixture.kill(0);
+    fixture.activate(1);
+    fixture.activate(2);
+    fixture.activate(3);
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0, 0), result);
+
+    expect(result.targeted).toBe(true);
+    expect(result.anchorEntityId).not.toBe(0);
+    expect(result.directionZ).toBeLessThan(0);
+    expect(Math.abs(result.heading)).toBeGreaterThan(100 * Math.PI / 180);
+    expect(Math.abs(result.heading)).toBeLessThanOrEqual(160 * Math.PI / 180 + 0.000001);
+    expect(result.targetSwitchReason).toBe(MeleeTargetSwitchReason.PreferredInvalid);
+  });
+
+  it('小幅增益保留当前目标，明显更高价值的怪群才触发切换', () => {
+    const fixture = new TargetFixture([
+      { x: 0, z: 2 },
+      { x: 1.2, z: -2.7, active: false },
+      { x: 1.5, z: -2.6, active: false },
+      { x: 1.5, z: -2.9, active: false },
+      { x: 1.8, z: -2.7, active: false },
+    ]);
+    const resolver = new BattlefieldMeleeTargetResolver();
+    const result = createMutableMeleeAttackDirection();
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+
+    fixture.activate(1);
+    fixture.activate(2);
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0, 0), result);
+    expect(result.anchorEntityId).toBe(0);
+    expect(result.targetRetained).toBe(true);
+
+    fixture.activate(3);
+    fixture.activate(4);
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0, 0), result);
+    expect(result.anchorEntityId).not.toBe(0);
+    expect(Math.abs(result.heading)).toBeLessThanOrEqual(100 * Math.PI / 180 + 0.000001);
+    expect(result.targetSwitchReason).toBe(MeleeTargetSwitchReason.BetterCluster);
+  });
+
+  it('切换迟滞按百分之一百二十分数阈值判断', () => {
+    expect(shouldSwitchMeleeAttackDirection(40, 44, 1)).toBe(false);
+    expect(shouldSwitchMeleeAttackDirection(40, 52, 1)).toBe(true);
+    expect(shouldSwitchMeleeAttackDirection(40, 1, 0)).toBe(true);
+  });
+
+  it('目标越过释放半径后立即允许选择新怪群', () => {
+    const fixture = new TargetFixture([
+      { x: 0, z: 4.8 },
+      { x: -3, z: 0, active: false },
+    ]);
+    const resolver = new BattlefieldMeleeTargetResolver();
+    const result = createMutableMeleeAttackDirection();
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+    expect(result.anchorEntityId).toBe(0);
+
+    fixture.move(0, 0, 7.2);
+    fixture.activate(1);
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0, 0), result);
+
+    expect(result.anchorEntityId).toBe(1);
+    expect(result.targetSwitchReason).toBe(MeleeTargetSwitchReason.PreferredOutOfRange);
+  });
+
+  it('无目标时优先使用最近战斗方向并忽略当前移动方向', () => {
+    const fixture = new TargetFixture([{ x: 20, z: 20, active: false }]);
+    const resolver = new BattlefieldMeleeTargetResolver();
+    const result = createMutableMeleeAttackDirection();
+    resolver.observeMovement(-1, 0);
+
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(Math.PI * 0.5), result);
+    expect(result.directionX).toBeCloseTo(1, 6);
+    expect(result.directionZ).toBeCloseTo(0, 6);
+
+    resolver.observeMovement(0, -1);
+    resolver.writeBestAttackDirection(fixture.registry, createRequest(0), result);
+    expect(result.directionX).toBeCloseTo(1, 6);
+    expect(result.directionZ).toBeCloseTo(0, 6);
+    expect(result.targetSwitchReason).toBe(MeleeTargetSwitchReason.NoTargetFallback);
   });
 });
 
-interface FakeTarget {
-  populationId: number;
-  entityId: number;
-  x: number;
-  z: number;
+interface TestTarget {
+  readonly x: number;
+  readonly z: number;
+  readonly radius?: number;
+  readonly active?: boolean;
 }
 
-class FakeTargetSource implements BattlefieldMeleeTargetSource {
-  constructor(private readonly targets: FakeTarget[]) {}
+class TargetFixture {
+  public readonly registry: BattlefieldMonsterTargetRegistry;
+  private readonly crowd: PlanarCrowdSeparationSystem;
+  private readonly population: PlanarCrowdPopulation;
 
-  public writeBestMeleeTarget(
-    query: Readonly<BattlefieldMeleeTargetQuery>,
-    result: MutableBattlefieldMeleeTarget,
-  ): boolean {
-    let best: FakeTarget | null = null;
-    let bestDistanceSquared = 0;
-    let bestScore = Number.POSITIVE_INFINITY;
-    const minimumAlignment = Math.cos(query.halfArcRadians);
-    for (const target of this.targets) {
-      const deltaX = target.x - query.originX;
-      const deltaZ = target.z - query.originZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      const distance = Math.sqrt(distanceSquared);
-      if (distanceSquared > query.radius * query.radius || distance <= 0.000001) {
-        continue;
-      }
-      const alignment = (deltaX * query.directionX + deltaZ * query.directionZ) / distance;
-      if (alignment < minimumAlignment) {
-        continue;
-      }
-      const preferred = target.populationId === query.preferredPopulationId
-        && target.entityId === query.preferredEntityId;
-      const score = distanceSquared
-        + Math.acos(Math.max(-1, Math.min(1, alignment))) * query.angleWeight
-        - (preferred ? query.preferredTargetBonus : 0);
-      if (score < bestScore) {
-        best = target;
-        bestDistanceSquared = distanceSquared;
-        bestScore = score;
-      }
-    }
-    if (best === null) {
-      return false;
-    }
-    writeTarget(result, best, bestDistanceSquared);
-    return true;
+  constructor(targets: readonly TestTarget[]) {
+    this.population = createPopulation(targets);
+    this.crowd = new PlanarCrowdSeparationSystem();
+    this.crowd.register(this.population);
+    this.crowd.rebuild();
+    this.registry = new BattlefieldMonsterTargetRegistry(this.crowd);
+    this.registry.register(createTargetGroup(this.population));
+  }
+
+  public activate(entityId: number): void {
+    this.population.lifecycle[entityId] = MonsterLifecycleState.Alive;
+    this.population.participation[entityId] = 1;
+    this.crowd.rebuild();
+  }
+
+  public kill(entityId: number): void {
+    this.population.lifecycle[entityId] = MonsterLifecycleState.Dying;
+    this.crowd.rebuild();
+  }
+
+  public move(entityId: number, x: number, z: number): void {
+    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    this.population.x[entityId] = x / scale;
+    this.population.y[entityId] = -z / scale;
+    this.population.previousX[entityId] = x / scale;
+    this.population.previousY[entityId] = -z / scale;
+    this.crowd.rebuild();
   }
 }
 
-function createAim(): MutableBattlefieldMeleeAim {
+function createRequest(
+  currentHeading: number,
+  previousAttackHeading: number | null = null,
+): BattlefieldMeleeAttackDirectionRequest {
   return {
-    directionX: 0,
-    directionZ: 1,
-    targeted: false,
-    populationId: -1,
-    entityId: -1,
+    originX: 0,
+    originZ: 0,
+    acquireRadius: 5,
+    attackReach: 3.9,
+    attackArcRadians: Math.PI * 0.74,
+    currentHeading,
+    previousAttackHeading,
   };
 }
 
-function writeTarget(
-  result: MutableBattlefieldMeleeTarget,
-  target: Readonly<FakeTarget>,
-  distanceSquared: number,
-): void {
-  result.populationId = target.populationId;
-  result.entityId = target.entityId;
-  result.x = target.x;
-  result.z = target.z;
-  result.distanceSquared = distanceSquared;
+function createPopulation(targets: readonly TestTarget[]): PlanarCrowdPopulation {
+  const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
+  const count = targets.length;
+  const lifecycle = new Uint8Array(count);
+  const participation = new Uint8Array(count);
+  const previousX = new Float32Array(count);
+  const previousY = new Float32Array(count);
+  const x = new Float32Array(count);
+  const y = new Float32Array(count);
+  const radius = new Float32Array(count);
+  const inverseMass = new Float32Array(count);
+  for (let index = 0; index < count; index++) {
+    const target = targets[index]!;
+    const active = target.active !== false;
+    lifecycle[index] = active ? MonsterLifecycleState.Alive : MonsterLifecycleState.Dormant;
+    participation[index] = active ? 1 : 0;
+    x[index] = target.x / scale;
+    y[index] = -target.z / scale;
+    previousX[index] = x[index] ?? 0;
+    previousY[index] = y[index] ?? 0;
+    radius[index] = (target.radius ?? 0.3) / scale;
+    inverseMass[index] = 1;
+  }
+  return {
+    populationId: 9,
+    count,
+    lifecycle,
+    participation,
+    previousX,
+    previousY,
+    x,
+    y,
+    radius,
+    inverseMass,
+  };
+}
+
+function createTargetGroup(
+  crowdPopulation: PlanarCrowdPopulation,
+): BattlefieldMonsterTargetGroup {
+  return {
+    populationId: crowdPopulation.populationId,
+    crowdPopulation,
+    knockbackResistanceScale: 1,
+    airborneResistanceScale: 1,
+    damageMonster: () => undefined,
+    setAirborneEffect: () => false,
+  };
 }

@@ -6,7 +6,8 @@ import { BATTLEFIELD_COMBAT_CONFIG } from '../../model/battlefield-combat-config
 import { type BattlefieldHammerWorldPose } from '../model/battlefield-hammer-world-pose';
 import { calculateLaunchVelocity, SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
 import { BattlefieldCombatEventBuffer, BattlefieldWeaponHitKind } from './battlefield-combat-event-buffer';
-import { type BattlefieldHammerActionState, type MutableHammerActionEvents } from './battlefield-hammer-action-state';
+import { type BattlefieldHammerActionState } from './battlefield-hammer-action-state';
+import { type MutableHammerActionEvents } from './battlefield-hammer-action-events';
 import { type BattlefieldHammerCombatTarget } from './battlefield-hammer-combat-target';
 import { BattlefieldHammerHeadSweepState } from './battlefield-hammer-head-sweep-state';
 import {

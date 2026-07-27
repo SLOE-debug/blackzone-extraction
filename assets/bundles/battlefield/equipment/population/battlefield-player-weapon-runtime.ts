@@ -11,7 +11,8 @@ import {
 } from '../combat/battlefield-hammer-combat-runtime';
 import { type BattlefieldHammerActionControlEffect } from '../combat/battlefield-facing-lock-effect';
 import { type BattlefieldHammerSweepDebugSource } from '../combat/battlefield-hammer-sweep-debug-state';
-import { BattlefieldHammerActionState, type MutableHammerActionEvents } from '../combat/battlefield-hammer-action-state';
+import { BattlefieldHammerActionState } from '../combat/battlefield-hammer-action-state';
+import { type MutableHammerActionEvents } from '../combat/battlefield-hammer-action-events';
 import { BattlefieldWeaponCommandBuffer, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
 import { type BattlefieldItemInstance } from '../model/battlefield-item-instance';
 import { type EquippedWeaponPresentation } from '../model/equipped-weapon-presentation';
@@ -132,12 +133,6 @@ export class BattlefieldPlayerEquipmentRuntime {
     return this.actionState.attackHeading;
   }
 
-  /** 恢复后半已经把身体控制交还左摇杆，应同步释放普通攻击目标迟滞。 */
-  public get shouldReleaseAutoTarget(): boolean {
-    return this.actionState.action === WeaponAction.Recover
-      && this.actionState.progress >= 0.5;
-  }
-
   public get hammerSweepDebug(): BattlefieldHammerSweepDebugSource {
     return this.combat.sweepDebug;
   }
@@ -145,6 +140,11 @@ export class BattlefieldPlayerEquipmentRuntime {
   /** 当前武器可用于自动锁敌的基础近战射程。 */
   public get meleeReach(): number {
     return this.definition?.reach ?? 0;
+  }
+
+  /** 当前武器真实命中判定使用的横扫弧度。 */
+  public get meleeHitArcRadians(): number {
+    return this.definition?.hitArcRadians ?? 0;
   }
 
   /** 输入层应为首次横扫解析新目标。 */
@@ -252,6 +252,7 @@ export class BattlefieldPlayerEquipmentRuntime {
         this.actionState.requestSwing(
           this.command.directionX,
           this.command.directionZ,
+          owner.heading,
           this.command.startsRight,
         );
       }

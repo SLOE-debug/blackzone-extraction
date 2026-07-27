@@ -1,52 +1,28 @@
 import { PlanarCrowdCandidateBuffer } from '../../../core/monsters/crowd/planar-crowd-candidate-buffer';
-import { MonsterLifecycleState } from '../../../core/contracts/monster-lifecycle';
 import { type PlanarCrowdSeparationSystem } from '../../../core/monsters/crowd/planar-crowd-separation-system';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
+import {
+  type BattlefieldMeleeAttackDirectionQuery,
+  type MutableBattlefieldMeleeAttackDirection,
+} from '../combat/battlefield-melee-attack-direction';
 import {
   type BattlefieldMeleeHitBuffer,
   type BattlefieldMeleeQuery,
   type BattlefieldMeleeSweepQuery,
 } from '../combat/melee/battlefield-melee-query';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
+import { BattlefieldMeleeAttackDirectionPlanner } from './battlefield-melee-attack-direction-planner';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
 const DIRECTION_EPSILON = 0.000001;
-
-/** 自动近战瞄准写入的稳定目标与世界坐标。 */
-export interface MutableBattlefieldMeleeTarget {
-  populationId: number;
-  entityId: number;
-  x: number;
-  z: number;
-  distanceSquared: number;
-}
-
-/** 自动近战目标查询使用的世界扇区、评分权重与稳定目标偏好。 */
-export interface BattlefieldMeleeTargetQuery {
-  readonly originX: number;
-  readonly originZ: number;
-  readonly radius: number;
-  readonly directionX: number;
-  readonly directionZ: number;
-  readonly halfArcRadians: number;
-  readonly angleWeight: number;
-  readonly preferredPopulationId: number;
-  readonly preferredEntityId: number;
-  readonly preferredTargetBonus: number;
-}
-
-/** 输入层只读依赖的近战目标查询门面。 */
-export interface BattlefieldMeleeTargetSource {
-  writeBestMeleeTarget(
-    query: Readonly<BattlefieldMeleeTargetQuery>,
-    result: MutableBattlefieldMeleeTarget,
-  ): boolean;
-}
 
 /** 聚合异构怪物群的近战空间查询与稳定实体伤害路由。 */
 export class BattlefieldMonsterTargetRegistry {
   private readonly groups: BattlefieldMonsterTargetGroup[] = [];
   private readonly candidates = new PlanarCrowdCandidateBuffer(MAXIMUM_CROWD_CANDIDATES);
+  private readonly attackDirectionPlanner = new BattlefieldMeleeAttackDirectionPlanner(
+    MAXIMUM_CROWD_CANDIDATES,
+  );
 
   constructor(private readonly crowd: PlanarCrowdSeparationSystem) {}
 
@@ -65,79 +41,26 @@ export class BattlefieldMonsterTargetRegistry {
     }
   }
 
-  /**
-   * 从共享圆形宽相位中按前方扇区、距离、角度与目标偏好写出最佳存活目标。
-   *
-   * @param query 查询中心、前方扇区和距离角度联合评分配置。
-   * @param result 调用方长期复用的结果对象。
-   * @returns 是否找到合法目标。
-   */
-  public writeBestMeleeTarget(
-    query: Readonly<BattlefieldMeleeTargetQuery>,
-    result: MutableBattlefieldMeleeTarget,
+  /** 在共享圆形宽相位上规划一次带目标迟滞的最佳大锤挥击方向。 */
+  public writeBestMeleeAttackDirection(
+    query: Readonly<BattlefieldMeleeAttackDirectionQuery>,
+    result: MutableBattlefieldMeleeAttackDirection,
   ): boolean {
-    if (![query.originX, query.originZ, query.radius, query.directionX, query.directionZ,
-      query.halfArcRadians, query.angleWeight, query.preferredTargetBonus].every(Number.isFinite)
-      || query.radius <= 0
-      || query.halfArcRadians <= 0
-      || query.halfArcRadians > Math.PI
-      || query.angleWeight < 0
-      || query.preferredTargetBonus < 0
-      || Math.abs(Math.hypot(query.directionX, query.directionZ) - 1) > 0.001
-      || !Number.isSafeInteger(query.preferredPopulationId)
-      || !Number.isSafeInteger(query.preferredEntityId)) {
-      throw new Error('近战自动目标查询参数无效。');
-    }
     const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
     const inverseScale = 1 / scale;
     this.crowd.collectCircleCandidates(
       query.originX * inverseScale,
       -query.originZ * inverseScale,
-      query.radius * inverseScale,
+      query.releaseRadius * inverseScale,
       this.candidates,
     );
-    let found = false;
-    let bestScore = Number.POSITIVE_INFINITY;
-    const minimumAlignment = Math.cos(query.halfArcRadians);
-    for (let index = 0; index < this.candidates.count; index++) {
-      const populationId = this.candidates.populationIds[index] ?? 0;
-      const entityId = this.candidates.entityIndices[index] ?? 0;
-      const crowd = this.findGroup(populationId)?.crowdPopulation;
-      if (crowd === undefined
-        || (crowd.lifecycle[entityId] as MonsterLifecycleState) !== MonsterLifecycleState.Alive
-        || (crowd.participation[entityId] ?? 0) === 0) {
-        continue;
-      }
-      const x = (crowd.x[entityId] ?? 0) * scale;
-      const z = -(crowd.y[entityId] ?? 0) * scale;
-      const deltaX = x - query.originX;
-      const deltaZ = z - query.originZ;
-      const distanceSquared = deltaX * deltaX + deltaZ * deltaZ;
-      if (distanceSquared > query.radius * query.radius) {
-        continue;
-      }
-      const distance = Math.sqrt(distanceSquared);
-      const alignment = distance <= DIRECTION_EPSILON
-        ? 1
-        : (deltaX * query.directionX + deltaZ * query.directionZ) / distance;
-      if (alignment < minimumAlignment) {
-        continue;
-      }
-      const preferred = populationId === query.preferredPopulationId
-        && entityId === query.preferredEntityId;
-      const angleDifference = Math.acos(Math.max(-1, Math.min(1, alignment)));
-      const score = distanceSquared
-        + angleDifference * query.angleWeight
-        - (preferred ? query.preferredTargetBonus : 0);
-      if (!found || score < bestScore
-        || (score === bestScore
-          && isStableTargetBefore(populationId, entityId, result.populationId, result.entityId))) {
-        found = true;
-        bestScore = score;
-        writeMeleeTarget(result, populationId, entityId, x, z, distanceSquared);
-      }
-    }
-    return found;
+    return this.attackDirectionPlanner.write(
+      query,
+      this.groups,
+      this.candidates,
+      scale,
+      result,
+    );
   }
 
   /** 用共享 Crowd 宽相位收集扇形或整圆范围内的全部近战目标。 */
@@ -296,29 +219,4 @@ export function distanceSquaredToSegment(
   const deltaX = pointX - nearestX;
   const deltaY = pointY - nearestY;
   return deltaX * deltaX + deltaY * deltaY;
-}
-
-function writeMeleeTarget(
-  result: MutableBattlefieldMeleeTarget,
-  populationId: number,
-  entityId: number,
-  x: number,
-  z: number,
-  distanceSquared: number,
-): void {
-  result.populationId = populationId;
-  result.entityId = entityId;
-  result.x = x;
-  result.z = z;
-  result.distanceSquared = distanceSquared;
-}
-
-function isStableTargetBefore(
-  populationId: number,
-  entityId: number,
-  otherPopulationId: number,
-  otherEntityId: number,
-): boolean {
-  return populationId < otherPopulationId
-    || (populationId === otherPopulationId && entityId < otherEntityId);
 }

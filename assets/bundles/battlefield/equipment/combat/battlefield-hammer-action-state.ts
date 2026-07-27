@@ -5,6 +5,12 @@ import { type BattlefieldHammerActionControlEffect } from './battlefield-facing-
 import {
   getHammerActionControlProfile,
 } from './battlefield-hammer-action-control';
+import {
+  nextHammerActionSequence,
+  resetHammerActionEvents,
+  type MutableHammerActionEvents,
+} from './battlefield-hammer-action-events';
+import { calculateRequiredWindupTurnSpeed } from './battlefield-hammer-windup-turn';
 
 const SWING_WINDUP_SECONDS = 0.28;
 const SWING_CONTACT_SECONDS = 0.34;
@@ -17,14 +23,6 @@ const GROUND_SLAM_DURATION = 0.82;
 const HIT_STOP_SECONDS = 0.045;
 const MAXIMUM_TRANSITIONS_PER_UPDATE = 4;
 const TIMELINE_EPSILON = 0.000001;
-
-/** 单次动作更新产生的无分配事件快照。 */
-export interface MutableHammerActionEvents {
-  uppercutImpact: boolean;
-  groundSlamImpact: boolean;
-  spinPulse: boolean;
-  spinFinal: boolean;
-}
 
 /** 管理左右交替挥动、五连击震势与三种特殊攻击时间轴。 */
 export class BattlefieldHammerActionState {
@@ -46,6 +44,7 @@ export class BattlefieldHammerActionState {
   private comboRemaining = 0;
   private hitStopRemaining = 0;
   private lockedHeading = 0;
+  private windupMaximumTurnSpeed = 0;
   private poseSideValue: -1 | 0 | 1 = 0;
   private attackHeldValue = false;
   private queuedSwing = false;
@@ -146,7 +145,10 @@ export class BattlefieldHammerActionState {
     const effect = this.actionControlEffect;
     effect.movementScale = profile.movementScale;
     effect.facingPolicy = profile.facingPolicy;
-    effect.maximumTurnSpeed = profile.maximumTurnSpeed;
+    effect.maximumTurnSpeed = this.actionValue === WeaponAction.WindupLeft
+      || this.actionValue === WeaponAction.WindupRight
+      ? Math.max(profile.maximumTurnSpeed, this.windupMaximumTurnSpeed)
+      : profile.maximumTurnSpeed;
     effect.autoTargetAllowed = profile.autoTargetAllowed;
     effect.damageTakenScale = profile.damageTakenScale;
     effect.desiredHeading = this.actionValue === WeaponAction.Spin
@@ -161,6 +163,7 @@ export class BattlefieldHammerActionState {
   public requestSwing(
     directionX: number,
     directionZ: number,
+    currentHeading: number,
     startsRight: boolean | null = null,
   ): boolean {
     if (this.canBufferNextSwing) {
@@ -177,6 +180,12 @@ export class BattlefieldHammerActionState {
       : this.lastRequestedRight === startsRight
         ? this.alternateLeft
         : !startsRight;
+    const targetHeading = Math.atan2(directionX, directionZ);
+    this.windupMaximumTurnSpeed = calculateRequiredWindupTurnSpeed(
+      currentHeading,
+      targetHeading,
+      SWING_WINDUP_SECONDS,
+    );
     this.beginAction(
       startLeft ? WeaponAction.WindupLeft : WeaponAction.WindupRight,
       SWING_WINDUP_SECONDS,
@@ -186,7 +195,7 @@ export class BattlefieldHammerActionState {
     this.alternateLeft = !startLeft;
     this.lastRequestedRight = startsRight;
     this.poseSideValue = startLeft ? -1 : 1;
-    this.lockedHeading = Math.atan2(directionX, directionZ);
+    this.lockedHeading = targetHeading;
     return true;
   }
 
@@ -220,7 +229,7 @@ export class BattlefieldHammerActionState {
     );
     this.lockedHeading = heading;
     this.poseSideValue = 0;
-    this.skillSequenceValue = nextSequence(this.skillSequenceValue);
+    this.skillSequenceValue = nextHammerActionSequence(this.skillSequenceValue);
     this.spinAngleValue = 0;
     this.spinAngleDeltaValue = 0;
     this.nextSpinHitAngle = SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
@@ -248,7 +257,7 @@ export class BattlefieldHammerActionState {
     definition: Readonly<MeleeWeaponDefinition>,
     result: MutableHammerActionEvents,
   ): void {
-    resetEvents(result);
+    resetHammerActionEvents(result);
     this.spinAngleDeltaValue = 0;
     const frameTime = Math.max(0, deltaTime);
     this.comboRemaining = Math.max(0, this.comboRemaining - frameTime);
@@ -312,7 +321,7 @@ export class BattlefieldHammerActionState {
         while (this.spinAngleValue >= this.nextSpinHitAngle
           && this.nextSpinHitAngle
             < SLEDGEHAMMER_PROGRESSION.spinRevolutions * Math.PI * 2 - TIMELINE_EPSILON) {
-          this.attackSequenceValue = nextSequence(this.attackSequenceValue);
+          this.attackSequenceValue = nextHammerActionSequence(this.attackSequenceValue);
           result.spinPulse = true;
           this.nextSpinHitAngle += SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
         }
@@ -427,6 +436,7 @@ export class BattlefieldHammerActionState {
     this.momentumChargesValue = 0;
     this.comboRemaining = 0;
     this.hitStopRemaining = 0;
+    this.windupMaximumTurnSpeed = 0;
     this.poseSideValue = 0;
     this.attackHeldValue = false;
     this.clearQueuedSwing();
@@ -466,7 +476,7 @@ export class BattlefieldHammerActionState {
     this.directionZValue = directionZ;
     this.impactEmitted = false;
     if (allocateSequence) {
-      this.attackSequenceValue = nextSequence(this.attackSequenceValue);
+      this.attackSequenceValue = nextHammerActionSequence(this.attackSequenceValue);
     }
   }
 
@@ -477,15 +487,4 @@ export class BattlefieldHammerActionState {
     this.impactEmitted = false;
     this.clearQueuedSwing();
   }
-}
-
-function resetEvents(events: MutableHammerActionEvents): void {
-  events.uppercutImpact = false;
-  events.groundSlamImpact = false;
-  events.spinPulse = false;
-  events.spinFinal = false;
-}
-
-function nextSequence(current: number): number {
-  return current >= 0xffffffff ? 1 : current + 1;
 }

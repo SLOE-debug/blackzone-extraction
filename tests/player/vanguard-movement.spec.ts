@@ -6,6 +6,7 @@ import { VanguardLifePhase } from '../../assets/player/vanguard/model/vanguard-l
 import { type VanguardPopulationOptions } from '../../assets/player/vanguard/model/vanguard-options';
 import { VanguardState } from '../../assets/player/vanguard/model/vanguard-state';
 import { VanguardFacingPolicy } from '../../assets/player/vanguard/model/vanguard-facing-policy';
+import { calculateRequiredWindupTurnSpeed } from '../../assets/bundles/battlefield/equipment/combat/battlefield-hammer-windup-turn';
 
 const TEST_OPTIONS = Object.freeze({
   position: Object.freeze({ x: 0, y: 0.05, z: 0 }),
@@ -80,6 +81,38 @@ describe('主角第三人称双摇杆移动', () => {
 
     expect(Math.abs(state.data.motion.locomotionForward[0] ?? 0)).toBeLessThan(0.001);
     expect(state.data.motion.locomotionRight[0]).toBeCloseTo(3.1, 5);
+  });
+
+  it('人物面向攻击目标时允许沿相反世界方向后退', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
+    state.data.intent.moveZ[0] = -1;
+    state.data.intent.facingPolicy[0] = VanguardFacingPolicy.ContactLocked;
+    state.data.intent.desiredHeading[0] = 0;
+    state.data.intent.maximumTurnSpeed[0] = Math.PI;
+
+    movement.update(state, 0.1);
+
+    expect(state.data.transform.z[0]).toBeLessThan(0);
+    expect(state.data.transform.heading[0]).toBeCloseTo(0, 6);
+    expect(state.data.motion.locomotionForward[0]).toBeLessThan(0);
+  });
+
+  it('首次前摇能在进入接触阶段前转向正后方目标', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const movement = new VanguardMovementSystem(UNCONSTRAINED_PLANAR_MOVEMENT);
+    state.data.intent.facingPolicy[0] = VanguardFacingPolicy.SoftTarget;
+    state.data.intent.desiredHeading[0] = Math.PI;
+    state.data.intent.maximumTurnSpeed[0] = calculateRequiredWindupTurnSpeed(0, Math.PI, 0.28);
+    for (let frame = 0; frame < 17; frame++) {
+      movement.update(state, 1 / 60);
+    }
+
+    const difference = Math.abs(Math.atan2(
+      Math.sin(Math.PI - (state.data.transform.heading[0] ?? 0)),
+      Math.cos(Math.PI - (state.data.transform.heading[0] ?? 0)),
+    ));
+    expect(difference).toBeLessThan(10 * Math.PI / 180);
   });
 
   it('不施加地图边界限制并在松开输入后快速减速', () => {
