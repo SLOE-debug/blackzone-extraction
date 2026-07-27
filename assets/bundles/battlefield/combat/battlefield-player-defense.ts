@@ -12,7 +12,7 @@ export function calculateBattlefieldMonsterDamage(
   if (!Number.isFinite(incomingDamage)
     || incomingDamage < 0
     || !Number.isFinite(damageTakenScale)
-    || damageTakenScale <= 0
+    || damageTakenScale < 0
     || damageTakenScale > 1) {
     throw new Error('怪物伤害与动作承伤比例必须位于合法有限范围。');
   }

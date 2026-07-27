@@ -49,7 +49,7 @@ interface MutableBattlefieldScreenControlState {
   cameraOrbitDeltaX: number;
 }
 
-/** 装配移动摇杆、普通攻击按钮、三枚径向技能键和固定物品栏。 */
+/** 装配移动摇杆、普通攻击按钮、动态径向技能键和固定物品栏。 */
 export class BattlefieldControlHud {
   public readonly state: BattlefieldScreenControlState;
   private readonly canvas: ScreenUiCanvas;
@@ -402,9 +402,6 @@ export class BattlefieldControlHud {
         break;
       case KeyCode.DIGIT_2:
         this.radialSkillButtons.setKeyboardActive(1, pressed);
-        break;
-      case KeyCode.DIGIT_3:
-        this.radialSkillButtons.setKeyboardActive(2, pressed);
         break;
       case KeyCode.SPACE:
         if (pressed && !this.attackKeyDown && this.contextAction === null) {

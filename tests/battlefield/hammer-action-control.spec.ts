@@ -34,12 +34,13 @@ describe('大锤统一动作控制配置', () => {
     expect(speed).toBeLessThanOrEqual(6 * Math.PI);
   });
 
-  it('旋风统一声明高速移动与百分之四十五承伤', () => {
+  it('旋风统一声明高速移动与战斗无敌', () => {
     const spin = getHammerActionControlProfile(WeaponAction.Spin, 0.5);
     expect(SLEDGEHAMMER_PROGRESSION.spinDurationSeconds).toBe(1.45);
     expect(SLEDGEHAMMER_PROGRESSION.spinRevolutions).toBe(4);
     expect(spin.movementScale).toBe(0.62);
-    expect(spin.damageTakenScale).toBe(0.45);
+    expect(spin.damageTakenScale).toBe(0);
+    expect(spin.combatInvulnerable).toBe(true);
     expect(spin.facingPolicy).toBe(VanguardFacingPolicy.SpinDriven);
     expect(calculateSledgehammerSpinAngle(1.45)).toBeCloseTo(Math.PI * 8, 6);
   });

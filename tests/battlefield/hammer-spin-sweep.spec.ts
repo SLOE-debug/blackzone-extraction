@@ -118,6 +118,10 @@ class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
     return true;
   }
 
+  public applyDirectionalLaunch(): boolean {
+    return true;
+  }
+
   public applyMagnetized(): boolean {
     return true;
   }

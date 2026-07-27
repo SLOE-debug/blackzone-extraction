@@ -1,4 +1,5 @@
 import { type MeleeWeaponDefinition } from '../../../../core/equipment/equipment';
+import { PlanarKnockbackCombineMode } from '../../../../core/contracts/monster-effects';
 import {
   BattlefieldMeleeHitBuffer,
 } from '../../combat/melee/battlefield-melee-query';
@@ -123,8 +124,8 @@ export class BattlefieldHammerCombatRuntime {
     if (actionState.sweepActive && this.hammerHeadSweep.ready) {
       this.queueHammerSweepHits(owner, actionState, definition, BattlefieldWeaponHitKind.Swing);
     }
-    if (actionEvents.uppercutImpact && this.hammerHeadSweep.ready) {
-      this.queueHammerSweepHits(owner, actionState, definition, BattlefieldWeaponHitKind.Uppercut);
+    if (actionEvents.uppercutImpact) {
+      this.queueUppercutHits(owner, actionState, definition);
     }
     if (actionEvents.groundSlamImpact) {
       this.queueGroundSlamHits(owner, actionState, definition);
@@ -168,20 +169,36 @@ export class BattlefieldHammerCombatRuntime {
         === BattlefieldWeaponHitKind.Swing) {
         confirmedSwing = true;
       }
+      const kind = this.events.kind[index] as BattlefieldWeaponHitKind;
       this.monsters.damageMonster(populationId, entityId, this.events.damage[index] ?? 0);
-      this.monsters.applyKnockback(populationId, entityId, {
-        directionX: this.events.directionX[index] ?? 0,
-        directionZ: this.events.directionZ[index] ?? 1,
-        initialSpeed: this.events.knockbackSpeed[index] ?? 0,
-        remainingSeconds: this.events.knockbackDuration[index] ?? KNOCKBACK_DURATION_SECONDS,
-        resistanceScale: this.monsters.getKnockbackResistance(populationId),
-      });
       const launchVelocity = this.events.launchVelocity[index] ?? 0;
-      if (launchVelocity > 0) {
-        this.monsters.applyVerticalLaunch(populationId, entityId, {
-          initialVelocity: launchVelocity,
+      if (kind === BattlefieldWeaponHitKind.Uppercut && launchVelocity > 0) {
+        this.monsters.applyDirectionalLaunch(populationId, entityId, {
+          directionX: this.events.directionX[index] ?? 0,
+          directionZ: this.events.directionZ[index] ?? 1,
+          horizontalSpeed: SLEDGEHAMMER_PROGRESSION.uppercutHorizontalSpeed,
+          verticalSpeed: launchVelocity,
+          horizontalDrag: SLEDGEHAMMER_PROGRESSION.uppercutHorizontalDrag,
           gravityScale: 1,
           resistanceScale: this.monsters.getAirborneResistance(populationId),
+        });
+      } else {
+        const knockbackSpeed = this.events.knockbackSpeed[index] ?? 0;
+        const spin = kind === BattlefieldWeaponHitKind.SpinPulse
+          || kind === BattlefieldWeaponHitKind.SpinFinal;
+        this.monsters.applyKnockback(populationId, entityId, {
+          directionX: this.events.directionX[index] ?? 0,
+          directionZ: this.events.directionZ[index] ?? 1,
+          initialSpeed: knockbackSpeed,
+          remainingSeconds: this.events.knockbackDuration[index]
+            ?? KNOCKBACK_DURATION_SECONDS,
+          resistanceScale: this.monsters.getKnockbackResistance(populationId),
+          combineMode: spin
+            ? SLEDGEHAMMER_PROGRESSION.spinKnockbackCombineMode
+            : PlanarKnockbackCombineMode.Replace,
+          maximumSpeed: spin
+            ? SLEDGEHAMMER_PROGRESSION.spinMaximumKnockbackSpeed
+            : Math.max(knockbackSpeed, 0.001),
         });
       }
       const magnetizedSequence = this.events.magnetizedSkillSequence[index] ?? 0;
@@ -216,6 +233,31 @@ export class BattlefieldHammerCombatRuntime {
       this.writeHitEvent(
         index,
         BattlefieldWeaponHitKind.GroundSlam,
+        owner,
+        actionState,
+        definition,
+      );
+    }
+  }
+
+  /** 用玩家前方权威扇区收集自动上挑目标，不再依赖单条锤头胶囊。 */
+  private queueUppercutHits(
+    owner: Readonly<BattlefieldHammerOwnerState>,
+    actionState: BattlefieldHammerActionState,
+    definition: Readonly<MeleeWeaponDefinition>,
+  ): void {
+    const query = this.query;
+    query.originX = owner.positionX;
+    query.originZ = owner.positionZ;
+    query.directionX = actionState.directionX;
+    query.directionZ = actionState.directionZ;
+    query.reach = definition.reach * SLEDGEHAMMER_PROGRESSION.uppercutReachScale;
+    query.arcRadians = SLEDGEHAMMER_PROGRESSION.uppercutArcRadians;
+    const hitCount = this.monsters.collectMeleeHits(query, this.meleeHits);
+    for (let index = 0; index < hitCount; index++) {
+      this.writeHitEvent(
+        index,
+        BattlefieldWeaponHitKind.Uppercut,
         owner,
         actionState,
         definition,
@@ -316,13 +358,22 @@ export class BattlefieldHammerCombatRuntime {
     const spin = kind === BattlefieldWeaponHitKind.SpinPulse
       || kind === BattlefieldWeaponHitKind.SpinFinal;
     const radialKnockback = spin || kind === BattlefieldWeaponHitKind.GroundSlam;
+    let directionX = radialKnockback && radial ? radialX / radialLength : actionState.directionX;
+    let directionZ = radialKnockback && radial ? radialZ / radialLength : actionState.directionZ;
+    if (kind === BattlefieldWeaponHitKind.Uppercut && radial) {
+      const mixedX = actionState.directionX * 0.65 + radialX / radialLength * 0.35;
+      const mixedZ = actionState.directionZ * 0.65 + radialZ / radialLength * 0.35;
+      const mixedLength = Math.max(Math.hypot(mixedX, mixedZ), 0.0001);
+      directionX = mixedX / mixedLength;
+      directionZ = mixedZ / mixedLength;
+    }
     const event = this.mutableEvent;
     event.kind = kind;
     event.attackSequenceId = actionState.attackSequenceId;
     event.populationId = this.meleeHits.populationIds[hitIndex] ?? 0;
     event.entityId = this.meleeHits.entityIds[hitIndex] ?? 0;
-    event.directionX = radialKnockback && radial ? radialX / radialLength : actionState.directionX;
-    event.directionZ = radialKnockback && radial ? radialZ / radialLength : actionState.directionZ;
+    event.directionX = directionX;
+    event.directionZ = directionZ;
     event.damage = definition.baseDamage * getHammerDamageScale(kind);
     event.knockbackSpeed = getHammerKnockbackSpeed(kind, definition.knockbackImpulse);
     event.knockbackDuration = KNOCKBACK_DURATION_SECONDS;

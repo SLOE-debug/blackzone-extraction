@@ -29,10 +29,12 @@ export type {
   PlanarMonsterCombatTarget,
 } from './contracts/monster-combat';
 export type {
+  DirectionalLaunchEffect,
   PlanarKnockbackEffect,
   PlanarMonsterEffectPopulation,
   VerticalLaunchEffect,
 } from './contracts/monster-effects';
+export { PlanarKnockbackCombineMode } from './contracts/monster-effects';
 export {
   MonsterObservationEventType,
   type MonsterObservationEvent,

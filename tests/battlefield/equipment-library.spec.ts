@@ -4,6 +4,7 @@ import {
   EquipmentRarity,
   WeaponGrip,
   WeaponKind,
+  WeaponSkillCommand,
 } from '../../assets/core/equipment/equipment';
 import {
   BATTLEFIELD_EQUIPMENT_LIBRARY,
@@ -31,7 +32,11 @@ describe('纯近战装备清单', () => {
     expect(prototype.held.supportGripLocalPosition.y).toBeLessThan(
       prototype.held.mainGripLocalPosition.y,
     );
-    expect(prototype.hud.skills).toHaveLength(3);
+    expect(prototype.hud.skills).toHaveLength(2);
+    expect(prototype.hud.skills.map((skill) => skill.command)).toEqual([
+      WeaponSkillCommand.Spin,
+      WeaponSkillCommand.GroundSlam,
+    ]);
     expect(prototype.geometry.vertexCount).toBeGreaterThan(0);
     expect(prototype.geometry.indexCount).toBeGreaterThan(0);
     expect(prototype.dropped.boundsRadius).toBeGreaterThan(0);

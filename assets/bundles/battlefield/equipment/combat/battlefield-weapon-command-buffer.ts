@@ -5,10 +5,7 @@ export class BattlefieldWeaponCommandBuffer {
   private swingDirectionX = 0;
   private swingDirectionZ = 1;
   private swingStartsRight: boolean | null = null;
-  private uppercutRequested = false;
   private groundSlamRequested = false;
-  private uppercutDirectionX = 0;
-  private uppercutDirectionZ = 1;
   private groundSlamDirectionX = 0;
   private groundSlamDirectionZ = 1;
   private spinRequested = false;
@@ -30,13 +27,6 @@ export class BattlefieldWeaponCommandBuffer {
     this.swingStartsRight = startsRight;
   }
 
-  public requestUppercut(directionX: number, directionZ: number): void {
-    validateDirection(directionX, directionZ);
-    this.uppercutRequested = true;
-    this.uppercutDirectionX = directionX;
-    this.uppercutDirectionZ = directionZ;
-  }
-
   public requestGroundSlam(directionX: number, directionZ: number): void {
     validateDirection(directionX, directionZ);
     this.groundSlamRequested = true;
@@ -48,17 +38,14 @@ export class BattlefieldWeaponCommandBuffer {
     this.spinRequested = true;
   }
 
-  /** 三路特殊命令独立复制，消费后立即清空全部一次性状态。 */
+  /** 两路主动技能命令独立复制，消费后立即清空全部一次性状态。 */
   public consume(result: MutableBattlefieldWeaponCommand): void {
     result.attackHeld = this.attackHeld;
     result.swingRequested = this.swingRequested;
     result.directionX = this.swingDirectionX;
     result.directionZ = this.swingDirectionZ;
     result.startsRight = this.swingStartsRight;
-    result.uppercutRequested = this.uppercutRequested;
     result.groundSlamRequested = this.groundSlamRequested;
-    result.uppercutDirectionX = this.uppercutDirectionX;
-    result.uppercutDirectionZ = this.uppercutDirectionZ;
     result.groundSlamDirectionX = this.groundSlamDirectionX;
     result.groundSlamDirectionZ = this.groundSlamDirectionZ;
     result.spinRequested = this.spinRequested;
@@ -73,7 +60,6 @@ export class BattlefieldWeaponCommandBuffer {
 
   private clearRequests(): void {
     this.swingRequested = false;
-    this.uppercutRequested = false;
     this.groundSlamRequested = false;
     this.spinRequested = false;
   }
@@ -85,10 +71,7 @@ export interface MutableBattlefieldWeaponCommand {
   directionX: number;
   directionZ: number;
   startsRight: boolean | null;
-  uppercutRequested: boolean;
   groundSlamRequested: boolean;
-  uppercutDirectionX: number;
-  uppercutDirectionZ: number;
   groundSlamDirectionX: number;
   groundSlamDirectionZ: number;
   spinRequested: boolean;

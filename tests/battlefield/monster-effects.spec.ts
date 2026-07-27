@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { MonsterLifecycleState } from '../../assets/core/contracts/monster-lifecycle';
+import { PlanarKnockbackCombineMode } from '../../assets/core/contracts/monster-effects';
 import { BattlefieldMonsterEffectRuntime } from '../../assets/bundles/battlefield/combat/effects/battlefield-monster-effect-runtime';
 import { type BattlefieldMonsterTargetGroup } from '../../assets/bundles/battlefield/population/battlefield-monster-target-group';
+import { BATTLEFIELD_MONSTER_SPAWN } from '../../assets/bundles/battlefield/model/battlefield-monster-spawn';
 
 describe('怪物通用受力 Effect', () => {
   it('同一攻击序列对同一实体只接受一次', () => {
@@ -23,6 +25,8 @@ describe('怪物通用受力 Effect', () => {
       initialSpeed: 8,
       remainingSeconds: 0.2,
       resistanceScale: 1,
+      combineMode: PlanarKnockbackCombineMode.Replace,
+      maximumSpeed: 8,
     });
     effects.applyVerticalLaunch(2, 0, {
       initialVelocity: 5,
@@ -38,6 +42,79 @@ describe('怪物通用受力 Effect', () => {
     }
     expect(group.elevations[0]).toBe(0);
     expect(group.airborne[0]).toBe(0);
+  });
+
+  it('方向腾空同时推进水平两轴并在落地时停止飞行', () => {
+    const group = createGroup(4, [0]);
+    const effects = new BattlefieldMonsterEffectRuntime(20);
+    effects.register(group);
+    effects.applyDirectionalLaunch(4, 0, {
+      directionX: Math.SQRT1_2,
+      directionZ: Math.SQRT1_2,
+      horizontalSpeed: 9.2,
+      verticalSpeed: 8,
+      horizontalDrag: 1.15,
+      gravityScale: 1,
+      resistanceScale: 1,
+    });
+    effects.update(0.05);
+    expect(group.crowdPopulation.x[0]).toBeGreaterThan(0);
+    expect(group.crowdPopulation.y[0]).toBeLessThan(0);
+    expect(group.elevations[0]).toBeGreaterThan(0);
+    for (let frame = 0; frame < 40; frame++) {
+      effects.update(0.05);
+    }
+    expect(group.airborne[0]).toBe(0);
+  });
+
+  it('旋风击退按速度向量累积、改变方向并受最大速度限制', () => {
+    const group = createGroup(5, [0]);
+    const effects = new BattlefieldMonsterEffectRuntime(20);
+    effects.register(group);
+    const apply = (directionX: number, directionZ: number, initialSpeed = 5): void => {
+      effects.applyKnockback(5, 0, {
+        directionX,
+        directionZ,
+        initialSpeed,
+        remainingSeconds: 1,
+        resistanceScale: 1,
+        combineMode: PlanarKnockbackCombineMode.Accumulate,
+        maximumSpeed: 12,
+      });
+    };
+    apply(1, 0);
+    effects.update(0.01);
+    const firstDistance = group.crowdPopulation.x[0] ?? 0;
+    apply(1, 0);
+    effects.update(0.01);
+    const secondDistance = (group.crowdPopulation.x[0] ?? 0) - firstDistance;
+    expect(secondDistance).toBeGreaterThan(firstDistance);
+    apply(0, 1);
+    effects.update(0.01);
+    expect(group.crowdPopulation.y[0]).toBeLessThan(0);
+    const beforeCap = group.crowdPopulation.x[0] ?? 0;
+    apply(1, 0, 50);
+    effects.update(0.01);
+    expect((group.crowdPopulation.x[0] ?? 0) - beforeCap).toBeLessThanOrEqual(
+      12 * 0.01 / BATTLEFIELD_MONSTER_SPAWN.modelScale,
+    );
+  });
+
+  it('反方向累积击退先抵消当前速度而不是沿旧方向提速', () => {
+    const group = createGroup(6, [0]);
+    const effects = new BattlefieldMonsterEffectRuntime(20);
+    effects.register(group);
+    const common = {
+      initialSpeed: 5,
+      remainingSeconds: 1,
+      resistanceScale: 1,
+      combineMode: PlanarKnockbackCombineMode.Accumulate,
+      maximumSpeed: 12,
+    } as const;
+    effects.applyKnockback(6, 0, { ...common, directionX: 1, directionZ: 0 });
+    effects.applyKnockback(6, 0, { ...common, directionX: -1, directionZ: 0 });
+    effects.update(0.05);
+    expect(group.crowdPopulation.x[0]).toBeCloseTo(0, 6);
   });
 
   it('同次技能中的磁化实体碰撞只产生一次二次伤害', () => {

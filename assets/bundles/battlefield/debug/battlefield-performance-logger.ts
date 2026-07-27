@@ -12,6 +12,13 @@ import {
   BattlefieldPerformanceEvent,
   BattlefieldPerformanceStage,
 } from './battlefield-performance-contracts';
+import { RUNTIME_PERFORMANCE_PLATFORM } from '../../../core/performance/runtime-performance-platform';
+import {
+  BATTLEFIELD_TREASURE_PERFORMANCE_SECTION_NAMES,
+  BattlefieldTreasurePerformanceMetrics,
+  type BattlefieldTreasurePerformanceRecorder,
+  type BattlefieldTreasurePerformanceSection,
+} from './battlefield-treasure-performance';
 
 const LOG_INTERVAL_MILLISECONDS = 2000;
 
@@ -63,6 +70,7 @@ const EVENT_NAMES = Object.freeze([
   '释放掉落物',
   '拾取装备',
   '玩家受伤量',
+  '敌方伤害格挡量',
   '怪物批次扩容',
   '怪物容量增加',
 ]);
@@ -79,7 +87,8 @@ const MONSTER_STAGE_NAMES = Object.freeze([
  * 高频路径只写 TypedArray，不创建对象或字符串；窗口结束时才读取引擎统计并输出
  * 一个按累计成本排序的折叠表格。
  */
-export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerformanceRecorder {
+export class BattlefieldPerformanceLogger
+implements BattlefieldMonsterPerformanceRecorder, BattlefieldTreasurePerformanceRecorder {
   private readonly stageTotals = new Float64Array(BattlefieldPerformanceStage.Count);
   private readonly stageMaximums = new Float64Array(BattlefieldPerformanceStage.Count);
   private readonly stageSamples = new Uint32Array(BattlefieldPerformanceStage.Count);
@@ -101,6 +110,7 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     BattlefieldMonsterPerformanceStage.Count,
   );
   private readonly eventValues = new Float64Array(BattlefieldPerformanceEvent.Count);
+  private readonly treasureMetrics = new BattlefieldTreasurePerformanceMetrics();
   private readonly currentFrameEvents = new Float64Array(BattlefieldPerformanceEvent.Count);
   private readonly slowestFrameEvents = new Float64Array(BattlefieldPerformanceEvent.Count);
   private readonly snapshot: BattlefieldPerformanceSnapshot = {
@@ -156,7 +166,7 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     }
     this.diagnosticsEnabled = enabled;
     this.previousConsoleOutputMilliseconds = 0;
-    this.reset(enabled ? performance.now() : 0);
+    this.reset(enabled ? performance.now() : 0, enabled);
   }
 
   /** 初始化完成后绑定长期存在的只读统计门面。 */
@@ -277,6 +287,33 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     this.currentFrameEvents[event] = (this.currentFrameEvents[event] ?? 0) + value;
   }
 
+  /** 开始记录宝箱热路径中的一个精确子区段。 */
+  public beginTreasureSection(recordWhileDiagnosticsDisabled = false): number {
+    return this.diagnosticsEnabled || recordWhileDiagnosticsDisabled ? performance.now() : 0;
+  }
+
+  /** 记录宝箱子区段 CPU、上传范围、活动规模、首显与平台维度。 */
+  public endTreasureSection(
+    section: BattlefieldTreasurePerformanceSection,
+    startedAt: number,
+    uploadedVertices = 0,
+    uploadedBytes = 0,
+    activeDropCount = 0,
+    firstVisibleBatch = false,
+  ): void {
+    if (!this.diagnosticsEnabled && !firstVisibleBatch) {
+      return;
+    }
+    this.treasureMetrics.record(
+      section,
+      Math.max(0, performance.now() - startedAt),
+      uploadedVertices,
+      uploadedBytes,
+      activeDropCount,
+      firstVisibleBatch,
+    );
+  }
+
   /** 完成本帧统计，并在达到两秒窗口时自行采集活动规模与输出。 */
   public endFrame(deltaTime: number): void {
     if (!this.diagnosticsEnabled) {
@@ -354,6 +391,15 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
       slowestFrameAliveMonsters: this.slowestFrameAliveMonsters,
       monsterPoseBytesUploadedTotal: this.monsterPoseBytesUploadedTotal,
       monsterPoseUploadCallsTotal: this.monsterPoseUploadCallsTotal,
+      treasurePlatform: RUNTIME_PERFORMANCE_PLATFORM,
+      treasureSectionNames: BATTLEFIELD_TREASURE_PERFORMANCE_SECTION_NAMES,
+      treasureSectionTotals: this.treasureMetrics.totals,
+      treasureSectionMaximums: this.treasureMetrics.maximums,
+      treasureSectionSamples: this.treasureMetrics.samples,
+      treasureUploadedVertices: this.treasureMetrics.uploadedVertices,
+      treasureUploadedBytes: this.treasureMetrics.uploadedBytes,
+      treasureMaximumActiveDrops: this.treasureMetrics.maximumActiveDrops,
+      treasureFirstVisibleBatches: this.treasureMetrics.firstVisibleBatches,
       eventNames: EVENT_NAMES,
       eventValues: this.eventValues,
       slowestFrameEvents: this.slowestFrameEvents,
@@ -397,7 +443,7 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     this.flush(snapshot);
   }
 
-  private reset(now: number): void {
+  private reset(now: number, preserveTreasureMetrics = false): void {
     this.stageTotals.fill(0);
     this.stageMaximums.fill(0);
     this.stageSamples.fill(0);
@@ -419,5 +465,8 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     this.slowestFrameAliveMonsters = 0;
     this.monsterPoseBytesUploadedTotal = 0;
     this.monsterPoseUploadCallsTotal = 0;
+    if (!preserveTreasureMetrics) {
+      this.treasureMetrics.reset();
+    }
   }
 }

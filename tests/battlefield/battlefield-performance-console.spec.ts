@@ -3,6 +3,7 @@ import {
   type BattlefieldPerformanceConsoleReport,
   presentBattlefieldPerformanceReport,
 } from '../../assets/bundles/battlefield/debug/battlefield-performance-console';
+import { RuntimePerformancePlatform } from '../../assets/core/performance/runtime-performance-profile';
 
 describe('战场性能控制台表格', () => {
   afterEach(() => {
@@ -72,6 +73,15 @@ function createReport(): BattlefieldPerformanceConsoleReport {
     slowestFrameAliveMonsters: 130,
     monsterPoseBytesUploadedTotal: 2_048_000,
     monsterPoseUploadCallsTotal: 40,
+    treasurePlatform: RuntimePerformancePlatform.Native,
+    treasureSectionNames: Object.freeze(['掉落本体上传']),
+    treasureSectionTotals: Float64Array.of(1.5),
+    treasureSectionMaximums: Float64Array.of(0.8),
+    treasureSectionSamples: Uint32Array.of(2),
+    treasureUploadedVertices: Float64Array.of(120),
+    treasureUploadedBytes: Float64Array.of(1440),
+    treasureMaximumActiveDrops: Uint32Array.of(3),
+    treasureFirstVisibleBatches: Uint32Array.of(1),
     eventNames: Object.freeze(['开启宝箱', '释放掉落物']),
     eventValues: Float64Array.of(1, 3),
     slowestFrameEvents: Float64Array.of(0, 3),

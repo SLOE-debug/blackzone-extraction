@@ -129,16 +129,72 @@ describe('大锤动作状态', () => {
     finishCurrentAction(state);
   });
 
-  it('五次确认命中产生一层震势并由升龙消耗', () => {
+  it('五次确认命中产生一层震势并由旋风消耗', () => {
     const state = new BattlefieldHammerActionState();
     for (let hit = 0; hit < 5; hit++) {
       state.recordConfirmedAttack(DEFINITION);
     }
     expect(state.hitCount).toBe(0);
     expect(state.momentumCharges).toBe(1);
-    expect(state.requestUppercut(Math.PI * 0.5)).toBe(true);
+    expect(state.requestSpin(Math.PI * 0.5)).toBe(true);
     expect(state.momentumCharges).toBe(0);
+    expect(state.action).toBe(WeaponAction.Spin);
+  });
+
+  it('两段横扫完成后自动进入群体上挑且上挑完成后段位归零', () => {
+    const state = new BattlefieldHammerActionState();
+    state.setAttackHeld(true);
+    expect(state.requestSwing(0, 1, 0)).toBe(true);
+    let firstSwingCompleted = false;
+    for (let frame = 0; frame < 180 && state.action !== WeaponAction.Uppercut; frame++) {
+      if (state.canBufferNextSwing) {
+        expect(state.requestSwing(0, 1, 0)).toBe(true);
+      }
+      state.update(1 / 60, DEFINITION, EVENTS);
+      if (state.completedNormalSwings === 1) {
+        firstSwingCompleted = true;
+      }
+    }
+    expect(firstSwingCompleted).toBe(true);
     expect(state.action).toBe(WeaponAction.Uppercut);
+    expect(state.completedNormalSwings).toBe(2);
+    while (!state.canBufferNextSwing) {
+      state.update(1 / 60, DEFINITION, EVENTS);
+    }
+    expect(state.requestSwing(1, 0, 0)).toBe(true);
+    state.update(0.2, DEFINITION, EVENTS);
+    expect(state.completedNormalSwings).toBe(0);
+    expect(state.action).toBe(WeaponAction.ChainPrepareLeft);
+  });
+
+  it('同一普通攻击序列命中多只怪物只累计一次震势有效命中', () => {
+    const state = new BattlefieldHammerActionState();
+    state.requestSwing(0, 1, 0);
+    for (let target = 0; target < 10; target++) {
+      state.recordConfirmedAttack(DEFINITION);
+    }
+    expect(state.hitCount).toBe(1);
+    expect(state.completedNormalSwings).toBe(0);
+  });
+
+  it('普通连段收势与主动技能成功开始都会清空自动上挑段位', () => {
+    const released = new BattlefieldHammerActionState();
+    released.setAttackHeld(true);
+    released.requestSwing(0, 1, 0);
+    while (!released.canBufferNextSwing) {
+      released.update(1 / 60, DEFINITION, EVENTS);
+    }
+    released.requestSwing(0, 1, 0);
+    released.setAttackHeld(false);
+    finishCurrentAction(released);
+    expect(released.completedNormalSwings).toBe(0);
+
+    const skilled = new BattlefieldHammerActionState();
+    for (let hit = 0; hit < 5; hit++) {
+      skilled.recordConfirmedAttack(DEFINITION);
+    }
+    expect(skilled.requestGroundSlam(0)).toBe(true);
+    expect(skilled.completedNormalSwings).toBe(0);
   });
 
   it('旋风使用一点四五秒四圈时间轴并按半圈更新伤害序列', () => {
@@ -161,7 +217,7 @@ describe('大锤动作状态', () => {
     expect(forwardDot).toBeCloseTo(1, 6);
   });
 
-  it('完整四圈旋风只产生八个半圈伤害窗口', () => {
+  it('完整四圈旋风产生八个半圈窗口和一个独立最终重击序列', () => {
     const state = new BattlefieldHammerActionState();
     for (let hit = 0; hit < 5; hit++) {
       state.recordConfirmedAttack(DEFINITION);
@@ -173,7 +229,7 @@ describe('大锤动作状态', () => {
       state.update(0.05, DEFINITION, EVENTS);
     }
     expect(state.action).toBe(WeaponAction.Idle);
-    expect(state.attackSequenceId - firstWindow + 1).toBe(8);
+    expect(state.attackSequenceId - firstWindow + 1).toBe(9);
   });
 
   it('裂地重砸独立消耗震势并在动作中段产生一次冲击', () => {

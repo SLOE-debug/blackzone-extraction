@@ -3,6 +3,11 @@ import {
   type BattlefieldMeleeQuery,
   type BattlefieldMeleeSweepQuery,
 } from '../../combat/melee/battlefield-melee-query';
+import {
+  type DirectionalLaunchEffect,
+  type PlanarKnockbackEffect,
+  type VerticalLaunchEffect,
+} from '../../../../core/contracts/monster-effects';
 
 /** 大锤运行时依赖的异构怪物战斗门面。 */
 export interface BattlefieldHammerCombatTarget {
@@ -16,22 +21,17 @@ export interface BattlefieldHammerCombatTarget {
   applyKnockback(
     populationId: number,
     entityId: number,
-    effect: Readonly<{
-      directionX: number;
-      directionZ: number;
-      initialSpeed: number;
-      remainingSeconds: number;
-      resistanceScale: number;
-    }>,
+    effect: Readonly<PlanarKnockbackEffect>,
   ): boolean;
   applyVerticalLaunch(
     populationId: number,
     entityId: number,
-    effect: Readonly<{
-      initialVelocity: number;
-      gravityScale: number;
-      resistanceScale: number;
-    }>,
+    effect: Readonly<VerticalLaunchEffect>,
+  ): boolean;
+  applyDirectionalLaunch(
+    populationId: number,
+    entityId: number,
+    effect: Readonly<DirectionalLaunchEffect>,
   ): boolean;
   applyMagnetized(
     populationId: number,

@@ -14,6 +14,8 @@ import { createDroppedEquipmentMaterial } from '../rendering/dropped-equipment-m
 import { DroppedEquipmentAccentRenderer } from '../rendering/dropped-equipment-accent-renderer';
 import { DroppedEquipmentRenderer } from '../rendering/dropped-equipment-renderer';
 import { DroppedEquipmentRuntime } from './dropped-equipment-runtime';
+import { type BattlefieldTreasurePerformanceRecorder } from '../../debug/battlefield-treasure-performance';
+import { DroppedEquipmentRenderSchedule } from './dropped-equipment-render-schedule';
 
 const EQUIPMENT_INSPECTION_RADIUS = 3.5;
 
@@ -52,6 +54,9 @@ export class DroppedEquipmentPopulation {
   private itemCount = 0;
   private renderer: DroppedEquipmentRenderer | null = null;
   private accentRenderer: DroppedEquipmentAccentRenderer | null = null;
+  private readonly renderSchedule = new DroppedEquipmentRenderSchedule();
+  private prewarmActive = false;
+  private prewarmFramesRemaining = 0;
   private disposed = false;
 
   public get count(): number {
@@ -71,6 +76,7 @@ export class DroppedEquipmentPopulation {
     private readonly parent: Node,
     private readonly worldRuntimeIds: DroppedEquipmentWorldRuntimeIdSequence,
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
+    private readonly performance: BattlefieldTreasurePerformanceRecorder,
     capacity: number,
   ) {
     if (!Number.isInteger(capacity) || capacity <= 0) {
@@ -94,12 +100,16 @@ export class DroppedEquipmentPopulation {
         this.items,
         EquipmentId.Sledgehammer,
         this.material,
+        this.performance,
       );
       accentRenderer = new DroppedEquipmentAccentRenderer(
         this.parent,
         this.items,
         this.equipmentLibrary,
+        this.performance,
       );
+      renderer.prewarm();
+      accentRenderer.prewarm();
     } catch (error: unknown) {
       accentRenderer?.dispose();
       renderer?.dispose();
@@ -107,6 +117,8 @@ export class DroppedEquipmentPopulation {
     }
     this.renderer = renderer;
     this.accentRenderer = accentRenderer;
+    this.prewarmActive = true;
+    this.prewarmFramesRemaining = 1;
   }
 
   /** 按一一对应的装备标识和轨迹占用连续空闲槽位。 */
@@ -140,7 +152,7 @@ export class DroppedEquipmentPopulation {
         );
         spawnedWorldRuntimeIds.push(worldRuntimeId);
       }
-      this.synchronizeRendering();
+      this.renderSchedule.markDirty();
       return Object.freeze(spawnedWorldRuntimeIds);
     } catch (error: unknown) {
       while (this.itemCount > firstSlot) {
@@ -148,7 +160,7 @@ export class DroppedEquipmentPopulation {
         this.items[slot]?.dispose();
         this.items[slot] = null;
       }
-      this.synchronizeRendering();
+      this.renderSchedule.markDirty();
       throw error;
     }
   }
@@ -176,7 +188,7 @@ export class DroppedEquipmentPopulation {
       request.equipmentId,
       createPlayerDiscardTrajectory(request),
     );
-    this.synchronizeRendering();
+    this.renderSchedule.markDirty();
     return true;
   }
 
@@ -184,10 +196,24 @@ export class DroppedEquipmentPopulation {
     if (this.disposed) {
       return;
     }
-    for (let index = 0; index < this.itemCount; index++) {
-      this.requireItem(index).update(deltaTime);
+    if (this.prewarmActive && this.prewarmFramesRemaining > 0) {
+      this.prewarmFramesRemaining--;
+      return;
     }
-    this.synchronizeRendering();
+    if (this.prewarmActive) {
+      this.renderer?.finishPrewarm();
+      this.accentRenderer?.finishPrewarm();
+      this.prewarmActive = false;
+    }
+    let hasMovingItems = false;
+    for (let index = 0; index < this.itemCount; index++) {
+      const item = this.requireItem(index);
+      hasMovingItems ||= item.moving;
+      item.update(deltaTime);
+    }
+    if (this.renderSchedule.consumeFlushRequest(hasMovingItems)) {
+      this.flushRendering();
+    }
   }
 
   /** 查找玩家半径内最近且已经稳定落地的装备。 */
@@ -249,7 +275,7 @@ export class DroppedEquipmentPopulation {
       return false;
     }
     this.removeAt(index);
-    this.synchronizeRendering();
+    this.renderSchedule.markDirty();
     return true;
   }
 
@@ -267,7 +293,7 @@ export class DroppedEquipmentPopulation {
       }
     }
     if (removed) {
-      this.synchronizeRendering();
+      this.renderSchedule.markDirty();
     }
   }
 
@@ -320,7 +346,8 @@ export class DroppedEquipmentPopulation {
     return item;
   }
 
-  private synchronizeRendering(): void {
+  /** 在统一更新末尾最多刷新一次两个掉落批次。 */
+  private flushRendering(): void {
     this.renderer?.synchronize(this.itemCount);
     this.accentRenderer?.synchronize(this.itemCount);
   }

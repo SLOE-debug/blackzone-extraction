@@ -19,9 +19,6 @@ export function drawBattlefieldSkillIcon(
     case SkillIconId.HammerGroundSlam:
       drawGroundSlam(graphics, x, y);
       break;
-    case SkillIconId.HammerUppercut:
-      drawUppercut(graphics, x, y);
-      break;
   }
 }
 
@@ -61,21 +58,4 @@ function drawGroundSlam(graphics: Graphics, x: number, y: number): void {
   graphics.lineTo(x + 10, y - 14);
   graphics.lineTo(x + 17, y - 9);
   graphics.stroke();
-}
-
-function drawUppercut(graphics: Graphics, x: number, y: number): void {
-  graphics.moveTo(x - 9, y - 14);
-  graphics.quadraticCurveTo(x - 3, y - 1, x + 7, y + 9);
-  graphics.stroke();
-  graphics.moveTo(x + 1, y + 13);
-  graphics.lineTo(x + 11, y + 14);
-  graphics.lineTo(x + 10, y + 4);
-  graphics.close();
-  graphics.fill();
-  graphics.moveTo(x - 12, y - 8);
-  graphics.lineTo(x - 3, y - 12);
-  graphics.lineTo(x + 2, y - 7);
-  graphics.lineTo(x - 7, y - 3);
-  graphics.close();
-  graphics.fill();
 }

@@ -61,6 +61,10 @@
 - 涉及 Cocos Creator API、坐标与方向、节点变换、相机、灯光、材质、渲染或资源契约时，必须先完整阅读 `.agents/rules/cocos-engine-differences.md`。
 - 发现 Cocos 与 Three.js、Unity、Godot、WebGL 或常见框架存在容易误判的行为差异时，应更新该规则文件，不要把详细差异持续堆入根 `AGENTS.md`。
 
+## 自定义 Cocos 引擎扩展
+
+- 本项目使用基于 Cocos Creator 3.8.8 的自定义引擎，并为 `gfx.Buffer.update(buffer, size?, offset?)` 增加了目标 GPU Buffer 字节偏移参数，支持顶点缓冲和索引缓冲从非零偏移执行局部更新。
+
 ## 程序化 Low Poly 美术规则
 
 - 项目统一画风是“不规则、分面式、带洞穴岩体感的程序化 Low Poly”；大厅墙面、地面、天花板和双层祭台是风格基准。

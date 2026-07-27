@@ -2,7 +2,6 @@ import { Color, EventTouch, Graphics, Layers, Node, UITransform } from 'cc';
 import { WeaponSkillCommand } from '../../../core/equipment/equipment';
 import {
   type EquipmentHudProfile,
-  type WeaponSkillHudPosition,
   type WeaponSkillHudProfile,
 } from '../equipment/catalog/equipment-hud-profile';
 import { drawBattlefieldSkillIcon } from './battlefield-skill-icon-graphics';
@@ -13,36 +12,37 @@ const READY_COLOR = new Color(242, 177, 74, 255);
 const CHARGE_COLOR = new Color(112, 196, 220, 245);
 const EMPTY_COLOR = new Color(74, 91, 98, 190);
 const FILL_COLOR = new Color(45, 53, 55, 225);
-const SKILL_POSITIONS = Object.freeze([0, 1, 2] as const);
+const SKILL_BUTTON_INDICES = Object.freeze([0, 1, 2] as const);
+type SkillButtonIndex = typeof SKILL_BUTTON_INDICES[number];
 
-/** 世界输入层一次性消费的三路独立技能命令。 */
+/** 世界输入层一次性消费的两路独立技能命令。 */
 export interface BattlefieldRadialSkillCommands {
   readonly spinRequested: boolean;
   readonly groundSlamRequested: boolean;
-  readonly uppercutRequested: boolean;
 }
 
 interface MutableBattlefieldRadialSkillCommands {
   spinRequested: boolean;
   groundSlamRequested: boolean;
-  uppercutRequested: boolean;
 }
 
-/** 由当前装备原型驱动三枚技能按钮的图标、命令和显隐。 */
+/** 由当前装备原型驱动最多三枚池化技能按钮的图标、命令和显隐。 */
 export class BattlefieldRadialSkillButtons {
   private readonly buttons: readonly BattlefieldRadialSkillButton[];
   private readonly pending: MutableBattlefieldRadialSkillCommands = createCommands();
   private readonly consumed: MutableBattlefieldRadialSkillCommands = createCommands();
   private profile: Readonly<EquipmentHudProfile> | null = null;
+  private layoutCenterX = 0;
+  private layoutCenterY = 0;
+  private layoutRadius = 1;
   private revision = 1;
   private disposed = false;
 
   constructor(parent: Node) {
-    this.buttons = Object.freeze(SKILL_POSITIONS.map((position) => (
+    this.buttons = Object.freeze(SKILL_BUTTON_INDICES.map((index) => (
       new BattlefieldRadialSkillButton(
         parent,
-        position,
-        `BattlefieldSkillButton${position + 1}`,
+        `BattlefieldSkillButton${index + 1}`,
         this.handleRequested,
         this.invalidate,
       )
@@ -54,33 +54,25 @@ export class BattlefieldRadialSkillButtons {
   }
 
   public setLayout(centerX: number, centerY: number, orbitRadius: number): void {
-    const layout = calculateBattlefieldRadialSkillLayout(centerX, centerY, orbitRadius);
-    for (const position of SKILL_POSITIONS) {
-      const point = layout[position];
-      if (point !== undefined) {
-        this.buttons[position]?.setPosition(point.x, point.y);
-      }
-    }
+    this.layoutCenterX = centerX;
+    this.layoutCenterY = centerY;
+    this.layoutRadius = orbitRadius;
+    this.reflowActiveButtons();
   }
 
-  /** 同一帧替换当前装备的三枚技能；空手时立即隐藏并清空输入。 */
+  /** 同一帧按数组顺序替换当前装备技能；空手时立即隐藏并清空输入。 */
   public presentProfile(profile: Readonly<EquipmentHudProfile> | null): void {
     if (this.profile === profile) {
       return;
     }
     this.profile = profile;
-    const byPosition: Array<Readonly<WeaponSkillHudProfile> | null> = [null, null, null];
-    if (profile !== null) {
-      for (const skill of profile.skills) {
-        if (byPosition[skill.position] !== null) {
-          throw new Error(`装备技能 HUD 位置重复：${skill.position}`);
-        }
-        byPosition[skill.position] = skill;
-      }
+    if ((profile?.skills.length ?? 0) > this.buttons.length) {
+      throw new Error('装备技能数量超过径向按钮池容量。');
     }
-    for (const position of SKILL_POSITIONS) {
-      this.buttons[position]?.configure(byPosition[position] ?? null);
+    for (const index of SKILL_BUTTON_INDICES) {
+      this.buttons[index]?.configure(profile?.skills[index] ?? null);
     }
+    this.reflowActiveButtons();
     if (profile === null) {
       resetCommands(this.pending);
       resetCommands(this.consumed);
@@ -98,13 +90,12 @@ export class BattlefieldRadialSkillButtons {
     const result = this.consumed;
     result.spinRequested = this.pending.spinRequested;
     result.groundSlamRequested = this.pending.groundSlamRequested;
-    result.uppercutRequested = this.pending.uppercutRequested;
     resetCommands(this.pending);
     return result;
   }
 
-  public setKeyboardActive(position: WeaponSkillHudPosition, active: boolean): void {
-    this.buttons[position]?.setKeyboardActive(active);
+  public setKeyboardActive(index: SkillButtonIndex, active: boolean): void {
+    this.buttons[index]?.setKeyboardActive(active);
   }
 
   public draw(graphics: Graphics): void {
@@ -133,11 +124,25 @@ export class BattlefieldRadialSkillButtons {
       case WeaponSkillCommand.GroundSlam:
         this.pending.groundSlamRequested = true;
         break;
-      case WeaponSkillCommand.Uppercut:
-        this.pending.uppercutRequested = true;
-        break;
     }
   };
+
+  /** 依据装备技能数组顺序重新计算全部活动按钮的对称圆弧位置。 */
+  private reflowActiveButtons(): void {
+    const skillCount = this.profile?.skills.length ?? 0;
+    const layout = calculateBattlefieldRadialSkillLayout(
+      this.layoutCenterX,
+      this.layoutCenterY,
+      this.layoutRadius,
+      skillCount,
+    );
+    for (let index = 0; index < skillCount; index++) {
+      const point = layout[index];
+      if (point !== undefined) {
+        this.buttons[index]?.setPosition(point.x, point.y);
+      }
+    }
+  }
 
   private readonly invalidate = (): void => {
     this.revision = this.revision >= Number.MAX_SAFE_INTEGER ? 1 : this.revision + 1;
@@ -159,7 +164,6 @@ class BattlefieldRadialSkillButton {
 
   constructor(
     parent: Node,
-    private readonly position: WeaponSkillHudPosition,
     nodeName: string,
     private readonly request: (command: WeaponSkillCommand) => void,
     private readonly invalidate: () => void,
@@ -176,9 +180,6 @@ class BattlefieldRadialSkillButton {
   }
 
   public configure(profile: Readonly<WeaponSkillHudProfile> | null): void {
-    if (profile !== null && profile.position !== this.position) {
-      throw new Error('技能 HUD 配置位置与按钮位置不一致。');
-    }
     this.profile = profile;
     this.root.active = profile !== null;
     this.activeTouchId = null;
@@ -301,12 +302,10 @@ function createCommands(): MutableBattlefieldRadialSkillCommands {
   return {
     spinRequested: false,
     groundSlamRequested: false,
-    uppercutRequested: false,
   };
 }
 
 function resetCommands(commands: MutableBattlefieldRadialSkillCommands): void {
   commands.spinRequested = false;
   commands.groundSlamRequested = false;
-  commands.uppercutRequested = false;
 }

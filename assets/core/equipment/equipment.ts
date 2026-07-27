@@ -25,7 +25,6 @@ export enum WeaponGrip {
 export enum WeaponSkillCommand {
   Spin = 'spin',
   GroundSlam = 'ground-slam',
-  Uppercut = 'uppercut',
 }
 
 /** 武器行为运行时向任意角色动画层声明的中立动作。 */

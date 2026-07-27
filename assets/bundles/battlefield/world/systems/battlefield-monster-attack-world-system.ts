@@ -20,7 +20,15 @@ export class BattlefieldMonsterAttackWorldSystem extends BattlefieldWorldSystem 
       return;
     }
     const { player, performance, weapon } = world.resources;
-    const appliedDamage = calculateBattlefieldMonsterDamage(damage, weapon.damageTakenScale);
+    const defense = weapon.actionControl;
+    if (defense.combatInvulnerable) {
+      performance.recordEvent(BattlefieldPerformanceEvent.PlayerDamageBlocked, damage);
+      return;
+    }
+    const appliedDamage = calculateBattlefieldMonsterDamage(damage, defense.damageTakenScale);
+    if (appliedDamage <= 0) {
+      return;
+    }
     performance.recordEvent(BattlefieldPerformanceEvent.PlayerDamage, appliedDamage);
     player.damage(appliedDamage);
   }

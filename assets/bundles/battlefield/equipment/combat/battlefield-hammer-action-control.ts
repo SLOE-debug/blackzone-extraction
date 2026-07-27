@@ -11,15 +11,17 @@ export interface HammerActionControlProfile {
   readonly maximumTurnSpeed: number;
   readonly autoTargetAllowed: boolean;
   readonly damageTakenScale: number;
+  readonly combatInvulnerable: boolean;
 }
 
-const IDLE_CONTROL = createProfile(1, VanguardFacingPolicy.Free, 0, true, 1);
+const IDLE_CONTROL = createProfile(1, VanguardFacingPolicy.Free, 0, true, 1, false);
 const WINDUP_CONTROL = createProfile(
   0.85,
   VanguardFacingPolicy.SoftTarget,
   540 * DEGREES_TO_RADIANS,
   true,
   1,
+  false,
 );
 const SWING_CONTROL = createProfile(
   0.65,
@@ -27,6 +29,7 @@ const SWING_CONTROL = createProfile(
   120 * DEGREES_TO_RADIANS,
   false,
   1,
+  false,
 );
 const CHAIN_PREPARE_CONTROL = createProfile(
   0.75,
@@ -34,6 +37,7 @@ const CHAIN_PREPARE_CONTROL = createProfile(
   720 * DEGREES_TO_RADIANS,
   true,
   1,
+  false,
 );
 const RECOVER_EARLY_CONTROL = createProfile(
   0.75,
@@ -41,6 +45,7 @@ const RECOVER_EARLY_CONTROL = createProfile(
   180 * DEGREES_TO_RADIANS,
   false,
   1,
+  false,
 );
 const RECOVER_LATE_CONTROL = createProfile(
   0.95,
@@ -48,6 +53,7 @@ const RECOVER_LATE_CONTROL = createProfile(
   720 * DEGREES_TO_RADIANS,
   false,
   1,
+  false,
 );
 const UPPERCUT_CONTROL = createProfile(
   0.45,
@@ -55,6 +61,7 @@ const UPPERCUT_CONTROL = createProfile(
   90 * DEGREES_TO_RADIANS,
   false,
   1,
+  false,
 );
 const GROUND_SLAM_CONTROL = createProfile(
   0.35,
@@ -62,13 +69,15 @@ const GROUND_SLAM_CONTROL = createProfile(
   90 * DEGREES_TO_RADIANS,
   false,
   1,
+  false,
 );
 const SPIN_CONTROL = createProfile(
   SLEDGEHAMMER_PROGRESSION.spinMovementScale,
   VanguardFacingPolicy.SpinDriven,
   0,
   false,
-  SLEDGEHAMMER_PROGRESSION.spinDamageTakenScale,
+  0,
+  true,
 );
 
 /** 以当前动作和进度返回唯一控制配置，恢复后半会逐渐交还移动转向。 */
@@ -105,6 +114,7 @@ function createProfile(
   maximumTurnSpeed: number,
   autoTargetAllowed: boolean,
   damageTakenScale: number,
+  combatInvulnerable: boolean,
 ): Readonly<HammerActionControlProfile> {
   return Object.freeze({
     movementScale,
@@ -112,5 +122,6 @@ function createProfile(
     maximumTurnSpeed,
     autoTargetAllowed,
     damageTakenScale,
+    combatInvulnerable,
   });
 }

@@ -21,6 +21,7 @@ export enum BattlefieldPerformanceEvent {
   LootReleased,
   EquipmentPicked,
   PlayerDamage,
+  PlayerDamageBlocked,
   MonsterBatchGrowth,
   MonsterBatchCapacityAdded,
   Count,

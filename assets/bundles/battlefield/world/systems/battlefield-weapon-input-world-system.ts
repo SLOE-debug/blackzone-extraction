@@ -43,8 +43,7 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
     );
     const skills = controls.consumeSkillCommands();
     const skillRequested = skills.spinRequested
-      || skills.groundSlamRequested
-      || skills.uppercutRequested;
+      || skills.groundSlamRequested;
     if (!player.isAlive
       || !weapon.equipped
       || (!controlState.attackHeld && !controlState.attackPressed)
@@ -73,13 +72,9 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       this.writeAttackDirection(world, null);
       weapon.commands.requestGroundSlam(this.aim.directionX, this.aim.directionZ);
     }
-    if (skills.uppercutRequested) {
-      this.writeAttackDirection(world, null);
-      weapon.commands.requestUppercut(this.aim.directionX, this.aim.directionZ);
-    }
   }
 
-  /** 为普通横扫、上挑和重砸统一解析一次动作开始方向。 */
+  /** 为普通横扫和重砸统一解析一次动作开始方向。 */
   private writeAttackDirection(
     world: BattlefieldWorld,
     previousAttackHeading: number | null,

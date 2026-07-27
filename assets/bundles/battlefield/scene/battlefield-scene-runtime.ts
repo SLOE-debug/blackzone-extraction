@@ -116,13 +116,14 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
       playerWeapon = new BattlefieldPlayerEquipmentRuntime(
         runtimeRoot,
         BATTLEFIELD_EQUIPMENT_LIBRARY,
-        monsters,
+        monsters.combatTarget,
       );
       inventory = new BattlefieldInventoryRuntime(BATTLEFIELD_EQUIPMENT_LIBRARY);
       treasures = new BattlefieldTreasurePopulation(
         runtimeRoot,
         BATTLEFIELD_EQUIPMENT_LIBRARY,
         BATTLEFIELD_TREASURE_LOOT_TABLE,
+        this.performanceLogger,
       );
       chunkRuntimes = new ChunkRuntimeRegistry<BattlefieldEnvironmentPopulation>();
       chunkRuntimes.register(treasures);

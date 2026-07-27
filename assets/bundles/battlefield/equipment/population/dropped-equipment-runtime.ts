@@ -51,6 +51,11 @@ export class DroppedEquipmentRuntime {
     return this.phase === LootScatterPhase.Landed;
   }
 
+  /** 等待、飞行与触地缓冲阶段仍需要推进并上传姿态。 */
+  public get moving(): boolean {
+    return !this.disposed && this.phase !== LootScatterPhase.Landed;
+  }
+
   public get visible(): boolean {
     return this.phase !== LootScatterPhase.Waiting;
   }

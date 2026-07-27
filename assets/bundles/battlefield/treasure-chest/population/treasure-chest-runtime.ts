@@ -23,6 +23,10 @@ import {
   type TreasureChestRenderHandle,
   TreasureChestSharedRenderer,
 } from '../rendering/treasure-chest-shared-renderer';
+import {
+  BattlefieldTreasurePerformanceSection,
+  type BattlefieldTreasurePerformanceRecorder,
+} from '../../debug/battlefield-treasure-performance';
 
 enum TreasureChestPhase {
   Closed,
@@ -56,6 +60,7 @@ export class TreasureChestRuntime {
     private readonly lootTable: LootTable<EquipmentId>,
     private readonly drops: DroppedEquipmentPopulation,
     private readonly itemInstanceSeeds: BattlefieldItemInstanceSeedSequence,
+    private readonly performance: BattlefieldTreasurePerformanceRecorder,
   ) {
     if (!Number.isSafeInteger(id) || id <= 0) {
       throw new Error('宝箱运行时标识必须是正安全整数。');
@@ -98,11 +103,27 @@ export class TreasureChestRuntime {
     }
     this.lootRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x9e3779b1);
     this.scatterRandomState[0] = createLootRuntimeRandomSeed(this.spawn.seed ^ 0x85ebca6b);
+    let startedAt = this.performance.beginTreasureSection();
     const itemInstances = this.rollLoot();
+    this.performance.endTreasureSection(
+      BattlefieldTreasurePerformanceSection.TreasureOpenRollLoot,
+      startedAt,
+      0,
+      0,
+      this.drops.count,
+    );
+    startedAt = this.performance.beginTreasureSection();
     this.sessionState.open(
       this.spawn.key,
       itemInstances,
       this.scatterRandomState[0] ?? 1,
+    );
+    this.performance.endTreasureSection(
+      BattlefieldTreasurePerformanceSection.TreasureSessionWrite,
+      startedAt,
+      0,
+      0,
+      this.drops.count,
     );
     this.phase = TreasureChestPhase.Opening;
     this.elapsed = 0;
@@ -216,6 +237,7 @@ export class TreasureChestRuntime {
       return 0;
     }
     this.scatterRandomState[0] = scatterSeed;
+    let startedAt = this.performance.beginTreasureSection();
     const trajectories = createLootScatterTrajectories(
       itemInstances.length,
       this.scatterRandomState,
@@ -224,7 +246,22 @@ export class TreasureChestRuntime {
       this.spawn.y + TREASURE_CHEST_LAYOUT.lootReleaseHeight,
       this.spawn.z,
     );
+    this.performance.endTreasureSection(
+      BattlefieldTreasurePerformanceSection.TreasureScatterBuild,
+      startedAt,
+      0,
+      0,
+      this.drops.count,
+    );
+    startedAt = this.performance.beginTreasureSection();
     const worldRuntimeIds = this.drops.spawnBurst(itemInstances, trajectories);
+    this.performance.endTreasureSection(
+      BattlefieldTreasurePerformanceSection.TreasureDropSpawn,
+      startedAt,
+      0,
+      0,
+      this.drops.count,
+    );
     this.dropInstanceIds.push(...worldRuntimeIds);
     this.lootReleased = true;
     return itemInstances.length;

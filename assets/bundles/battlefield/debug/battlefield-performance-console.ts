@@ -1,3 +1,5 @@
+import { type RuntimePerformancePlatform } from '../../../core/performance/runtime-performance-profile';
+
 /** 表格输出所需的战场活动规模快照。 */
 export interface BattlefieldPerformanceSnapshot {
   playerX: number;
@@ -55,6 +57,15 @@ export interface BattlefieldPerformanceConsoleReport {
   readonly slowestFrameAliveMonsters: number;
   readonly monsterPoseBytesUploadedTotal: number;
   readonly monsterPoseUploadCallsTotal: number;
+  readonly treasurePlatform: RuntimePerformancePlatform;
+  readonly treasureSectionNames: readonly string[];
+  readonly treasureSectionTotals: Float64Array;
+  readonly treasureSectionMaximums: Float64Array;
+  readonly treasureSectionSamples: Uint32Array;
+  readonly treasureUploadedVertices: Float64Array;
+  readonly treasureUploadedBytes: Float64Array;
+  readonly treasureMaximumActiveDrops: Uint32Array;
+  readonly treasureFirstVisibleBatches: Uint32Array;
   readonly eventNames: readonly string[];
   readonly eventValues: Float64Array;
   readonly slowestFrameEvents: Float64Array;
@@ -81,6 +92,18 @@ interface BattlefieldMonsterPerformanceTableRow {
   样本数: number;
 }
 
+interface BattlefieldTreasurePerformanceTableRow {
+  区段: string;
+  平台: string;
+  '平均CPU(ms)': number;
+  '峰值CPU(ms)': number;
+  上传顶点: number;
+  上传字节: number;
+  最大活动掉落: number;
+  首显批次: number;
+  样本数: number;
+}
+
 /**
  * 把一个诊断窗口压成单个折叠控制台组，并按窗口累计成本降序显示表格。
  *
@@ -91,11 +114,14 @@ export function presentBattlefieldPerformanceReport(
 ): void {
   const rows = createSortedRows(report);
   const monsterRows = createSortedMonsterRows(report);
+  const treasureRows = createTreasureRows(report);
   console.groupCollapsed(createGroupTitle(report));
   try {
     console.table(rows);
     console.info('怪物群体细分（以下耗时已经包含在主表“怪物群体”中）');
     console.table(monsterRows);
+    console.info(`宝箱热路径明细（平台：${report.treasurePlatform}）`);
+    console.table(treasureRows);
     console.info(
       `怪物渲染工作量(平均每帧): GPU 姿态 ${formatBytes(
         report.monsterPoseBytesUploadedTotal / Math.max(report.frameCount, 1),
@@ -120,6 +146,28 @@ export function presentBattlefieldPerformanceReport(
   } finally {
     console.groupEnd();
   }
+}
+
+function createTreasureRows(
+  report: Readonly<BattlefieldPerformanceConsoleReport>,
+): BattlefieldTreasurePerformanceTableRow[] {
+  const rows: BattlefieldTreasurePerformanceTableRow[] = [];
+  for (let section = 0; section < report.treasureSectionNames.length; section++) {
+    const samples = report.treasureSectionSamples[section] ?? 0;
+    const total = report.treasureSectionTotals[section] ?? 0;
+    rows.push({
+      区段: report.treasureSectionNames[section] ?? String(section),
+      平台: report.treasurePlatform,
+      '平均CPU(ms)': round(samples > 0 ? total / samples : 0),
+      '峰值CPU(ms)': round(report.treasureSectionMaximums[section] ?? 0),
+      上传顶点: report.treasureUploadedVertices[section] ?? 0,
+      上传字节: report.treasureUploadedBytes[section] ?? 0,
+      最大活动掉落: report.treasureMaximumActiveDrops[section] ?? 0,
+      首显批次: report.treasureFirstVisibleBatches[section] ?? 0,
+      样本数: samples,
+    });
+  }
+  return rows;
 }
 
 function createSortedMonsterRows(

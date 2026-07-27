@@ -35,6 +35,7 @@ import { BattlefieldTreasureChestSessionState } from '../model/battlefield-treas
 import { TREASURE_CHEST_LAYOUT } from '../model/treasure-chest-layout';
 import { TreasureChestSharedRenderer } from '../rendering/treasure-chest-shared-renderer';
 import { TreasureChestRuntime } from './treasure-chest-runtime';
+import { type BattlefieldTreasurePerformanceRecorder } from '../../debug/battlefield-treasure-performance';
 
 /** 聚合活动 Chunk 的宝箱、开启动画、交互和落地装备查询。 */
 export class BattlefieldTreasurePopulation
@@ -79,6 +80,7 @@ BattlefieldInteractionProvider, Disposable {
     parent: Node,
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
     private readonly lootTable: LootTable<EquipmentId>,
+    private readonly performance: BattlefieldTreasurePerformanceRecorder,
   ) {
     this.renderer = new TreasureChestSharedRenderer(parent);
     try {
@@ -86,6 +88,7 @@ BattlefieldInteractionProvider, Disposable {
         parent,
         this.equipmentWorldRuntimeIds,
         equipmentLibrary,
+        performance,
         calculateDroppedEquipmentCapacity(
           BATTLEFIELD_ENVIRONMENT_WORLD_CONFIG.activeChunkRadius,
           BATTLEFIELD_TREASURE_CHEST_GENERATION.maximumChestsPerGeneratedChunk,
@@ -128,6 +131,7 @@ BattlefieldInteractionProvider, Disposable {
         this.lootTable,
         this.droppedEquipment,
         this.itemInstanceSeeds,
+        this.performance,
       );
       this.chests.push(chest);
       scope.own(new TreasureChestOwnership(this.chests, chest));

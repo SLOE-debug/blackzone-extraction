@@ -7,7 +7,7 @@ export function getHammerDamageScale(kind: BattlefieldWeaponHitKind): number {
     case BattlefieldWeaponHitKind.Swing:
       return 1;
     case BattlefieldWeaponHitKind.Uppercut:
-      return 1.25;
+      return SLEDGEHAMMER_PROGRESSION.uppercutDamageScale;
     case BattlefieldWeaponHitKind.GroundSlam:
       return SLEDGEHAMMER_PROGRESSION.groundSlamDamageScale;
     case BattlefieldWeaponHitKind.SpinPulse:
@@ -30,8 +30,10 @@ export function getHammerKnockbackSpeed(
     case BattlefieldWeaponHitKind.GroundSlam:
       return baseImpulse * SLEDGEHAMMER_PROGRESSION.groundSlamKnockbackScale;
     case BattlefieldWeaponHitKind.SpinPulse:
-      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse * 0.62;
+      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse
+        * SLEDGEHAMMER_PROGRESSION.spinPulseKnockbackScale;
     case BattlefieldWeaponHitKind.SpinFinal:
-      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse * 1.28;
+      return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse
+        * SLEDGEHAMMER_PROGRESSION.spinFinalKnockbackScale;
   }
 }

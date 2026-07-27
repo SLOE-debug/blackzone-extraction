@@ -1,20 +1,28 @@
 import { Node } from 'cc';
-import { type MutableGeometryBounds, type UnlitColorBufferGeometry } from '../../../../core/geometry/buffer-geometry';
+import { type UnlitColorBufferGeometry } from '../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../core/mesh/mesh-dirty';
 import { DynamicMeshBatch } from '../../../../core/rendering/dynamic-mesh-batch';
+import {
+  BattlefieldTreasurePerformanceSection,
+  type BattlefieldTreasurePerformanceRecorder,
+} from '../../debug/battlefield-treasure-performance';
 import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
+import { EquipmentId } from '../catalog/equipment-id';
 import {
   createDroppedEquipmentBeamGeometry,
   DROPPED_EQUIPMENT_BEAM_TOPOLOGY,
   writeDroppedEquipmentBeam,
 } from '../geometry/dropped-equipment-beam-geometry';
-import { DROPPED_EQUIPMENT_ACCENT_LAYOUT } from '../model/dropped-equipment-accent-layout';
 import { EQUIPMENT_RARITY_PALETTE } from '../model/equipment-rarity-palette';
 import { createDroppedEquipmentBeamMaterial } from './dropped-equipment-beam-material';
+import {
+  DROPPED_EQUIPMENT_CONSERVATIVE_BOUNDS,
+  DROPPED_EQUIPMENT_PREWARM_Y,
+} from './dropped-equipment-conservative-bounds';
+import { DroppedEquipmentDirtySlotRange } from './dropped-equipment-dirty-slot-range';
 import { type DroppedEquipmentRenderItem } from './dropped-equipment-renderer';
 
 const BEAM_OPTIONS = Object.freeze({ castShadows: false, receiveShadows: false });
-const BEAM_RADIUS = 0.5;
 
 /** 预分配固定容量信标批次，颜色只在槽位身份变化时上传。 */
 export class DroppedEquipmentAccentRenderer {
@@ -24,14 +32,16 @@ export class DroppedEquipmentAccentRenderer {
   private readonly instanceIds: Int32Array;
   private readonly poseRevisions: Uint32Array;
   private readonly visibleStates: Uint8Array;
-  private readonly bounds: MutableGeometryBounds = emptyBounds();
+  private readonly dirtySlots = new DroppedEquipmentDirtySlotRange();
   private activeCount = -1;
+  private prewarmed = false;
   private disposed = false;
 
   constructor(
     parent: Node,
     private readonly items: readonly (DroppedEquipmentRenderItem | null)[],
     private readonly equipmentLibrary: BattlefieldEquipmentLibrary,
+    private readonly performance: BattlefieldTreasurePerformanceRecorder,
   ) {
     if (items.length === 0) {
       this.material.destroy();
@@ -48,7 +58,7 @@ export class DroppedEquipmentAccentRenderer {
         'DroppedEquipmentBeamBatch',
         this.geometry,
         this.material,
-        this.bounds,
+        DROPPED_EQUIPMENT_CONSERVATIVE_BOUNDS,
         BEAM_OPTIONS,
       );
       this.batch.setActiveIndexCount(0);
@@ -60,12 +70,69 @@ export class DroppedEquipmentAccentRenderer {
     }
   }
 
+  /** 激活一个地面下真实信标，预热透明材质、颜色流与完整索引拓扑。 */
+  public prewarm(): void {
+    if (this.disposed || this.prewarmed) {
+      return;
+    }
+    const startedAt = this.performance.beginTreasureSection(true);
+    const color = EQUIPMENT_RARITY_PALETTE[
+      this.equipmentLibrary.get(EquipmentId.Sledgehammer).rarity
+    ];
+    writeDroppedEquipmentBeam(
+      this.geometry,
+      0,
+      0,
+      DROPPED_EQUIPMENT_PREWARM_Y,
+      0,
+      color,
+      true,
+      true,
+    );
+    const vertexCount = DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam;
+    this.batch.uploadVertexAttributeRange(
+      MeshDirty.Position | MeshDirty.Color,
+      0,
+      vertexCount,
+    );
+    const firstVisibleStartedAt = this.performance.beginTreasureSection(true);
+    this.batch.setActiveIndexCount(vertexCount);
+    this.batch.setVisible(true);
+    this.prewarmed = true;
+    this.performance.endTreasureSection(
+      BattlefieldTreasurePerformanceSection.DroppedAccentUpload,
+      startedAt,
+      vertexCount,
+      vertexCount * 7 * Float32Array.BYTES_PER_ELEMENT,
+      0,
+      true,
+    );
+    this.performance.endTreasureSection(
+      BattlefieldTreasurePerformanceSection.DroppedFirstVisible,
+      firstVisibleStartedAt,
+      0,
+      0,
+      0,
+      true,
+    );
+  }
+
+  /** 在信标预热 Draw 提交一帧后清空临时索引范围。 */
+  public finishPrewarm(): void {
+    if (!this.disposed && this.prewarmed) {
+      this.batch.setActiveIndexCount(0);
+      this.batch.setVisible(false);
+      this.activeCount = 0;
+    }
+  }
+
   public synchronize(activeCount: number): void {
     if (this.disposed) {
       return;
     }
     validateActiveCount(activeCount, this.items.length);
-    let positionDirty = activeCount !== this.activeCount;
+    const dirtySlots = this.dirtySlots;
+    dirtySlots.reset();
     let colorDirty = false;
     for (let index = 0; index < activeCount; index++) {
       const item = this.items[index];
@@ -94,17 +161,49 @@ export class DroppedEquipmentAccentRenderer {
       this.instanceIds[index] = item.worldRuntimeId;
       this.poseRevisions[index] = item.poseRevision;
       this.visibleStates[index] = item.visible ? 1 : 0;
-      positionDirty = true;
       colorDirty ||= identityChanged || visibilityChanged;
+      dirtySlots.include(index);
     }
-    if ((positionDirty || colorDirty) && activeCount > 0) {
-      const dirty = MeshDirty.Position | (colorDirty ? MeshDirty.Color : MeshDirty.None);
-      this.batch.uploadVertexAttributes(
-        dirty,
-        activeCount * DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam,
+    for (let index = activeCount; index < this.activeCount; index++) {
+      const color = EQUIPMENT_RARITY_PALETTE[
+        this.equipmentLibrary.get(EquipmentId.Sledgehammer).rarity
+      ];
+      writeDroppedEquipmentBeam(
+        this.geometry,
+        index,
+        0,
+        DROPPED_EQUIPMENT_PREWARM_Y,
+        0,
+        color,
+        false,
+        false,
       );
-      writeBeamBounds(this.items, activeCount, this.bounds);
-      this.batch.updateBounds(this.bounds);
+      this.instanceIds[index] = -1;
+      this.poseRevisions[index] = 0;
+      this.visibleStates[index] = 0;
+      dirtySlots.include(index);
+    }
+    if (dirtySlots.dirty) {
+      const dirty = MeshDirty.Position | (colorDirty ? MeshDirty.Color : MeshDirty.None);
+      const firstVertex = dirtySlots.firstSlot
+        * DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam;
+      const vertexCount = (dirtySlots.lastSlot - dirtySlots.firstSlot + 1)
+        * DROPPED_EQUIPMENT_BEAM_TOPOLOGY.verticesPerBeam;
+      const startedAt = this.performance.beginTreasureSection();
+      this.batch.uploadVertexAttributeRange(
+        dirty,
+        firstVertex,
+        vertexCount,
+      );
+      const componentCount = colorDirty ? 7 : 3;
+      this.performance.endTreasureSection(
+        BattlefieldTreasurePerformanceSection.DroppedAccentUpload,
+        startedAt,
+        vertexCount,
+        vertexCount * componentCount * Float32Array.BYTES_PER_ELEMENT,
+        activeCount,
+        false,
+      );
     }
     if (activeCount !== this.activeCount) {
       this.batch.setActiveIndexCount(
@@ -124,45 +223,8 @@ export class DroppedEquipmentAccentRenderer {
   }
 }
 
-function writeBeamBounds(
-  items: readonly (DroppedEquipmentRenderItem | null)[],
-  activeCount: number,
-  result: MutableGeometryBounds,
-): void {
-  const first = items[0];
-  if (first === null || first === undefined || activeCount === 0) {
-    Object.assign(result, emptyBounds());
-    return;
-  }
-  result.minX = first.x - BEAM_RADIUS;
-  result.minY = first.y;
-  result.minZ = first.z - BEAM_RADIUS;
-  result.maxX = first.x + BEAM_RADIUS;
-  result.maxY = first.y + DROPPED_EQUIPMENT_ACCENT_LAYOUT.beamHeight + 0.4;
-  result.maxZ = first.z + BEAM_RADIUS;
-  for (let index = 1; index < activeCount; index++) {
-    const item = items[index];
-    if (item === null || item === undefined) {
-      throw new Error('掉落装备信标活动范围内存在空槽位。');
-    }
-    result.minX = Math.min(result.minX, item.x - BEAM_RADIUS);
-    result.minY = Math.min(result.minY, item.y);
-    result.minZ = Math.min(result.minZ, item.z - BEAM_RADIUS);
-    result.maxX = Math.max(result.maxX, item.x + BEAM_RADIUS);
-    result.maxY = Math.max(
-      result.maxY,
-      item.y + DROPPED_EQUIPMENT_ACCENT_LAYOUT.beamHeight + 0.4,
-    );
-    result.maxZ = Math.max(result.maxZ, item.z + BEAM_RADIUS);
-  }
-}
-
 function validateActiveCount(activeCount: number, capacity: number): void {
   if (!Number.isInteger(activeCount) || activeCount < 0 || activeCount > capacity) {
     throw new Error('掉落装备信标活动数量越过固定容量。');
   }
-}
-
-function emptyBounds(): MutableGeometryBounds {
-  return { minX: 0, minY: 0, minZ: 0, maxX: 0, maxY: 0, maxZ: 0 };
 }

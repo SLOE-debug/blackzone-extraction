@@ -25,13 +25,8 @@ import {
   type BattlefieldMonsterPoseSynchronization,
   BattlefieldMonsterPerformanceStage,
 } from './battlefield-monster-performance';
-import {
-  type BattlefieldMeleeHitBuffer,
-  type BattlefieldMeleeQuery,
-  type BattlefieldMeleeSweepQuery,
-} from '../combat/melee/battlefield-melee-query';
 import { BattlefieldMonsterEffectRuntime } from '../combat/effects/battlefield-monster-effect-runtime';
-import { type PlanarKnockbackEffect, type VerticalLaunchEffect } from '../../../core/contracts/monster-effects';
+import { BattlefieldMonsterCombatFacade } from './battlefield-monster-combat-facade';
 
 const MAXIMUM_WAVE_DELTA_TIME = 0.05;
 const SWARM_POPULATION_ID = 0;
@@ -57,6 +52,11 @@ implements Disposable {
   private readonly targets = new BattlefieldMonsterTargetRegistry(this.crowd);
   private readonly effects = new BattlefieldMonsterEffectRuntime(
     BATTLEFIELD_COMBAT_CONFIG.airborneGravity,
+  );
+  public readonly combatTarget = new BattlefieldMonsterCombatFacade(
+    this.targets,
+    this.effects,
+    () => !this.disposed,
   );
   private readonly venomGroup: BattlefieldVenomLobberGroup;
   private readonly debugMonsters: BattlefieldDebugMonsterPopulation;
@@ -384,77 +384,6 @@ implements Disposable {
     this.targets.register(group);
     this.effects.register(group);
     this.swarm = group;
-  }
-
-  /** 收集一次近战扇形或整圆查询的全部目标。 */
-  public collectMeleeHits(
-    query: Readonly<BattlefieldMeleeQuery>,
-    result: BattlefieldMeleeHitBuffer,
-  ): number {
-    return this.disposed ? 0 : this.targets.collectMeleeHits(query, result);
-  }
-
-  /** 收集真实锤头连续两帧 Swept Capsule 覆盖的全部目标。 */
-  public collectMeleeSweepHits(
-    query: Readonly<BattlefieldMeleeSweepQuery>,
-    result: BattlefieldMeleeHitBuffer,
-  ): number {
-    return this.disposed ? 0 : this.targets.collectMeleeSweepHits(query, result);
-  }
-
-  /** 把近战伤害路由到稳定群体与实体。 */
-  public damageMonster(populationId: number, entityId: number, amount: number): boolean {
-    return !this.disposed && this.targets.damageMonster(populationId, entityId, amount);
-  }
-
-  public acceptHitSequence(
-    populationId: number,
-    entityId: number,
-    attackSequenceId: number,
-  ): boolean {
-    return !this.disposed && this.effects.acceptHitSequence(
-      populationId,
-      entityId,
-      attackSequenceId,
-    );
-  }
-
-  public applyKnockback(
-    populationId: number,
-    entityId: number,
-    effect: Readonly<PlanarKnockbackEffect>,
-  ): boolean {
-    return !this.disposed && this.effects.applyKnockback(populationId, entityId, effect);
-  }
-
-  public applyVerticalLaunch(
-    populationId: number,
-    entityId: number,
-    effect: Readonly<VerticalLaunchEffect>,
-  ): boolean {
-    return !this.disposed && this.effects.applyVerticalLaunch(populationId, entityId, effect);
-  }
-
-  public applyMagnetized(
-    populationId: number,
-    entityId: number,
-    skillSequenceId: number,
-    durationSeconds: number,
-  ): boolean {
-    return !this.disposed && this.effects.applyMagnetized(
-      populationId,
-      entityId,
-      skillSequenceId,
-      durationSeconds,
-    );
-  }
-
-  public getKnockbackResistance(populationId: number): number {
-    return this.targets.getKnockbackResistance(populationId);
-  }
-
-  public getAirborneResistance(populationId: number): number {
-    return this.targets.getAirborneResistance(populationId);
   }
 
   /** 在自主移动之后推进击退、腾空和磁化碰撞。 */

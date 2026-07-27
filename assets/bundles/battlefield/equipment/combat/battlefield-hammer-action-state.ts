@@ -2,29 +2,28 @@ import { WeaponAction, type MeleeWeaponDefinition } from '../../../../core/equip
 import { SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
 import { calculateSledgehammerSpinAngle } from '../items/sledgehammer/sledgehammer-spin-timeline';
 import { type BattlefieldHammerActionControlEffect } from './battlefield-facing-lock-effect';
-import {
-  getHammerActionControlProfile,
-} from './battlefield-hammer-action-control';
+import { BattlefieldHammerActionControlSnapshot } from './battlefield-hammer-action-control-snapshot';
 import {
   nextHammerActionSequence,
   resetHammerActionEvents,
   type MutableHammerActionEvents,
 } from './battlefield-hammer-action-events';
 import { calculateRequiredWindupTurnSpeed } from './battlefield-hammer-windup-turn';
+import { BattlefieldHammerMomentumState } from './battlefield-hammer-momentum-state';
 
 const SWING_WINDUP_SECONDS = 0.28;
 const SWING_CONTACT_SECONDS = 0.34;
 const CHAIN_PREPARE_SECONDS = 0.12;
 const SWING_BUFFER_SECONDS = 0.14;
+const UPPERCUT_BUFFER_SECONDS = 0.16;
 const UPPERCUT_CONTACT_TIME = 0.2;
-const UPPERCUT_DURATION = 0.64;
+const AUTOMATIC_UPPERCUT_DURATION = 0.64;
 const GROUND_SLAM_IMPACT_TIME = 0.48;
 const GROUND_SLAM_DURATION = 0.82;
-const HIT_STOP_SECONDS = 0.045;
 const MAXIMUM_TRANSITIONS_PER_UPDATE = 4;
 const TIMELINE_EPSILON = 0.000001;
 
-/** 管理左右交替挥动、五连击震势与三种特殊攻击时间轴。 */
+/** 管理二加一普通连段、五次有效命中震势与两种主动技能时间轴。 */
 export class BattlefieldHammerActionState {
   private actionValue = WeaponAction.Idle;
   private elapsed = 0;
@@ -39,10 +38,8 @@ export class BattlefieldHammerActionState {
   private lastRequestedRight: boolean | null = null;
   private directionXValue = 0;
   private directionZValue = 1;
-  private hitCountValue = 0;
-  private momentumChargesValue = 0;
-  private comboRemaining = 0;
-  private hitStopRemaining = 0;
+  private completedNormalSwingCount = 0;
+  private normalComboRemaining = 0;
   private lockedHeading = 0;
   private windupMaximumTurnSpeed = 0;
   private poseSideValue: -1 | 0 | 1 = 0;
@@ -50,23 +47,8 @@ export class BattlefieldHammerActionState {
   private queuedSwing = false;
   private queuedDirectionX = 0;
   private queuedDirectionZ = 1;
-  private readonly actionControlEffect: {
-    movementScale: number;
-    facingPolicy: BattlefieldHammerActionControlEffect['facingPolicy'];
-    maximumTurnSpeed: number;
-    autoTargetAllowed: boolean;
-    damageTakenScale: number;
-    desiredHeading: number;
-    remainingSeconds: number;
-  } = {
-    movementScale: 1,
-    facingPolicy: getHammerActionControlProfile(WeaponAction.Idle, 0).facingPolicy,
-    maximumTurnSpeed: 0,
-    autoTargetAllowed: true,
-    damageTakenScale: 1,
-    desiredHeading: 0,
-    remainingSeconds: 0,
-  };
+  private readonly momentum = new BattlefieldHammerMomentumState();
+  private readonly actionControlSnapshot = new BattlefieldHammerActionControlSnapshot();
 
   public get action(): WeaponAction {
     return this.actionValue;
@@ -92,12 +74,15 @@ export class BattlefieldHammerActionState {
     return this.skillSequenceValue;
   }
 
-  public get hitCount(): number {
-    return this.hitCountValue;
-  }
+  public get hitCount(): number { return this.momentum.hitCount; }
 
   public get momentumCharges(): number {
-    return this.momentumChargesValue;
+    return this.momentum.charges;
+  }
+
+  /** 已完成的普通横扫段数；达到二时下一段固定进入自动上挑。 */
+  public get completedNormalSwings(): number {
+    return this.completedNormalSwingCount;
   }
 
   /** 横扫及其恢复阶段保留的有符号动作方向。 */
@@ -133,31 +118,30 @@ export class BattlefieldHammerActionState {
 
   /** 当前横扫已进入预输入窗口且尚未锁定下一击方向。 */
   public get canBufferNextSwing(): boolean {
-    return !this.queuedSwing
-      && (this.actionValue === WeaponAction.SwingLeft
-        || this.actionValue === WeaponAction.SwingRight)
-      && (this.duration - this.elapsed <= SWING_BUFFER_SECONDS
-        || this.hitStopRemaining > 0);
+    if (this.queuedSwing) {
+      return false;
+    }
+    if (this.actionValue === WeaponAction.SwingLeft
+      || this.actionValue === WeaponAction.SwingRight) {
+      return this.duration - this.elapsed <= SWING_BUFFER_SECONDS
+        || this.momentum.hitStopped;
+    }
+    if (this.actionValue === WeaponAction.Uppercut) {
+      return this.duration - this.elapsed <= UPPERCUT_BUFFER_SECONDS;
+    }
+    return false;
   }
 
   public get actionControl(): Readonly<BattlefieldHammerActionControlEffect> {
-    const profile = getHammerActionControlProfile(this.actionValue, this.progress);
-    const effect = this.actionControlEffect;
-    effect.movementScale = profile.movementScale;
-    effect.facingPolicy = profile.facingPolicy;
-    effect.maximumTurnSpeed = this.actionValue === WeaponAction.WindupLeft
-      || this.actionValue === WeaponAction.WindupRight
-      ? Math.max(profile.maximumTurnSpeed, this.windupMaximumTurnSpeed)
-      : profile.maximumTurnSpeed;
-    effect.autoTargetAllowed = profile.autoTargetAllowed;
-    effect.damageTakenScale = profile.damageTakenScale;
-    effect.desiredHeading = this.actionValue === WeaponAction.Spin
-      ? this.lockedHeading + this.spinAngleValue
-      : this.lockedHeading;
-    effect.remainingSeconds = this.actionValue === WeaponAction.Idle
-      ? 0
-      : Math.max(0, this.duration - this.elapsed);
-    return effect;
+    return this.actionControlSnapshot.write(
+      this.actionValue,
+      this.progress,
+      this.windupMaximumTurnSpeed,
+      this.lockedHeading,
+      this.spinAngleValue,
+      this.elapsed,
+      this.duration,
+    );
   }
 
   public requestSwing(
@@ -204,21 +188,14 @@ export class BattlefieldHammerActionState {
     this.attackHeldValue = held;
     if (!held) {
       this.clearQueuedSwing();
+      if (this.actionValue === WeaponAction.Idle) {
+        this.resetNormalCombo();
+      }
     }
-  }
-
-  public requestUppercut(heading: number): boolean {
-    if (!this.canStartAction() || !this.consumeMomentum()) {
-      return false;
-    }
-    this.beginAction(WeaponAction.Uppercut, UPPERCUT_DURATION, Math.sin(heading), Math.cos(heading));
-    this.poseSideValue = 0;
-    this.lockedHeading = heading;
-    return true;
   }
 
   public requestSpin(heading: number): boolean {
-    if (!this.canStartAction() || !this.consumeMomentum()) {
+    if (!this.canStartAction() || !this.momentum.consumeCharge()) {
       return false;
     }
     this.beginAction(
@@ -233,11 +210,12 @@ export class BattlefieldHammerActionState {
     this.spinAngleValue = 0;
     this.spinAngleDeltaValue = 0;
     this.nextSpinHitAngle = SLEDGEHAMMER_PROGRESSION.spinHitWindowAngle;
+    this.resetNormalCombo();
     return true;
   }
 
   public requestGroundSlam(heading: number): boolean {
-    if (!this.canStartAction() || !this.consumeMomentum()) {
+    if (!this.canStartAction() || !this.momentum.consumeCharge()) {
       return false;
     }
     this.beginAction(
@@ -248,6 +226,7 @@ export class BattlefieldHammerActionState {
     );
     this.poseSideValue = 0;
     this.lockedHeading = heading;
+    this.resetNormalCombo();
     return true;
   }
 
@@ -260,16 +239,11 @@ export class BattlefieldHammerActionState {
     resetHammerActionEvents(result);
     this.spinAngleDeltaValue = 0;
     const frameTime = Math.max(0, deltaTime);
-    this.comboRemaining = Math.max(0, this.comboRemaining - frameTime);
-    if (this.comboRemaining <= 0 && this.hitCountValue > 0) {
-      this.hitCountValue = 0;
+    this.normalComboRemaining = Math.max(0, this.normalComboRemaining - frameTime);
+    if (this.normalComboRemaining <= 0 && this.completedNormalSwingCount > 0) {
+      this.resetNormalCombo();
     }
-    let remaining = frameTime;
-    if (this.hitStopRemaining > 0) {
-      const stoppedTime = Math.min(remaining, this.hitStopRemaining);
-      this.hitStopRemaining -= stoppedTime;
-      remaining -= stoppedTime;
-    }
+    let remaining = this.momentum.consumeFrameTime(frameTime);
     let transitions = 0;
     while (remaining > TIMELINE_EPSILON
       && transitions < MAXIMUM_TRANSITIONS_PER_UPDATE
@@ -366,25 +340,43 @@ export class BattlefieldHammerActionState {
         break;
       case WeaponAction.SwingLeft:
       case WeaponAction.SwingRight:
+        this.completedNormalSwingCount = Math.min(
+          2,
+          this.completedNormalSwingCount + 1,
+        );
+        this.normalComboRemaining = definition.comboWindowSeconds;
         if (this.attackHeldValue && this.queuedSwing) {
-          this.beginQueuedSwing(this.actionValue === WeaponAction.SwingLeft);
+          this.beginQueuedAttack(this.actionValue === WeaponAction.SwingLeft);
         } else {
           this.clearQueuedSwing();
-          this.beginAction(
-            WeaponAction.Recover,
-            Math.max(0.08, definition.attackIntervalSeconds
-              - SWING_WINDUP_SECONDS - SWING_CONTACT_SECONDS),
-            this.directionXValue,
-            this.directionZValue,
-            false,
-          );
+          this.resetNormalCombo();
+          this.beginRecover(definition);
         }
         break;
       case WeaponAction.Spin:
+        this.attackSequenceValue = nextHammerActionSequence(this.attackSequenceValue);
         result.spinFinal = true;
         this.finishAction();
         break;
       case WeaponAction.Uppercut:
+        this.resetNormalCombo();
+        if (this.attackHeldValue && this.queuedSwing) {
+          const directionX = this.queuedDirectionX;
+          const directionZ = this.queuedDirectionZ;
+          this.clearQueuedSwing();
+          this.beginAction(
+            WeaponAction.ChainPrepareLeft,
+            CHAIN_PREPARE_SECONDS,
+            directionX,
+            directionZ,
+          );
+          this.poseSideValue = -1;
+          this.alternateLeft = false;
+          this.lockedHeading = Math.atan2(directionX, directionZ);
+        } else {
+          this.beginRecover(definition);
+        }
+        break;
       case WeaponAction.GroundSlam:
       case WeaponAction.Recover:
         this.finishAction();
@@ -394,11 +386,15 @@ export class BattlefieldHammerActionState {
     }
   }
 
-  /** 把缓存方向锁定为下一击方向，并直接进入相反侧准备段。 */
-  private beginQueuedSwing(previousWasLeft: boolean): void {
+  /** 把缓存方向锁定为下一段横扫，或在两次横扫后转入自动上挑。 */
+  private beginQueuedAttack(previousWasLeft: boolean): void {
     const directionX = this.queuedDirectionX;
     const directionZ = this.queuedDirectionZ;
     this.clearQueuedSwing();
+    if (this.completedNormalSwingCount >= 2) {
+      this.beginAutomaticUppercut(directionX, directionZ);
+      return;
+    }
     this.beginAction(
       previousWasLeft ? WeaponAction.ChainPrepareRight : WeaponAction.ChainPrepareLeft,
       CHAIN_PREPARE_SECONDS,
@@ -410,15 +406,21 @@ export class BattlefieldHammerActionState {
     this.lockedHeading = Math.atan2(directionX, directionZ);
   }
 
+  /** 从普通连段内部开始不消耗震势的第三段群体上挑。 */
+  private beginAutomaticUppercut(directionX: number, directionZ: number): void {
+    this.beginAction(
+      WeaponAction.Uppercut,
+      AUTOMATIC_UPPERCUT_DURATION,
+      directionX,
+      directionZ,
+    );
+    this.lockedHeading = Math.atan2(directionX, directionZ);
+    this.poseSideValue = 0;
+  }
+
   /** 每次确认至少命中一个怪物时只增加一次连击。 */
   public recordConfirmedAttack(definition: Readonly<MeleeWeaponDefinition>): void {
-    this.hitCountValue++;
-    this.comboRemaining = definition.comboWindowSeconds;
-    this.hitStopRemaining = HIT_STOP_SECONDS;
-    if (this.hitCountValue >= definition.specialRequiredHits) {
-      this.hitCountValue = 0;
-      this.momentumChargesValue = 1;
-    }
+    this.momentum.recordConfirmedSwing(this.attackSequenceValue, definition);
   }
 
   /** 卸下武器时清空动作、连击、震势和朝向锁定。 */
@@ -432,10 +434,9 @@ export class BattlefieldHammerActionState {
     this.spinAngleDeltaValue = 0;
     this.directionXValue = 0;
     this.directionZValue = 1;
-    this.hitCountValue = 0;
-    this.momentumChargesValue = 0;
-    this.comboRemaining = 0;
-    this.hitStopRemaining = 0;
+    this.momentum.reset();
+    this.completedNormalSwingCount = 0;
+    this.normalComboRemaining = 0;
     this.windupMaximumTurnSpeed = 0;
     this.poseSideValue = 0;
     this.attackHeldValue = false;
@@ -446,20 +447,28 @@ export class BattlefieldHammerActionState {
     return this.actionValue === WeaponAction.Idle;
   }
 
-  private consumeMomentum(): boolean {
-    if (this.momentumChargesValue <= 0) {
-      return false;
-    }
-    this.momentumChargesValue--;
-    this.hitCountValue = 0;
-    this.comboRemaining = 0;
-    return true;
-  }
-
   private clearQueuedSwing(): void {
     this.queuedSwing = false;
     this.queuedDirectionX = 0;
     this.queuedDirectionZ = 1;
+  }
+
+  /** 进入普通收势，保持当前方向但不分配新的攻击序列。 */
+  private beginRecover(definition: Readonly<MeleeWeaponDefinition>): void {
+    this.beginAction(
+      WeaponAction.Recover,
+      Math.max(0.08, definition.attackIntervalSeconds
+        - SWING_WINDUP_SECONDS - SWING_CONTACT_SECONDS),
+      this.directionXValue,
+      this.directionZValue,
+      false,
+    );
+  }
+
+  /** 清除只属于二加一连段的段位与超时，不影响震势命中进度。 */
+  private resetNormalCombo(): void {
+    this.completedNormalSwingCount = 0;
+    this.normalComboRemaining = 0;
   }
 
   private beginAction(

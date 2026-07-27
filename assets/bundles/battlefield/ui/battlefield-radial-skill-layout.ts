@@ -4,19 +4,30 @@ export interface BattlefieldRadialSkillPosition {
   readonly y: number;
 }
 
-/** 计算摇杆左侧、左上侧和上侧的 MOBA 技能扇区。 */
+const ARC_START = Math.PI;
+const ARC_LENGTH = Math.PI * 0.5;
+
+/** 按技能数量把按钮均匀放在摇杆左侧到上侧圆弧的各分段中心。 */
 export function calculateBattlefieldRadialSkillLayout(
   centerX: number,
   centerY: number,
   orbitRadius: number,
+  skillCount: number,
 ): readonly Readonly<BattlefieldRadialSkillPosition>[] {
-  if (![centerX, centerY, orbitRadius].every(Number.isFinite) || orbitRadius <= 0) {
-    throw new Error('径向技能键布局必须使用有限中心和正轨道半径。');
+  if (![centerX, centerY, orbitRadius].every(Number.isFinite)
+    || orbitRadius <= 0
+    || !Number.isSafeInteger(skillCount)
+    || skillCount < 0) {
+    throw new Error('径向技能键布局必须使用有限中心、正轨道半径和非负技能数。');
   }
-  const diagonal = orbitRadius * Math.SQRT1_2;
-  return Object.freeze([
-    Object.freeze({ x: centerX - orbitRadius, y: centerY }),
-    Object.freeze({ x: centerX - diagonal, y: centerY + diagonal }),
-    Object.freeze({ x: centerX, y: centerY + orbitRadius }),
-  ]);
+  const positions: Readonly<BattlefieldRadialSkillPosition>[] = [];
+  for (let index = 0; index < skillCount; index++) {
+    const amount = (index + 0.5) / skillCount;
+    const angle = ARC_START - ARC_LENGTH * amount;
+    positions.push(Object.freeze({
+      x: centerX + Math.cos(angle) * orbitRadius,
+      y: centerY + Math.sin(angle) * orbitRadius,
+    }));
+  }
+  return Object.freeze(positions);
 }

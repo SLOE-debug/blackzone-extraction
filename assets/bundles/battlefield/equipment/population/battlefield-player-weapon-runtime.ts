@@ -57,10 +57,7 @@ export class BattlefieldPlayerEquipmentRuntime {
     directionX: 0,
     directionZ: 1,
     startsRight: null,
-    uppercutRequested: false,
     groundSlamRequested: false,
-    uppercutDirectionX: 0,
-    uppercutDirectionZ: 1,
     groundSlamDirectionX: 0,
     groundSlamDirectionZ: 1,
     spinRequested: false,
@@ -121,11 +118,6 @@ export class BattlefieldPlayerEquipmentRuntime {
 
   public get actionControl(): Readonly<BattlefieldHammerActionControlEffect> {
     return this.actionState.actionControl;
-  }
-
-  /** 当前怪物聚合攻击对玩家生效的承伤比例。 */
-  public get damageTakenScale(): number {
-    return this.actionState.actionControl.damageTakenScale;
   }
 
   /** 当前攻击时间轴持有的目标朝向，供连段限制计算。 */
@@ -231,31 +223,30 @@ export class BattlefieldPlayerEquipmentRuntime {
     this.combat.beginFrame();
     this.commands.consume(this.command);
     this.actionState.setAttackHeld(owner.alive && this.command.attackHeld);
+    if (!owner.alive) {
+      this.actionState.reset();
+      this.combat.reset();
+      this.commands.clear();
+      return;
+    }
     const definition = this.definition;
     if (definition === null) {
       return;
     }
-    if (owner.alive) {
-      if (this.command.spinRequested) {
-        this.actionState.requestSpin(owner.heading);
-      } else if (this.command.groundSlamRequested) {
-        this.actionState.requestGroundSlam(Math.atan2(
-          this.command.groundSlamDirectionX,
-          this.command.groundSlamDirectionZ,
-        ));
-      } else if (this.command.uppercutRequested) {
-        this.actionState.requestUppercut(Math.atan2(
-          this.command.uppercutDirectionX,
-          this.command.uppercutDirectionZ,
-        ));
-      } else if (this.command.swingRequested) {
-        this.actionState.requestSwing(
-          this.command.directionX,
-          this.command.directionZ,
-          owner.heading,
-          this.command.startsRight,
-        );
-      }
+    if (this.command.spinRequested) {
+      this.actionState.requestSpin(owner.heading);
+    } else if (this.command.groundSlamRequested) {
+      this.actionState.requestGroundSlam(Math.atan2(
+        this.command.groundSlamDirectionX,
+        this.command.groundSlamDirectionZ,
+      ));
+    } else if (this.command.swingRequested) {
+      this.actionState.requestSwing(
+        this.command.directionX,
+        this.command.directionZ,
+        owner.heading,
+        this.command.startsRight,
+      );
     }
     this.actionState.update(
       Math.max(0, Math.min(deltaTime, 0.05)),

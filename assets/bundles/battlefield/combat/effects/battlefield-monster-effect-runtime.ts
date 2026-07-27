@@ -1,5 +1,10 @@
 import { MonsterLifecycleState } from '../../../../core/contracts/monster-lifecycle';
-import { type PlanarKnockbackEffect, type VerticalLaunchEffect } from '../../../../core/contracts/monster-effects';
+import {
+  type DirectionalLaunchEffect,
+  type PlanarKnockbackEffect,
+  PlanarKnockbackCombineMode,
+  type VerticalLaunchEffect,
+} from '../../../../core/contracts/monster-effects';
 import { BATTLEFIELD_MONSTER_SPAWN } from '../../model/battlefield-monster-spawn';
 import { type BattlefieldMonsterTargetGroup } from '../../population/battlefield-monster-target-group';
 
@@ -18,6 +23,9 @@ class BattlefieldMonsterEffectGroupState {
   public readonly knockbackDuration: Float32Array;
   public readonly elevation: Float32Array;
   public readonly verticalVelocity: Float32Array;
+  public readonly airborneVelocityX: Float32Array;
+  public readonly airborneVelocityZ: Float32Array;
+  public readonly airborneHorizontalDrag: Float32Array;
   public readonly gravityScale: Float32Array;
   public readonly airborneActive: Uint8Array;
   public readonly magnetizedRemaining: Float32Array;
@@ -33,6 +41,9 @@ class BattlefieldMonsterEffectGroupState {
     this.knockbackDuration = new Float32Array(count);
     this.elevation = new Float32Array(count);
     this.verticalVelocity = new Float32Array(count);
+    this.airborneVelocityX = new Float32Array(count);
+    this.airborneVelocityZ = new Float32Array(count);
+    this.airborneHorizontalDrag = new Float32Array(count);
     this.gravityScale = new Float32Array(count);
     this.airborneActive = new Uint8Array(count);
     this.magnetizedRemaining = new Float32Array(count);
@@ -100,11 +111,41 @@ export class BattlefieldMonsterEffectRuntime {
       return false;
     }
     const resistance = Math.max(0, Math.min(1, effect.resistanceScale));
+    if (effect.combineMode === PlanarKnockbackCombineMode.Accumulate) {
+      return accumulateKnockback(state, entityId, effect, resistance);
+    }
     state.knockbackDirectionX[entityId] = effect.directionX;
     state.knockbackDirectionZ[entityId] = effect.directionZ;
-    state.knockbackSpeed[entityId] = effect.initialSpeed * resistance;
+    state.knockbackSpeed[entityId] = Math.min(
+      effect.initialSpeed * resistance,
+      effect.maximumSpeed,
+    );
     state.knockbackRemaining[entityId] = effect.remainingSeconds;
     state.knockbackDuration[entityId] = effect.remainingSeconds;
+    return true;
+  }
+
+  /** 用一个三维速度状态启动斜向腾空，不再依赖独立平面击退。 */
+  public applyDirectionalLaunch(
+    populationId: number,
+    entityId: number,
+    effect: Readonly<DirectionalLaunchEffect>,
+  ): boolean {
+    validateDirectionalLaunch(effect);
+    const state = this.findState(populationId);
+    if (state === null || !isValidEntity(state, entityId)) {
+      return false;
+    }
+    const resistance = Math.max(0, Math.min(1, effect.resistanceScale));
+    state.airborneVelocityX[entityId] = effect.directionX
+      * effect.horizontalSpeed * resistance;
+    state.airborneVelocityZ[entityId] = effect.directionZ
+      * effect.horizontalSpeed * resistance;
+    state.airborneHorizontalDrag[entityId] = effect.horizontalDrag;
+    const verticalVelocity = effect.verticalSpeed * resistance;
+    state.verticalVelocity[entityId] = verticalVelocity;
+    state.gravityScale[entityId] = effect.gravityScale;
+    state.airborneActive[entityId] = verticalVelocity > 0 ? 1 : 0;
     return true;
   }
 
@@ -121,6 +162,9 @@ export class BattlefieldMonsterEffectRuntime {
     const verticalVelocity = effect.initialVelocity
       * Math.max(0, Math.min(1, effect.resistanceScale));
     state.verticalVelocity[entityId] = verticalVelocity;
+    state.airborneVelocityX[entityId] = 0;
+    state.airborneVelocityZ[entityId] = 0;
+    state.airborneHorizontalDrag[entityId] = 0;
     state.gravityScale[entityId] = effect.gravityScale;
     state.airborneActive[entityId] = verticalVelocity > 0 ? 1 : 0;
     return true;
@@ -186,12 +230,24 @@ export class BattlefieldMonsterEffectRuntime {
       let velocity = state.verticalVelocity[entityId] ?? 0;
       let airborne = (state.airborneActive[entityId] ?? 0) !== 0;
       if (airborne) {
+        crowd.x[entityId] = (crowd.x[entityId] ?? 0)
+          + (state.airborneVelocityX[entityId] ?? 0) * deltaTime * inverseScale;
+        crowd.y[entityId] = (crowd.y[entityId] ?? 0)
+          - (state.airborneVelocityZ[entityId] ?? 0) * deltaTime * inverseScale;
+        const damping = Math.exp(
+          -(state.airborneHorizontalDrag[entityId] ?? 0) * deltaTime,
+        );
+        state.airborneVelocityX[entityId] = (state.airborneVelocityX[entityId] ?? 0) * damping;
+        state.airborneVelocityZ[entityId] = (state.airborneVelocityZ[entityId] ?? 0) * damping;
         velocity -= this.gravity * (state.gravityScale[entityId] ?? 1) * deltaTime;
         elevation += velocity * deltaTime;
         if (elevation <= 0 && velocity <= 0) {
           elevation = 0;
           velocity = 0;
           airborne = false;
+          state.airborneVelocityX[entityId] = 0;
+          state.airborneVelocityZ[entityId] = 0;
+          state.airborneHorizontalDrag[entityId] = 0;
         }
         state.elevation[entityId] = elevation;
         state.verticalVelocity[entityId] = velocity;
@@ -302,12 +358,29 @@ function isValidEntity(state: BattlefieldMonsterEffectGroupState, entityId: numb
 
 function validateKnockback(effect: Readonly<PlanarKnockbackEffect>): void {
   if (![effect.directionX, effect.directionZ, effect.initialSpeed,
-    effect.remainingSeconds, effect.resistanceScale].every(Number.isFinite)
+    effect.remainingSeconds, effect.resistanceScale, effect.maximumSpeed].every(Number.isFinite)
     || Math.abs(Math.hypot(effect.directionX, effect.directionZ) - 1) > 0.001
     || effect.initialSpeed < 0
     || effect.remainingSeconds <= 0
-    || effect.resistanceScale < 0) {
+    || effect.resistanceScale < 0
+    || effect.maximumSpeed <= 0
+    || (effect.combineMode !== PlanarKnockbackCombineMode.Replace
+      && effect.combineMode !== PlanarKnockbackCombineMode.Accumulate)) {
     throw new Error('平面击退 Effect 参数无效。');
+  }
+}
+
+function validateDirectionalLaunch(effect: Readonly<DirectionalLaunchEffect>): void {
+  if (![effect.directionX, effect.directionZ, effect.horizontalSpeed,
+    effect.verticalSpeed, effect.horizontalDrag, effect.gravityScale,
+    effect.resistanceScale].every(Number.isFinite)
+    || Math.abs(Math.hypot(effect.directionX, effect.directionZ) - 1) > 0.001
+    || effect.horizontalSpeed < 0
+    || effect.verticalSpeed < 0
+    || effect.horizontalDrag < 0
+    || effect.gravityScale <= 0
+    || effect.resistanceScale < 0) {
+    throw new Error('方向腾空 Effect 参数无效。');
   }
 }
 
@@ -324,9 +397,45 @@ function resetEntityEffect(state: BattlefieldMonsterEffectGroupState, entityId: 
   state.knockbackRemaining[entityId] = 0;
   state.elevation[entityId] = 0;
   state.verticalVelocity[entityId] = 0;
+  state.airborneVelocityX[entityId] = 0;
+  state.airborneVelocityZ[entityId] = 0;
+  state.airborneHorizontalDrag[entityId] = 0;
   state.airborneActive[entityId] = 0;
   state.magnetizedRemaining[entityId] = 0;
   state.magnetizedSequence[entityId] = 0;
+}
+
+/** 把当前线性衰减后的实际速度与新增击退速度按向量相加。 */
+function accumulateKnockback(
+  state: BattlefieldMonsterEffectGroupState,
+  entityId: number,
+  effect: Readonly<PlanarKnockbackEffect>,
+  resistance: number,
+): boolean {
+  const remaining = state.knockbackRemaining[entityId] ?? 0;
+  const duration = Math.max(
+    state.knockbackDuration[entityId] ?? remaining,
+    EFFECT_EPSILON,
+  );
+  const currentSpeed = (state.knockbackSpeed[entityId] ?? 0) * remaining / duration;
+  const nextVelocityX = (state.knockbackDirectionX[entityId] ?? 0) * currentSpeed
+    + effect.directionX * effect.initialSpeed * resistance;
+  const nextVelocityZ = (state.knockbackDirectionZ[entityId] ?? 0) * currentSpeed
+    + effect.directionZ * effect.initialSpeed * resistance;
+  const rawSpeed = Math.hypot(nextVelocityX, nextVelocityZ);
+  if (rawSpeed <= EFFECT_EPSILON) {
+    state.knockbackSpeed[entityId] = 0;
+    state.knockbackRemaining[entityId] = 0;
+    state.knockbackDuration[entityId] = 0;
+    return true;
+  }
+  state.knockbackDirectionX[entityId] = nextVelocityX / rawSpeed;
+  state.knockbackDirectionZ[entityId] = nextVelocityZ / rawSpeed;
+  state.knockbackSpeed[entityId] = Math.min(rawSpeed, effect.maximumSpeed);
+  const nextRemaining = Math.max(remaining, effect.remainingSeconds);
+  state.knockbackRemaining[entityId] = nextRemaining;
+  state.knockbackDuration[entityId] = nextRemaining;
+  return true;
 }
 
 function createPairKey(
