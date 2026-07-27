@@ -24,6 +24,7 @@ export class BattlefieldPlayerWorldSystem extends BattlefieldWorldSystem {
       toVanguardWeaponPose(weapon.weaponGrip),
       toVanguardWeaponAction(weapon.weaponAction),
       weapon.weaponActionProgress,
+      weapon.weaponActionSide,
       monsters.playerMovementSpeedMultiplier,
       weapon.movementSpeedScale,
       weapon.facingLock,

@@ -51,6 +51,7 @@ export function createCurveCrawlerMeshTestState(entityCount: number): CurveCrawl
       stateTime: new Float32Array(entityCount),
     },
     effects: {
+      airborneActive: new Uint8Array(entityCount),
       rootElevation: new Float32Array(entityCount),
     },
     animation: {

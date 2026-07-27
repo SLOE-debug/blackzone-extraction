@@ -20,6 +20,7 @@ export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
   horizontalEdgeInset: 64,
   bottomEdgeInset: 56,
   minimumCenterGap: 24,
+  skillOrbitRadius: 118,
   movement: Object.freeze({
     radius: 72,
     handleRadius: 30,

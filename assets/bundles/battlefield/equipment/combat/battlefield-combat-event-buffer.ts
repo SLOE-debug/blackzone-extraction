@@ -2,6 +2,7 @@
 export enum BattlefieldWeaponHitKind {
   Swing,
   Uppercut,
+  GroundSlam,
   SpinPulse,
   SpinFinal,
 }

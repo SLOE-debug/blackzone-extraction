@@ -230,6 +230,13 @@ export class BattlefieldSceneRuntime implements SceneRuntime {
     this.world?.step(deltaTime, this.returningToLobby);
   }
 
+  /** 应用恢复前台或 WebGL Context 恢复后重建易失的怪物姿态资源。 */
+  public forceResynchronizeRendering(): void {
+    if (this.state === BattlefieldSceneState.Initialized) {
+      this.monsters?.forceResynchronizeRendering();
+    }
+  }
+
   /** 释放战场程序化 Mesh、动态实体与场景节点。 */
   public dispose(): void {
     if (this.state === BattlefieldSceneState.Disposed) {

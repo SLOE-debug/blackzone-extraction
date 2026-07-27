@@ -59,6 +59,7 @@ function initializeState(
     vitality.hitTime[index] = 0;
     vitality.timeSinceHit[index] = 1;
     vitality.deathEffectSpawned[index] = 0;
+    effects.externalAirborneActive[index] = 0;
     effects.externalElevation[index] = 0;
     behavior.action[index] = VenomLobberAction.Roam;
     behavior.actionTime[index] = 0;

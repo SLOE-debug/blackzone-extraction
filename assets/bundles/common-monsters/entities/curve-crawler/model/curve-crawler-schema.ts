@@ -60,6 +60,8 @@ export const CURVE_CRAWLER_SCHEMA = defineEntitySchema({
     timeSinceHit: entityField(Float32Array, 1),
   },
   effects: {
+    /** 通用腾空 Effect 是否正在控制行为、移动和战斗。 */
+    airborneActive: entityField(Uint8Array, 1),
     /** 战场通用腾空模拟叠加到死亡碎块动画之外的根高度。 */
     rootElevation: entityField(Float32Array, 1),
   },

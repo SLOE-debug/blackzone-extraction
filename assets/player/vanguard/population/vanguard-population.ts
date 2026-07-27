@@ -107,6 +107,7 @@ export class VanguardPopulation {
     data.weaponPose[0] = intent.weaponPose;
     data.weaponAction[0] = intent.weaponAction;
     data.weaponActionProgress[0] = intent.weaponActionProgress;
+    data.weaponActionSide[0] = intent.weaponActionSide;
   }
 
   /** 把当前左右手骨骼上的掌心挂点写入调用方复用的世界坐标。 */

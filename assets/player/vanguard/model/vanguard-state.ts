@@ -55,6 +55,7 @@ function initializeVanguardData(
   intent.weaponPose[0] = VanguardWeaponPose.Unarmed;
   intent.weaponAction[0] = VanguardWeaponAction.Idle;
   intent.weaponActionProgress[0] = 0;
+  intent.weaponActionSide[0] = 0;
   intent.facingLocked[0] = 0;
   intent.lockedHeading[0] = options.heading;
   motion.velocityX[0] = 0;

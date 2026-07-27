@@ -169,6 +169,50 @@ export function writePitchFrame(
   );
 }
 
+/** 写入先绕局部 Y 偏航、再绕偏航后局部 X 俯仰的武器根矩阵。 */
+export function writeYawPitchFrame(
+  matrices: VanguardBoneMatrixArray,
+  entityOffset: number,
+  bone: VanguardBone,
+  originX: number,
+  originY: number,
+  originZ: number,
+  yaw: number,
+  pitch: number,
+  positionX: number,
+  positionY: number,
+  positionZ: number,
+  heading: number,
+  scale: number,
+): void {
+  const yawCosine = Math.cos(yaw);
+  const yawSine = Math.sin(yaw);
+  const pitchCosine = Math.cos(pitch);
+  const pitchSine = Math.sin(pitch);
+  writeWorldFrame(
+    matrices,
+    entityOffset,
+    bone,
+    originX,
+    originY,
+    originZ,
+    yawCosine,
+    0,
+    -yawSine,
+    yawSine * pitchSine,
+    pitchCosine,
+    yawCosine * pitchSine,
+    yawSine * pitchCosine,
+    -pitchSine,
+    yawCosine * pitchCosine,
+    positionX,
+    positionY,
+    positionZ,
+    heading,
+    scale,
+  );
+}
+
 /** 把角色局部矩阵旋转、缩放并平移到世界空间。 */
 function writeWorldFrame(
   matrices: VanguardBoneMatrixArray,

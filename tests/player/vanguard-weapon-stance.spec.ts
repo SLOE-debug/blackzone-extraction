@@ -54,10 +54,36 @@ describe('主角单手大锤姿势', () => {
     expect(profile.pose).toBe(VanguardWeaponPose.OneHandHeavy);
     expect(profile.sockets[VanguardWeaponRigSocket.MainGrip]).toEqual({ x: 0, y: 0, z: 0 });
   });
+
+  it('左右横扫把符号方向传到胸腔和右手而不是压成同一姿态', () => {
+    const state = new VanguardState(TEST_OPTIONS);
+    const animation = new VanguardAnimationSystem();
+    state.data.intent.weaponPose[0] = VanguardWeaponPose.OneHandHeavy;
+    state.data.animation.weaponPose[0] = VanguardWeaponPose.OneHandHeavy;
+    state.data.animation.weaponStanceBlend[0] = 1;
+    state.data.intent.weaponAction[0] = VanguardWeaponAction.SwingLeft;
+    state.data.intent.weaponActionProgress[0] = 0.45;
+    state.data.intent.weaponActionSide[0] = -1;
+    animation.initialize(state);
+    const leftHandX = readBonePosition(state, VanguardBone.RightHand, 0);
+    const leftChestForwardX = readBoneComponent(state, VanguardBone.Chest, 6);
+
+    state.data.intent.weaponAction[0] = VanguardWeaponAction.SwingRight;
+    state.data.intent.weaponActionSide[0] = 1;
+    animation.initialize(state);
+    expect(readBonePosition(state, VanguardBone.RightHand, 0)).not.toBeCloseTo(leftHandX, 3);
+    expect(readBoneComponent(state, VanguardBone.Chest, 6) * leftChestForwardX).toBeLessThan(0);
+  });
 });
 
 function readBonePosition(state: VanguardState, bone: VanguardBone, axis: number): number {
   return state.data.pose.boneMatrices[
     bone * VANGUARD_BONE_MATRIX_COMPONENTS + 9 + axis
+  ] ?? 0;
+}
+
+function readBoneComponent(state: VanguardState, bone: VanguardBone, component: number): number {
+  return state.data.pose.boneMatrices[
+    bone * VANGUARD_BONE_MATRIX_COMPONENTS + component
   ] ?? 0;
 }

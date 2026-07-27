@@ -5,6 +5,7 @@ import {
 } from './battlefield-performance-console';
 import {
   type BattlefieldMonsterPerformanceRecorder,
+  type BattlefieldMonsterPoseSynchronization,
   BattlefieldMonsterPerformanceStage,
 } from '../population/battlefield-monster-performance';
 import {
@@ -32,6 +33,7 @@ export interface BattlefieldPerformanceSources {
     residentCount: number;
     visibleCount: number;
     renderCapacity: number;
+    poseSynchronization: Readonly<BattlefieldMonsterPoseSynchronization>;
   }>;
   readonly treasures: Readonly<{
     activeChestCount: number;
@@ -116,6 +118,11 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     residentMonsters: 0,
     visibleMonsters: 0,
     monsterRenderCapacity: 0,
+    simulationPoseRevision: 0,
+    packedPoseRevision: 0,
+    gpuPoseUploadRevision: 0,
+    forcedPoseResynchronizationCount: 0,
+    poseDesynchronized: false,
     activeChests: 0,
     openedChests: 0,
     droppedEquipment: 0,
@@ -376,6 +383,13 @@ export class BattlefieldPerformanceLogger implements BattlefieldMonsterPerforman
     snapshot.residentMonsters = sources.monsters.residentCount;
     snapshot.visibleMonsters = sources.monsters.visibleCount;
     snapshot.monsterRenderCapacity = sources.monsters.renderCapacity;
+    const poseSynchronization = sources.monsters.poseSynchronization;
+    snapshot.simulationPoseRevision = poseSynchronization.simulationPoseRevision;
+    snapshot.packedPoseRevision = poseSynchronization.packedPoseRevision;
+    snapshot.gpuPoseUploadRevision = poseSynchronization.gpuPoseUploadRevision;
+    snapshot.forcedPoseResynchronizationCount =
+      poseSynchronization.forcedResynchronizationCount;
+    snapshot.poseDesynchronized = poseSynchronization.desynchronized;
     snapshot.activeChests = sources.treasures.activeChestCount;
     snapshot.openedChests = sources.treasures.openedChestCount;
     snapshot.droppedEquipment = sources.treasures.droppedEquipmentCount;

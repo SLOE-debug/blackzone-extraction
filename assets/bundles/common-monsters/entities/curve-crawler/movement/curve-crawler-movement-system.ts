@@ -20,7 +20,7 @@ export class CurveCrawlerMovementSystem implements EntitySystem<CurveCrawlerStat
         motion.currentSpeed[index] = 0;
         continue;
       }
-      if ((effects.rootElevation[index] ?? 0) > 0) {
+      if ((effects.airborneActive[index] ?? 0) !== 0) {
         motion.currentSpeed[index] = 0;
         continue;
       }

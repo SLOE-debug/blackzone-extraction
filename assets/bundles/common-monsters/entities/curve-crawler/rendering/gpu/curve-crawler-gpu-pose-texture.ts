@@ -9,11 +9,13 @@ import {
 export class CurveCrawlerGpuPoseTexture {
   private readonly buffer = new CurveCrawlerGpuPoseBuffer();
   private texture: Texture2D;
+  private observedGpuResource: object | null;
   private disposed = false;
 
   constructor() {
     this.buffer.resize(1);
     this.texture = createPoseTexture(1);
+    this.observedGpuResource = this.texture.getGFXTexture();
   }
 
   public get asset(): Texture2D {
@@ -35,6 +37,27 @@ export class CurveCrawlerGpuPoseTexture {
     const nextTexture = createPoseTexture(entityCapacity);
     this.texture.destroy();
     this.texture = nextTexture;
+    this.observedGpuResource = this.texture.getGFXTexture();
+    return true;
+  }
+
+  /** 主动替换纹理资源，供应用恢复或图形上下文恢复后重新绑定。 */
+  public recreate(): void {
+    this.ensureActive();
+    const nextTexture = createPoseTexture(this.buffer.capacity);
+    this.texture.destroy();
+    this.texture = nextTexture;
+    this.observedGpuResource = this.texture.getGFXTexture();
+  }
+
+  /** 检测 Cocos 在后台恢复过程中是否替换了底层 GFX Texture。 */
+  public consumeGpuResourceChange(): boolean {
+    this.ensureActive();
+    const current = this.texture.getGFXTexture();
+    if (current === this.observedGpuResource) {
+      return false;
+    }
+    this.observedGpuResource = current;
     return true;
   }
 
@@ -61,6 +84,7 @@ export class CurveCrawlerGpuPoseTexture {
     }
     this.disposed = true;
     this.texture.destroy();
+    this.observedGpuResource = null;
   }
 
   private ensureActive(): void {

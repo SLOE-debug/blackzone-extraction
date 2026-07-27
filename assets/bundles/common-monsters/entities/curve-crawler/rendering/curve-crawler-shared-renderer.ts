@@ -11,6 +11,7 @@ import { CurveCrawlerGpuMaterial } from './gpu/curve-crawler-gpu-material';
 import { CurveCrawlerGpuMeshBatch } from './gpu/curve-crawler-gpu-mesh-batch';
 import { CurveCrawlerGpuPoseTexture } from './gpu/curve-crawler-gpu-pose-texture';
 import { type CurveCrawlerPopulationRendering } from './curve-crawler-population-rendering';
+import { type CurveCrawlerPoseSynchronizationSnapshot } from './curve-crawler-pose-synchronization';
 import { CurveCrawlerResidentLayout } from './curve-crawler-resident-layout';
 import { CurveCrawlerVisibilityLayout } from './curve-crawler-visibility-layout';
 
@@ -29,6 +30,7 @@ interface CurveCrawlerSharedRenderEntry extends CurveCrawlerActiveIndexSource {
   readonly residents: CurveCrawlerResidentLayout;
   readonly visibilityCulling: CurveCrawlerVisibilityLayout;
   readonly gpuSlotOffset: number;
+  simulationPoseRevision: number;
   active: boolean;
 }
 
@@ -52,6 +54,23 @@ export class CurveCrawlerSharedRenderer {
   private poseUploadBytes = 0;
   private poseUploadCalls = 0;
   private structureDirty = false;
+  private simulationPoseRevision = 0;
+  private packedPoseRevision = 0;
+  private gpuPoseUploadRevision = 0;
+  private forcedResynchronizationCount = 0;
+  private readonly poseSynchronization: {
+    simulationPoseRevision: number;
+    packedPoseRevision: number;
+    gpuPoseUploadRevision: number;
+    forcedResynchronizationCount: number;
+    desynchronized: boolean;
+  } = {
+    simulationPoseRevision: 0,
+    packedPoseRevision: 0,
+    gpuPoseUploadRevision: 0,
+    forcedResynchronizationCount: 0,
+    desynchronized: false,
+  };
   private nextRenderIdentity = 1;
   private disposed = false;
 
@@ -75,6 +94,18 @@ export class CurveCrawlerSharedRenderer {
 
   public get renderCapacity(): number {
     return this.entityCapacity;
+  }
+
+  /** 返回不分配对象的模拟、打包与 GPU 上传版本快照。 */
+  public get poseSynchronizationSnapshot(): Readonly<CurveCrawlerPoseSynchronizationSnapshot> {
+    const snapshot = this.poseSynchronization;
+    snapshot.simulationPoseRevision = this.simulationPoseRevision;
+    snapshot.packedPoseRevision = this.packedPoseRevision;
+    snapshot.gpuPoseUploadRevision = this.gpuPoseUploadRevision;
+    snapshot.forcedResynchronizationCount = this.forcedResynchronizationCount;
+    snapshot.desynchronized = this.activeEntityCount > 0
+      && this.gpuPoseUploadRevision !== this.simulationPoseRevision;
+    return snapshot;
   }
 
   constructor(
@@ -102,6 +133,7 @@ export class CurveCrawlerSharedRenderer {
       visibilityCulling,
       visibility: visibilityCulling.entities,
       gpuSlotOffset,
+      simulationPoseRevision: 0,
       active: true,
     };
     this.entries.push(entry);
@@ -117,6 +149,11 @@ export class CurveCrawlerSharedRenderer {
     }
     this.poseUploadBytes = 0;
     this.poseUploadCalls = 0;
+    if (this.poseTexture.consumeGpuResourceChange()) {
+      this.material.setPoseTexture(this.poseTexture.asset, this.poseTexture.capacity);
+      this.structureDirty = true;
+      this.forcedResynchronizationCount++;
+    }
     this.synchronizeResidentLayouts();
     const residentCount = this.countResidentEntities();
     this.synchronizeVisibilityLayouts();
@@ -166,6 +203,22 @@ export class CurveCrawlerSharedRenderer {
     this.structureDirty = false;
   }
 
+  /** 应用恢复或图形上下文恢复后重新创建、绑定并完整提交姿态资源。 */
+  public forceResynchronize(): void {
+    this.ensureActive();
+    this.structureDirty = true;
+    this.forcedResynchronizationCount++;
+    this.poseTexture.recreate();
+    this.material.setPoseTexture(this.poseTexture.asset, this.poseTexture.capacity);
+    if (this.entityCapacity <= 0) {
+      return;
+    }
+    this.uploadPoseTexture();
+    const activeIndexCount = this.activeIndices.indexCount;
+    this.batch?.uploadIndices(activeIndexCount);
+    this.batch?.setVisible(activeIndexCount > 0);
+  }
+
   public dispose(): void {
     if (this.disposed) {
       return;
@@ -183,6 +236,9 @@ export class CurveCrawlerSharedRenderer {
     this.entityCapacity = 0;
     this.residentEntityCount = 0;
     this.activeEntityCount = 0;
+    this.simulationPoseRevision = 0;
+    this.packedPoseRevision = 0;
+    this.gpuPoseUploadRevision = 0;
   }
 
   public unregister(entry: CurveCrawlerSharedRenderEntry): void {
@@ -195,6 +251,21 @@ export class CurveCrawlerSharedRenderer {
     if (index >= 0) {
       this.entries.splice(index, 1);
       this.structureDirty = true;
+    }
+  }
+
+  /** 在 Crowd 与外部 Effect 完成后为一个模拟群登记最新权威姿态。 */
+  public markSimulationPose(renderIdentity: number): void {
+    if (this.disposed) {
+      return;
+    }
+    for (const entry of this.entries) {
+      if (entry.renderIdentity !== renderIdentity || !entry.active) {
+        continue;
+      }
+      this.simulationPoseRevision = nextRevision(this.simulationPoseRevision);
+      entry.simulationPoseRevision = this.simulationPoseRevision;
+      return;
     }
   }
 
@@ -247,8 +318,10 @@ export class CurveCrawlerSharedRenderer {
     for (const entry of this.entries) {
       this.poseTexture.writeState(entry.state, entry.gpuSlotOffset);
     }
+    this.packedPoseRevision = this.simulationPoseRevision;
     this.poseUploadBytes = this.poseTexture.upload();
     this.poseUploadCalls = 1;
+    this.gpuPoseUploadRevision = this.packedPoseRevision;
     for (const entry of this.entries) {
       entry.state.renderChanges.clearAll();
     }
@@ -289,7 +362,7 @@ class CurveCrawlerSharedRenderHandle implements CurveCrawlerPopulationRendering 
   ) {}
 
   public update(): void {
-    // 共享 GPU 渲染器在统一同步点读取 SoA 姿态参数。
+    this.owner.markSimulationPose(this.entry.renderIdentity);
   }
 
   public isVisible(entityIndex: number): boolean {
@@ -307,4 +380,8 @@ function getExpandedEntityCapacity(entityCount: number): number {
     capacity *= 2;
   }
   return capacity;
+}
+
+function nextRevision(current: number): number {
+  return current >= Number.MAX_SAFE_INTEGER ? 1 : current + 1;
 }

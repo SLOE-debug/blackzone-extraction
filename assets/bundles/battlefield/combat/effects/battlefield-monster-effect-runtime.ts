@@ -19,6 +19,7 @@ class BattlefieldMonsterEffectGroupState {
   public readonly elevation: Float32Array;
   public readonly verticalVelocity: Float32Array;
   public readonly gravityScale: Float32Array;
+  public readonly airborneActive: Uint8Array;
   public readonly magnetizedRemaining: Float32Array;
   public readonly magnetizedSequence: Uint32Array;
 
@@ -33,6 +34,7 @@ class BattlefieldMonsterEffectGroupState {
     this.elevation = new Float32Array(count);
     this.verticalVelocity = new Float32Array(count);
     this.gravityScale = new Float32Array(count);
+    this.airborneActive = new Uint8Array(count);
     this.magnetizedRemaining = new Float32Array(count);
     this.magnetizedSequence = new Uint32Array(count);
     this.gravityScale.fill(1);
@@ -116,9 +118,11 @@ export class BattlefieldMonsterEffectRuntime {
     if (state === null || !isValidEntity(state, entityId)) {
       return false;
     }
-    state.verticalVelocity[entityId] = effect.initialVelocity
+    const verticalVelocity = effect.initialVelocity
       * Math.max(0, Math.min(1, effect.resistanceScale));
+    state.verticalVelocity[entityId] = verticalVelocity;
     state.gravityScale[entityId] = effect.gravityScale;
+    state.airborneActive[entityId] = verticalVelocity > 0 ? 1 : 0;
     return true;
   }
 
@@ -164,7 +168,7 @@ export class BattlefieldMonsterEffectRuntime {
     for (let entityId = 0; entityId < crowd.count; entityId++) {
       if ((crowd.lifecycle[entityId] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         resetEntityEffect(state, entityId);
-        state.group.setEffectElevation(entityId, 0);
+        state.group.setAirborneEffect(entityId, false, 0);
         continue;
       }
       const remaining = state.knockbackRemaining[entityId] ?? 0;
@@ -180,17 +184,20 @@ export class BattlefieldMonsterEffectRuntime {
 
       let elevation = state.elevation[entityId] ?? 0;
       let velocity = state.verticalVelocity[entityId] ?? 0;
-      if (elevation > 0 || velocity > 0) {
+      let airborne = (state.airborneActive[entityId] ?? 0) !== 0;
+      if (airborne) {
         velocity -= this.gravity * (state.gravityScale[entityId] ?? 1) * deltaTime;
         elevation += velocity * deltaTime;
         if (elevation <= 0 && velocity <= 0) {
           elevation = 0;
           velocity = 0;
+          airborne = false;
         }
         state.elevation[entityId] = elevation;
         state.verticalVelocity[entityId] = velocity;
+        state.airborneActive[entityId] = airborne ? 1 : 0;
       }
-      state.group.setEffectElevation(entityId, elevation);
+      state.group.setAirborneEffect(entityId, airborne, elevation);
       state.magnetizedRemaining[entityId] = Math.max(
         0,
         (state.magnetizedRemaining[entityId] ?? 0) - deltaTime,
@@ -317,6 +324,7 @@ function resetEntityEffect(state: BattlefieldMonsterEffectGroupState, entityId: 
   state.knockbackRemaining[entityId] = 0;
   state.elevation[entityId] = 0;
   state.verticalVelocity[entityId] = 0;
+  state.airborneActive[entityId] = 0;
   state.magnetizedRemaining[entityId] = 0;
   state.magnetizedSequence[entityId] = 0;
 }

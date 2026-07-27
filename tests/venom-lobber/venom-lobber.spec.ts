@@ -26,6 +26,7 @@ import { VenomPoolState } from '../../assets/bundles/common-monsters/entities/ve
 import { type VenomLobberCombatOptions } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-combat-options';
 import { VenomLobberState } from '../../assets/bundles/common-monsters/entities/venom-lobber/model/venom-lobber-state';
 import { VenomLobberLifeSystem } from '../../assets/bundles/common-monsters/entities/venom-lobber/population/venom-lobber-life-system';
+import { readVenomLobberBodyRootElevation } from '../../assets/bundles/common-monsters/entities/venom-lobber/rendering/venom-lobber-body-pose';
 
 const COMBAT = Object.freeze({
   detectionRadius: 50,
@@ -58,6 +59,13 @@ const COMBAT = Object.freeze({
 }) satisfies Readonly<VenomLobberCombatOptions>;
 
 describe('Venom Lobber 技能与程序化模型', () => {
+  it('身体根高度合并生命周期姿态与通用腾空 Effect', () => {
+    const state = createVenomState();
+    state.data.animation.rootElevation[0] = -0.4;
+    state.data.effects.externalElevation[0] = 1.1;
+    expect(readVenomLobberBodyRootElevation(state.data, 0)).toBeCloseTo(0.7, 6);
+  });
+
   it('拥有六足、卷尾与毒囊所需的精细硬分面和语义权重', () => {
     const model = VENOM_LOBBER_MODEL_GEOMETRY;
     expect(model.geometry.vertexCount).toBeGreaterThan(1000);

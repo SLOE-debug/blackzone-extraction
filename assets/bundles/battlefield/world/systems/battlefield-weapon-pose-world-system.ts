@@ -22,9 +22,9 @@ export class BattlefieldWeaponPoseWorldSystem extends BattlefieldWorldSystem {
     forwardZ: 1,
   };
 
-  protected execute(world: BattlefieldWorld, deltaTime: number): void {
+  protected execute(world: BattlefieldWorld): void {
     const { player, weapon } = world.resources;
     player.writeWeaponRigPose(this.pose);
-    weapon.synchronizeHeldPose(deltaTime, this.pose);
+    weapon.synchronizeHeldPose(this.pose);
   }
 }

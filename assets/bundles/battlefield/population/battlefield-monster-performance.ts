@@ -16,3 +16,12 @@ export interface BattlefieldMonsterPerformanceRecorder {
     poseUploadCalls: number,
   ): void;
 }
+
+/** 战场诊断层读取的共享怪物姿态版本链。 */
+export interface BattlefieldMonsterPoseSynchronization {
+  readonly simulationPoseRevision: number;
+  readonly packedPoseRevision: number;
+  readonly gpuPoseUploadRevision: number;
+  readonly forcedResynchronizationCount: number;
+  readonly desynchronized: boolean;
+}

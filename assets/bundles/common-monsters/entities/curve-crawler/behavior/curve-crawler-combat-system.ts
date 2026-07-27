@@ -68,7 +68,7 @@ export class CurveCrawlerCombatSystem implements EntitySystem<CurveCrawlerState,
         this.disengage(state, index);
         continue;
       }
-      if ((effects.rootElevation[index] ?? 0) > 0) {
+      if ((effects.airborneActive[index] ?? 0) !== 0) {
         this.disengage(state, index);
         continue;
       }

@@ -1,19 +1,20 @@
-import { _decorator, Component, error as logError } from 'cc';
-import { type SceneRuntime } from '../../../core/contracts/scene-runtime';
+import { _decorator, Component, error as logError, game, Game } from 'cc';
 import { RuntimePerformanceController } from '../../../core/performance/runtime-performance-controller';
 import { RUNTIME_PERFORMANCE_PROFILE } from '../../../core/performance/runtime-performance-platform';
+import { type BattlefieldSceneRuntime } from './battlefield-scene-runtime';
 
 const { ccclass } = _decorator;
 
 /** 独立战场 Scene 的帧循环与资源释放入口。 */
 @ccclass('BattlefieldSceneEntry')
 export class BattlefieldSceneEntry extends Component {
-  private runtime: SceneRuntime | null = null;
+  private runtime: BattlefieldSceneRuntime | null = null;
   private performanceController: RuntimePerformanceController | null = null;
+  private graphicsCanvas: HTMLCanvasElement | null = null;
   private disposed = false;
 
   /** 在场景激活前绑定已经完成初始化的战场运行时。 */
-  public bind(runtime: SceneRuntime): void {
+  public bind(runtime: BattlefieldSceneRuntime): void {
     if (this.disposed || this.runtime !== null) {
       throw new Error('战场 Scene 入口只能绑定一次运行时。');
     }
@@ -24,6 +25,12 @@ export class BattlefieldSceneEntry extends Component {
   }
 
   protected onLoad(): void {
+    game.on(Game.EVENT_SHOW, this.handleGraphicsResourceRecovery, this);
+    this.graphicsCanvas = game.canvas;
+    this.graphicsCanvas?.addEventListener(
+      'webglcontextrestored',
+      this.handleGraphicsResourceRecovery,
+    );
     this.initializePerformanceController();
   }
 
@@ -35,11 +42,21 @@ export class BattlefieldSceneEntry extends Component {
 
   protected onDestroy(): void {
     this.disposed = true;
+    game.off(Game.EVENT_SHOW, this.handleGraphicsResourceRecovery, this);
+    this.graphicsCanvas?.removeEventListener(
+      'webglcontextrestored',
+      this.handleGraphicsResourceRecovery,
+    );
+    this.graphicsCanvas = null;
     this.runtime?.dispose();
     this.performanceController?.dispose();
     this.runtime = null;
     this.performanceController = null;
   }
+
+  private readonly handleGraphicsResourceRecovery = (): void => {
+    this.runtime?.forceResynchronizeRendering();
+  };
 
   /** 场景激活后取得战场独立的性能控制生命周期。 */
   private initializePerformanceController(): void {

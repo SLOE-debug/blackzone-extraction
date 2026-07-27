@@ -32,11 +32,8 @@ export const SLEDGEHAMMER_PROTOTYPE = Object.freeze({
   held: Object.freeze({
     grip: WeaponGrip.OneHandHeavy,
     heldScale: 0.45,
-    originRightOffset: 0.03,
-    originHeightOffset: 0.02,
-    originForwardOffset: 0.02,
-    rotationXDegrees: -4,
-    rotationYDegrees: 0,
-    rotationZDegrees: -8,
+    mainGripLocalPosition: Object.freeze({ x: 0, y: 0, z: 0 }),
+    hammerHeadLocalPosition: Object.freeze({ x: 0, y: -3.08, z: 0 }),
+    hammerHeadRadius: 0.82,
   }),
 }) satisfies BattlefieldEquipmentPrototype<EquipmentId.Sledgehammer>;

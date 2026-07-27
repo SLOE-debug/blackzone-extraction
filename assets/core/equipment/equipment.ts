@@ -29,6 +29,7 @@ export enum WeaponAction {
   WindupRight = 'windup-right',
   SwingRight = 'swing-right',
   Uppercut = 'uppercut',
+  GroundSlam = 'ground-slam',
   Spin = 'spin',
   Recover = 'recover',
 }

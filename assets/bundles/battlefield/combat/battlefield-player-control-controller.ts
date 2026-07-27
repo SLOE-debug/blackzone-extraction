@@ -3,6 +3,7 @@ import { VanguardWeaponAction } from '../../../player/vanguard/model/vanguard-we
 import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weapon-pose';
 import { type VanguardPopulation } from '../../../player/vanguard/population/vanguard-population';
 import { type BattlefieldFacingLockEffect } from '../equipment/combat/battlefield-facing-lock-effect';
+import { SLEDGEHAMMER_PROGRESSION } from '../equipment/items/sledgehammer/sledgehammer-progression';
 import { type BattlefieldCameraRig } from '../scene/battlefield-camera';
 import { type MutableBattlefieldPlanarDirection } from '../scene/battlefield-camera-direction';
 import { type BattlefieldScreenControlState } from '../ui/battlefield-control-hud';
@@ -18,6 +19,7 @@ interface MutableVanguardControlIntent extends VanguardControlIntent {
   weaponPose: VanguardWeaponPose;
   weaponAction: VanguardWeaponAction;
   weaponActionProgress: number;
+  weaponActionSide: -1 | 0 | 1;
 }
 
 /** 把左摇杆映射为移动、右摇杆映射为攻击朝向，并在移动前应用朝向锁定。 */
@@ -35,6 +37,7 @@ export class BattlefieldPlayerControlController {
     weaponPose: VanguardWeaponPose.Unarmed,
     weaponAction: VanguardWeaponAction.Idle,
     weaponActionProgress: 0,
+    weaponActionSide: 0,
   };
 
   /** 写入玩家本帧完整控制意图。 */
@@ -45,6 +48,7 @@ export class BattlefieldPlayerControlController {
     weaponPose: VanguardWeaponPose,
     weaponAction: VanguardWeaponAction,
     weaponActionProgress: number,
+    weaponActionSide: -1 | 0 | 1,
     movementSpeedMultiplier: number,
     weaponMovementScale: number,
     facingLock: Readonly<BattlefieldFacingLockEffect> | null,
@@ -67,6 +71,7 @@ export class BattlefieldPlayerControlController {
     intent.weaponPose = weaponPose;
     intent.weaponAction = weaponAction;
     intent.weaponActionProgress = weaponActionProgress;
+    intent.weaponActionSide = weaponActionSide;
     intent.facingLocked = facingLock !== null;
     intent.lockedHeading = facingLock?.lockedHeading ?? player.heading;
     if (controls.attacking) {
@@ -80,6 +85,17 @@ export class BattlefieldPlayerControlController {
       intent.attacking = true;
     } else {
       intent.attacking = false;
+    }
+    if (weaponAction === VanguardWeaponAction.GroundSlam) {
+      const stepProgress = Math.max(0, Math.min(
+        1,
+        (weaponActionProgress - SLEDGEHAMMER_PROGRESSION.groundSlamStepStartProgress)
+          / SLEDGEHAMMER_PROGRESSION.groundSlamStepDurationProgress,
+      ));
+      const stepSpeed = Math.sin(stepProgress * Math.PI)
+        * SLEDGEHAMMER_PROGRESSION.groundSlamStepInputScale;
+      intent.moveX = Math.sin(player.heading) * stepSpeed;
+      intent.moveZ = Math.cos(player.heading) * stepSpeed;
     }
     player.setControlIntent(intent);
   }

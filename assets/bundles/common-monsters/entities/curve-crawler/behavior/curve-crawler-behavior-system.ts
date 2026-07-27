@@ -26,7 +26,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
         intent.gaitMultiplier[index] = 0;
         continue;
       }
-      if ((effects.rootElevation[index] ?? 0) > 0) {
+      if ((effects.airborneActive[index] ?? 0) !== 0) {
         intent.targetSpeed[index] = 0;
         intent.targetBite[index] = 0;
         intent.gaitMultiplier[index] = 0;
@@ -101,7 +101,7 @@ export class CurveCrawlerBehaviorSystem implements EntitySystem<CurveCrawlerStat
       if ((vitality.state[index] as MonsterLifecycleState) !== MonsterLifecycleState.Alive) {
         continue;
       }
-      if ((effects.rootElevation[index] ?? 0) > 0) {
+      if ((effects.airborneActive[index] ?? 0) !== 0) {
         continue;
       }
       behavior.action[index] = CurveCrawlerAction.Scuttle;

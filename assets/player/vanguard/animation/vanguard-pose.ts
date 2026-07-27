@@ -34,6 +34,7 @@ export function createVanguardBindPoseMatrices(): Float64Array {
     0,
     VanguardWeaponAction.Idle,
     0,
+    0,
   );
   return matrices;
 }
@@ -71,6 +72,7 @@ export function writeVanguardPoseMatrices(
   weaponStanceBlend: number,
   weaponAction: VanguardWeaponAction,
   weaponActionProgress: number,
+  weaponActionSide: -1 | 0 | 1,
 ): void {
   const entityOffset = entityIndex
     * VanguardBone.Count
@@ -80,6 +82,9 @@ export function writeVanguardPoseMatrices(
   const actionProgress = Math.max(0, Math.min(1, weaponActionProgress));
   const rawAttackAmount = getWeaponAttackAmount(weaponAction, actionProgress);
   const attackAmount = rawAttackAmount * rawAttackAmount * (3 - rawAttackAmount * 2);
+  const attackSide = getWeaponAttackSide(weaponAction, weaponActionSide);
+  const signedAttackAmount = attackAmount * attackSide;
+  const weaponBodyYaw = getWeaponBodyYaw(weaponAction, actionProgress, signedAttackAmount);
   const strideWave = Math.sin(locomotionPhase);
   const bodyBob = Math.abs(Math.cos(locomotionPhase)) * 0.065 * locomotion;
   const leftStepLift = Math.max(0, strideWave) * 0.36 * locomotion;
@@ -116,7 +121,7 @@ export function writeVanguardPoseMatrices(
     sway,
     VANGUARD_ANATOMY.pelvisY + bodyBob,
     0,
-    0,
+    weaponBodyYaw * 0.42,
     -sway * 0.5,
     positionX,
     positionY,
@@ -131,7 +136,7 @@ export function writeVanguardPoseMatrices(
     sway * 0.35,
     VANGUARD_ANATOMY.chestY + breath + bodyBob,
     0.012 + locomotion * 0.1,
-    0,
+    weaponBodyYaw,
     sway * 0.42,
     positionX,
     positionY,
@@ -146,7 +151,7 @@ export function writeVanguardPoseMatrices(
     sway * 0.18,
     VANGUARD_ANATOMY.neckY + breath * 0.75 + bodyBob,
     0.018 + locomotion * 0.075,
-    headYaw * 0.46,
+    weaponBodyYaw * 0.7 + headYaw * 0.46,
     0,
     positionX,
     positionY,
@@ -161,7 +166,7 @@ export function writeVanguardPoseMatrices(
     sway * 0.12,
     VANGUARD_ANATOMY.headPivotY + breath * 0.7 + bodyBob,
     0.018 + locomotion * 0.055,
-    headYaw,
+    weaponBodyYaw * 0.45 + headYaw,
     -sway * 0.15,
     positionX,
     positionY,
@@ -171,7 +176,13 @@ export function writeVanguardPoseMatrices(
   );
 
   const leftShoulderX = -VANGUARD_ANATOMY.shoulderHalfWidth + sway * 0.08;
-  const rightShoulderX = VANGUARD_ANATOMY.shoulderHalfWidth + sway * 0.08;
+  const rightShoulderBaseX = VANGUARD_ANATOMY.shoulderHalfWidth + sway * 0.08;
+  const weaponYawCosine = Math.cos(weaponBodyYaw);
+  const weaponYawSine = Math.sin(weaponBodyYaw);
+  const rightShoulderX = rightShoulderBaseX * weaponYawCosine
+    + 0.008 * weaponYawSine;
+  const rightShoulderZ = -rightShoulderBaseX * weaponYawSine
+    + 0.008 * weaponYawCosine;
   const shoulderY = VANGUARD_ANATOMY.shoulderY + breath * 0.55 + bodyBob;
   const leftShoulderLift = shoulderLift * 0.9;
   const rightShoulderLift = shoulderLift;
@@ -233,7 +244,7 @@ export function writeVanguardPoseMatrices(
   );
   const rightElbowX = lerp(
     VANGUARD_ANATOMY.rightElbowX + sway * 0.04,
-    stance.rightElbow.x + stance.rightElbow.attackX * attackAmount,
+    stance.rightElbow.x + stance.rightElbow.attackX * signedAttackAmount,
     rightWeaponStance,
   );
   const rightElbowY = lerp(
@@ -243,14 +254,19 @@ export function writeVanguardPoseMatrices(
       - stance.rightElbow.attackShoulderDrop * attackAmount,
     rightWeaponStance,
   );
-  const rightElbowZ = lerp(
+  const rightElbowBaseZ = lerp(
     0.13 + rightArmSwing * 0.28,
     stance.rightElbow.z + stance.rightElbow.attackZ * attackAmount,
     rightWeaponStance,
   );
-  const rightWristX = lerp(
+  const rightElbowBaseX = rightElbowX;
+  const posedRightElbowX = rightElbowBaseX * weaponYawCosine
+    + rightElbowBaseZ * weaponYawSine;
+  const rightElbowZ = -rightElbowBaseX * weaponYawSine
+    + rightElbowBaseZ * weaponYawCosine;
+  const rightWristBaseX = lerp(
     VANGUARD_ANATOMY.rightWristX + armRelax,
-    stance.rightWrist.x + stance.rightWrist.attackX * attackAmount,
+    stance.rightWrist.x + stance.rightWrist.attackX * signedAttackAmount,
     rightWeaponStance,
   );
   const rightWristY = lerp(
@@ -260,14 +276,18 @@ export function writeVanguardPoseMatrices(
       - stance.rightWrist.attackShoulderDrop * attackAmount,
     rightWeaponStance,
   );
-  const rightWristZ = lerp(
+  const rightWristBaseZ = lerp(
     0.14 + rightArmSwing * 0.86,
     stance.rightWrist.z + stance.rightWrist.attackZ * attackAmount,
     rightWeaponStance,
   );
-  const rightHandX = lerp(
+  const rightWristX = rightWristBaseX * weaponYawCosine
+    + rightWristBaseZ * weaponYawSine;
+  const rightWristZ = -rightWristBaseX * weaponYawSine
+    + rightWristBaseZ * weaponYawCosine;
+  const rightHandBaseX = lerp(
     VANGUARD_ANATOMY.rightHandX + armRelax * 1.2,
-    stance.rightHand.x + stance.rightHand.attackX * attackAmount,
+    stance.rightHand.x + stance.rightHand.attackX * signedAttackAmount,
     rightWeaponStance,
   );
   const rightHandY = lerp(
@@ -277,11 +297,15 @@ export function writeVanguardPoseMatrices(
       - stance.rightHand.attackShoulderDrop * attackAmount,
     rightWeaponStance,
   );
-  const rightHandZ = lerp(
+  const rightHandBaseZ = lerp(
     0.2 + rightArmSwing,
     stance.rightHand.z + stance.rightHand.attackZ * attackAmount,
     rightWeaponStance,
   );
+  const rightHandX = rightHandBaseX * weaponYawCosine
+    + rightHandBaseZ * weaponYawSine;
+  const rightHandZ = -rightHandBaseX * weaponYawSine
+    + rightHandBaseZ * weaponYawCosine;
 
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.LeftUpperArm,
@@ -303,13 +327,13 @@ export function writeVanguardPoseMatrices(
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightUpperArm,
-    rightShoulderX, shoulderY + rightShoulderLift, 0.008,
-    rightElbowX, rightElbowY, rightElbowZ,
+    rightShoulderX, shoulderY + rightShoulderLift, rightShoulderZ,
+    posedRightElbowX, rightElbowY, rightElbowZ,
     positionX, positionY, positionZ, heading, scale,
   );
   writeSegmentFrame(
     matrices, entityOffset, VanguardBone.RightForearm,
-    rightElbowX, rightElbowY, rightElbowZ,
+    posedRightElbowX, rightElbowY, rightElbowZ,
     rightWristX, rightWristY, rightWristZ,
     positionX, positionY, positionZ, heading, scale,
   );
@@ -383,6 +407,7 @@ export function writeVanguardPoseMatrices(
     rightHandX,
     rightHandY,
     rightHandZ,
+    weaponBodyYaw,
     positionX,
     positionY,
     positionZ,
@@ -405,6 +430,7 @@ function getWeaponAttackAmount(
     case VanguardWeaponAction.SwingRight:
       return 1 - progress * 0.35;
     case VanguardWeaponAction.Uppercut:
+    case VanguardWeaponAction.GroundSlam:
       return Math.sin(progress * Math.PI);
     case VanguardWeaponAction.Spin:
       return 0.82;
@@ -413,4 +439,38 @@ function getWeaponAttackAmount(
     case VanguardWeaponAction.Idle:
       return 0;
   }
+}
+
+/** 保留横扫方向，Recover 则直接读取动作状态持续传入的 side。 */
+function getWeaponAttackSide(
+  action: VanguardWeaponAction,
+  side: -1 | 0 | 1,
+): -1 | 0 | 1 {
+  switch (action) {
+    case VanguardWeaponAction.WindupLeft:
+    case VanguardWeaponAction.SwingLeft:
+      return -1;
+    case VanguardWeaponAction.WindupRight:
+    case VanguardWeaponAction.SwingRight:
+      return 1;
+    case VanguardWeaponAction.Recover:
+      return side;
+    case VanguardWeaponAction.Idle:
+    case VanguardWeaponAction.Uppercut:
+    case VanguardWeaponAction.GroundSlam:
+    case VanguardWeaponAction.Spin:
+      return 0;
+  }
+}
+
+/** 胸腔和右肩与横扫同向蓄力；旋风动作则让上身与握点整体转动。 */
+function getWeaponBodyYaw(
+  action: VanguardWeaponAction,
+  progress: number,
+  signedAttackAmount: number,
+): number {
+  if (action === VanguardWeaponAction.Spin) {
+    return progress * Math.PI * 6;
+  }
+  return signedAttackAmount * 0.5;
 }

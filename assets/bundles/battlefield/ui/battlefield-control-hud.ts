@@ -21,9 +21,10 @@ import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
 import { BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
 import {
-  BattlefieldSkillButton,
-  BattlefieldSkillButtonCommand,
-} from './battlefield-skill-button';
+  BattlefieldRadialSkill,
+  BattlefieldRadialSkillButtons,
+  type BattlefieldRadialSkillCommands,
+} from './battlefield-radial-skill-buttons';
 
 const BATTLEFIELD_INTERACTION_ICONS = Object.freeze({
   [BattlefieldInteractionAction.OpenContainer]: VirtualJoystickActionIcon.OpenContainer,
@@ -49,14 +50,14 @@ interface MutableBattlefieldScreenControlState {
   cameraOrbitDeltaX: number;
 }
 
-/** 装配移动摇杆、攻击摇杆、内嵌技能键和固定物品栏。 */
+/** 装配移动摇杆、攻击摇杆、三枚径向技能键和固定物品栏。 */
 export class BattlefieldControlHud {
   public readonly state: BattlefieldScreenControlState;
   private readonly canvas: ScreenUiCanvas;
   private readonly gameplayGraphics: BattlefieldGameplayGraphics;
   private readonly movementJoystick: VirtualJoystick;
   private readonly attackJoystick: VirtualJoystick;
-  private readonly skillButton: BattlefieldSkillButton;
+  private readonly radialSkillButtons: BattlefieldRadialSkillButtons;
   private readonly inventoryHud: BattlefieldInventoryHud;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
   private readonly playerStatus: BattlefieldPlayerStatusHud;
@@ -100,7 +101,7 @@ export class BattlefieldControlHud {
     let gameplayGraphics: BattlefieldGameplayGraphics | null = null;
     let movementJoystick: VirtualJoystick | null = null;
     let attackJoystick: VirtualJoystick | null = null;
-    let skillButton: BattlefieldSkillButton | null = null;
+    let radialSkillButtons: BattlefieldRadialSkillButtons | null = null;
     let inventoryHud: BattlefieldInventoryHud | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
     let equipmentLabel: BattlefieldEquipmentLabelHud | null = null;
@@ -118,7 +119,7 @@ export class BattlefieldControlHud {
         'AttackJoystick',
         BATTLEFIELD_CONTROL_STYLE.attack,
       );
-      skillButton = new BattlefieldSkillButton(this.canvas.node);
+      radialSkillButtons = new BattlefieldRadialSkillButtons(this.canvas.node);
       inventoryHud = new BattlefieldInventoryHud(this.canvas.node, (slotIndex) => {
         this.inventory.swapWithSecured(slotIndex);
         this.synchronizeInventory();
@@ -137,7 +138,7 @@ export class BattlefieldControlHud {
       this.gameplayGraphics = gameplayGraphics;
       this.movementJoystick = movementJoystick;
       this.attackJoystick = attackJoystick;
-      this.skillButton = skillButton;
+      this.radialSkillButtons = radialSkillButtons;
       this.inventoryHud = inventoryHud;
       this.cameraOrbitInput = cameraOrbitInput;
       this.equipmentLabel = equipmentLabel;
@@ -153,7 +154,7 @@ export class BattlefieldControlHud {
       equipmentLabel?.dispose();
       cameraOrbitInput?.dispose();
       inventoryHud?.dispose();
-      skillButton?.dispose();
+      radialSkillButtons?.dispose();
       movementJoystick?.dispose();
       attackJoystick?.dispose();
       gameplayGraphics?.dispose();
@@ -175,7 +176,6 @@ export class BattlefieldControlHud {
     }
     this.canvas.synchronizeFrame();
     this.synchronizeLayout();
-    this.skillButton.update(deltaTime);
     this.writeMovementState();
     this.writeAttackState();
     this.writeCameraOrbitState();
@@ -209,12 +209,12 @@ export class BattlefieldControlHud {
     return pressed;
   }
 
-  public consumeSkillCommand(): BattlefieldSkillButtonCommand {
-    return this.skillButton.consumeCommand();
+  public consumeSkillCommands(): Readonly<BattlefieldRadialSkillCommands> {
+    return this.radialSkillButtons.consumeCommands();
   }
 
   public presentHammerStatus(status: Readonly<BattlefieldHammerStatus>): void {
-    this.skillButton.presentCharge(
+    this.radialSkillButtons.presentCharge(
       status.hitCount,
       status.requiredHits,
       status.momentumReady,
@@ -274,7 +274,7 @@ export class BattlefieldControlHud {
     this.playerStatus.dispose();
     this.equipmentLabel.dispose();
     this.inventoryHud.dispose();
-    this.skillButton.dispose();
+    this.radialSkillButtons.dispose();
     this.movementJoystick.dispose();
     this.attackJoystick.dispose();
     this.gameplayGraphics.dispose();
@@ -310,10 +310,7 @@ export class BattlefieldControlHud {
     const centerY = -height * 0.5 + maximumInteractionRadius + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
     this.attackJoystick.setPosition(rightX, centerY);
-    this.skillButton.setPosition(
-      rightX + style.attack.radius * 0.62,
-      centerY + style.attack.radius * 0.62,
-    );
+    this.radialSkillButtons.setLayout(rightX, centerY, style.skillOrbitRadius);
     this.inventoryHud.synchronizeLayout(width, height);
     this.playerStatus.synchronizeLayout(width, height);
     this.layoutWidth = width;
@@ -327,7 +324,7 @@ export class BattlefieldControlHud {
       this.movementJoystick,
       this.attackJoystick,
       this.playerStatus,
-      this.skillButton,
+      this.radialSkillButtons,
       this.inventoryHud,
     );
   }
@@ -406,8 +403,14 @@ export class BattlefieldControlHud {
         }
         this.interactionKeyDown = pressed;
         break;
-      case KeyCode.SPACE:
-        this.skillButton.setKeyboardActive(pressed);
+      case KeyCode.DIGIT_1:
+        this.radialSkillButtons.setKeyboardActive(BattlefieldRadialSkill.Spin, pressed);
+        break;
+      case KeyCode.DIGIT_2:
+        this.radialSkillButtons.setKeyboardActive(BattlefieldRadialSkill.GroundSlam, pressed);
+        break;
+      case KeyCode.DIGIT_3:
+        this.radialSkillButtons.setKeyboardActive(BattlefieldRadialSkill.Uppercut, pressed);
         break;
       case KeyCode.ARROW_UP:
       case KeyCode.KEY_I:

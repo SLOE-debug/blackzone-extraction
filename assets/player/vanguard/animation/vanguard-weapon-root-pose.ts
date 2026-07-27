@@ -7,7 +7,7 @@ import {
   getVanguardWeaponRigProfile,
   VanguardWeaponRigSocket,
 } from '../model/vanguard-weapon-rig';
-import { writePitchFrame } from './vanguard-pose-frame';
+import { writeYawPitchFrame } from './vanguard-pose-frame';
 import { VANGUARD_WEAPON_SOCKET_DISTANCE } from './vanguard-weapon-socket-pose';
 
 const POSITION_EPSILON = 0.000001;
@@ -23,6 +23,7 @@ export function writeVanguardWeaponRootFrame(
   handX: number,
   handY: number,
   handZ: number,
+  actionYaw: number,
   positionX: number,
   positionY: number,
   positionZ: number,
@@ -47,16 +48,21 @@ export function writeVanguardWeaponRootFrame(
   const pitch = profile.readyPitch;
   const pitchCosine = Math.cos(pitch);
   const pitchSine = Math.sin(pitch);
-  const rootX = gripX - mainGrip.x;
-  const rootY = gripY - mainGrip.y * pitchCosine + mainGrip.z * pitchSine;
-  const rootZ = gripZ - mainGrip.y * pitchSine - mainGrip.z * pitchCosine;
-  writePitchFrame(
+  const yawCosine = Math.cos(actionYaw);
+  const yawSine = Math.sin(actionYaw);
+  const pitchedGripY = mainGrip.y * pitchCosine - mainGrip.z * pitchSine;
+  const pitchedGripZ = mainGrip.y * pitchSine + mainGrip.z * pitchCosine;
+  const rootX = gripX - mainGrip.x * yawCosine - pitchedGripZ * yawSine;
+  const rootY = gripY - pitchedGripY;
+  const rootZ = gripZ + mainGrip.x * yawSine - pitchedGripZ * yawCosine;
+  writeYawPitchFrame(
     matrices,
     entityOffset,
     VanguardBone.WeaponRoot,
     rootX,
     rootY,
     rootZ,
+    actionYaw,
     pitch,
     positionX,
     positionY,

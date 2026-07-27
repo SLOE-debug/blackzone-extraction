@@ -81,6 +81,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       animation.weaponStanceBlend[index] ?? 0,
       intent.weaponAction[index] as VanguardWeaponAction,
       intent.weaponActionProgress[index] ?? 0,
+      (intent.weaponActionSide[index] ?? 0) as -1 | 0 | 1,
     );
   }
 }

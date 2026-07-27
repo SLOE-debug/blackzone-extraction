@@ -19,6 +19,7 @@ import { BattlefieldCombatEventWorldSystem } from './systems/battlefield-combat-
 import { BattlefieldWeaponInputWorldSystem } from './systems/battlefield-weapon-input-world-system';
 import { BattlefieldWeaponPoseWorldSystem } from './systems/battlefield-weapon-pose-world-system';
 import { BattlefieldMonsterEffectWorldSystem } from './systems/battlefield-monster-effect-world-system';
+import { BattlefieldHammerSweepWorldSystem } from './systems/battlefield-hammer-sweep-world-system';
 
 interface MutableBattlefieldMonsterCombatTarget extends BattlefieldMonsterCombatTarget {
   x: number;
@@ -68,6 +69,7 @@ export class BattlefieldWorld {
     this.scheduler.register(new BattlefieldEnvironmentWorldSystem());
     this.scheduler.register(new BattlefieldGroundWorldSystem());
     this.scheduler.register(new BattlefieldMonsterSpatialIndexWorldSystem());
+    this.scheduler.register(new BattlefieldHammerSweepWorldSystem());
     this.scheduler.register(new BattlefieldMonsterAttackWorldSystem());
     this.scheduler.register(new BattlefieldCombatEventWorldSystem());
     this.scheduler.register(new BattlefieldMonsterRenderingWorldSystem());

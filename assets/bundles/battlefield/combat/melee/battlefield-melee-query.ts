@@ -8,6 +8,15 @@ export interface BattlefieldMeleeQuery {
   readonly arcRadians: number;
 }
 
+/** 真实锤头连续两帧之间的世界空间 Swept Capsule 查询。 */
+export interface BattlefieldMeleeSweepQuery {
+  readonly startX: number;
+  readonly startZ: number;
+  readonly endX: number;
+  readonly endZ: number;
+  readonly radius: number;
+}
+
 /** 预分配的近战命中结果，避免攻击热路径创建对象。 */
 export class BattlefieldMeleeHitBuffer {
   public readonly populationIds: Uint32Array;

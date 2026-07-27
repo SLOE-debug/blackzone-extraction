@@ -39,6 +39,8 @@ export const VENOM_LOBBER_SCHEMA = defineEntitySchema({
     deathEffectSpawned: entityField(Uint8Array, 1),
   },
   effects: {
+    /** 通用腾空 Effect 是否正在控制行为、移动和战斗。 */
+    externalAirborneActive: entityField(Uint8Array, 1),
     /** 通用腾空模拟与怪物自身出生、死亡高度分开保存。 */
     externalElevation: entityField(Float32Array, 1),
   },

@@ -4,6 +4,7 @@ import { BATTLEFIELD_MONSTER_SPAWN } from '../model/battlefield-monster-spawn';
 import {
   type BattlefieldMeleeHitBuffer,
   type BattlefieldMeleeQuery,
+  type BattlefieldMeleeSweepQuery,
 } from '../combat/melee/battlefield-melee-query';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 
@@ -76,6 +77,48 @@ export class BattlefieldMonsterTargetRegistry {
     return result.count;
   }
 
+  /** 用共享 Crowd DDA 宽相位和线段距离窄相位收集锤头连续扫掠目标。 */
+  public collectMeleeSweepHits(
+    query: Readonly<BattlefieldMeleeSweepQuery>,
+    result: BattlefieldMeleeHitBuffer,
+  ): number {
+    validateMeleeSweepQuery(query);
+    result.reset();
+    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    const inverseScale = 1 / scale;
+    const startX = query.startX * inverseScale;
+    const startY = -query.startZ * inverseScale;
+    const endX = query.endX * inverseScale;
+    const endY = -query.endZ * inverseScale;
+    const radius = query.radius * inverseScale;
+    this.crowd.collectSegmentCandidates(
+      startX,
+      startY,
+      endX,
+      endY,
+      radius,
+      this.candidates,
+    );
+    for (let index = 0; index < this.candidates.count; index++) {
+      const populationId = this.candidates.populationIds[index] ?? 0;
+      const entityId = this.candidates.entityIndices[index] ?? 0;
+      const group = this.findGroup(populationId);
+      const crowd = group?.crowdPopulation;
+      if (crowd === undefined) {
+        continue;
+      }
+      const targetX = crowd.x[entityId] ?? 0;
+      const targetY = crowd.y[entityId] ?? 0;
+      const contactRadius = radius + (crowd.radius[entityId] ?? 0);
+      if (distanceSquaredToSegment(targetX, targetY, startX, startY, endX, endY)
+        > contactRadius * contactRadius) {
+        continue;
+      }
+      result.include(populationId, entityId, targetX * scale, -targetY * scale);
+    }
+    return result.count;
+  }
+
   public getKnockbackResistance(populationId: number): number {
     return this.findGroup(populationId)?.knockbackResistanceScale ?? 0;
   }
@@ -116,4 +159,34 @@ function validateMeleeQuery(query: Readonly<BattlefieldMeleeQuery>): void {
     || Math.abs(Math.hypot(query.directionX, query.directionZ) - 1) > 0.001) {
     throw new Error('近战查询必须使用单位方向、有限正射程和合法弧度。');
   }
+}
+
+function validateMeleeSweepQuery(query: Readonly<BattlefieldMeleeSweepQuery>): void {
+  if (![query.startX, query.startZ, query.endX, query.endZ, query.radius].every(Number.isFinite)
+    || query.radius <= 0) {
+    throw new Error('锤头连续扫掠查询必须使用有限端点和正半径。');
+  }
+}
+
+/** 返回平面点到有限线段的平方距离。 */
+export function distanceSquaredToSegment(
+  pointX: number,
+  pointY: number,
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number,
+): number {
+  const segmentX = endX - startX;
+  const segmentY = endY - startY;
+  const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+  const progress = lengthSquared <= DIRECTION_EPSILON
+    ? 0
+    : Math.max(0, Math.min(1,
+      ((pointX - startX) * segmentX + (pointY - startY) * segmentY) / lengthSquared));
+  const nearestX = startX + segmentX * progress;
+  const nearestY = startY + segmentY * progress;
+  const deltaX = pointX - nearestX;
+  const deltaY = pointY - nearestY;
+  return deltaX * deltaX + deltaY * deltaY;
 }

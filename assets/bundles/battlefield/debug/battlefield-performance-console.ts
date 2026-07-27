@@ -14,6 +14,11 @@ export interface BattlefieldPerformanceSnapshot {
   residentMonsters: number;
   visibleMonsters: number;
   monsterRenderCapacity: number;
+  simulationPoseRevision: number;
+  packedPoseRevision: number;
+  gpuPoseUploadRevision: number;
+  forcedPoseResynchronizationCount: number;
+  poseDesynchronized: boolean;
   activeChests: number;
   openedChests: number;
   droppedEquipment: number;
@@ -201,6 +206,11 @@ function formatScale(snapshot: Readonly<BattlefieldPerformanceSnapshot>): string
     + ` | 怪物 驻留${snapshot.residentMonsters}/视锥可见${snapshot.visibleMonsters}`
     + `/存活${snapshot.aliveMonsters}`
     + `/批次容量${snapshot.monsterRenderCapacity}/槽位${snapshot.monsterSlots}`
+    + ` | 姿态版本 模拟${snapshot.simulationPoseRevision}`
+    + `/打包${snapshot.packedPoseRevision}`
+    + `/GPU${snapshot.gpuPoseUploadRevision}`
+    + `/重同步${snapshot.forcedPoseResynchronizationCount}`
+    + `/失步${formatBoolean(snapshot.poseDesynchronized)}`
     + ` | 宝箱 ${snapshot.activeChests}(已开${snapshot.openedChests})`
     + ` | 掉落 ${snapshot.droppedEquipment}`
     + `(批次${snapshot.droppedRenderBatches})`

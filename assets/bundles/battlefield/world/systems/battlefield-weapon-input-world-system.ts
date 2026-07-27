@@ -1,6 +1,5 @@
 import { WorldPhase } from '../../../../core/world/world-phase';
 import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance-contracts';
-import { BattlefieldSkillButtonCommand } from '../../ui/battlefield-skill-button';
 import { type MutableBattlefieldPlanarDirection } from '../../scene/battlefield-camera-direction';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
@@ -15,7 +14,7 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
   protected execute(world: BattlefieldWorld): void {
     const { player, camera, controls, weapon } = world.resources;
     if (!player.isAlive) {
-      controls.consumeSkillCommand();
+      controls.consumeSkillCommands();
       return;
     }
     const controlState = controls.state;
@@ -31,15 +30,15 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
         controlState.attackX > 0.15 ? true : controlState.attackX < -0.15 ? false : null,
       );
     }
-    switch (controls.consumeSkillCommand()) {
-      case BattlefieldSkillButtonCommand.Uppercut:
-        weapon.commands.requestUppercut();
-        break;
-      case BattlefieldSkillButtonCommand.Spin:
-        weapon.commands.requestSpin();
-        break;
-      case BattlefieldSkillButtonCommand.None:
-        break;
+    const skills = controls.consumeSkillCommands();
+    if (skills.spinRequested) {
+      weapon.commands.requestSpin();
+    }
+    if (skills.groundSlamRequested) {
+      weapon.commands.requestGroundSlam();
+    }
+    if (skills.uppercutRequested) {
+      weapon.commands.requestUppercut();
     }
   }
 }

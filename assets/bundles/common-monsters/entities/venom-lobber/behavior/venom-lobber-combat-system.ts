@@ -69,7 +69,7 @@ export class VenomLobberCombatSystem {
         this.disengage(state, index);
         continue;
       }
-      if ((effects.externalElevation[index] ?? 0) > 0) {
+      if ((effects.externalAirborneActive[index] ?? 0) !== 0) {
         this.disengage(state, index);
         continue;
       }

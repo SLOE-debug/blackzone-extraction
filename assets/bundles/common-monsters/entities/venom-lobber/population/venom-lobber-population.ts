@@ -142,13 +142,14 @@ implements MonsterCombatPopulation, PlanarMonsterEffectPopulation {
     return this.combat.consumeDamage();
   }
 
-  /** 写入独立于出生、死亡姿态的通用腾空高度。 */
-  public setEffectElevation(entityId: number, elevation: number): boolean {
+  /** 写入独立于出生、死亡姿态的显式腾空状态与高度。 */
+  public setAirborneEffect(entityId: number, active: boolean, elevation: number): boolean {
     this.ensureActive();
     if (!Number.isSafeInteger(entityId) || entityId < 0 || entityId >= this.state.count
       || !Number.isFinite(elevation) || elevation < 0) {
       return false;
     }
+    this.state.data.effects.externalAirborneActive[entityId] = active ? 1 : 0;
     this.state.data.effects.externalElevation[entityId] = elevation;
     return true;
   }

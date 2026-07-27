@@ -17,6 +17,7 @@ import { type VenomLobberCombatOptions } from '../model/venom-lobber-combat-opti
 import { type VenomLobberState } from '../model/venom-lobber-state';
 import { VENOM_LOBBER_TAIL_PIVOT_FORWARD } from '../model/venom-lobber-tail-socket';
 import { VenomLobberVisibilityLayout } from './venom-lobber-visibility-layout';
+import { readVenomLobberBodyRootElevation } from './venom-lobber-body-pose';
 
 const BODY_OPTIONS = Object.freeze({ castShadows: false, receiveShadows: false });
 const BODY_BOUNDS = Object.freeze({
@@ -196,8 +197,7 @@ export class VenomLobberBodyRenderer {
     const rootY = transform.y[entityIndex] ?? 0;
     const bodyBob = (animation.bodyBob[entityIndex] ?? 0) - meleeStrike * 0.16;
     const rootForward = animation.rootForward[entityIndex] ?? 0;
-    const rootElevation = (animation.rootElevation[entityIndex] ?? 0)
-      + (state.data.effects.externalElevation[entityIndex] ?? 0);
+    const rootElevation = readVenomLobberBodyRootElevation(data, entityIndex);
     const bodyCompression = animation.bodyCompression[entityIndex] ?? 1;
     const venomSacScale = animation.venomSacScale[entityIndex] ?? 1;
     const venomPressureLoss = clamp01((1 - venomSacScale) / 0.75);

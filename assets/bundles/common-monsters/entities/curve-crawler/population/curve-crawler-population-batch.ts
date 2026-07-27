@@ -2,6 +2,7 @@ import { type Camera, type EffectAsset, type Material, Node } from 'cc';
 import { type CurveCrawlerPopulationOptions } from '../model/curve-crawler-options';
 import { CurveCrawlerMotionProfile } from '../model/curve-crawler-motion-profile';
 import { CurveCrawlerSharedRenderer } from '../rendering/curve-crawler-shared-renderer';
+import { type CurveCrawlerPoseSynchronizationSnapshot } from '../rendering/curve-crawler-pose-synchronization';
 import { CurveCrawlerPopulation } from './curve-crawler-population';
 
 /** 共享批次已经固定材质模板，群体创建参数只保留领域配置。 */
@@ -53,6 +54,11 @@ export class CurveCrawlerPopulationBatch {
     return this.rendering.renderCapacity;
   }
 
+  /** 当前权威姿态从模拟到 GPU 上传的版本链。 */
+  public get poseSynchronizationSnapshot(): Readonly<CurveCrawlerPoseSynchronizationSnapshot> {
+    return this.rendering.poseSynchronizationSnapshot;
+  }
+
   /** 创建一个保留独立战斗状态、但登记到共享渲染批次的群体。 */
   public createCurveCrawler(
     options: Readonly<CurveCrawlerBatchPopulationOptions>,
@@ -72,6 +78,12 @@ export class CurveCrawlerPopulationBatch {
   public synchronize(deltaTime: number): void {
     this.ensureActive();
     this.rendering.synchronize(deltaTime);
+  }
+
+  /** 在应用或图形上下文恢复后强制重新创建并绑定姿态资源。 */
+  public forceResynchronize(): void {
+    this.ensureActive();
+    this.rendering.forceResynchronize();
   }
 
   public dispose(): void {

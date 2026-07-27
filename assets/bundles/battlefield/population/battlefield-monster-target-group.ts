@@ -9,5 +9,5 @@ export interface BattlefieldMonsterTargetGroup {
   /** 一表示完整承受，零表示免疫垂直腾空。 */
   readonly airborneResistanceScale: number;
   damageMonster(entityId: number, amount: number): void;
-  setEffectElevation(entityId: number, elevation: number): boolean;
+  setAirborneEffect(entityId: number, active: boolean, elevation: number): boolean;
 }

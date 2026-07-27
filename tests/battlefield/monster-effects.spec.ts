@@ -32,10 +32,12 @@ describe('怪物通用受力 Effect', () => {
     effects.update(0.05);
     expect(group.crowdPopulation.x[0]).toBeGreaterThan(0);
     expect(group.elevations[0]).toBeGreaterThan(0);
+    expect(group.airborne[0]).toBe(1);
     for (let frame = 0; frame < 30; frame++) {
       effects.update(0.05);
     }
     expect(group.elevations[0]).toBe(0);
+    expect(group.airborne[0]).toBe(0);
   });
 
   it('同次技能中的磁化实体碰撞只产生一次二次伤害', () => {
@@ -63,6 +65,7 @@ function createGroup(populationId: number, positions: readonly number[]) {
   const inverseMass = new Float32Array(count);
   inverseMass.fill(1);
   const elevations = new Float32Array(count);
+  const airborne = new Uint8Array(count);
   const damageEvents: number[] = [];
   return {
     populationId,
@@ -81,16 +84,19 @@ function createGroup(populationId: number, positions: readonly number[]) {
       inverseMass,
     },
     elevations,
+    airborne,
     damageEvents,
     damageMonster(entityId: number) {
       damageEvents.push(entityId);
     },
-    setEffectElevation(entityId: number, elevation: number) {
+    setAirborneEffect(entityId: number, active: boolean, elevation: number) {
+      airborne[entityId] = active ? 1 : 0;
       elevations[entityId] = elevation;
       return true;
     },
   } satisfies BattlefieldMonsterTargetGroup & {
     readonly elevations: Float32Array;
+    readonly airborne: Uint8Array;
     readonly damageEvents: number[];
   };
 }

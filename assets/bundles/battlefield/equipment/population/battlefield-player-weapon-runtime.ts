@@ -3,6 +3,7 @@ import { WeaponAction, type MeleeWeaponDefinition, type WeaponGrip } from '../..
 import {
   BattlefieldMeleeHitBuffer,
   type BattlefieldMeleeQuery,
+  type BattlefieldMeleeSweepQuery,
 } from '../../combat/melee/battlefield-melee-query';
 import { BATTLEFIELD_COMBAT_CONFIG } from '../../model/battlefield-combat-config';
 import { type BattlefieldEquipmentLibrary } from '../catalog/battlefield-equipment-contracts';
@@ -11,7 +12,8 @@ import { EquipmentId } from '../catalog/equipment-id';
 import { BattlefieldCombatEventBuffer, BattlefieldWeaponHitKind } from '../combat/battlefield-combat-event-buffer';
 import { type BattlefieldFacingLockEffect } from '../combat/battlefield-facing-lock-effect';
 import { BattlefieldHammerActionState, type MutableHammerActionEvents } from '../combat/battlefield-hammer-action-state';
-import { BattlefieldWeaponCommandBuffer, BattlefieldWeaponSpecialCommand, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
+import { BattlefieldHammerHeadSweepState } from '../combat/battlefield-hammer-head-sweep-state';
+import { BattlefieldWeaponCommandBuffer, type MutableBattlefieldWeaponCommand } from '../combat/battlefield-weapon-command-buffer';
 import { calculateLaunchVelocity, SLEDGEHAMMER_PROGRESSION } from '../items/sledgehammer/sledgehammer-progression';
 import { createHeldEquipmentMaterial } from '../rendering/held-equipment-material';
 import { HeldEquipmentRenderer } from '../rendering/held-equipment-renderer';
@@ -43,6 +45,10 @@ export interface BattlefieldWeaponRigPose {
 /** 大锤运行时依赖的异构怪物战斗门面。 */
 export interface BattlefieldHammerCombatTarget {
   collectMeleeHits(query: Readonly<BattlefieldMeleeQuery>, result: BattlefieldMeleeHitBuffer): number;
+  collectMeleeSweepHits(
+    query: Readonly<BattlefieldMeleeSweepQuery>,
+    result: BattlefieldMeleeHitBuffer,
+  ): number;
   acceptHitSequence(populationId: number, entityId: number, attackSequenceId: number): boolean;
   damageMonster(populationId: number, entityId: number, amount: number): boolean;
   applyKnockback(
@@ -91,8 +97,8 @@ export class BattlefieldPlayerWeaponRuntime {
   private readonly definition: Readonly<MeleeWeaponDefinition<EquipmentId.Sledgehammer>>;
   private readonly actionState = new BattlefieldHammerActionState();
   private readonly actionEvents: MutableHammerActionEvents = {
-    swingImpact: false,
     uppercutImpact: false,
+    groundSlamImpact: false,
     spinPulse: false,
     spinFinal: false,
   };
@@ -101,9 +107,12 @@ export class BattlefieldPlayerWeaponRuntime {
     directionX: 0,
     directionZ: 1,
     startsRight: null,
-    special: BattlefieldWeaponSpecialCommand.None,
+    uppercutRequested: false,
+    groundSlamRequested: false,
+    spinRequested: false,
   };
   private readonly meleeHits = new BattlefieldMeleeHitBuffer(MAXIMUM_MELEE_HITS);
+  private readonly hammerHeadSweep = new BattlefieldHammerHeadSweepState();
   private readonly query: {
     originX: number;
     originZ: number;
@@ -118,6 +127,19 @@ export class BattlefieldPlayerWeaponRuntime {
     directionZ: 1,
     reach: 1,
     arcRadians: Math.PI,
+  };
+  private readonly sweepQuery: {
+    startX: number;
+    startZ: number;
+    endX: number;
+    endZ: number;
+    radius: number;
+  } = {
+    startX: 0,
+    startZ: 0,
+    endX: 0,
+    endZ: 0,
+    radius: 0.1,
   };
   private readonly mutableEvent = {
     kind: BattlefieldWeaponHitKind.Swing,
@@ -178,6 +200,10 @@ export class BattlefieldPlayerWeaponRuntime {
     return this.actionState.progress;
   }
 
+  public get weaponActionSide(): -1 | 0 | 1 {
+    return this.actionState.poseSide;
+  }
+
   public get facingLock(): Readonly<BattlefieldFacingLockEffect> | null {
     return this.actionState.facingLock;
   }
@@ -194,15 +220,17 @@ export class BattlefieldPlayerWeaponRuntime {
     return this.statusValue;
   }
 
-  /** 在 ActionExecution 阶段消费输入并生成近战命中事件。 */
+  /** 在 PreSimulation 阶段消费输入并推进大锤动作时间轴。 */
   public updateActions(deltaTime: number, owner: Readonly<BattlefieldWeaponOwnerState>): void {
     this.ensureActive();
     this.events.beginFrame();
     this.commands.consume(this.command);
     if (owner.alive) {
-      if (this.command.special === BattlefieldWeaponSpecialCommand.Spin) {
+      if (this.command.spinRequested) {
         this.actionState.requestSpin(owner.heading, SLEDGEHAMMER_PROGRESSION.spinDurationSeconds);
-      } else if (this.command.special === BattlefieldWeaponSpecialCommand.Uppercut) {
+      } else if (this.command.groundSlamRequested) {
+        this.actionState.requestGroundSlam(owner.heading);
+      } else if (this.command.uppercutRequested) {
         this.actionState.requestUppercut(owner.heading);
       } else if (this.command.swingRequested) {
         this.actionState.requestSwing(
@@ -218,11 +246,22 @@ export class BattlefieldPlayerWeaponRuntime {
       SLEDGEHAMMER_PROGRESSION.spinPulseIntervalSeconds,
       this.actionEvents,
     );
-    if (this.actionEvents.swingImpact) {
-      this.queueHits(owner, BattlefieldWeaponHitKind.Swing);
+  }
+
+  /** 在怪物空间索引更新后，用同帧视觉锤头轨迹生成全部命中事件。 */
+  public collectCombatHits(owner: Readonly<BattlefieldWeaponOwnerState>): void {
+    this.ensureActive();
+    if (!owner.alive) {
+      return;
     }
-    if (this.actionEvents.uppercutImpact) {
-      this.queueHits(owner, BattlefieldWeaponHitKind.Uppercut);
+    if (this.actionState.sweepActive && this.hammerHeadSweep.ready) {
+      this.queueHammerSweepHits(owner, BattlefieldWeaponHitKind.Swing);
+    }
+    if (this.actionEvents.uppercutImpact && this.hammerHeadSweep.ready) {
+      this.queueHammerSweepHits(owner, BattlefieldWeaponHitKind.Uppercut);
+    }
+    if (this.actionEvents.groundSlamImpact) {
+      this.queueHits(owner, BattlefieldWeaponHitKind.GroundSlam);
     }
     if (this.actionEvents.spinPulse) {
       this.queueHits(owner, BattlefieldWeaponHitKind.SpinPulse);
@@ -235,6 +274,7 @@ export class BattlefieldPlayerWeaponRuntime {
   /** 在 PostSimulation 阶段统一结算 Damage 与通用 Effect。 */
   public resolveCombatEvents(): void {
     this.ensureActive();
+    let confirmedSwing = false;
     for (let index = 0; index < this.events.count; index++) {
       const populationId = this.events.populationId[index] ?? 0;
       const entityId = this.events.entityId[index] ?? 0;
@@ -244,6 +284,10 @@ export class BattlefieldPlayerWeaponRuntime {
         this.events.attackSequenceId[index] ?? 0,
       )) {
         continue;
+      }
+      if ((this.events.kind[index] as BattlefieldWeaponHitKind)
+        === BattlefieldWeaponHitKind.Swing) {
+        confirmedSwing = true;
       }
       this.monsters.damageMonster(populationId, entityId, this.events.damage[index] ?? 0);
       this.monsters.applyKnockback(populationId, entityId, {
@@ -271,26 +315,23 @@ export class BattlefieldPlayerWeaponRuntime {
         );
       }
     }
+    if (confirmedSwing) {
+      this.actionState.recordConfirmedAttack(this.definition);
+    }
   }
 
   /** 在角色动画刷新后同步右手挂点和动作曲线。 */
   public synchronizeHeldPose(
-    deltaTime: number,
     pose: Readonly<BattlefieldWeaponRigPose>,
   ): void {
     this.ensureActive();
-    this.renderer.setRigPose(
-      deltaTime,
+    const worldPose = this.renderer.setRigPose(
       this.actionState.action,
       this.actionState.progress,
-      pose.rootX,
-      pose.rootY,
-      pose.rootZ,
-      pose.rotationX,
-      pose.rotationY,
-      pose.rotationZ,
-      pose.rotationW,
+      this.actionState.poseSide,
+      pose,
     );
+    this.hammerHeadSweep.synchronize(worldPose, this.renderer.hammerHeadRadius);
   }
 
   public dispose(): void {
@@ -308,26 +349,44 @@ export class BattlefieldPlayerWeaponRuntime {
   ): void {
     const definition = this.definition;
     const query = this.query;
-    query.originX = owner.positionX;
-    query.originZ = owner.positionZ;
+    const groundSlam = kind === BattlefieldWeaponHitKind.GroundSlam;
+    query.originX = groundSlam ? this.hammerHeadSweep.currentX : owner.positionX;
+    query.originZ = groundSlam ? this.hammerHeadSweep.currentZ : owner.positionZ;
     query.directionX = this.actionState.directionX;
     query.directionZ = this.actionState.directionZ;
     query.reach = kind === BattlefieldWeaponHitKind.SpinPulse
       || kind === BattlefieldWeaponHitKind.SpinFinal
       ? definition.reach * 1.12
-      : definition.reach;
+      : groundSlam
+        ? definition.reach * SLEDGEHAMMER_PROGRESSION.groundSlamReachScale
+        : definition.reach;
     query.arcRadians = kind === BattlefieldWeaponHitKind.SpinPulse
       || kind === BattlefieldWeaponHitKind.SpinFinal
       ? Math.PI * 2
-      : kind === BattlefieldWeaponHitKind.Uppercut
-        ? definition.hitArcRadians * 0.55
+      : groundSlam
+        ? Math.PI * 2
         : definition.hitArcRadians;
     const hitCount = this.monsters.collectMeleeHits(query, this.meleeHits);
     for (let index = 0; index < hitCount; index++) {
       this.writeHitEvent(index, kind, owner);
     }
-    if (hitCount > 0 && kind === BattlefieldWeaponHitKind.Swing) {
-      this.actionState.recordConfirmedAttack(definition);
+  }
+
+  /** 用视觉锤头前后位置构造 Swept Capsule，并沿攻击序列持续去重。 */
+  private queueHammerSweepHits(
+    owner: Readonly<BattlefieldWeaponOwnerState>,
+    kind: BattlefieldWeaponHitKind.Swing | BattlefieldWeaponHitKind.Uppercut,
+  ): void {
+    const sweep = this.hammerHeadSweep;
+    const query = this.sweepQuery;
+    query.startX = sweep.previousX;
+    query.startZ = sweep.previousZ;
+    query.endX = sweep.currentX;
+    query.endZ = sweep.currentZ;
+    query.radius = sweep.radius;
+    const hitCount = this.monsters.collectMeleeSweepHits(query, this.meleeHits);
+    for (let index = 0; index < hitCount; index++) {
+      this.writeHitEvent(index, kind, owner);
     }
   }
 
@@ -344,13 +403,18 @@ export class BattlefieldPlayerWeaponRuntime {
     const radial = radialLength > 0.0001;
     const spin = kind === BattlefieldWeaponHitKind.SpinPulse
       || kind === BattlefieldWeaponHitKind.SpinFinal;
+    const radialKnockback = spin || kind === BattlefieldWeaponHitKind.GroundSlam;
     const event = this.mutableEvent;
     event.kind = kind;
     event.attackSequenceId = this.actionState.attackSequenceId;
     event.populationId = this.meleeHits.populationIds[hitIndex] ?? 0;
     event.entityId = this.meleeHits.entityIds[hitIndex] ?? 0;
-    event.directionX = spin && radial ? radialX / radialLength : this.actionState.directionX;
-    event.directionZ = spin && radial ? radialZ / radialLength : this.actionState.directionZ;
+    event.directionX = radialKnockback && radial
+      ? radialX / radialLength
+      : this.actionState.directionX;
+    event.directionZ = radialKnockback && radial
+      ? radialZ / radialLength
+      : this.actionState.directionZ;
     event.damage = this.definition.baseDamage * getDamageScale(kind);
     event.knockbackSpeed = getKnockbackSpeed(kind, this.definition.knockbackImpulse);
     event.knockbackDuration = KNOCKBACK_DURATION_SECONDS;
@@ -378,6 +442,8 @@ function getDamageScale(kind: BattlefieldWeaponHitKind): number {
       return 1;
     case BattlefieldWeaponHitKind.Uppercut:
       return 1.25;
+    case BattlefieldWeaponHitKind.GroundSlam:
+      return SLEDGEHAMMER_PROGRESSION.groundSlamDamageScale;
     case BattlefieldWeaponHitKind.SpinPulse:
       return 0.34;
     case BattlefieldWeaponHitKind.SpinFinal:
@@ -391,6 +457,8 @@ function getKnockbackSpeed(kind: BattlefieldWeaponHitKind, baseImpulse: number):
       return baseImpulse;
     case BattlefieldWeaponHitKind.Uppercut:
       return baseImpulse * 0.35;
+    case BattlefieldWeaponHitKind.GroundSlam:
+      return baseImpulse * SLEDGEHAMMER_PROGRESSION.groundSlamKnockbackScale;
     case BattlefieldWeaponHitKind.SpinPulse:
       return SLEDGEHAMMER_PROGRESSION.spinKnockbackImpulse * 0.62;
     case BattlefieldWeaponHitKind.SpinFinal:

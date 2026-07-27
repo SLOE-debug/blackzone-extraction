@@ -9,8 +9,8 @@ import {
 
 const DEFINITION = BATTLEFIELD_EQUIPMENT_LIBRARY.get(EquipmentId.Sledgehammer);
 const EVENTS: MutableHammerActionEvents = {
-  swingImpact: false,
   uppercutImpact: false,
+  groundSlamImpact: false,
   spinPulse: false,
   spinFinal: false,
 };
@@ -60,6 +60,22 @@ describe('大锤动作状态', () => {
     expect(state.facingLock?.remainingSeconds).toBeCloseTo(2.6, 6);
     state.update(0.16, DEFINITION, 0.32, EVENTS);
     expect(EVENTS.spinPulse).toBe(true);
+  });
+
+  it('裂地重砸独立消耗震势并在动作中段产生一次冲击', () => {
+    const state = new BattlefieldHammerActionState();
+    for (let hit = 0; hit < 5; hit++) {
+      state.recordConfirmedAttack(DEFINITION);
+    }
+    state.update(0.05, DEFINITION, 0.32, EVENTS);
+    expect(state.requestGroundSlam(0)).toBe(true);
+    expect(state.action).toBe(WeaponAction.GroundSlam);
+    state.update(0.47, DEFINITION, 0.32, EVENTS);
+    expect(EVENTS.groundSlamImpact).toBe(false);
+    state.update(0.02, DEFINITION, 0.32, EVENTS);
+    expect(EVENTS.groundSlamImpact).toBe(true);
+    state.update(0.02, DEFINITION, 0.32, EVENTS);
+    expect(EVENTS.groundSlamImpact).toBe(false);
   });
 });
 

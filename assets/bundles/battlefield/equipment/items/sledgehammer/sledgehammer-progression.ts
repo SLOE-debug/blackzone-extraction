@@ -5,6 +5,12 @@ export interface SledgehammerProgressionStats {
   readonly spinDurationSeconds: number;
   readonly spinKnockbackImpulse: number;
   readonly spinPulseIntervalSeconds: number;
+  readonly groundSlamReachScale: number;
+  readonly groundSlamDamageScale: number;
+  readonly groundSlamKnockbackScale: number;
+  readonly groundSlamStepStartProgress: number;
+  readonly groundSlamStepDurationProgress: number;
+  readonly groundSlamStepInputScale: number;
 }
 
 /** 当前战场默认的大锤成长参数。 */
@@ -13,6 +19,12 @@ export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   spinDurationSeconds: 2.6,
   spinKnockbackImpulse: 10.5,
   spinPulseIntervalSeconds: 0.32,
+  groundSlamReachScale: 0.68,
+  groundSlamDamageScale: 1.48,
+  groundSlamKnockbackScale: 1.18,
+  groundSlamStepStartProgress: 0.08,
+  groundSlamStepDurationProgress: 0.42,
+  groundSlamStepInputScale: 0.34,
 }) satisfies Readonly<SledgehammerProgressionStats>;
 
 /** 把目标高度转换为给定重力下的垂直初速度。 */

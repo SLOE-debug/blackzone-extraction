@@ -221,13 +221,14 @@ MonsterCombatPopulation, PlanarMonsterEffectPopulation {
     return this.ensureCombat().consumeAttackDamage();
   }
 
-  /** 写入独立于死亡碎块动画的通用腾空根高度。 */
-  public setEffectElevation(entityId: number, elevation: number): boolean {
+  /** 写入独立于死亡碎块动画的显式腾空状态与根高度。 */
+  public setAirborneEffect(entityId: number, active: boolean, elevation: number): boolean {
     this.ensureActive();
     if (!Number.isSafeInteger(entityId) || entityId < 0 || entityId >= this.state.count
       || !Number.isFinite(elevation) || elevation < 0) {
       return false;
     }
+    this.state.data.effects.airborneActive[entityId] = active ? 1 : 0;
     this.state.data.effects.rootElevation[entityId] = elevation;
     return true;
   }

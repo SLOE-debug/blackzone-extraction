@@ -17,11 +17,13 @@ import { BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-r
 import { BattlefieldVenomLobberGroup } from './battlefield-venom-lobber-group';
 import {
   type BattlefieldMonsterPerformanceRecorder,
+  type BattlefieldMonsterPoseSynchronization,
   BattlefieldMonsterPerformanceStage,
 } from './battlefield-monster-performance';
 import {
   type BattlefieldMeleeHitBuffer,
   type BattlefieldMeleeQuery,
+  type BattlefieldMeleeSweepQuery,
 } from '../combat/melee/battlefield-melee-query';
 import { BattlefieldMonsterEffectRuntime } from '../combat/effects/battlefield-monster-effect-runtime';
 import { type PlanarKnockbackEffect, type VerticalLaunchEffect } from '../../../core/contracts/monster-effects';
@@ -183,6 +185,11 @@ implements Disposable {
       + this.debugMonsters.separateRenderCapacity;
   }
 
+  /** 当前共享蜘蛛从模拟到 GPU 上传的完整姿态版本链。 */
+  public get poseSynchronization(): Readonly<BattlefieldMonsterPoseSynchronization> {
+    return this.renderBatch.poseSynchronizationSnapshot;
+  }
+
   /** 酸池对玩家下一帧移动输入施加的速度乘数。 */
   public get playerMovementSpeedMultiplier(): number {
     return Math.min(
@@ -318,8 +325,7 @@ implements Disposable {
     for (const group of this.groups) {
       group.synchronizeRendering();
     }
-    this.venomGroup.synchronizeRendering();
-    this.debugMonsters.synchronizeRendering();
+    this.debugMonsters.synchronizeSharedRendering();
 
     const previousCapacity = this.renderBatch.renderCapacity;
     const stageStarted = performance.beginMonsterStage();
@@ -335,6 +341,15 @@ implements Disposable {
     const nextCapacity = this.renderBatch.renderCapacity;
     if (nextCapacity > previousCapacity) {
       performance.recordMonsterBatchGrowth(previousCapacity, nextCapacity);
+    }
+    this.venomGroup.synchronizeRendering();
+    this.debugMonsters.synchronizeSeparateRendering();
+  }
+
+  /** 应用恢复或 WebGL Context 恢复后强制重建共享蜘蛛姿态资源。 */
+  public forceResynchronizeRendering(): void {
+    if (!this.disposed) {
+      this.renderBatch.forceResynchronize();
     }
   }
 
@@ -367,6 +382,14 @@ implements Disposable {
     result: BattlefieldMeleeHitBuffer,
   ): number {
     return this.disposed ? 0 : this.targets.collectMeleeHits(query, result);
+  }
+
+  /** 收集真实锤头连续两帧 Swept Capsule 覆盖的全部目标。 */
+  public collectMeleeSweepHits(
+    query: Readonly<BattlefieldMeleeSweepQuery>,
+    result: BattlefieldMeleeHitBuffer,
+  ): number {
+    return this.disposed ? 0 : this.targets.collectMeleeSweepHits(query, result);
   }
 
   /** 把近战伤害路由到稳定群体与实体。 */

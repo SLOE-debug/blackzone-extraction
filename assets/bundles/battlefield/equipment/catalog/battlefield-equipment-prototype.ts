@@ -13,12 +13,9 @@ export interface DroppedEquipmentProfile {
 export interface HeldEquipmentProfile {
   readonly grip: WeaponGrip;
   readonly heldScale: number;
-  readonly originRightOffset: number;
-  readonly originHeightOffset: number;
-  readonly originForwardOffset: number;
-  readonly rotationXDegrees: number;
-  readonly rotationYDegrees: number;
-  readonly rotationZDegrees: number;
+  readonly mainGripLocalPosition: Readonly<{ x: number; y: number; z: number }>;
+  readonly hammerHeadLocalPosition: Readonly<{ x: number; y: number; z: number }>;
+  readonly hammerHeadRadius: number;
 }
 
 /** 一件战场装备同时拥有玩法定义、固定几何和两种展示配置。 */

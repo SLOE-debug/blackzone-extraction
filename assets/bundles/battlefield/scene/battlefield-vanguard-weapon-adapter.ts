@@ -13,6 +13,7 @@ const VANGUARD_ACTION_BY_WEAPON_ACTION = Object.freeze({
   [WeaponAction.WindupRight]: VanguardWeaponAction.WindupRight,
   [WeaponAction.SwingRight]: VanguardWeaponAction.SwingRight,
   [WeaponAction.Uppercut]: VanguardWeaponAction.Uppercut,
+  [WeaponAction.GroundSlam]: VanguardWeaponAction.GroundSlam,
   [WeaponAction.Spin]: VanguardWeaponAction.Spin,
   [WeaponAction.Recover]: VanguardWeaponAction.Recover,
 }) satisfies Readonly<Record<WeaponAction, VanguardWeaponAction>>;

@@ -6,6 +6,7 @@ export enum VanguardWeaponAction {
   WindupRight,
   SwingRight,
   Uppercut,
+  GroundSlam,
   Spin,
   Recover,
 }

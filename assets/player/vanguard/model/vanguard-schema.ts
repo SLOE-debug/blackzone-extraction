@@ -30,6 +30,7 @@ export const VANGUARD_SCHEMA = defineEntitySchema({
     weaponPose: entityField(Uint8Array, 1),
     weaponAction: entityField(Uint8Array, 1),
     weaponActionProgress: entityField(Float32Array, 1),
+    weaponActionSide: entityField(Int8Array, 1),
   },
   motion: {
     velocityX: entityField(Float32Array, 1),

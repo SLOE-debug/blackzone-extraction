@@ -81,11 +81,19 @@ export class BattlefieldDebugMonsterPopulation {
     }
   }
 
-  public synchronizeRendering(): void {
+  /** 在共享 Pose Texture 上传前登记 Debug Curve Crawler 的最终姿态。 */
+  public synchronizeSharedRendering(): void {
     if (this.disposed) {
       return;
     }
     this.curveCrawler?.synchronizeRendering();
+  }
+
+  /** 在共享 Curve Crawler 上传后独立同步 Debug Venom Lobber。 */
+  public synchronizeSeparateRendering(): void {
+    if (this.disposed) {
+      return;
+    }
     this.venomLobber?.synchronizeRendering();
   }
 

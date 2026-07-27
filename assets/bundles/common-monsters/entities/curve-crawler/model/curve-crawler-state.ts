@@ -171,6 +171,7 @@ function initializeCurveCrawlerData(
       : 0;
     vitality.hitTime[index] = 0;
     vitality.timeSinceHit[index] = 1;
+    effects.airborneActive[index] = 0;
     effects.rootElevation[index] = 0;
     death.stage[index] = CurveCrawlerDeathStage.Bursting;
     death.stageTime[index] = 0;

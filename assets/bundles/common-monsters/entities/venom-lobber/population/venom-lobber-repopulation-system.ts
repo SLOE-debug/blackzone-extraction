@@ -109,6 +109,7 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
     vitality.hitTime[entityIndex] = 0;
     vitality.timeSinceHit[entityIndex] = 1;
     vitality.deathEffectSpawned[entityIndex] = 0;
+    effects.externalAirborneActive[entityIndex] = 0;
     effects.externalElevation[entityIndex] = 0;
     behavior.action[entityIndex] = VenomLobberAction.Roam;
     behavior.actionTime[entityIndex] = 0;
@@ -193,7 +194,7 @@ implements MonsterPopulationActivationTarget<VenomLobberRepopulationOptions> {
       if (lifecycle !== MonsterLifecycleState.Alive) {
         continue;
       }
-      if ((effects.externalElevation[index] ?? 0) > 0) {
+      if ((effects.externalAirborneActive[index] ?? 0) !== 0) {
         continue;
       }
       const deltaX = (transform.x[index] ?? 0) - options.centerX;

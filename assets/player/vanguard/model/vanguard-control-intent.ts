@@ -23,6 +23,8 @@ export interface VanguardControlIntent {
   readonly weaponAction: VanguardWeaponAction;
   /** 当前武器动作从零到一的归一化进度。 */
   readonly weaponActionProgress: number;
+  /** 左右横扫从输入一直保留到胸腔、右臂和武器求解器的有符号方向。 */
+  readonly weaponActionSide: -1 | 0 | 1;
 }
 
 /** 校验场景写入的控制值，避免无效输入污染连续状态。 */
@@ -51,7 +53,10 @@ export function validateVanguardControlIntent(
     || intent.weaponAction > VanguardWeaponAction.Recover
     || !Number.isFinite(intent.weaponActionProgress)
     || intent.weaponActionProgress < 0
-    || intent.weaponActionProgress > 1) {
+    || intent.weaponActionProgress > 1
+    || !Number.isInteger(intent.weaponActionSide)
+    || intent.weaponActionSide < -1
+    || intent.weaponActionSide > 1) {
     throw new Error('主角武器姿态或动作进度不符合稳定契约。');
   }
 }

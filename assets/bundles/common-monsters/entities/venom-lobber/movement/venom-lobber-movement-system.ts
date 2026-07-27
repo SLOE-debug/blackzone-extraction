@@ -14,7 +14,7 @@ export class VenomLobberMovementSystem implements EntitySystem<VenomLobberState,
         motion.currentSpeed[index] = 0;
         continue;
       }
-      if ((effects.externalElevation[index] ?? 0) > 0) {
+      if ((effects.externalAirborneActive[index] ?? 0) !== 0) {
         motion.currentSpeed[index] = 0;
         continue;
       }

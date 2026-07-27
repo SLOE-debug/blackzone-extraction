@@ -198,9 +198,10 @@ implements BattlefieldMonsterTargetGroup {
   }
 
   /** 把世界腾空高度转换到 Venom Lobber 自身的正交高度轴。 */
-  public setEffectElevation(entityId: number, elevation: number): boolean {
-    return !this.disposed && this.population.setEffectElevation(
+  public setAirborneEffect(entityId: number, active: boolean, elevation: number): boolean {
+    return !this.disposed && this.population.setAirborneEffect(
       entityId,
+      active,
       elevation / BATTLEFIELD_MONSTER_SPAWN.modelScale,
     );
   }

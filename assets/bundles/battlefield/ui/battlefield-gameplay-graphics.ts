@@ -2,7 +2,7 @@ import { Graphics, Layers, Node, UITransform } from 'cc';
 import { type VirtualJoystick } from '../../../core/ui/virtual-joystick';
 import { type BattlefieldInventoryHud } from '../equipment/inventory/ui/battlefield-inventory-hud';
 import { type BattlefieldPlayerStatusHud } from './battlefield-player-status-hud';
-import { type BattlefieldSkillButton } from './battlefield-skill-button';
+import { type BattlefieldRadialSkillButtons } from './battlefield-radial-skill-buttons';
 
 /** 把双摇杆、生命条、技能键与物品栏压入同一个 Graphics 组件。 */
 export class BattlefieldGameplayGraphics {
@@ -36,7 +36,7 @@ export class BattlefieldGameplayGraphics {
     movement: VirtualJoystick,
     attack: VirtualJoystick,
     playerStatus: BattlefieldPlayerStatusHud,
-    skill: BattlefieldSkillButton,
+    skills: BattlefieldRadialSkillButtons,
     inventory: BattlefieldInventoryHud,
   ): void {
     if (this.disposed) {
@@ -47,7 +47,7 @@ export class BattlefieldGameplayGraphics {
       && movement.graphicsRevision === this.movementRevision
       && attack.graphicsRevision === this.attackRevision
       && playerStatus.graphicsRevision === this.playerStatusRevision
-      && skill.graphicsRevision === this.skillRevision
+      && skills.graphicsRevision === this.skillRevision
       && inventory.graphicsRevision === this.inventoryRevision) {
       return;
     }
@@ -61,11 +61,11 @@ export class BattlefieldGameplayGraphics {
     attack.draw(this.graphics);
     playerStatus.draw(this.graphics);
     inventory.draw(this.graphics);
-    skill.draw(this.graphics);
+    skills.draw(this.graphics);
     this.movementRevision = movement.graphicsRevision;
     this.attackRevision = attack.graphicsRevision;
     this.playerStatusRevision = playerStatus.graphicsRevision;
-    this.skillRevision = skill.graphicsRevision;
+    this.skillRevision = skills.graphicsRevision;
     this.inventoryRevision = inventory.graphicsRevision;
   }
 

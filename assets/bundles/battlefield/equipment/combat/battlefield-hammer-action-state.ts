@@ -4,21 +4,23 @@ import {
   type BattlefieldFacingLockEffect,
 } from './battlefield-facing-lock-effect';
 
-const SWING_WINDUP_SECONDS = 0.18;
-const SWING_CONTACT_SECONDS = 0.14;
+const SWING_WINDUP_SECONDS = 0.28;
+const SWING_CONTACT_SECONDS = 0.34;
 const UPPERCUT_CONTACT_TIME = 0.2;
 const UPPERCUT_DURATION = 0.64;
+const GROUND_SLAM_IMPACT_TIME = 0.48;
+const GROUND_SLAM_DURATION = 0.82;
 const HIT_STOP_SECONDS = 0.045;
 
 /** 单次动作更新产生的无分配事件快照。 */
 export interface MutableHammerActionEvents {
-  swingImpact: boolean;
   uppercutImpact: boolean;
+  groundSlamImpact: boolean;
   spinPulse: boolean;
   spinFinal: boolean;
 }
 
-/** 管理左右交替挥动、五连击震势与两种特殊攻击时间轴。 */
+/** 管理左右交替挥动、五连击震势与三种特殊攻击时间轴。 */
 export class BattlefieldHammerActionState {
   private actionValue = WeaponAction.Idle;
   private elapsed = 0;
@@ -36,6 +38,7 @@ export class BattlefieldHammerActionState {
   private comboRemaining = 0;
   private hitStopRemaining = 0;
   private lockedHeading = 0;
+  private poseSideValue: -1 | 0 | 1 = 0;
   private readonly facingLockEffect: {
     source: BattlefieldFacingLockSource;
     lockedHeading: number;
@@ -78,10 +81,23 @@ export class BattlefieldHammerActionState {
     return this.momentumChargesValue;
   }
 
+  /** 横扫及其恢复阶段保留的有符号动作方向。 */
+  public get poseSide(): -1 | 0 | 1 {
+    return this.poseSideValue;
+  }
+
+  /** 锤头处于可连续扫掠的左右横扫阶段。 */
+  public get sweepActive(): boolean {
+    return this.actionValue === WeaponAction.SwingLeft
+      || this.actionValue === WeaponAction.SwingRight;
+  }
+
   public get facingLock(): Readonly<BattlefieldFacingLockEffect> | null {
-    if (this.actionValue !== WeaponAction.Spin) {
+    const source = getFacingLockSource(this.actionValue);
+    if (source === null) {
       return null;
     }
+    this.facingLockEffect.source = source;
     this.facingLockEffect.lockedHeading = this.lockedHeading;
     this.facingLockEffect.remainingSeconds = Math.max(0, this.duration - this.elapsed);
     return this.facingLockEffect;
@@ -108,6 +124,8 @@ export class BattlefieldHammerActionState {
     );
     this.alternateLeft = !startLeft;
     this.lastRequestedRight = startsRight;
+    this.poseSideValue = startLeft ? -1 : 1;
+    this.lockedHeading = Math.atan2(directionX, directionZ);
     return true;
   }
 
@@ -116,6 +134,8 @@ export class BattlefieldHammerActionState {
       return false;
     }
     this.beginAction(WeaponAction.Uppercut, UPPERCUT_DURATION, Math.sin(heading), Math.cos(heading));
+    this.poseSideValue = 0;
+    this.lockedHeading = heading;
     return true;
   }
 
@@ -130,8 +150,24 @@ export class BattlefieldHammerActionState {
       Math.cos(heading),
     );
     this.lockedHeading = heading;
+    this.poseSideValue = 0;
     this.skillSequenceValue = nextSequence(this.skillSequenceValue);
     this.nextSpinPulseTime = 0.16;
+    return true;
+  }
+
+  public requestGroundSlam(heading: number): boolean {
+    if (!this.canStartAction() || !this.consumeMomentum()) {
+      return false;
+    }
+    this.beginAction(
+      WeaponAction.GroundSlam,
+      GROUND_SLAM_DURATION,
+      Math.sin(heading),
+      Math.cos(heading),
+    );
+    this.poseSideValue = 0;
+    this.lockedHeading = heading;
     return true;
   }
 
@@ -162,8 +198,6 @@ export class BattlefieldHammerActionState {
             this.directionZValue,
             false,
           );
-          result.swingImpact = true;
-          this.impactEmitted = true;
         }
         break;
       case WeaponAction.WindupRight:
@@ -175,8 +209,6 @@ export class BattlefieldHammerActionState {
             this.directionZValue,
             false,
           );
-          result.swingImpact = true;
-          this.impactEmitted = true;
         }
         break;
       case WeaponAction.SwingLeft:
@@ -196,6 +228,15 @@ export class BattlefieldHammerActionState {
         if (!this.impactEmitted && this.elapsed >= UPPERCUT_CONTACT_TIME) {
           this.impactEmitted = true;
           result.uppercutImpact = true;
+        }
+        if (this.elapsed >= this.duration) {
+          this.finishAction();
+        }
+        break;
+      case WeaponAction.GroundSlam:
+        if (!this.impactEmitted && this.elapsed >= GROUND_SLAM_IMPACT_TIME) {
+          this.impactEmitted = true;
+          result.groundSlamImpact = true;
         }
         if (this.elapsed >= this.duration) {
           this.finishAction();
@@ -275,12 +316,31 @@ export class BattlefieldHammerActionState {
 }
 
 function resetEvents(events: MutableHammerActionEvents): void {
-  events.swingImpact = false;
   events.uppercutImpact = false;
+  events.groundSlamImpact = false;
   events.spinPulse = false;
   events.spinFinal = false;
 }
 
 function nextSequence(current: number): number {
   return current >= 0xffffffff ? 1 : current + 1;
+}
+
+function getFacingLockSource(action: WeaponAction): BattlefieldFacingLockSource | null {
+  switch (action) {
+    case WeaponAction.WindupLeft:
+    case WeaponAction.SwingLeft:
+    case WeaponAction.WindupRight:
+    case WeaponAction.SwingRight:
+    case WeaponAction.Recover:
+      return BattlefieldFacingLockSource.HammerSwing;
+    case WeaponAction.Uppercut:
+      return BattlefieldFacingLockSource.HammerUppercut;
+    case WeaponAction.GroundSlam:
+      return BattlefieldFacingLockSource.HammerGroundSlam;
+    case WeaponAction.Spin:
+      return BattlefieldFacingLockSource.HammerSpin;
+    case WeaponAction.Idle:
+      return null;
+  }
 }
