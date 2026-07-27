@@ -27,6 +27,11 @@ export interface SledgehammerProgressionStats {
   readonly spinFinalKnockbackScale: number;
   readonly spinPulseRadialWeight: number;
   readonly spinPulseTangentialWeight: number;
+  /** 旋风首次直接命中时的目标腾空高度。 */
+  readonly spinLaunchHeight: number;
+  readonly spinLaunchHorizontalSpeed: number;
+  readonly spinLaunchHorizontalDrag: number;
+  readonly spinLaunchLandingDamageScale: number;
   readonly spinPulseBaseDamageScale: number;
   readonly spinRepeatDamageStep: number;
   readonly spinRepeatDamageMaximumBonus: number;
@@ -65,6 +70,10 @@ export const SLEDGEHAMMER_PROGRESSION = Object.freeze({
   spinFinalKnockbackScale: 2,
   spinPulseRadialWeight: 0.82,
   spinPulseTangentialWeight: 0.57,
+  spinLaunchHeight: 5.2,
+  spinLaunchHorizontalSpeed: 18,
+  spinLaunchHorizontalDrag: 0.55,
+  spinLaunchLandingDamageScale: 0.55,
   spinPulseBaseDamageScale: 0.42,
   spinRepeatDamageStep: 0.06,
   spinRepeatDamageMaximumBonus: 0.24,

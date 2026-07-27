@@ -70,7 +70,7 @@ export class BattlefieldMonsterEffectRuntime {
     return true;
   }
 
-  /** 记录单个目标在当前旋风技能中的累计脉冲命中次数。 */
+  /** 记录单个目标在当前旋风技能中的累计直接命中次数。 */
   public recordSpinHit(
     populationId: number,
     entityId: number,

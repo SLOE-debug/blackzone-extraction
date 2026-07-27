@@ -173,7 +173,9 @@ export class BattlefieldHammerCombatRuntime {
         confirmedSwing = true;
       }
       const kind = this.events.kind[index] as BattlefieldWeaponHitKind;
-      const spinHitCount = kind === BattlefieldWeaponHitKind.SpinPulse
+      const spin = kind === BattlefieldWeaponHitKind.SpinPulse
+        || kind === BattlefieldWeaponHitKind.SpinFinal;
+      const spinHitCount = spin
         ? this.monsters.recordSpinHit(
           populationId,
           entityId,
@@ -198,8 +200,6 @@ export class BattlefieldHammerCombatRuntime {
         });
       } else {
         const knockbackSpeed = this.events.knockbackSpeed[index] ?? 0;
-        const spin = kind === BattlefieldWeaponHitKind.SpinPulse
-          || kind === BattlefieldWeaponHitKind.SpinFinal;
         this.monsters.applyKnockback(populationId, entityId, {
           directionX: this.events.directionX[index] ?? 0,
           directionZ: this.events.directionZ[index] ?? 1,
@@ -214,6 +214,18 @@ export class BattlefieldHammerCombatRuntime {
             ? this.spinKnockback.maximumSpeed
             : Math.max(knockbackSpeed, 0.001),
         });
+        if (spin && spinHitCount === 1) {
+          this.monsters.applyDirectionalLaunch(populationId, entityId, {
+            directionX: this.events.directionX[index] ?? 0,
+            directionZ: this.events.directionZ[index] ?? 1,
+            targetHeight: SLEDGEHAMMER_PROGRESSION.spinLaunchHeight,
+            horizontalSpeed: SLEDGEHAMMER_PROGRESSION.spinLaunchHorizontalSpeed,
+            horizontalDrag: SLEDGEHAMMER_PROGRESSION.spinLaunchHorizontalDrag,
+            gravityScale: 1,
+            landingDamageBase: definition.baseDamage
+              * SLEDGEHAMMER_PROGRESSION.spinLaunchLandingDamageScale,
+          });
+        }
       }
       const kineticSequence = this.events.kineticSkillSequence[index] ?? 0;
       if (kineticSequence > 0) {

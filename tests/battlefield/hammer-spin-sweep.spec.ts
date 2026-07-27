@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { type PlanarKnockbackEffect } from '../../assets/core/contracts/monster-effects';
+import {
+  type DirectionalLaunchEffect,
+  type PlanarKnockbackEffect,
+} from '../../assets/core/contracts/monster-effects';
 import { type BattlefieldMeleeHitBuffer, type BattlefieldMeleeQuery, type BattlefieldMeleeSweepQuery } from '../../assets/bundles/battlefield/combat/melee/battlefield-melee-query';
 import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/equipment/catalog/battlefield-equipment-catalog';
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
@@ -88,6 +91,13 @@ describe('旋风真实锤头扫掠', () => {
     expect(pulse?.directionZ).toBeGreaterThan(0);
     expect(pulse?.initialSpeed).toBeGreaterThanOrEqual(32);
     expect(pulse?.initialSpeed).toBeLessThan(32.1);
+    expect(target.launches).toHaveLength(1);
+    expect(target.launches[0]).toMatchObject({
+      targetHeight: 5.2,
+      horizontalSpeed: 18,
+      horizontalDrag: 0.55,
+      landingDamageBase: DEFINITION.baseDamage * 0.55,
+    });
 
     advanceSpinFrame(runtime, state, 1.4, 1.2, 0);
     expect(EVENTS.spinFinal).toBe(true);
@@ -97,6 +107,7 @@ describe('旋风真实锤头扫掠', () => {
     expect(final?.initialSpeed).toBeCloseTo(80, 6);
     expect(final?.initialSpeed).toBeGreaterThan(pulse?.initialSpeed ?? 0);
     expect(final?.maximumSpeed).toBe(80);
+    expect(target.launches).toHaveLength(1);
   });
 
   it('运行时直接读取右上角调参对象的最新旋风击退值', () => {
@@ -133,6 +144,7 @@ class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
   public sweepQueryCount = 0;
   public damageCount = 0;
   public readonly knockbacks: PlanarKnockbackEffect[] = [];
+  public readonly launches: DirectionalLaunchEffect[] = [];
   public lastSweep: BattlefieldMeleeSweepQuery | null = null;
   private readonly acceptedSequences = new Set<number>();
 
@@ -186,7 +198,12 @@ class RecordingCombatTarget implements BattlefieldHammerCombatTarget {
     return true;
   }
 
-  public applyDirectionalLaunch(): boolean {
+  public applyDirectionalLaunch(
+    _populationId: number,
+    _entityId: number,
+    effect: Readonly<DirectionalLaunchEffect>,
+  ): boolean {
+    this.launches.push({ ...effect });
     return true;
   }
 

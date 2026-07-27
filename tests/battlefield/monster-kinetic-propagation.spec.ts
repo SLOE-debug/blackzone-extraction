@@ -45,6 +45,38 @@ describe('怪物动量可见传播', () => {
     expect(displacements[3]).toBeGreaterThanOrEqual(0.2);
   });
 
+  it('旋风近处目标腾空远飞而外层目标只接收地面震退', () => {
+    const starts = [0, 1.4, 2.8] as const;
+    const group = createMonsterEffectTestGroup(5, starts);
+    const { effects, crowd } = createMonsterEffectRuntime(20, group);
+    effects.applyKnockback(5, 0, {
+      ...createKineticTestKnockback(32),
+      remainingSeconds: 1,
+      maximumSpeed: 80,
+    });
+    effects.applyDirectionalLaunch(5, 0, {
+      directionX: 1,
+      directionZ: 0,
+      targetHeight: 5.2,
+      horizontalSpeed: 18,
+      horizontalDrag: 0.55,
+      gravityScale: 1,
+      landingDamageBase: 0,
+    });
+    effects.applyKineticCarrier(5, 0, 14, 100, 90);
+    simulate(effects, crowd, SIMULATION_SECONDS);
+
+    const directDisplacement = Math.abs((group.crowdPopulation.x[0] ?? 0) - starts[0])
+      * BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    const outerDisplacement = Math.abs((group.crowdPopulation.x[1] ?? 1.4) - starts[1])
+      * BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    expect(directDisplacement).toBeGreaterThanOrEqual(15);
+    expect(outerDisplacement).toBeGreaterThanOrEqual(2);
+    expect(group.airborne[0]).toBe(1);
+    expect(group.airborne[1]).toBe(0);
+    expect(group.airborne[2]).toBe(0);
+  });
+
   it('重型怪物不会成为动量墙且其后普通怪物仍有清晰位移', () => {
     const normalGroup = createMonsterEffectTestGroup(2, [0, 2.8]);
     const heavyGroup = createMonsterEffectTestGroup(3, [1.4], {
