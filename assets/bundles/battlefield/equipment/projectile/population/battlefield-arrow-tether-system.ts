@@ -9,7 +9,10 @@ import {
   type BattlefieldTetherQuery,
 } from '../model/battlefield-arrow-query';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
-import { BATTLEFIELD_TETHER_HEIGHT_OFFSET } from '../model/battlefield-tether-config';
+import {
+  BATTLEFIELD_TETHER_COLLISION_RADIUS,
+  BATTLEFIELD_TETHER_GROUND_HEIGHT,
+} from '../model/battlefield-tether-config';
 import {
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
   type BattlefieldArrowPopulation,
@@ -40,7 +43,7 @@ export class BattlefieldArrowTetherSystem {
     endX: 0,
     endY: 0,
     endZ: 0,
-    radius: 0.12,
+    radius: BATTLEFIELD_TETHER_COLLISION_RADIUS,
   };
   private tetherCountValue = 0;
   private remainingSeconds = 0;
@@ -106,6 +109,7 @@ export class BattlefieldArrowTetherSystem {
     hitCooldownSeconds: number,
     slowScale: number,
     slowDurationSeconds: number,
+    groundY: number,
     deltaTime: number,
   ): void {
     if (!this.active) {
@@ -132,6 +136,7 @@ export class BattlefieldArrowTetherSystem {
       hitCooldownSeconds,
       slowScale,
       slowDurationSeconds,
+      groundY,
     );
   }
 
@@ -145,7 +150,9 @@ export class BattlefieldArrowTetherSystem {
     hitCooldownSeconds: number,
     slowScale: number,
     slowDurationSeconds: number,
+    groundY: number,
   ): void {
+    const tetherY = groundY + BATTLEFIELD_TETHER_GROUND_HEIGHT;
     for (let edge = 0; edge < this.tetherCountValue; edge++) {
       const start = this.startArrowIndex[edge] ?? 0;
       const end = this.endArrowIndex[edge] ?? 0;
@@ -154,10 +161,10 @@ export class BattlefieldArrowTetherSystem {
         continue;
       }
       this.query.startX = arrows.positionX[start] ?? 0;
-      this.query.startY = (arrows.positionY[start] ?? 0) + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
+      this.query.startY = tetherY;
       this.query.startZ = arrows.positionZ[start] ?? 0;
       this.query.endX = arrows.positionX[end] ?? 0;
-      this.query.endY = (arrows.positionY[end] ?? 0) + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
+      this.query.endY = tetherY;
       this.query.endZ = arrows.positionZ[end] ?? 0;
       target.collectTetherOverlapHits(this.query, this.hits);
       for (let hit = 0; hit < this.hits.count; hit++) {
@@ -175,7 +182,7 @@ export class BattlefieldArrowTetherSystem {
           damage: baseDamage * damageScale,
           damageKind: BattlefieldDamageKind.Tether,
           hitPositionX: this.hits.x[hit] ?? 0,
-          hitPositionY: this.hits.y[hit] ?? 0,
+          hitPositionY: tetherY,
           hitPositionZ: this.hits.z[hit] ?? 0,
         });
         target.applyArrowSlow(populationId, entityId, slowScale, slowDurationSeconds);
@@ -204,9 +211,8 @@ export class BattlefieldArrowTetherSystem {
         continue;
       }
       const dx = (arrows.positionX[candidate] ?? 0) - (arrows.positionX[current] ?? 0);
-      const dy = (arrows.positionY[candidate] ?? 0) - (arrows.positionY[current] ?? 0);
       const dz = (arrows.positionZ[candidate] ?? 0) - (arrows.positionZ[current] ?? 0);
-      const distance = dx * dx + dy * dy + dz * dz;
+      const distance = dx * dx + dz * dz;
       if (distance < bestDistance) {
         bestDistance = distance;
         best = candidate;

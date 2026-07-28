@@ -5,15 +5,18 @@ import {
   BATTLEFIELD_ARROW_BATCH_VERTEX_COUNT,
   BATTLEFIELD_ARROW_VERTICES_PER_SLOT,
   BATTLEFIELD_QUIVER_VERTEX_COUNT,
+  BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT,
   BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT,
   BATTLEFIELD_TETHER_VERTICES_PER_SLOT,
   createBattlefieldArrowBatchGeometry,
   writeBattlefieldArrow,
   writeBattlefieldQuiver,
   writeBattlefieldTether,
+  writeBattlefieldTetherLead,
   writeBattlefieldTetherMarker,
 } from '../geometry/battlefield-arrow-batch-geometry';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
+import { BATTLEFIELD_TETHER_GROUND_HEIGHT } from '../model/battlefield-tether-config';
 import {
   BATTLEFIELD_ARROW_CAPACITY,
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
@@ -35,6 +38,7 @@ const INITIAL_BOUNDS = Object.freeze({
 const BOUNDS_PADDING = 1.5;
 const BOUNDS_EXPANSION_STEP = 8;
 const UNKNOWN_VISIBILITY = 0xff;
+const TETHER_LEAD_HALF_WIDTH = 0.025;
 
 /** 用单个固定拓扑批次绘制全部箭矢、箭袋余量与弦网。 */
 export class BattlefieldArrowRenderer {
@@ -47,6 +51,7 @@ export class BattlefieldArrowRenderer {
   private readonly tetherVisibility = new Uint8Array(BATTLEFIELD_MAXIMUM_TETHER_COUNT);
   private readonly tetherStart = new Uint8Array(BATTLEFIELD_MAXIMUM_TETHER_COUNT);
   private readonly tetherEnd = new Uint8Array(BATTLEFIELD_MAXIMUM_TETHER_COUNT);
+  private readonly leadVisibility = new Uint8Array(BATTLEFIELD_PERMANENT_ARROW_CAPACITY);
   private readonly markerVisibility = new Uint8Array(BATTLEFIELD_PERMANENT_ARROW_CAPACITY);
   private previousOwnerX = Number.NaN;
   private previousOwnerY = Number.NaN;
@@ -67,6 +72,7 @@ export class BattlefieldArrowRenderer {
     this.tetherVisibility.fill(UNKNOWN_VISIBILITY);
     this.tetherStart.fill(UNKNOWN_VISIBILITY);
     this.tetherEnd.fill(UNKNOWN_VISIBILITY);
+    this.leadVisibility.fill(UNKNOWN_VISIBILITY);
     this.markerVisibility.fill(UNKNOWN_VISIBILITY);
   }
 
@@ -177,15 +183,14 @@ export class BattlefieldArrowRenderer {
       this.arrowState[index] = state;
       arrows.dirty[index] = 0;
     }
+    const tetherY = ownerY + BATTLEFIELD_TETHER_GROUND_HEIGHT;
     for (let edge = 0; edge < BATTLEFIELD_MAXIMUM_TETHER_COUNT; edge++) {
       const active = tethers.active && edge < tethers.tetherCount;
       const start = tethers.startArrowIndex[edge] ?? 0;
       const end = tethers.endArrowIndex[edge] ?? 0;
       const startX = arrows.positionX[start] ?? ownerX;
-      const startY = arrows.positionY[start] ?? ownerY;
       const startZ = arrows.positionZ[start] ?? ownerZ;
       const endX = arrows.positionX[end] ?? ownerX;
-      const endY = arrows.positionY[end] ?? ownerY;
       const endZ = arrows.positionZ[end] ?? ownerZ;
       const visibility = Number(active);
       const visibilityChanged = this.tetherVisibility[edge] !== visibility;
@@ -196,10 +201,10 @@ export class BattlefieldArrowRenderer {
           this.geometry,
           edge,
           startX,
-          startY,
+          tetherY,
           startZ,
           endX,
-          endY,
+          tetherY,
           endZ,
           active,
           calculateTetherHalfWidth(
@@ -232,8 +237,39 @@ export class BattlefieldArrowRenderer {
       const state = arrows.state[index] as BattlefieldArrowState;
       const visible = tethers.active && (state === BattlefieldArrowState.EmbeddedInMonster
         || state === BattlefieldArrowState.EmbeddedInWorld);
+      const leadVisible = tethers.active && state === BattlefieldArrowState.EmbeddedInMonster;
+      const leadVisibility = Number(leadVisible);
+      const leadVisibilityChanged = this.leadVisibility[index] !== leadVisibility;
       const visibility = Number(visible);
       const visibilityChanged = this.markerVisibility[index] !== visibility;
+      if (leadVisibilityChanged || (leadVisible
+        && (this.arrowUpdated[index] !== 0 || ownerChanged))) {
+        writeBattlefieldTetherLead(
+          this.geometry,
+          index,
+          arrows.positionX[index] ?? ownerX,
+          arrows.positionY[index] ?? tetherY,
+          tetherY,
+          arrows.positionZ[index] ?? ownerZ,
+          leadVisible,
+          TETHER_LEAD_HALF_WIDTH,
+        );
+        const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
+          + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+          + index * BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT;
+        minimumPositionDirty = Math.min(minimumPositionDirty, first);
+        maximumPositionDirty = Math.max(
+          maximumPositionDirty,
+          first + BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT,
+        );
+        if (leadVisibilityChanged) {
+          minimumColorDirty = Math.min(minimumColorDirty, first);
+          maximumColorDirty = Math.max(
+            maximumColorDirty,
+            first + BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT,
+          );
+        }
+      }
       if (visibilityChanged || (visible && this.arrowUpdated[index] !== 0)) {
         writeBattlefieldTetherMarker(
           this.geometry,
@@ -245,6 +281,7 @@ export class BattlefieldArrowRenderer {
         );
         const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
           + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+          + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT
           + index * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT;
         minimumPositionDirty = Math.min(minimumPositionDirty, first);
         maximumPositionDirty = Math.max(
@@ -259,6 +296,7 @@ export class BattlefieldArrowRenderer {
           );
         }
       }
+      this.leadVisibility[index] = leadVisibility;
       this.markerVisibility[index] = visibility;
     }
     if (ownerChanged) {

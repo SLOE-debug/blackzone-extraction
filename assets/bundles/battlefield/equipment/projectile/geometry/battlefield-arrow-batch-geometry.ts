@@ -8,15 +8,16 @@ import {
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
 } from '../population/battlefield-arrow-population';
 import { BATTLEFIELD_MAXIMUM_TETHER_COUNT } from '../population/battlefield-arrow-tether-system';
-import { BATTLEFIELD_TETHER_HEIGHT_OFFSET } from '../model/battlefield-tether-config';
 
 export const BATTLEFIELD_ARROW_VERTICES_PER_SLOT = 18;
 export const BATTLEFIELD_TETHER_VERTICES_PER_SLOT = 12;
+export const BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT = 12;
 export const BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT = 24;
 export const BATTLEFIELD_QUIVER_VERTEX_COUNT = 36;
 export const BATTLEFIELD_ARROW_BATCH_VERTEX_COUNT =
   BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
   + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+  + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT
   + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT
   + BATTLEFIELD_QUIVER_VERTEX_COUNT;
 const QUIVER_SEGMENT_SCALES = new Float32Array([0.93, 1.08, 0.97, 1.05, 0.9, 1.02]);
@@ -117,20 +118,52 @@ export function writeBattlefieldTether(
   const inverse = 1 / Math.max(0.0001, Math.hypot(dx, dz));
   const sideX = dz * inverse * halfWidth;
   const sideZ = -dx * inverse * halfWidth;
-  const raisedStartY = startY + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
-  const raisedEndY = endY + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
   writeQuadXYZ(geometry, first,
-    startX + sideX, raisedStartY, startZ + sideZ,
-    startX - sideX, raisedStartY, startZ - sideZ,
-    endX - sideX, raisedEndY, endZ - sideZ,
-    endX + sideX, raisedEndY, endZ + sideZ,
+    startX + sideX, startY, startZ + sideZ,
+    startX - sideX, startY, startZ - sideZ,
+    endX - sideX, endY, endZ - sideZ,
+    endX + sideX, endY, endZ + sideZ,
     0.3, 0.88, 0.92);
   writeQuadXYZ(geometry, first + 6,
-    startX, raisedStartY + halfWidth, startZ,
-    startX, raisedStartY - halfWidth, startZ,
-    endX, raisedEndY - halfWidth, endZ,
-    endX, raisedEndY + halfWidth, endZ,
+    startX, startY + halfWidth, startZ,
+    startX, startY - halfWidth, startZ,
+    endX, endY - halfWidth, endZ,
+    endX, endY + halfWidth, endZ,
     0.22, 0.76, 0.94);
+}
+
+/** 在怪物附着箭与地面伤害线之间写入只负责表现的竖直引线。 */
+export function writeBattlefieldTetherLead(
+  geometry: UnlitColorBufferGeometry,
+  slot: number,
+  x: number,
+  arrowY: number,
+  tetherY: number,
+  z: number,
+  visible: boolean,
+  halfWidth: number,
+): void {
+  const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
+    + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+    + slot * BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT;
+  if (!visible) {
+    collapse(geometry, first, BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT, x, tetherY, z);
+    return;
+  }
+  const minimumY = Math.min(arrowY, tetherY);
+  const maximumY = Math.max(arrowY, tetherY);
+  writeQuadXYZ(geometry, first,
+    x - halfWidth, minimumY, z,
+    x + halfWidth, minimumY, z,
+    x + halfWidth, maximumY, z,
+    x - halfWidth, maximumY, z,
+    0.18, 0.82, 0.94);
+  writeQuadXYZ(geometry, first + 6,
+    x, minimumY, z - halfWidth,
+    x, minimumY, z + halfWidth,
+    x, maximumY, z + halfWidth,
+    x, maximumY, z - halfWidth,
+    0.12, 0.66, 0.88);
 }
 
 /** 在猎场织网期间写入可从远处辨认的八面锚点。 */
@@ -144,6 +177,7 @@ export function writeBattlefieldTetherMarker(
 ): void {
   const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
     + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+    + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT
     + slot * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT;
   if (!visible) {
     collapse(geometry, first, BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT, x, y, z);
@@ -184,6 +218,7 @@ export function writeBattlefieldQuiver(
 ): void {
   const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
     + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+    + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT
     + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT;
   let vertex = first;
   for (let segment = 0; segment < 6; segment++) {

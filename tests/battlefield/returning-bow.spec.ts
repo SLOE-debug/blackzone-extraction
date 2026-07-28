@@ -12,11 +12,15 @@ import {
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-query';
 import { BattlefieldArrowState } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-state';
 import { BattlefieldReturningBowRuntime } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-returning-bow-runtime';
+import { BATTLEFIELD_MAXIMUM_TETHER_COUNT } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-tether-system';
 import {
   BATTLEFIELD_ARROW_VERTICES_PER_SLOT,
+  BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT,
+  BATTLEFIELD_TETHER_VERTICES_PER_SLOT,
   createBattlefieldArrowBatchGeometry,
   writeBattlefieldArrow,
   writeBattlefieldTether,
+  writeBattlefieldTetherLead,
 } from '../../assets/bundles/battlefield/equipment/projectile/geometry/battlefield-arrow-batch-geometry';
 import { BattlefieldBowActionControl } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-bow-action-control';
 import { BattlefieldBowAction } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-bow-action-state';
@@ -33,7 +37,10 @@ import { calculateRecallSpeed } from '../../assets/bundles/battlefield/equipment
 import {
   findTetherVerticalRangeOverlapProgress,
 } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-tether-range-overlap';
-import { BATTLEFIELD_TETHER_HEIGHT_OFFSET } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-tether-config';
+import {
+  BATTLEFIELD_TETHER_COLLISION_RADIUS,
+  BATTLEFIELD_TETHER_GROUND_HEIGHT,
+} from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-tether-config';
 
 const OWNER = Object.freeze({
   entityId: 7,
@@ -143,11 +150,69 @@ describe('归弦猎弓固定实体箭循环', () => {
     expect(bow.damageEvents.count).toBe(1);
     expect(target.slowCount).toBe(1);
     expect(target.tetherQueryCount).toBe(1);
-    expect(target.lastTetherStartY).toBeCloseTo(BATTLEFIELD_TETHER_HEIGHT_OFFSET);
-    expect(target.lastTetherEndY).toBeCloseTo(BATTLEFIELD_TETHER_HEIGHT_OFFSET);
+    expect(target.lastTetherStartY).toBeCloseTo(
+      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
+    );
+    expect(target.lastTetherEndY).toBeCloseTo(
+      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
+    );
+    expect(target.lastTetherRadius).toBe(BATTLEFIELD_TETHER_COLLISION_RADIUS);
     expect(target.arrowSweepQueryCount).toBe(0);
     bow.update(0.01, OWNER);
     expect(target.tetherQueryCount).toBe(2);
+  });
+
+  it('高度不同的两个锚点仍生成地面弦线并伤害全部平面重叠目标', () => {
+    const target = new ArrowTargetFixture();
+    const bow = createBow(target);
+    bow.arrows.state[0] = BattlefieldArrowState.EmbeddedInMonster;
+    bow.arrows.positionX[0] = -8;
+    bow.arrows.positionY[0] = 2.4;
+    bow.arrows.positionZ[0] = 0;
+    bow.arrows.attachedPopulationId[0] = 3;
+    bow.arrows.attachedEntityId[0] = 11;
+    bow.arrows.attachmentOffsetX[0] = -8;
+    bow.arrows.attachmentOffsetY[0] = 1.4;
+    bow.arrows.attachmentOffsetZ[0] = -1;
+    bow.arrows.state[1] = BattlefieldArrowState.EmbeddedInWorld;
+    bow.arrows.positionX[1] = 8;
+    bow.arrows.positionY[1] = 0.1;
+    bow.arrows.positionZ[1] = 0;
+    target.tetherHits = [
+      { populationId: 1, entityId: 10, progress: 0.2 },
+      { populationId: 1, entityId: 11, progress: 0.4 },
+      { populationId: 1, entityId: 12, progress: 0.6 },
+      { populationId: 1, entityId: 13, progress: 0.8 },
+    ];
+
+    expect(bow.requestTether()).toBe(true);
+    bow.update(0.05, OWNER);
+
+    expect(bow.damageEvents.count).toBe(4);
+    expect(target.slowCount).toBe(4);
+    expect(target.lastTetherStartY).toBeCloseTo(
+      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
+    );
+    expect(target.lastTetherEndY).toBeCloseTo(
+      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
+    );
+  });
+
+  it('弦网按箭矢 XZ 投影选择最近锚点而不受附着高度影响', () => {
+    const bow = createBow(new ArrowTargetFixture());
+    for (let index = 0; index < 3; index++) {
+      bow.arrows.state[index] = BattlefieldArrowState.EmbeddedInWorld;
+    }
+    bow.arrows.positionX[0] = 0;
+    bow.arrows.positionY[0] = 0;
+    bow.arrows.positionX[1] = 1;
+    bow.arrows.positionY[1] = 100;
+    bow.arrows.positionX[2] = 2;
+    bow.arrows.positionY[2] = 0;
+
+    expect(bow.requestTether()).toBe(true);
+    expect(bow.tethers.startArrowIndex[0]).toBe(0);
+    expect(bow.tethers.endArrowIndex[0]).toBe(1);
   });
 
   it('弦线重叠按平面最近点对应高度判断脚底到身体顶部的显式范围', () => {
@@ -236,9 +301,22 @@ describe('归弦猎弓固定实体箭循环', () => {
     const tetherAlphas = geometry.colors.slice(first * 4, (first + 12) * 4)
       .filter((_, index) => index % 4 === 3);
     expect(geometry.positions[first * 3 + 1])
-      .toBeCloseTo(0.1 + BATTLEFIELD_TETHER_HEIGHT_OFFSET);
+      .toBeCloseTo(0.1);
     expect(Math.max(...tetherPositions) - Math.min(...tetherPositions)).toBeGreaterThan(0.15);
     expect([...tetherAlphas].every((alpha) => alpha === 1)).toBe(true);
+  });
+
+  it('怪物附着箭的视觉引线连接箭高与地面弦线高度', () => {
+    const geometry = createBattlefieldArrowBatchGeometry();
+    writeBattlefieldTetherLead(geometry, 0, 2, 2.4, 0.16, 3, true, 0.025);
+    const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
+      + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT;
+    const yValues: number[] = [];
+    for (let vertex = first; vertex < first + BATTLEFIELD_TETHER_LEAD_VERTICES_PER_SLOT; vertex++) {
+      yValues.push(geometry.positions[vertex * 3 + 1] ?? 0);
+    }
+    expect(Math.min(...yValues)).toBeCloseTo(0.16);
+    expect(Math.max(...yValues)).toBeCloseTo(2.4);
   });
 });
 
@@ -269,6 +347,8 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
   public tetherQueryCount = 0;
   public lastTetherStartY = 0;
   public lastTetherEndY = 0;
+  public lastTetherRadius = 0;
+  public tetherHits: readonly TetherHitFixture[] = [];
 
   public writeBestArrowAimTarget(
     _query: Readonly<BattlefieldArrowAimQuery>,
@@ -299,8 +379,19 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
     this.tetherQueryCount++;
     this.lastTetherStartY = query.startY;
     this.lastTetherEndY = query.endY;
+    this.lastTetherRadius = query.radius;
     result.reset();
-    if (this.sweepHitEnabled) {
+    for (const hit of this.tetherHits) {
+      result.include(
+        hit.populationId,
+        hit.entityId,
+        query.startX + (query.endX - query.startX) * hit.progress,
+        query.startY,
+        query.startZ + (query.endZ - query.startZ) * hit.progress,
+        hit.progress,
+      );
+    }
+    if (this.sweepHitEnabled && this.tetherHits.length === 0) {
       result.include(3, 11, query.endX, query.endY, query.endZ, 0.5);
     }
     return result.count;
@@ -335,4 +426,10 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
   public applyArrowPull(): boolean {
     return true;
   }
+}
+
+interface TetherHitFixture {
+  readonly populationId: number;
+  readonly entityId: number;
+  readonly progress: number;
 }
