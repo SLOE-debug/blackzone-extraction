@@ -31,8 +31,9 @@ import {
 } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-capsule-intersection';
 import { calculateRecallSpeed } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-recall-system';
 import {
-  findTetherVerticalCapsuleOverlapProgress,
-} from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-tether-capsule-overlap';
+  findTetherVerticalRangeOverlapProgress,
+} from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-tether-range-overlap';
+import { BATTLEFIELD_TETHER_HEIGHT_OFFSET } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-tether-config';
 
 const OWNER = Object.freeze({
   entityId: 7,
@@ -142,24 +143,26 @@ describe('归弦猎弓固定实体箭循环', () => {
     expect(bow.damageEvents.count).toBe(1);
     expect(target.slowCount).toBe(1);
     expect(target.tetherQueryCount).toBe(1);
+    expect(target.lastTetherStartY).toBeCloseTo(BATTLEFIELD_TETHER_HEIGHT_OFFSET);
+    expect(target.lastTetherEndY).toBeCloseTo(BATTLEFIELD_TETHER_HEIGHT_OFFSET);
     expect(target.arrowSweepQueryCount).toBe(0);
     bow.update(0.01, OWNER);
     expect(target.tetherQueryCount).toBe(2);
   });
 
-  it('弦线重叠只按平面最近点对应高度判断竖直胶囊', () => {
-    expect(findTetherVerticalCapsuleOverlapProgress(
+  it('弦线重叠按平面最近点对应高度判断脚底到身体顶部的显式范围', () => {
+    expect(findTetherVerticalRangeOverlapProgress(
       -2, 1, 0,
       2, 1, 0,
-      0, 1, 0.4,
-      0.5,
+      0, 0.4,
+      0, 1.5,
       0.5,
     )).toBeCloseTo(0.5);
-    expect(findTetherVerticalCapsuleOverlapProgress(
+    expect(findTetherVerticalRangeOverlapProgress(
       -2, 3, 0,
       2, 3, 0,
-      0, 1, 0.4,
-      0.5,
+      0, 0.4,
+      0, 1.5,
       0.5,
     )).toBe(-1);
   });
@@ -232,6 +235,8 @@ describe('归弦猎弓固定实体箭循环', () => {
     const tetherPositions = geometry.positions.slice(first * 3, (first + 12) * 3);
     const tetherAlphas = geometry.colors.slice(first * 4, (first + 12) * 4)
       .filter((_, index) => index % 4 === 3);
+    expect(geometry.positions[first * 3 + 1])
+      .toBeCloseTo(0.1 + BATTLEFIELD_TETHER_HEIGHT_OFFSET);
     expect(Math.max(...tetherPositions) - Math.min(...tetherPositions)).toBeGreaterThan(0.15);
     expect([...tetherAlphas].every((alpha) => alpha === 1)).toBe(true);
   });
@@ -262,6 +267,8 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
   public aimAvailable = false;
   public arrowSweepQueryCount = 0;
   public tetherQueryCount = 0;
+  public lastTetherStartY = 0;
+  public lastTetherEndY = 0;
 
   public writeBestArrowAimTarget(
     _query: Readonly<BattlefieldArrowAimQuery>,
@@ -290,6 +297,8 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
     result: BattlefieldArrowHitBuffer,
   ): number {
     this.tetherQueryCount++;
+    this.lastTetherStartY = query.startY;
+    this.lastTetherEndY = query.endY;
     result.reset();
     if (this.sweepHitEnabled) {
       result.include(3, 11, query.endX, query.endY, query.endZ, 0.5);

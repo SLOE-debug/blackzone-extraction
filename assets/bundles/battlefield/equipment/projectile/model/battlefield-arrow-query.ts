@@ -9,7 +9,7 @@ export interface BattlefieldArrowSweepQuery {
   readonly radius: number;
 }
 
-/** 持续弦线与怪物竖直胶囊的低频重叠查询。 */
+/** 持续弦线与怪物脚底至身体顶部范围的低频重叠查询。 */
 export interface BattlefieldTetherQuery {
   readonly startX: number;
   readonly startY: number;

@@ -1,11 +1,11 @@
 const SEGMENT_EPSILON = 0.000001;
 
 /**
- * 判断弦线是否与竖直胶囊重叠，并返回平面最近点在线段上的进度。
+ * 判断弦线是否与目标的显式竖直范围重叠，并返回平面最近点在线段上的进度。
  *
- * 该查询不需要首次接触时间，因此只执行一次 XZ 投影与一次高度范围判断。
+ * 该查询只执行一次 XZ 投影与一次高度范围判断，不计算首次接触时间。
  */
-export function findTetherVerticalCapsuleOverlapProgress(
+export function findTetherVerticalRangeOverlapProgress(
   startX: number,
   startY: number,
   startZ: number,
@@ -13,9 +13,9 @@ export function findTetherVerticalCapsuleOverlapProgress(
   endY: number,
   endZ: number,
   centerX: number,
-  centerY: number,
   centerZ: number,
-  halfHeight: number,
+  minimumY: number,
+  maximumY: number,
   contactRadius: number,
 ): number {
   const segmentX = endX - startX;
@@ -35,7 +35,5 @@ export function findTetherVerticalCapsuleOverlapProgress(
     return -1;
   }
   const lineY = startY + segmentY * progress;
-  return lineY >= centerY - halfHeight && lineY <= centerY + halfHeight
-    ? progress
-    : -1;
+  return lineY >= minimumY && lineY <= maximumY ? progress : -1;
 }

@@ -8,6 +8,7 @@ import {
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
 } from '../population/battlefield-arrow-population';
 import { BATTLEFIELD_MAXIMUM_TETHER_COUNT } from '../population/battlefield-arrow-tether-system';
+import { BATTLEFIELD_TETHER_HEIGHT_OFFSET } from '../model/battlefield-tether-config';
 
 export const BATTLEFIELD_ARROW_VERTICES_PER_SLOT = 18;
 export const BATTLEFIELD_TETHER_VERTICES_PER_SLOT = 12;
@@ -116,8 +117,8 @@ export function writeBattlefieldTether(
   const inverse = 1 / Math.max(0.0001, Math.hypot(dx, dz));
   const sideX = dz * inverse * halfWidth;
   const sideZ = -dx * inverse * halfWidth;
-  const raisedStartY = startY + 0.06;
-  const raisedEndY = endY + 0.06;
+  const raisedStartY = startY + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
+  const raisedEndY = endY + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
   writeQuadXYZ(geometry, first,
     startX + sideX, raisedStartY, startZ + sideZ,
     startX - sideX, raisedStartY, startZ - sideZ,

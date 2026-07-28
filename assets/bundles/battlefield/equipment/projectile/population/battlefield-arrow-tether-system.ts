@@ -9,6 +9,7 @@ import {
   type BattlefieldTetherQuery,
 } from '../model/battlefield-arrow-query';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
+import { BATTLEFIELD_TETHER_HEIGHT_OFFSET } from '../model/battlefield-tether-config';
 import {
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
   type BattlefieldArrowPopulation,
@@ -153,10 +154,10 @@ export class BattlefieldArrowTetherSystem {
         continue;
       }
       this.query.startX = arrows.positionX[start] ?? 0;
-      this.query.startY = arrows.positionY[start] ?? 0;
+      this.query.startY = (arrows.positionY[start] ?? 0) + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
       this.query.startZ = arrows.positionZ[start] ?? 0;
       this.query.endX = arrows.positionX[end] ?? 0;
-      this.query.endY = arrows.positionY[end] ?? 0;
+      this.query.endY = (arrows.positionY[end] ?? 0) + BATTLEFIELD_TETHER_HEIGHT_OFFSET;
       this.query.endZ = arrows.positionZ[end] ?? 0;
       target.collectTetherOverlapHits(this.query, this.hits);
       for (let hit = 0; hit < this.hits.count; hit++) {
