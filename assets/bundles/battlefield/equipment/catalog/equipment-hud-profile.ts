@@ -3,12 +3,15 @@ import { WeaponSkillCommand } from '../../../../core/equipment/equipment';
 /** 物品栏矢量图标清单。 */
 export enum EquipmentIconId {
   Sledgehammer = 'sledgehammer',
+  ReturningBow = 'returning-bow',
 }
 
 /** 武器技能矢量图标清单。 */
 export enum SkillIconId {
   HammerWhirlwind = 'hammer-whirlwind',
   HammerGroundSlam = 'hammer-ground-slam',
+  BowRecall = 'bow-recall',
+  BowTether = 'bow-tether',
 }
 
 /** 单枚技能按钮由装备原型提供的展示与命令契约。 */

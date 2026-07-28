@@ -54,12 +54,12 @@ export class BattlefieldHammerPoseSolver {
     result.rotationY = grip.rotationY;
     result.rotationZ = grip.rotationZ;
     result.rotationW = grip.rotationW;
-    this.rotateProfilePoint(profile.mainGripLocalPosition, profile, grip);
+    this.rotateProfilePoint(profile.attachmentPoints.mainGrip, profile, grip);
     result.rootX = grip.mainGripX - (this.rotated[0] ?? 0);
     result.rootY = grip.mainGripY - (this.rotated[1] ?? 0);
     result.rootZ = grip.mainGripZ - (this.rotated[2] ?? 0);
 
-    this.rotateProfilePoint(profile.supportGripLocalPosition, profile, grip);
+    this.rotateProfilePoint(profile.attachmentPoints.supportGrip, profile, grip);
     const supportError = Math.hypot(
       result.rootX + (this.rotated[0] ?? 0) - grip.supportGripX,
       result.rootY + (this.rotated[1] ?? 0) - grip.supportGripY,
@@ -69,7 +69,11 @@ export class BattlefieldHammerPoseSolver {
       throw new Error(`大锤副握点未贴合左手，误差：${supportError.toFixed(4)}`);
     }
 
-    this.rotateProfilePoint(profile.hammerHeadLocalPosition, profile, grip);
+    const impactHead = profile.attachmentPoints.impactHead;
+    if (impactHead === undefined) {
+      throw new Error('大锤姿态求解器要求 impactHead 语义挂点。');
+    }
+    this.rotateProfilePoint(impactHead, profile, grip);
     result.headX = result.rootX + (this.rotated[0] ?? 0);
     result.headY = result.rootY + (this.rotated[1] ?? 0);
     result.headZ = result.rootZ + (this.rotated[2] ?? 0);

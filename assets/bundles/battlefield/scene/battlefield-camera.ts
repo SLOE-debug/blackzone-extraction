@@ -8,6 +8,7 @@ import { BATTLEFIELD_LAYOUT } from '../model/battlefield-layout';
 import {
   type MutableBattlefieldPlanarDirection,
   writeBattlefieldCameraRelativeDirection,
+  writeBattlefieldCameraRelativeUnitDirection,
 } from './battlefield-camera-direction';
 
 const MOTION_EPSILON = 0.00001;
@@ -147,6 +148,20 @@ export class BattlefieldCameraRig {
     result: MutableBattlefieldPlanarDirection,
   ): void {
     writeBattlefieldCameraRelativeDirection(
+      this.azimuthAngle,
+      screenX,
+      screenY,
+      result,
+    );
+  }
+
+  /** 将屏幕二维输入映射为不携带摇杆力度的世界单位方向。 */
+  public writeWorldPlanarUnitDirection(
+    screenX: number,
+    screenY: number,
+    result: MutableBattlefieldPlanarDirection,
+  ): void {
+    writeBattlefieldCameraRelativeUnitDirection(
       this.azimuthAngle,
       screenX,
       screenY,

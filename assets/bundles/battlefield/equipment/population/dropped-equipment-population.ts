@@ -52,7 +52,7 @@ export class DroppedEquipmentPopulation {
   private readonly material: Material;
   private readonly items: Array<DroppedEquipmentRuntime | null>;
   private itemCount = 0;
-  private renderer: DroppedEquipmentRenderer | null = null;
+  private readonly renderers: DroppedEquipmentRenderer[] = [];
   private accentRenderer: DroppedEquipmentAccentRenderer | null = null;
   private readonly renderSchedule = new DroppedEquipmentRenderSchedule();
   private prewarmActive = false;
@@ -69,7 +69,7 @@ export class DroppedEquipmentPopulation {
 
   /** 预热完成后本体和信标固定占用两个批次，与活动物品数无关。 */
   public get renderBatchCount(): number {
-    return (this.renderer === null ? 0 : 1) + (this.accentRenderer === null ? 0 : 1);
+    return this.renderers.length + (this.accentRenderer === null ? 0 : 1);
   }
 
   constructor(
@@ -89,33 +89,39 @@ export class DroppedEquipmentPopulation {
   /** 加载阶段一次性创建 Mesh、Material、Renderer 与最大容量 GPU 缓冲。 */
   public prewarm(): void {
     this.ensureActive();
-    if (this.renderer !== null || this.accentRenderer !== null) {
+    if (this.renderers.length > 0 || this.accentRenderer !== null) {
       return;
     }
-    let renderer: DroppedEquipmentRenderer | null = null;
+    const renderers: DroppedEquipmentRenderer[] = [];
     let accentRenderer: DroppedEquipmentAccentRenderer | null = null;
     try {
-      renderer = new DroppedEquipmentRenderer(
-        this.parent,
-        this.items,
-        EquipmentId.Sledgehammer,
-        this.material,
-        this.performance,
-      );
+      for (const equipmentId of [EquipmentId.Sledgehammer, EquipmentId.ReturningBow] as const) {
+        renderers.push(new DroppedEquipmentRenderer(
+          this.parent,
+          this.items,
+          equipmentId,
+          this.material,
+          this.performance,
+        ));
+      }
       accentRenderer = new DroppedEquipmentAccentRenderer(
         this.parent,
         this.items,
         this.equipmentLibrary,
         this.performance,
       );
-      renderer.prewarm();
+      for (const renderer of renderers) {
+        renderer.prewarm();
+      }
       accentRenderer.prewarm();
     } catch (error: unknown) {
       accentRenderer?.dispose();
-      renderer?.dispose();
+      for (const renderer of renderers) {
+        renderer.dispose();
+      }
       throw error;
     }
-    this.renderer = renderer;
+    this.renderers.push(...renderers);
     this.accentRenderer = accentRenderer;
     this.prewarmActive = true;
     this.prewarmFramesRemaining = 1;
@@ -201,7 +207,9 @@ export class DroppedEquipmentPopulation {
       return;
     }
     if (this.prewarmActive) {
-      this.renderer?.finishPrewarm();
+      for (const renderer of this.renderers) {
+        renderer.finishPrewarm();
+      }
       this.accentRenderer?.finishPrewarm();
       this.prewarmActive = false;
     }
@@ -307,9 +315,11 @@ export class DroppedEquipmentPopulation {
       this.items[index] = null;
     }
     this.itemCount = 0;
-    this.renderer?.dispose();
+    for (const renderer of this.renderers) {
+      renderer.dispose();
+    }
     this.accentRenderer?.dispose();
-    this.renderer = null;
+    this.renderers.length = 0;
     this.accentRenderer = null;
     this.material.destroy();
   }
@@ -348,12 +358,14 @@ export class DroppedEquipmentPopulation {
 
   /** 在统一更新末尾最多刷新一次两个掉落批次。 */
   private flushRendering(): void {
-    this.renderer?.synchronize(this.itemCount);
+    for (const renderer of this.renderers) {
+      renderer.synchronize(this.itemCount);
+    }
     this.accentRenderer?.synchronize(this.itemCount);
   }
 
   private ensurePrewarmed(): void {
-    if (this.renderer === null || this.accentRenderer === null) {
+    if (this.renderers.length === 0 || this.accentRenderer === null) {
       throw new Error('掉落装备批次必须在场景加载阶段完成预热。');
     }
   }

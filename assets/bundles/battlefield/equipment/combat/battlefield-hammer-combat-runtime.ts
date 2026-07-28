@@ -17,6 +17,11 @@ import {
 } from './battlefield-hammer-sweep-debug-state';
 import { getHammerDamageScale, getHammerKnockbackSpeed } from './battlefield-hammer-impact-profile';
 import { BattlefieldHammerSpinArcSampler } from './battlefield-hammer-spin-arc-sampler';
+import {
+  BattlefieldDamageEventBuffer,
+  BattlefieldDamageKind,
+  BattlefieldWeaponSourceId,
+} from './battlefield-damage-event-buffer';
 
 const MAXIMUM_MELEE_HITS = 512;
 const KNOCKBACK_DURATION_SECONDS = 0.28;
@@ -39,6 +44,9 @@ export class BattlefieldHammerCombatRuntime {
   private readonly spinArcSampler = new BattlefieldHammerSpinArcSampler();
   private readonly sweepDebugState = new BattlefieldHammerSweepDebugState();
   private readonly events = new BattlefieldCombatEventBuffer(
+    MAXIMUM_MELEE_HITS * SLEDGEHAMMER_PROGRESSION.spinMaximumSweepSubsteps,
+  );
+  private readonly damageEvents = new BattlefieldDamageEventBuffer(
     MAXIMUM_MELEE_HITS * SLEDGEHAMMER_PROGRESSION.spinMaximumSweepSubsteps,
   );
   private readonly query: {
@@ -95,6 +103,7 @@ export class BattlefieldHammerCombatRuntime {
 
   public beginFrame(): void {
     this.events.beginFrame();
+    this.damageEvents.beginFrame();
     this.sweepDebugState.beginFrame();
   }
 
@@ -111,6 +120,7 @@ export class BattlefieldHammerCombatRuntime {
     this.spinArcSampler.reset();
     this.sweepDebugState.reset();
     this.events.beginFrame();
+    this.damageEvents.beginFrame();
   }
 
   /** 用动作事件和视觉锤头轨迹生成本帧全部待结算命中。 */
@@ -185,7 +195,18 @@ export class BattlefieldHammerCombatRuntime {
       const damage = kind === BattlefieldWeaponHitKind.SpinPulse
         ? definition.baseDamage * getHammerDamageScale(kind, spinHitCount)
         : this.events.damage[index] ?? 0;
-      this.monsters.damageMonster(populationId, entityId, damage);
+      this.damageEvents.append({
+        sourceEntityId: 0,
+        sourceWeaponId: BattlefieldWeaponSourceId.Sledgehammer,
+        attackSequenceId: this.events.attackSequenceId[index] ?? 0,
+        targetPopulationId: populationId,
+        targetEntityId: entityId,
+        damage,
+        damageKind: BattlefieldDamageKind.Physical,
+        hitPositionX: 0,
+        hitPositionY: 0,
+        hitPositionZ: 0,
+      });
       const launchHeight = this.events.launchHeight[index] ?? 0;
       if (kind === BattlefieldWeaponHitKind.Uppercut && launchHeight > 0) {
         this.monsters.applyDirectionalLaunch(populationId, entityId, {
@@ -241,6 +262,7 @@ export class BattlefieldHammerCombatRuntime {
     if (confirmedSwing) {
       actionState.recordConfirmedAttack(definition);
     }
+    this.damageEvents.resolve(this.monsters);
   }
 
   private queueGroundSlamHits(

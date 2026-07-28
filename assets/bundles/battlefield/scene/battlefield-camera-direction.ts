@@ -21,3 +21,26 @@ export function writeBattlefieldCameraRelativeDirection(
   result.x = cosine * screenX - sine * screenY;
   result.z = -sine * screenX - cosine * screenY;
 }
+
+/** 把非零屏幕输入归一化后映射为世界单位方向，供攻击等纯方向命令使用。 */
+export function writeBattlefieldCameraRelativeUnitDirection(
+  azimuthAngle: number,
+  screenX: number,
+  screenY: number,
+  result: MutableBattlefieldPlanarDirection,
+): void {
+  if (!Number.isFinite(screenX) || !Number.isFinite(screenY)) {
+    throw new Error('战场相机单位方向输入必须是有限数值。');
+  }
+  const length = Math.hypot(screenX, screenY);
+  if (length <= 0.000001) {
+    throw new Error('战场相机单位方向输入不能为空。');
+  }
+  const inverseLength = 1 / length;
+  writeBattlefieldCameraRelativeDirection(
+    azimuthAngle,
+    screenX * inverseLength,
+    screenY * inverseLength,
+    result,
+  );
+}

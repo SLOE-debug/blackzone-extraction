@@ -34,10 +34,11 @@ export const SLEDGEHAMMER_PROTOTYPE = Object.freeze({
   held: Object.freeze({
     grip: WeaponGrip.TwoHandHeavy,
     heldScale: 0.45,
-    mainGripLocalPosition: Object.freeze({ x: 0, y: 0, z: 0 }),
-    supportGripLocalPosition: Object.freeze({ x: 0, y: -0.75, z: 0 }),
-    hammerHeadLocalPosition: Object.freeze({ x: 0, y: -3.08, z: 0 }),
-    hammerHeadRadius: 0.82,
+    attachmentPoints: Object.freeze({
+      mainGrip: Object.freeze({ x: 0, y: 0, z: 0 }),
+      supportGrip: Object.freeze({ x: 0, y: -0.75, z: 0 }),
+      impactHead: Object.freeze({ x: 0, y: -3.08, z: 0, radius: 0.82 }),
+    }),
   }),
   hud: Object.freeze({
     inventoryIcon: EquipmentIconId.Sledgehammer,

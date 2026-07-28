@@ -60,8 +60,9 @@ export function updateVanguardWeaponAnimationState(
     deltaTime,
   );
 
-  const ready = (data.intent.weaponPose[index] as VanguardWeaponPose)
-    === VanguardWeaponPose.TwoHandHeavy;
+  const requestedPose = data.intent.weaponPose[index] as VanguardWeaponPose;
+  const ready = requestedPose === VanguardWeaponPose.TwoHandHeavy
+    || requestedPose === VanguardWeaponPose.TwoHandRanged;
   weapon.mainGripWeight[index] = damp(
     weapon.mainGripWeight[index] ?? 0,
     ready ? 1 : 0,

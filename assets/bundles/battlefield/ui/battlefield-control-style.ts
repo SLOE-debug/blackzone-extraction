@@ -35,4 +35,12 @@ export const BATTLEFIELD_CONTROL_STYLE = Object.freeze({
     interactionRadius: 108,
     palette: ATTACK_PALETTE,
   }) satisfies BattlefieldAttackButtonOptions,
+  aim: Object.freeze({
+    radius: 72,
+    handleRadius: 28,
+    interactionRadius: 108,
+    deadZone: 0.1,
+    responseExponent: 1,
+    palette: ATTACK_PALETTE,
+  }) satisfies VirtualJoystickOptions,
 });

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { writeBattlefieldCameraRelativeDirection } from '../../assets/bundles/battlefield/scene/battlefield-camera-direction';
+import {
+  writeBattlefieldCameraRelativeDirection,
+  writeBattlefieldCameraRelativeUnitDirection,
+} from '../../assets/bundles/battlefield/scene/battlefield-camera-direction';
 
 describe('战场相机相对方向', () => {
   it('默认零方位角把屏幕上方映射为世界负 Z', () => {
@@ -28,6 +31,14 @@ describe('战场相机相对方向', () => {
     const result = { x: 0, z: 0 };
 
     writeBattlefieldCameraRelativeDirection(1.234, 0.6, 0.8, result);
+
+    expect(Math.hypot(result.x, result.z)).toBeCloseTo(1, 6);
+  });
+
+  it('攻击方向移除摇杆力度并始终输出单位向量', () => {
+    const result = { x: 0, z: 0 };
+
+    writeBattlefieldCameraRelativeUnitDirection(0.72, 0.12, -0.18, result);
 
     expect(Math.hypot(result.x, result.z)).toBeCloseTo(1, 6);
   });

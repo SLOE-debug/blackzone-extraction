@@ -12,11 +12,18 @@ export interface BattlefieldAttackButtonOptions {
   readonly palette: Readonly<VirtualJoystickPalette>;
 }
 
+/** 普攻按钮按当前武器切换的矢量图案。 */
+export enum BattlefieldPrimaryAttackIcon {
+  Hammer,
+  Bow,
+}
+
 /** 只产生攻击按下边沿和持续按住状态的单轴动作按钮。 */
 export class BattlefieldAttackButton {
   private readonly root: Node;
   private activeTouchId: number | null = null;
   private contextAction: VirtualJoystickActionIcon | null = null;
+  private primaryIcon = BattlefieldPrimaryAttackIcon.Hammer;
   private attackPressed = false;
   private actionPressed = false;
   private heldValue = false;
@@ -77,6 +84,23 @@ export class BattlefieldAttackButton {
     this.invalidate();
   }
 
+  public setPrimaryIcon(icon: BattlefieldPrimaryAttackIcon): void {
+    if (this.primaryIcon !== icon) {
+      this.primaryIcon = icon;
+      this.invalidate();
+    }
+  }
+
+  /** 切换普通攻击按钮命中与外观；隐藏时立即释放残留触点。 */
+  public setVisible(visible: boolean): void {
+    if (this.disposed || this.root.active === visible) {
+      return;
+    }
+    this.root.active = visible;
+    this.resetTouch();
+    this.invalidate();
+  }
+
   public consumeAttackPress(): boolean {
     const pressed = this.attackPressed;
     this.attackPressed = false;
@@ -105,12 +129,21 @@ export class BattlefieldAttackButton {
     graphics.fill();
     const icon = this.contextAction;
     if (icon === null) {
-      drawHammerAttackIcon(
-        graphics,
-        this.centerX,
-        this.centerY,
-        this.heldValue ? palette.accent : palette.rim,
-      );
+      if (this.primaryIcon === BattlefieldPrimaryAttackIcon.Bow) {
+        drawBowAttackIcon(
+          graphics,
+          this.centerX,
+          this.centerY,
+          this.heldValue ? palette.accent : palette.rim,
+        );
+      } else {
+        drawHammerAttackIcon(
+          graphics,
+          this.centerX,
+          this.centerY,
+          this.heldValue ? palette.accent : palette.rim,
+        );
+      }
     } else {
       drawVirtualJoystickActionIcon(
         graphics,
@@ -179,6 +212,32 @@ export class BattlefieldAttackButton {
   private invalidate(): void {
     this.revision = this.revision >= Number.MAX_SAFE_INTEGER ? 1 : this.revision + 1;
   }
+}
+
+function drawBowAttackIcon(
+  graphics: Graphics,
+  centerX: number,
+  centerY: number,
+  color: Readonly<Color>,
+): void {
+  graphics.strokeColor = color;
+  graphics.fillColor = color;
+  graphics.lineWidth = 4;
+  graphics.moveTo(centerX - 13, centerY - 17);
+  graphics.bezierCurveTo(centerX + 10, centerY - 10, centerX + 10, centerY + 10, centerX - 13, centerY + 17);
+  graphics.stroke();
+  graphics.moveTo(centerX - 13, centerY - 17);
+  graphics.lineTo(centerX - 3, centerY);
+  graphics.lineTo(centerX - 13, centerY + 17);
+  graphics.stroke();
+  graphics.moveTo(centerX - 8, centerY);
+  graphics.lineTo(centerX + 17, centerY);
+  graphics.stroke();
+  graphics.moveTo(centerX + 17, centerY);
+  graphics.lineTo(centerX + 9, centerY + 5);
+  graphics.lineTo(centerX + 9, centerY - 5);
+  graphics.close();
+  graphics.fill();
 }
 
 /** 用倾斜锤柄和分面锤头表达无方向普通攻击。 */

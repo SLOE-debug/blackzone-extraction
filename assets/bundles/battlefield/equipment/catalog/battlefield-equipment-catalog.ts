@@ -1,4 +1,5 @@
 import { SLEDGEHAMMER_PROTOTYPE } from '../items/sledgehammer/sledgehammer-prototype';
+import { RETURNING_BOW_PROTOTYPE } from '../items/returning-bow/returning-bow-prototype';
 import {
   type BattlefieldEquipmentDefinitionById,
   type BattlefieldEquipmentLibrary,
@@ -11,6 +12,7 @@ import { EquipmentId } from './equipment-id';
 /** 战场当前可生成装备的唯一强类型原型清单。 */
 const BATTLEFIELD_EQUIPMENT_PROTOTYPES: BattlefieldEquipmentPrototypeById = Object.freeze({
   [EquipmentId.Sledgehammer]: SLEDGEHAMMER_PROTOTYPE,
+  [EquipmentId.ReturningBow]: RETURNING_BOW_PROTOTYPE,
 });
 
 /** 返回指定装备拥有定义、几何和展示配置的完整原型。 */

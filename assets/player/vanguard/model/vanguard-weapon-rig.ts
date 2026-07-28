@@ -36,9 +36,19 @@ const TWO_HAND_HEAVY_RIG = profile({
   ),
 });
 
+const TWO_HAND_RANGED_RIG = profile({
+  pose: VanguardWeaponPose.TwoHandRanged,
+  readyPitch: 0,
+  sockets: sockets(
+    ORIGIN,
+    point(0, 1, 0),
+  ),
+});
+
 const VANGUARD_WEAPON_RIGS = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_RIG,
   [VanguardWeaponPose.TwoHandHeavy]: TWO_HAND_HEAVY_RIG,
+  [VanguardWeaponPose.TwoHandRanged]: TWO_HAND_RANGED_RIG,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponRigProfile>>>);
 
 /** 返回由武器姿态枚举登记的刚性挂点配置。 */

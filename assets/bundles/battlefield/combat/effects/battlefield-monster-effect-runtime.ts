@@ -117,6 +117,32 @@ export class BattlefieldMonsterEffectRuntime {
     return true;
   }
 
+  /** 用独立计时 SoA 记录移动减速，不覆盖击退与腾空位移。 */
+  public applyMovementSlow(
+    populationId: number,
+    entityId: number,
+    scale: number,
+    durationSeconds: number,
+  ): boolean {
+    if (!Number.isFinite(scale) || scale <= 0 || scale > 1
+      || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+      throw new Error('移动减速倍率与持续时间无效。');
+    }
+    const state = this.findState(populationId);
+    if (state === null || !isValidEffectEntity(state, entityId)) {
+      return false;
+    }
+    state.movementSlowScale[entityId] = Math.min(
+      state.movementSlowScale[entityId] ?? 1,
+      scale,
+    );
+    state.movementSlowRemaining[entityId] = Math.max(
+      state.movementSlowRemaining[entityId] ?? 0,
+      durationSeconds,
+    );
+    return true;
+  }
+
   /** 用目标高度计算垂直初速度，并按怪物响应分别缩放水平与高度。 */
   public applyDirectionalLaunch(
     populationId: number,
@@ -226,6 +252,7 @@ export class BattlefieldMonsterEffectRuntime {
         state.kineticSweepStartX[entityId] = crowd.x[entityId] ?? 0;
         state.kineticSweepStartY[entityId] = crowd.y[entityId] ?? 0;
       }
+      updateMovementSlow(state, entityId, deltaTime);
       updateKnockback(state, entityId, deltaTime, inverseScale);
       this.updateAirborne(state, entityId, deltaTime, inverseScale);
       state.kineticRemaining[entityId] = Math.max(
@@ -338,6 +365,29 @@ function updateKnockback(
   }
 }
 
+/** 只缩放怪物自主移动产生的位移，随后 Effect 位移仍保持完整强度。 */
+function updateMovementSlow(
+  state: BattlefieldMonsterEffectGroupState,
+  entityId: number,
+  deltaTime: number,
+): void {
+  const remaining = state.movementSlowRemaining[entityId] ?? 0;
+  if (remaining <= 0) {
+    return;
+  }
+  const crowd = state.group.crowdPopulation;
+  const scale = state.movementSlowScale[entityId] ?? 1;
+  const previousX = crowd.previousX[entityId] ?? crowd.x[entityId] ?? 0;
+  const previousY = crowd.previousY[entityId] ?? crowd.y[entityId] ?? 0;
+  crowd.x[entityId] = previousX + ((crowd.x[entityId] ?? previousX) - previousX) * scale;
+  crowd.y[entityId] = previousY + ((crowd.y[entityId] ?? previousY) - previousY) * scale;
+  const nextRemaining = Math.max(0, remaining - deltaTime);
+  state.movementSlowRemaining[entityId] = nextRemaining;
+  if (nextRemaining <= 0) {
+    state.movementSlowScale[entityId] = 1;
+  }
+}
+
 function validateKnockback(effect: Readonly<PlanarKnockbackEffect>): void {
   if (![effect.directionX, effect.directionZ, effect.initialSpeed,
     effect.remainingSeconds, effect.resistanceScale, effect.maximumSpeed].every(Number.isFinite)
@@ -377,6 +427,8 @@ function validateVerticalLaunch(effect: Readonly<VerticalLaunchEffect>): void {
 
 function resetEntityEffect(state: BattlefieldMonsterEffectGroupState, entityId: number): void {
   state.knockbackRemaining[entityId] = 0;
+  state.movementSlowScale[entityId] = 1;
+  state.movementSlowRemaining[entityId] = 0;
   state.elevation[entityId] = 0;
   state.verticalVelocity[entityId] = 0;
   state.airborneVelocityX[entityId] = 0;

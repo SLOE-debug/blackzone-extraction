@@ -4,10 +4,12 @@ import { VanguardWeaponPose } from '../../../player/vanguard/model/vanguard-weap
 
 const VANGUARD_POSE_BY_GRIP = Object.freeze({
   [WeaponGrip.TwoHandHeavy]: VanguardWeaponPose.TwoHandHeavy,
+  [WeaponGrip.TwoHandRanged]: VanguardWeaponPose.TwoHandRanged,
 }) satisfies Readonly<Record<WeaponGrip, VanguardWeaponPose>>;
 
 const VANGUARD_ACTION_BY_WEAPON_ACTION = Object.freeze({
   [WeaponAction.Idle]: VanguardWeaponAction.Idle,
+  [WeaponAction.Primary]: VanguardWeaponAction.BowDraw,
   [WeaponAction.WindupLeft]: VanguardWeaponAction.WindupLeft,
   [WeaponAction.SwingLeft]: VanguardWeaponAction.SwingLeft,
   [WeaponAction.ChainPrepareLeft]: VanguardWeaponAction.ChainPrepareLeft,
@@ -26,6 +28,14 @@ export function toVanguardWeaponPose(grip: WeaponGrip | null): VanguardWeaponPos
 }
 
 /** 把中立武器动作适配为 Vanguard 自身的动画动作。 */
-export function toVanguardWeaponAction(action: WeaponAction): VanguardWeaponAction {
+export function toVanguardWeaponAction(
+  action: WeaponAction,
+  grip: WeaponGrip | null,
+): VanguardWeaponAction {
+  if (grip === WeaponGrip.TwoHandRanged) {
+    return action === WeaponAction.Recover
+      ? VanguardWeaponAction.BowRelease
+      : VanguardWeaponAction.BowDraw;
+  }
   return VANGUARD_ACTION_BY_WEAPON_ACTION[action];
 }

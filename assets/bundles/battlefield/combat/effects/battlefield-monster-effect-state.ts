@@ -10,6 +10,8 @@ export class BattlefieldMonsterEffectGroupState {
   public readonly knockbackSpeed: Float32Array;
   public readonly knockbackRemaining: Float32Array;
   public readonly knockbackDuration: Float32Array;
+  public readonly movementSlowScale: Float32Array;
+  public readonly movementSlowRemaining: Float32Array;
   public readonly elevation: Float32Array;
   public readonly verticalVelocity: Float32Array;
   public readonly airborneVelocityX: Float32Array;
@@ -37,6 +39,8 @@ export class BattlefieldMonsterEffectGroupState {
     this.knockbackSpeed = new Float32Array(count);
     this.knockbackRemaining = new Float32Array(count);
     this.knockbackDuration = new Float32Array(count);
+    this.movementSlowScale = new Float32Array(count);
+    this.movementSlowRemaining = new Float32Array(count);
     this.elevation = new Float32Array(count);
     this.verticalVelocity = new Float32Array(count);
     this.airborneVelocityX = new Float32Array(count);
@@ -54,6 +58,7 @@ export class BattlefieldMonsterEffectGroupState {
     this.kineticSweepStartX = new Float32Array(count);
     this.kineticSweepStartY = new Float32Array(count);
     this.gravityScale.fill(1);
+    this.movementSlowScale.fill(1);
   }
 }
 

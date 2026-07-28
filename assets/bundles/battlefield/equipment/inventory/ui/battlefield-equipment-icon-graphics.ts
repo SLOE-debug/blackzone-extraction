@@ -16,7 +16,36 @@ export function drawBattlefieldEquipmentIcon(
     case EquipmentIconId.Sledgehammer:
       drawSledgehammer(graphics, x, y, scale);
       break;
+    case EquipmentIconId.ReturningBow:
+      drawReturningBow(graphics, x, y, scale);
+      break;
   }
+}
+
+function drawReturningBow(graphics: Graphics, x: number, y: number, scale: number): void {
+  graphics.lineWidth = 3 * scale;
+  graphics.moveTo(x - 12 * scale, y - 16 * scale);
+  graphics.bezierCurveTo(
+    x + 8 * scale,
+    y - 10 * scale,
+    x + 8 * scale,
+    y + 10 * scale,
+    x - 12 * scale,
+    y + 16 * scale,
+  );
+  graphics.stroke();
+  graphics.moveTo(x - 12 * scale, y - 16 * scale);
+  graphics.lineTo(x - 3 * scale, y);
+  graphics.lineTo(x - 12 * scale, y + 16 * scale);
+  graphics.stroke();
+  graphics.moveTo(x - 8 * scale, y);
+  graphics.lineTo(x + 15 * scale, y);
+  graphics.stroke();
+  graphics.moveTo(x + 15 * scale, y);
+  graphics.lineTo(x + 9 * scale, y + 4 * scale);
+  graphics.lineTo(x + 9 * scale, y - 4 * scale);
+  graphics.close();
+  graphics.fill();
 }
 
 function drawSledgehammer(graphics: Graphics, x: number, y: number, scale: number): void {

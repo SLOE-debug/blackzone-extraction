@@ -227,7 +227,8 @@ export function writeVanguardPoseMatrices(
   const leftArmSwing = -stride * 0.78;
   const rightArmSwing = stride * 0.78;
   const stance = getVanguardWeaponStance(weaponPose);
-  const analyticTwoHand = weaponPose === VanguardWeaponPose.TwoHandHeavy;
+  const analyticTwoHand = weaponPose === VanguardWeaponPose.TwoHandHeavy
+    || weaponPose === VanguardWeaponPose.TwoHandRanged;
   const leftWeaponStance = analyticTwoHand ? 0 : weaponStance * stance.leftInfluence;
   const rightWeaponStance = analyticTwoHand ? 0 : weaponStance * stance.rightInfluence;
   const leftElbowX = lerp(
@@ -358,6 +359,7 @@ export function writeVanguardPoseMatrices(
       weaponStance,
       weaponAnimation,
       weaponTrajectory,
+      weaponPose,
       leftShoulderX,
       shoulderY + leftShoulderLift,
       leftShoulderZ,

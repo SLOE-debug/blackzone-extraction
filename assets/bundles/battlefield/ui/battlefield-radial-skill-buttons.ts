@@ -19,11 +19,15 @@ type SkillButtonIndex = typeof SKILL_BUTTON_INDICES[number];
 export interface BattlefieldRadialSkillCommands {
   readonly spinRequested: boolean;
   readonly groundSlamRequested: boolean;
+  readonly recallAllRequested: boolean;
+  readonly huntingTetherRequested: boolean;
 }
 
 interface MutableBattlefieldRadialSkillCommands {
   spinRequested: boolean;
   groundSlamRequested: boolean;
+  recallAllRequested: boolean;
+  huntingTetherRequested: boolean;
 }
 
 /** 由当前装备原型驱动最多三枚池化技能按钮的图标、命令和显隐。 */
@@ -90,6 +94,8 @@ export class BattlefieldRadialSkillButtons {
     const result = this.consumed;
     result.spinRequested = this.pending.spinRequested;
     result.groundSlamRequested = this.pending.groundSlamRequested;
+    result.recallAllRequested = this.pending.recallAllRequested;
+    result.huntingTetherRequested = this.pending.huntingTetherRequested;
     resetCommands(this.pending);
     return result;
   }
@@ -123,6 +129,12 @@ export class BattlefieldRadialSkillButtons {
         break;
       case WeaponSkillCommand.GroundSlam:
         this.pending.groundSlamRequested = true;
+        break;
+      case WeaponSkillCommand.RecallAll:
+        this.pending.recallAllRequested = true;
+        break;
+      case WeaponSkillCommand.HuntingTether:
+        this.pending.huntingTetherRequested = true;
         break;
     }
   };
@@ -302,10 +314,14 @@ function createCommands(): MutableBattlefieldRadialSkillCommands {
   return {
     spinRequested: false,
     groundSlamRequested: false,
+    recallAllRequested: false,
+    huntingTetherRequested: false,
   };
 }
 
 function resetCommands(commands: MutableBattlefieldRadialSkillCommands): void {
   commands.spinRequested = false;
   commands.groundSlamRequested = false;
+  commands.recallAllRequested = false;
+  commands.huntingTetherRequested = false;
 }

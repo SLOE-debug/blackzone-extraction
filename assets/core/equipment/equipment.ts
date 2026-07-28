@@ -14,22 +14,27 @@ export enum EquipmentRarity {
 /** 武器定义内部的强类型行为门类。 */
 export enum WeaponKind {
   Sledgehammer = 'sledgehammer',
+  ReturningBow = 'returning-bow',
 }
 
 /** 武器向任意角色动画层声明的中立握持方式。 */
 export enum WeaponGrip {
   TwoHandHeavy = 'two-hand-heavy',
+  TwoHandRanged = 'two-hand-ranged',
 }
 
 /** 武器原型向输入层声明的稳定技能命令。 */
 export enum WeaponSkillCommand {
   Spin = 'spin',
   GroundSlam = 'ground-slam',
+  RecallAll = 'recall-all',
+  HuntingTether = 'hunting-tether',
 }
 
 /** 武器行为运行时向任意角色动画层声明的中立动作。 */
 export enum WeaponAction {
   Idle = 'idle',
+  Primary = 'primary',
   WindupLeft = 'windup-left',
   SwingLeft = 'swing-left',
   ChainPrepareLeft = 'chain-prepare-left',
@@ -58,7 +63,7 @@ export interface EquipmentDefinitionBase<
 /** 近战武器库向战斗行为与 UI 提供的稳定参数。 */
 export interface MeleeWeaponDefinition<TId extends string = string>
 extends EquipmentDefinitionBase<TId, EquipmentCategory.Weapon> {
-  readonly kind: WeaponKind;
+  readonly kind: WeaponKind.Sledgehammer;
   readonly baseDamage: number;
   readonly reach: number;
   readonly hitArcRadians: number;
@@ -68,8 +73,36 @@ extends EquipmentDefinitionBase<TId, EquipmentCategory.Weapon> {
   readonly specialRequiredHits: number;
 }
 
+/** 固定实体投射武器向射击、召回和资源表现提供的稳定参数。 */
+export interface ProjectileWeaponDefinition<TId extends string = string>
+extends EquipmentDefinitionBase<TId, EquipmentCategory.Weapon> {
+  readonly kind: WeaponKind.ReturningBow;
+  readonly baseDamage: number;
+  readonly attackIntervalSeconds: number;
+  readonly projectileSpeed: number;
+  readonly projectileRadius: number;
+  readonly maximumRange: number;
+  readonly chargeDurationSeconds: number;
+  readonly maximumChargeDamageScale: number;
+  readonly maximumChargeSpeedScale: number;
+  readonly maximumChargePierceCount: number;
+  readonly projectileCapacity: number;
+  readonly recallSpeed: number;
+  readonly automaticRecallSpeed: number;
+  readonly automaticRecallDamageScale: number;
+  readonly skillRecallDamageScale: number;
+  readonly extractionDamageScale: number;
+  readonly tetherDurationSeconds: number;
+  readonly tetherDamageScale: number;
+  readonly tetherHitCooldownSeconds: number;
+  readonly tetherSlowScale: number;
+  readonly tetherSlowDurationSeconds: number;
+}
+
 /** 当前装备库允许返回的完整判别联合。 */
-export type EquipmentDefinition<TId extends string = string> = MeleeWeaponDefinition<TId>;
+export type EquipmentDefinition<TId extends string = string> =
+  | MeleeWeaponDefinition<TId>
+  | ProjectileWeaponDefinition<TId>;
 
 /**
  * 装备标识到只读定义的查询门面。

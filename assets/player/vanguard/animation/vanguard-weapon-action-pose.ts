@@ -20,6 +20,10 @@ export function getVanguardWeaponAttackAmount(
       return Math.sin(progress * Math.PI);
     case VanguardWeaponAction.Spin:
       return 0.82;
+    case VanguardWeaponAction.BowDraw:
+      return 0.45 + progress * 0.35;
+    case VanguardWeaponAction.BowRelease:
+      return (1 - progress) * 0.8;
     case VanguardWeaponAction.Recover:
       return (1 - progress) * 0.45;
     case VanguardWeaponAction.Idle:
@@ -47,6 +51,8 @@ export function getVanguardWeaponAttackSide(
     case VanguardWeaponAction.Uppercut:
     case VanguardWeaponAction.GroundSlam:
     case VanguardWeaponAction.Spin:
+    case VanguardWeaponAction.BowDraw:
+    case VanguardWeaponAction.BowRelease:
       return 0;
   }
 }

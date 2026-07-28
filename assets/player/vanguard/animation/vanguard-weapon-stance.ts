@@ -45,9 +45,22 @@ const TWO_HAND_HEAVY_STANCE = stance(
   joint(0.18, 0.78, 0.52),
 );
 
+/** 双手远程姿态由独立 IK 轨迹控制，基础关节值只用于切换混合。 */
+const TWO_HAND_RANGED_STANCE = stance(
+  1,
+  1,
+  joint(-0.92, 0.5, 0.64),
+  joint(-0.58, 0.48, 0.9),
+  joint(-0.34, 0.42, 1.02),
+  joint(0.88, 0.52, 0.34),
+  joint(0.62, 0.46, 0.48),
+  joint(0.42, 0.4, 0.56),
+);
+
 const VANGUARD_WEAPON_STANCES = Object.freeze({
   [VanguardWeaponPose.Unarmed]: UNARMED_STANCE,
   [VanguardWeaponPose.TwoHandHeavy]: TWO_HAND_HEAVY_STANCE,
+  [VanguardWeaponPose.TwoHandRanged]: TWO_HAND_RANGED_STANCE,
 } satisfies Readonly<Record<VanguardWeaponPose, Readonly<VanguardWeaponStance>>>);
 
 /** 返回主角动画系统登记的完整武器姿态。 */

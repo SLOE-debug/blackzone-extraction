@@ -14,10 +14,20 @@ export interface DroppedEquipmentProfile {
 export interface HeldEquipmentProfile {
   readonly grip: WeaponGrip;
   readonly heldScale: number;
-  readonly mainGripLocalPosition: Readonly<{ x: number; y: number; z: number }>;
-  readonly supportGripLocalPosition: Readonly<{ x: number; y: number; z: number }>;
-  readonly hammerHeadLocalPosition: Readonly<{ x: number; y: number; z: number }>;
-  readonly hammerHeadRadius: number;
+  readonly attachmentPoints: Readonly<{
+    readonly mainGrip: LocalPoint;
+    readonly supportGrip: LocalPoint;
+    readonly projectileOrigin?: LocalPoint;
+    readonly drawHandTarget?: LocalPoint;
+    readonly impactHead?: Readonly<LocalPoint & { radius: number }>;
+  }>;
+}
+
+/** 装备模型局部空间中的类型化语义点。 */
+export interface LocalPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
 }
 
 /** 一件战场装备同时拥有玩法定义、固定几何和两种展示配置。 */

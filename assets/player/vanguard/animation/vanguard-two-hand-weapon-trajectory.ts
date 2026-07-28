@@ -107,6 +107,22 @@ const SPIN_POSE = createVanguardWeaponTrajectoryKeyframe(
   1.82, 2.4, 1.08,
   1,
 );
+const BOW_READY_POSE = createVanguardWeaponTrajectoryKeyframe(
+  0.32, 2.52, 0.58,
+  0.832, -0.025, -0.555,
+  -0.1, -0.03,
+  -1.18, 2.5, 1.12,
+  1.22, 2.56, 0.68,
+  1,
+);
+const BOW_FULL_DRAW_POSE = createVanguardWeaponTrajectoryKeyframe(
+  0.44, 2.64, 0.18,
+  0.67, 0.086, -0.739,
+  -0.18, -0.05,
+  -1.16, 2.52, 1.16,
+  1.22, 2.66, 0.48,
+  1,
+);
 const IDLE_VELOCITY = createZeroVanguardWeaponTrajectoryVelocity();
 const LOOP_TANGENT_SPAN_SECONDS = SWING_CONTACT_SECONDS + CHAIN_PREPARE_SECONDS;
 const LEFT_WINDUP_VELOCITY = createVanguardWeaponTrajectoryVelocity(
@@ -281,6 +297,24 @@ export function writeVanguardTwoHandWeaponTrajectory(
         copyVanguardWeaponTrajectoryPose(result, SPIN_POSE);
       }
       result.supportGripWeight = getSkillSupportGripWeight(amount, 0.92);
+      break;
+    case VanguardWeaponAction.BowDraw:
+      interpolateVanguardWeaponTrajectoryPose(
+        result,
+        BOW_READY_POSE,
+        BOW_FULL_DRAW_POSE,
+        smootherStep(amount),
+      );
+      result.supportGripWeight = 1;
+      break;
+    case VanguardWeaponAction.BowRelease:
+      interpolateVanguardWeaponTrajectoryPose(
+        result,
+        BOW_FULL_DRAW_POSE,
+        BOW_READY_POSE,
+        smootherStep(amount),
+      );
+      result.supportGripWeight = 1;
       break;
     case VanguardWeaponAction.Idle:
       copyVanguardWeaponTrajectoryPose(result, IDLE_POSE);

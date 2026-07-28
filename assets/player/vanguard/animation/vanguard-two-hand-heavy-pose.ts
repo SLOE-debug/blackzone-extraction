@@ -39,6 +39,7 @@ export function writeVanguardTwoHandHeavyPose(
   stanceBlend: number,
   animation: Readonly<VanguardWeaponAnimationPoseState>,
   trajectory: Readonly<VanguardTwoHandWeaponTrajectoryPose>,
+  weaponPose: VanguardWeaponPose,
   leftShoulderX: number,
   leftShoulderY: number,
   leftShoulderZ: number,
@@ -125,14 +126,10 @@ export function writeVanguardTwoHandHeavyPose(
   const mainX = lerp(naturalMainX, trajectory.mainGripX, mainWeight);
   const mainY = lerp(naturalMainY, trajectory.mainGripY, mainWeight);
   const mainZ = lerp(naturalMainZ, trajectory.mainGripZ, mainWeight);
-  const rig = getVanguardWeaponRigProfile(VanguardWeaponPose.TwoHandHeavy);
+  const rig = getVanguardWeaponRigProfile(weaponPose);
   const mainSocket = rig.sockets[VanguardWeaponRigSocket.MainGrip];
   const supportSocket = rig.sockets[VanguardWeaponRigSocket.SupportGrip];
-  const gripSpacing = Math.hypot(
-    supportSocket.x - mainSocket.x,
-    supportSocket.y - mainSocket.y,
-    supportSocket.z - mainSocket.z,
-  );
+  const gripSpacing = mainSocket.y - supportSocket.y;
   const constrainedSupportX = mainX + shaftX * gripSpacing;
   const constrainedSupportY = mainY + shaftY * gripSpacing;
   const constrainedSupportZ = mainZ + shaftZ * gripSpacing;
@@ -206,21 +203,40 @@ export function writeVanguardTwoHandHeavyPose(
     heading,
     scale,
   );
-  writeWeaponRoot(
-    matrices,
-    entityOffset,
-    mainX,
-    mainY,
-    mainZ,
-    shaftX,
-    shaftY,
-    shaftZ,
-    positionX,
-    positionY,
-    positionZ,
-    heading,
-    scale,
-  );
+  if (weaponPose === VanguardWeaponPose.TwoHandRanged) {
+    writeBasisFrame(
+      matrices,
+      entityOffset,
+      VanguardBone.WeaponRoot,
+      supportX,
+      supportY,
+      supportZ,
+      1, 0, 0,
+      0, 1, 0,
+      0, 0, 1,
+      positionX,
+      positionY,
+      positionZ,
+      heading,
+      scale,
+    );
+  } else {
+    writeWeaponRoot(
+      matrices,
+      entityOffset,
+      mainX,
+      mainY,
+      mainZ,
+      shaftX,
+      shaftY,
+      shaftZ,
+      positionX,
+      positionY,
+      positionZ,
+      heading,
+      scale,
+    );
+  }
 }
 
 function solveArm(

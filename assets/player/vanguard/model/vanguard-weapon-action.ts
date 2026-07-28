@@ -10,5 +10,7 @@ export enum VanguardWeaponAction {
   Uppercut,
   GroundSlam,
   Spin,
+  BowDraw,
+  BowRelease,
   Recover,
 }

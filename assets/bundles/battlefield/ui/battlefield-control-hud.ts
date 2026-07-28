@@ -18,6 +18,9 @@ import {
   type MutableBattlefieldCameraAzimuthDelta,
 } from './battlefield-camera-orbit-input';
 import { BattlefieldAttackButton } from './battlefield-attack-button';
+import { BattlefieldPrimaryAttackIcon } from './battlefield-attack-button';
+import { EquipmentId } from '../equipment/catalog/equipment-id';
+import { BattlefieldAimJoystickGraphics } from './battlefield-aim-joystick-graphics';
 import { BATTLEFIELD_CONTROL_STYLE } from './battlefield-control-style';
 import { BattlefieldDefeatDialog } from './battlefield-defeat-dialog';
 import { BattlefieldGameplayGraphics } from './battlefield-gameplay-graphics';
@@ -38,6 +41,8 @@ export interface BattlefieldScreenControlState {
   readonly moveY: number;
   readonly attackPressed: boolean;
   readonly attackHeld: boolean;
+  readonly attackAimX: number;
+  readonly attackAimY: number;
   readonly cameraOrbitDeltaX: number;
 }
 
@@ -46,6 +51,8 @@ interface MutableBattlefieldScreenControlState {
   moveY: number;
   attackPressed: boolean;
   attackHeld: boolean;
+  attackAimX: number;
+  attackAimY: number;
   cameraOrbitDeltaX: number;
 }
 
@@ -54,8 +61,10 @@ export class BattlefieldControlHud {
   public readonly state: BattlefieldScreenControlState;
   private readonly canvas: ScreenUiCanvas;
   private readonly gameplayGraphics: BattlefieldGameplayGraphics;
+  private readonly aimGraphics: BattlefieldAimJoystickGraphics;
   private readonly movementJoystick: VirtualJoystick;
   private readonly attackButton: BattlefieldAttackButton;
+  private readonly aimJoystick: VirtualJoystick;
   private readonly radialSkillButtons: BattlefieldRadialSkillButtons;
   private readonly inventoryHud: BattlefieldInventoryHud;
   private readonly equipmentLabel: BattlefieldEquipmentLabelHud;
@@ -68,6 +77,8 @@ export class BattlefieldControlHud {
     moveY: 0,
     attackPressed: false,
     attackHeld: false,
+    attackAimX: 0,
+    attackAimY: 0,
     cameraOrbitDeltaX: 0,
   };
   private layoutWidth = -1;
@@ -78,6 +89,8 @@ export class BattlefieldControlHud {
   private moveRight = false;
   private attackKeyDown = false;
   private attackKeyPressed = false;
+  private rangedAimEnabled = false;
+  private aimWasActive = false;
   private contextAction: BattlefieldInteractionAction | null = null;
   private contextActionPressed = false;
   private interactionKeyDown = false;
@@ -95,8 +108,10 @@ export class BattlefieldControlHud {
     this.state = this.mutableState;
     this.canvas = new ScreenUiCanvas(parent, 'BattlefieldControlCanvas');
     let gameplayGraphics: BattlefieldGameplayGraphics | null = null;
+    let aimGraphics: BattlefieldAimJoystickGraphics | null = null;
     let movementJoystick: VirtualJoystick | null = null;
     let attackButton: BattlefieldAttackButton | null = null;
+    let aimJoystick: VirtualJoystick | null = null;
     let radialSkillButtons: BattlefieldRadialSkillButtons | null = null;
     let inventoryHud: BattlefieldInventoryHud | null = null;
     let cameraOrbitInput: BattlefieldCameraOrbitInput | null = null;
@@ -105,6 +120,7 @@ export class BattlefieldControlHud {
     let defeatDialog: BattlefieldDefeatDialog | null = null;
     try {
       gameplayGraphics = new BattlefieldGameplayGraphics(this.canvas.node);
+      aimGraphics = new BattlefieldAimJoystickGraphics(this.canvas.node);
       movementJoystick = new VirtualJoystick(
         this.canvas.node,
         'MovementJoystick',
@@ -114,6 +130,12 @@ export class BattlefieldControlHud {
         this.canvas.node,
         BATTLEFIELD_CONTROL_STYLE.attack,
       );
+      aimJoystick = new VirtualJoystick(
+        this.canvas.node,
+        'AttackAimJoystick',
+        BATTLEFIELD_CONTROL_STYLE.aim,
+      );
+      aimJoystick.setVisible(false);
       radialSkillButtons = new BattlefieldRadialSkillButtons(this.canvas.node);
       inventoryHud = new BattlefieldInventoryHud(this.canvas.node);
       cameraOrbitInput = new BattlefieldCameraOrbitInput(this.canvas.node);
@@ -128,8 +150,10 @@ export class BattlefieldControlHud {
         onReturnToLobbyRequested,
       );
       this.gameplayGraphics = gameplayGraphics;
+      this.aimGraphics = aimGraphics;
       this.movementJoystick = movementJoystick;
       this.attackButton = attackButton;
+      this.aimJoystick = aimJoystick;
       this.radialSkillButtons = radialSkillButtons;
       this.inventoryHud = inventoryHud;
       this.cameraOrbitInput = cameraOrbitInput;
@@ -149,7 +173,9 @@ export class BattlefieldControlHud {
       radialSkillButtons?.dispose();
       movementJoystick?.dispose();
       attackButton?.dispose();
+      aimJoystick?.dispose();
       gameplayGraphics?.dispose();
+      aimGraphics?.dispose();
       this.canvas.dispose();
       throw error;
     }
@@ -189,6 +215,7 @@ export class BattlefieldControlHud {
     this.attackButton.setContextAction(
       action === null ? null : BATTLEFIELD_INTERACTION_ICONS[action],
     );
+    this.synchronizeAttackControlVisibility();
     if (action !== null) {
       this.clearAttackState();
     }
@@ -214,6 +241,13 @@ export class BattlefieldControlHud {
     presentation: Readonly<EquippedWeaponPresentation> | null,
   ): void {
     this.radialSkillButtons.presentProfile(presentation?.hud ?? null);
+    this.rangedAimEnabled = presentation?.equipmentId === EquipmentId.ReturningBow;
+    this.attackButton.setPrimaryIcon(
+      presentation?.equipmentId === EquipmentId.ReturningBow
+        ? BattlefieldPrimaryAttackIcon.Bow
+        : BattlefieldPrimaryAttackIcon.Hammer,
+    );
+    this.synchronizeAttackControlVisibility();
     if (presentation === null) {
       this.synchronizeGameplayGraphics();
       return;
@@ -281,7 +315,9 @@ export class BattlefieldControlHud {
     this.radialSkillButtons.dispose();
     this.movementJoystick.dispose();
     this.attackButton.dispose();
+    this.aimJoystick.dispose();
     this.gameplayGraphics.dispose();
+    this.aimGraphics.dispose();
     this.canvas.dispose();
     this.inputRegistered = false;
   }
@@ -314,6 +350,7 @@ export class BattlefieldControlHud {
     const centerY = -height * 0.5 + maximumInteractionRadius + bottomInset;
     this.movementJoystick.setPosition(leftX, centerY);
     this.attackButton.setPosition(rightX, centerY);
+    this.aimJoystick.setPosition(rightX, centerY);
     this.radialSkillButtons.setLayout(rightX, centerY, style.skillOrbitRadius);
     this.inventoryHud.synchronizeLayout(width, height);
     this.playerStatus.synchronizeLayout(width, height);
@@ -330,6 +367,11 @@ export class BattlefieldControlHud {
       this.playerStatus,
       this.radialSkillButtons,
       this.inventoryHud,
+    );
+    this.aimGraphics.synchronize(
+      this.canvas.transform.width,
+      this.canvas.transform.height,
+      this.aimJoystick,
     );
   }
 
@@ -353,15 +395,24 @@ export class BattlefieldControlHud {
       return;
     }
     this.mutableState.attackPressed = this.attackButton.consumeAttackPress()
-      || this.attackKeyPressed;
-    this.mutableState.attackHeld = this.attackButton.held || this.attackKeyDown;
+      || this.attackKeyPressed
+      || (this.rangedAimEnabled && this.aimJoystick.active && !this.aimWasActive);
+    this.mutableState.attackHeld = this.attackKeyDown
+      || (this.rangedAimEnabled ? this.aimJoystick.active : this.attackButton.held);
+    const aim = this.aimJoystick.value;
+    this.mutableState.attackAimX = this.rangedAimEnabled ? aim.x : 0;
+    this.mutableState.attackAimY = this.rangedAimEnabled ? aim.y : 0;
+    this.aimWasActive = this.rangedAimEnabled && this.aimJoystick.active;
     this.attackKeyPressed = false;
   }
 
   private clearAttackState(): void {
     this.mutableState.attackPressed = false;
     this.mutableState.attackHeld = false;
+    this.mutableState.attackAimX = 0;
+    this.mutableState.attackAimY = 0;
     this.attackKeyPressed = false;
+    this.aimWasActive = false;
   }
 
   private writeCameraOrbitState(): void {
@@ -409,6 +460,16 @@ export class BattlefieldControlHud {
         }
         this.attackKeyDown = pressed;
         break;
+    }
+  }
+
+  /** 猎弓使用右摇杆；近战和场景交互继续使用离散按钮。 */
+  private synchronizeAttackControlVisibility(): void {
+    const aimVisible = this.rangedAimEnabled && this.contextAction === null;
+    this.aimJoystick.setVisible(aimVisible);
+    this.attackButton.setVisible(!aimVisible);
+    if (!aimVisible) {
+      this.aimWasActive = false;
     }
   }
 }

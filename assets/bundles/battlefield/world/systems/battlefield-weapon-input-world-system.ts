@@ -8,8 +8,10 @@ import { BattlefieldPerformanceStage } from '../../debug/battlefield-performance
 import { type MutableBattlefieldPlanarDirection } from '../../scene/battlefield-camera-direction';
 import { type BattlefieldWorld } from '../battlefield-world';
 import { BattlefieldWorldSystem } from './battlefield-world-system';
+import { WeaponKind } from '../../../../core/equipment/equipment';
 
 const AUTO_TARGET_RADIUS_PADDING = 1.1;
+const AIM_DIRECTION_EPSILON_SQUARED = 0.0001;
 
 /** 把无方向普攻、独立技能键与近战自动瞄准转换为大锤命令。 */
 export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
@@ -17,6 +19,7 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
   public readonly order = 10;
   protected readonly performanceStage = BattlefieldPerformanceStage.Control;
   private readonly movementDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 0 };
+  private readonly bowAimDirection: MutableBattlefieldPlanarDirection = { x: 0, z: 1 };
   private readonly targetResolver = new BattlefieldMeleeTargetResolver();
   private readonly aim = createMutableMeleeAttackDirection();
   private readonly attackDirectionRequest: Mutable<BattlefieldMeleeAttackDirectionRequest> = {
@@ -43,7 +46,9 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
     );
     const skills = controls.consumeSkillCommands();
     const skillRequested = skills.spinRequested
-      || skills.groundSlamRequested;
+      || skills.groundSlamRequested
+      || skills.recallAllRequested
+      || skills.huntingTetherRequested;
     if (!player.isAlive
       || !weapon.equipped
       || (!controlState.attackHeld && !controlState.attackPressed)
@@ -55,6 +60,21 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       return;
     }
     const attackRequested = controlState.attackPressed || controlState.attackHeld;
+    if (weapon.weaponKind === WeaponKind.ReturningBow) {
+      if (!skillRequested && attackRequested) {
+        this.writeBowJoystickDirection(world);
+        weapon.commands.requestSwing(this.bowAimDirection.x, this.bowAimDirection.z);
+      }
+      if (weapon.acceptingSkillCommand) {
+        if (skills.recallAllRequested) {
+          weapon.commands.requestRecallAll();
+        }
+        if (skills.huntingTetherRequested) {
+          weapon.commands.requestHuntingTether();
+        }
+      }
+      return;
+    }
     if (!skillRequested
       && attackRequested
       && (weapon.actionControl.autoTargetAllowed || weapon.canBufferNextSwing)
@@ -72,6 +92,19 @@ export class BattlefieldWeaponInputWorldSystem extends BattlefieldWorldSystem {
       this.writeAttackDirection(world, null);
       weapon.commands.requestGroundSlam(this.aim.directionX, this.aim.directionZ);
     }
+  }
+
+  /** 把右摇杆屏幕方向转换为世界攻击方向；键盘攻击沿当前角色朝向。 */
+  private writeBowJoystickDirection(world: BattlefieldWorld): void {
+    const { player, camera, controls } = world.resources;
+    const aimX = controls.state.attackAimX;
+    const aimY = controls.state.attackAimY;
+    if (aimX * aimX + aimY * aimY <= AIM_DIRECTION_EPSILON_SQUARED) {
+      this.bowAimDirection.x = Math.sin(player.heading);
+      this.bowAimDirection.z = Math.cos(player.heading);
+      return;
+    }
+    camera.writeWorldPlanarUnitDirection(aimX, aimY, this.bowAimDirection);
   }
 
   /** 为普通横扫和重砸统一解析一次动作开始方向。 */

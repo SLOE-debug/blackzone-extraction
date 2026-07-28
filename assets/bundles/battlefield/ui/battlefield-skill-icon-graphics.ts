@@ -19,7 +19,39 @@ export function drawBattlefieldSkillIcon(
     case SkillIconId.HammerGroundSlam:
       drawGroundSlam(graphics, x, y);
       break;
+    case SkillIconId.BowRecall:
+      drawBowRecall(graphics, x, y);
+      break;
+    case SkillIconId.BowTether:
+      drawBowTether(graphics, x, y);
+      break;
   }
+}
+
+function drawBowRecall(graphics: Graphics, x: number, y: number): void {
+  graphics.moveTo(x - 17, y - 11);
+  graphics.lineTo(x + 8, y);
+  graphics.lineTo(x - 17, y + 11);
+  graphics.stroke();
+  graphics.moveTo(x + 8, y);
+  graphics.lineTo(x + 1, y + 6);
+  graphics.lineTo(x + 1, y - 6);
+  graphics.close();
+  graphics.fill();
+  graphics.arc(x, y, 17, -Math.PI * 0.45, Math.PI * 0.45, false);
+  graphics.stroke();
+}
+
+function drawBowTether(graphics: Graphics, x: number, y: number): void {
+  graphics.moveTo(x - 15, y - 10);
+  graphics.lineTo(x + 13, y - 7);
+  graphics.lineTo(x + 2, y + 15);
+  graphics.lineTo(x - 15, y - 10);
+  graphics.stroke();
+  graphics.circle(x - 15, y - 10, 3);
+  graphics.circle(x + 13, y - 7, 3);
+  graphics.circle(x + 2, y + 15, 3);
+  graphics.fill();
 }
 
 function drawWhirlwind(graphics: Graphics, x: number, y: number): void {

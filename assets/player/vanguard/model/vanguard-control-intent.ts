@@ -55,7 +55,7 @@ export function validateVanguardControlIntent(
     || intent.maximumTurnSpeed < 0
     || !Number.isInteger(intent.weaponPose)
     || intent.weaponPose < VanguardWeaponPose.Unarmed
-    || intent.weaponPose > VanguardWeaponPose.TwoHandHeavy
+    || intent.weaponPose > VanguardWeaponPose.TwoHandRanged
     || !Number.isInteger(intent.weaponAction)
     || intent.weaponAction < VanguardWeaponAction.Idle
     || intent.weaponAction > VanguardWeaponAction.Recover

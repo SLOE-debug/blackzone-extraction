@@ -47,6 +47,7 @@ export class DroppedEquipmentRenderer {
   private readonly scale = new Vec3();
   private readonly dirtySlots = new DroppedEquipmentDirtySlotRange();
   private activeCount = -1;
+  private drawnSlotCount = 0;
   private prewarmed = false;
   private disposed = false;
 
@@ -152,11 +153,22 @@ export class DroppedEquipmentRenderer {
     validateActiveCount(activeCount, this.items.length);
     const dirtySlots = this.dirtySlots;
     dirtySlots.reset();
+    let lastMatchingSlot = -1;
     for (let index = 0; index < activeCount; index++) {
       const item = this.items[index];
-      if (item === null || item === undefined || item.equipmentId !== this.equipmentId) {
-        throw new Error('掉落装备活动槽位与预热原型不一致。');
+      if (item === null || item === undefined) {
+        throw new Error('掉落装备活动槽位存在空项。');
       }
+      if (item.equipmentId !== this.equipmentId) {
+        if ((this.instanceIds[index] ?? -1) !== -1) {
+          this.clearSlot(index);
+          this.instanceIds[index] = -1;
+          this.poseRevisions[index] = 0;
+          dirtySlots.include(index);
+        }
+        continue;
+      }
+      lastMatchingSlot = index;
       if ((this.instanceIds[index] ?? -1) === item.worldRuntimeId
         && (this.poseRevisions[index] ?? 0) === item.poseRevision) {
         continue;
@@ -188,14 +200,16 @@ export class DroppedEquipmentRenderer {
         false,
       );
     }
-    if (activeCount !== this.activeCount) {
+    const drawnSlotCount = lastMatchingSlot + 1;
+    if (drawnSlotCount !== this.drawnSlotCount) {
       this.batch.setActiveIndexCount(getDroppedEquipmentActiveIndexCount(
         this.packedGeometry,
-        activeCount,
+        drawnSlotCount,
       ));
-      this.batch.setVisible(activeCount > 0);
-      this.activeCount = activeCount;
+      this.batch.setVisible(drawnSlotCount > 0);
+      this.drawnSlotCount = drawnSlotCount;
     }
+    this.activeCount = activeCount;
   }
 
   public dispose(): void {

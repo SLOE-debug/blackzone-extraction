@@ -9,6 +9,8 @@ export class BattlefieldWeaponCommandBuffer {
   private groundSlamDirectionX = 0;
   private groundSlamDirectionZ = 1;
   private spinRequested = false;
+  private recallAllRequested = false;
+  private huntingTetherRequested = false;
 
   /** 每帧同步普通攻击的持续意图，供状态机决定是否进入下一段。 */
   public setAttackHeld(held: boolean): void {
@@ -38,6 +40,14 @@ export class BattlefieldWeaponCommandBuffer {
     this.spinRequested = true;
   }
 
+  public requestRecallAll(): void {
+    this.recallAllRequested = true;
+  }
+
+  public requestHuntingTether(): void {
+    this.huntingTetherRequested = true;
+  }
+
   /** 两路主动技能命令独立复制，消费后立即清空全部一次性状态。 */
   public consume(result: MutableBattlefieldWeaponCommand): void {
     result.attackHeld = this.attackHeld;
@@ -49,6 +59,8 @@ export class BattlefieldWeaponCommandBuffer {
     result.groundSlamDirectionX = this.groundSlamDirectionX;
     result.groundSlamDirectionZ = this.groundSlamDirectionZ;
     result.spinRequested = this.spinRequested;
+    result.recallAllRequested = this.recallAllRequested;
+    result.huntingTetherRequested = this.huntingTetherRequested;
     this.clearRequests();
   }
 
@@ -62,6 +74,8 @@ export class BattlefieldWeaponCommandBuffer {
     this.swingRequested = false;
     this.groundSlamRequested = false;
     this.spinRequested = false;
+    this.recallAllRequested = false;
+    this.huntingTetherRequested = false;
   }
 }
 
@@ -75,6 +89,8 @@ export interface MutableBattlefieldWeaponCommand {
   groundSlamDirectionX: number;
   groundSlamDirectionZ: number;
   spinRequested: boolean;
+  recallAllRequested: boolean;
+  huntingTetherRequested: boolean;
 }
 
 function validateDirection(directionX: number, directionZ: number): void {

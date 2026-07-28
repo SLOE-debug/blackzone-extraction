@@ -87,6 +87,7 @@ export function getHammerActionControlProfile(
 ): Readonly<HammerActionControlProfile> {
   switch (action) {
     case WeaponAction.Idle:
+    case WeaponAction.Primary:
       return IDLE_CONTROL;
     case WeaponAction.WindupLeft:
     case WeaponAction.WindupRight:
