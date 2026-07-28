@@ -6,6 +6,7 @@ import {
   type BattlefieldArrowAimQuery,
   type BattlefieldArrowCombatTarget,
   type BattlefieldArrowSweepQuery,
+  type BattlefieldTetherQuery,
   type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-query';
@@ -25,8 +26,13 @@ import {
   BATTLEFIELD_ARROW_CAPACITY,
   BattlefieldArrowPopulation,
 } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-population';
-import { findArrowVerticalCapsuleContactProgress } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-capsule-intersection';
+import {
+  findArrowVerticalCapsuleContactProgress,
+} from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-capsule-intersection';
 import { calculateRecallSpeed } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-recall-system';
+import {
+  findTetherVerticalCapsuleOverlapProgress,
+} from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-tether-capsule-overlap';
 
 const OWNER = Object.freeze({
   entityId: 7,
@@ -129,10 +135,33 @@ describe('归弦猎弓固定实体箭循环', () => {
     expect(bow.tethers.tetherCount).toBe(1);
     bow.update(0.05, OWNER);
     const firstCount = bow.damageEvents.count;
-    bow.update(0.05, OWNER);
+    for (let frame = 0; frame < 4; frame++) {
+      bow.update(0.01, OWNER);
+    }
     expect(firstCount).toBe(1);
     expect(bow.damageEvents.count).toBe(1);
     expect(target.slowCount).toBe(1);
+    expect(target.tetherQueryCount).toBe(1);
+    expect(target.arrowSweepQueryCount).toBe(0);
+    bow.update(0.01, OWNER);
+    expect(target.tetherQueryCount).toBe(2);
+  });
+
+  it('弦线重叠只按平面最近点对应高度判断竖直胶囊', () => {
+    expect(findTetherVerticalCapsuleOverlapProgress(
+      -2, 1, 0,
+      2, 1, 0,
+      0, 1, 0.4,
+      0.5,
+      0.5,
+    )).toBeCloseTo(0.5);
+    expect(findTetherVerticalCapsuleOverlapProgress(
+      -2, 3, 0,
+      2, 3, 0,
+      0, 1, 0.4,
+      0.5,
+      0.5,
+    )).toBe(-1);
   });
 
   it('蓄力期间把右摇杆方向提交为角色朝向且禁用自动锁敌', () => {
@@ -231,6 +260,8 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
   public poseAvailable = true;
   public poseX = 0;
   public aimAvailable = false;
+  public arrowSweepQueryCount = 0;
+  public tetherQueryCount = 0;
 
   public writeBestArrowAimTarget(
     _query: Readonly<BattlefieldArrowAimQuery>,
@@ -246,6 +277,19 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
     query: Readonly<BattlefieldArrowSweepQuery>,
     result: BattlefieldArrowHitBuffer,
   ): number {
+    this.arrowSweepQueryCount++;
+    result.reset();
+    if (this.sweepHitEnabled) {
+      result.include(3, 11, query.endX, query.endY, query.endZ, 0.5);
+    }
+    return result.count;
+  }
+
+  public collectTetherOverlapHits(
+    query: Readonly<BattlefieldTetherQuery>,
+    result: BattlefieldArrowHitBuffer,
+  ): number {
+    this.tetherQueryCount++;
     result.reset();
     if (this.sweepHitEnabled) {
       result.include(3, 11, query.endX, query.endY, query.endZ, 0.5);

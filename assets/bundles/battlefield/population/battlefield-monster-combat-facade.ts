@@ -16,6 +16,7 @@ import {
   type BattlefieldArrowCombatTarget,
   type BattlefieldArrowHitBuffer,
   type BattlefieldArrowSweepQuery,
+  type BattlefieldTetherQuery,
   type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../equipment/projectile/model/battlefield-arrow-query';
@@ -119,6 +120,13 @@ implements BattlefieldHammerCombatTarget, BattlefieldArrowCombatTarget {
     result: BattlefieldArrowHitBuffer,
   ): number {
     return this.isActive() ? this.targets.collectArrowSweepHits(query, result) : 0;
+  }
+
+  public collectTetherOverlapHits(
+    query: Readonly<BattlefieldTetherQuery>,
+    result: BattlefieldArrowHitBuffer,
+  ): number {
+    return this.isActive() ? this.targets.collectTetherOverlapHits(query, result) : 0;
   }
 
   public writeBestArrowAimTarget(

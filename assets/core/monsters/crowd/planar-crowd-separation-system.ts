@@ -59,6 +59,8 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
   private entityIndices = new Uint32Array(0);
   private correctionX = new Float32Array(0);
   private correctionY = new Float32Array(0);
+  private visitedQuery = new Uint32Array(0);
+  private querySequence = 0;
   private bucketMask = 0;
   private activeCount = 0;
   private maximumRadius = 0;
@@ -170,6 +172,7 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
       throw new Error('Crowd 线段候选查询参数无效。');
     }
     result.reset();
+    const querySequence = this.beginCandidateQuery();
     const padding = queryRadius + this.maximumRadius + this.maximumFrameDisplacement;
     const cellSize = this.options.cellSize;
     const inverseCellSize = 1 / cellSize;
@@ -197,7 +200,7 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
       ? Number.POSITIVE_INFINITY
       : cellSize / Math.abs(deltaY);
 
-    this.collectCellNeighborhood(cellX, cellY, neighborRange, result);
+    this.collectCellNeighborhood(cellX, cellY, neighborRange, querySequence, result);
     while (cellX !== endCellX || cellY !== endCellY) {
       if (nextProgressX < nextProgressY) {
         cellX += stepX;
@@ -207,14 +210,18 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
         nextProgressY += progressDeltaY;
       } else {
         // 穿过网格角时先覆盖两个正交邻格，再进入对角格，避免边界漏判。
-        this.collectCellNeighborhood(cellX + stepX, cellY, neighborRange, result);
-        this.collectCellNeighborhood(cellX, cellY + stepY, neighborRange, result);
+        this.collectCellNeighborhood(
+          cellX + stepX, cellY, neighborRange, querySequence, result,
+        );
+        this.collectCellNeighborhood(
+          cellX, cellY + stepY, neighborRange, querySequence, result,
+        );
         cellX += stepX;
         cellY += stepY;
         nextProgressX += progressDeltaX;
         nextProgressY += progressDeltaY;
       }
-      this.collectCellNeighborhood(cellX, cellY, neighborRange, result);
+      this.collectCellNeighborhood(cellX, cellY, neighborRange, querySequence, result);
     }
     return result.count;
   }
@@ -230,6 +237,7 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
       throw new Error('Crowd 圆形候选查询参数无效。');
     }
     result.reset();
+    const querySequence = this.beginCandidateQuery();
     const padding = radius + this.maximumRadius;
     const inverseCellSize = 1 / this.options.cellSize;
     const minimumCellX = Math.floor((centerX - padding) * inverseCellSize);
@@ -249,7 +257,13 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
               const deltaY = (population.y[entityIndex] ?? 0) - centerY;
               const contactRadius = radius + (population.radius[entityIndex] ?? 0);
               if (deltaX * deltaX + deltaY * deltaY <= contactRadius * contactRadius) {
-                result.include(population.populationId, entityIndex);
+                this.appendCandidate(
+                  slot,
+                  population.populationId,
+                  entityIndex,
+                  querySequence,
+                  result,
+                );
               }
             }
           }
@@ -294,6 +308,7 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
     centerCellX: number,
     centerCellY: number,
     neighborRange: number,
+    querySequence: number,
     result: PlanarCrowdCandidateBuffer,
   ): void {
     for (let offsetY = -neighborRange; offsetY <= neighborRange; offsetY++) {
@@ -306,13 +321,45 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
           if ((this.cellX[slot] ?? 0) === cellX && (this.cellY[slot] ?? 0) === cellY) {
             const population = this.populations[this.populationIndices[slot] ?? 0];
             if (population !== undefined) {
-              result.include(population.populationId, this.entityIndices[slot] ?? 0);
+              this.appendCandidate(
+                slot,
+                population.populationId,
+                this.entityIndices[slot] ?? 0,
+                querySequence,
+                result,
+              );
             }
           }
           slot = next;
         }
       }
     }
+  }
+
+  /** 为一次候选查询分配非零序号；回绕时清空访问表。 */
+  private beginCandidateQuery(): number {
+    if (this.querySequence >= 0xffffffff) {
+      this.visitedQuery.fill(0);
+      this.querySequence = 1;
+    } else {
+      this.querySequence++;
+    }
+    return this.querySequence;
+  }
+
+  /** 通过稳定活动 Slot 以 O(1) 成本过滤邻域重复访问。 */
+  private appendCandidate(
+    slot: number,
+    populationId: number,
+    entityIndex: number,
+    querySequence: number,
+    result: PlanarCrowdCandidateBuffer,
+  ): void {
+    if ((this.visitedQuery[slot] ?? 0) === querySequence) {
+      return;
+    }
+    this.visitedQuery[slot] = querySequence;
+    result.appendUnchecked(populationId, entityIndex);
   }
 
   private accumulatePair(firstSlot: number, secondSlot: number): void {
@@ -387,6 +434,8 @@ export class PlanarCrowdSeparationSystem implements PlanarCrowdCollisionSource {
     this.entityIndices = new Uint32Array(capacity);
     this.correctionX = new Float32Array(capacity);
     this.correctionY = new Float32Array(capacity);
+    this.visitedQuery = new Uint32Array(capacity);
+    this.querySequence = 0;
     const bucketCount = calculateBucketCount(Math.max(1, capacity));
     this.bucketHeads = new Int32Array(bucketCount);
     this.bucketMask = bucketCount - 1;

@@ -9,6 +9,17 @@ export interface BattlefieldArrowSweepQuery {
   readonly radius: number;
 }
 
+/** 持续弦线与怪物竖直胶囊的低频重叠查询。 */
+export interface BattlefieldTetherQuery {
+  readonly startX: number;
+  readonly startY: number;
+  readonly startZ: number;
+  readonly endX: number;
+  readonly endY: number;
+  readonly endZ: number;
+  readonly radius: number;
+}
+
 /** 箭矢附着系统读取的稳定怪物世界姿态。 */
 export interface MutableBattlefieldArrowTargetPose {
   centerX: number;
@@ -110,6 +121,10 @@ export interface BattlefieldArrowCombatTarget {
   ): boolean;
   collectArrowSweepHits(
     query: Readonly<BattlefieldArrowSweepQuery>,
+    result: BattlefieldArrowHitBuffer,
+  ): number;
+  collectTetherOverlapHits(
+    query: Readonly<BattlefieldTetherQuery>,
     result: BattlefieldArrowHitBuffer,
   ): number;
   writeArrowTargetPose(

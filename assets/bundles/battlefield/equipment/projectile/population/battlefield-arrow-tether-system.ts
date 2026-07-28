@@ -6,7 +6,7 @@ import {
 import {
   BattlefieldArrowHitBuffer,
   type BattlefieldArrowCombatTarget,
-  type BattlefieldArrowSweepQuery,
+  type BattlefieldTetherQuery,
 } from '../model/battlefield-arrow-query';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
 import {
@@ -16,6 +16,7 @@ import {
 
 export const BATTLEFIELD_MAXIMUM_TETHER_COUNT = 6;
 const TETHER_TARGET_CAPACITY = 32;
+export const BATTLEFIELD_TETHER_QUERY_INTERVAL_SECONDS = 1 / 20;
 
 /** 固定容量弦网，使用最近邻连续路径并维护逐线逐目标冷却。 */
 export class BattlefieldArrowTetherSystem {
@@ -31,7 +32,7 @@ export class BattlefieldArrowTetherSystem {
     BATTLEFIELD_MAXIMUM_TETHER_COUNT * TETHER_TARGET_CAPACITY,
   );
   private readonly hits = new BattlefieldArrowHitBuffer();
-  private readonly query: Mutable<BattlefieldArrowSweepQuery> = {
+  private readonly query: Mutable<BattlefieldTetherQuery> = {
     startX: 0,
     startY: 0,
     startZ: 0,
@@ -44,6 +45,7 @@ export class BattlefieldArrowTetherSystem {
   private remainingSeconds = 0;
   private elapsedSeconds = 0;
   private skillSequenceId = 0;
+  private queryAccumulator = 0;
 
   public get active(): boolean {
     return this.remainingSeconds > 0 && this.tetherCountValue > 0;
@@ -89,6 +91,7 @@ export class BattlefieldArrowTetherSystem {
     this.remainingSeconds = durationSeconds;
     this.elapsedSeconds = 0;
     this.skillSequenceId = skillSequenceId;
+    this.queryAccumulator = BATTLEFIELD_TETHER_QUERY_INTERVAL_SECONDS;
     this.cooldownUntil.fill(0);
     return this.tetherCountValue > 0;
   }
@@ -110,6 +113,38 @@ export class BattlefieldArrowTetherSystem {
     const safeDelta = Math.max(0, Math.min(deltaTime, 0.05));
     this.elapsedSeconds += safeDelta;
     this.remainingSeconds = Math.max(0, this.remainingSeconds - safeDelta);
+    if (this.remainingSeconds <= 0) {
+      this.deactivate();
+      return;
+    }
+    this.queryAccumulator += safeDelta;
+    if (this.queryAccumulator < BATTLEFIELD_TETHER_QUERY_INTERVAL_SECONDS) {
+      return;
+    }
+    this.queryAccumulator %= BATTLEFIELD_TETHER_QUERY_INTERVAL_SECONDS;
+    this.resolveCollisions(
+      arrows,
+      target,
+      events,
+      baseDamage,
+      damageScale,
+      hitCooldownSeconds,
+      slowScale,
+      slowDurationSeconds,
+    );
+  }
+
+  /** 以固定 20Hz 频率处理全部弦线，避免把持续效果放入逐帧碰撞热路径。 */
+  private resolveCollisions(
+    arrows: BattlefieldArrowPopulation,
+    target: BattlefieldArrowCombatTarget,
+    events: BattlefieldDamageEventBuffer,
+    baseDamage: number,
+    damageScale: number,
+    hitCooldownSeconds: number,
+    slowScale: number,
+    slowDurationSeconds: number,
+  ): void {
     for (let edge = 0; edge < this.tetherCountValue; edge++) {
       const start = this.startArrowIndex[edge] ?? 0;
       const end = this.endArrowIndex[edge] ?? 0;
@@ -123,7 +158,7 @@ export class BattlefieldArrowTetherSystem {
       this.query.endX = arrows.positionX[end] ?? 0;
       this.query.endY = arrows.positionY[end] ?? 0;
       this.query.endZ = arrows.positionZ[end] ?? 0;
-      target.collectArrowSweepHits(this.query, this.hits);
+      target.collectTetherOverlapHits(this.query, this.hits);
       for (let hit = 0; hit < this.hits.count; hit++) {
         const populationId = this.hits.populationId[hit] ?? 0;
         const entityId = this.hits.entityId[hit] ?? 0;
@@ -145,14 +180,12 @@ export class BattlefieldArrowTetherSystem {
         target.applyArrowSlow(populationId, entityId, slowScale, slowDurationSeconds);
       }
     }
-    if (this.remainingSeconds <= 0) {
-      this.deactivate();
-    }
   }
 
   public deactivate(): void {
     this.tetherCountValue = 0;
     this.remainingSeconds = 0;
+    this.queryAccumulator = 0;
   }
 
   private findNearestUnconnected(

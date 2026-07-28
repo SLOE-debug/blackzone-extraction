@@ -20,10 +20,16 @@ import {
   type BattlefieldArrowAimQuery,
   type BattlefieldArrowHitBuffer,
   type BattlefieldArrowSweepQuery,
+  type BattlefieldTetherQuery,
   type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../equipment/projectile/model/battlefield-arrow-query';
-import { findArrowVerticalCapsuleContactProgress } from '../equipment/projectile/population/battlefield-arrow-capsule-intersection';
+import {
+  findArrowVerticalCapsuleContactProgress,
+} from '../equipment/projectile/population/battlefield-arrow-capsule-intersection';
+import {
+  findTetherVerticalCapsuleOverlapProgress,
+} from '../equipment/projectile/population/battlefield-tether-capsule-overlap';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
 const DIRECTION_EPSILON = 0.000001;
@@ -211,6 +217,60 @@ export class BattlefieldMonsterTargetRegistry {
         query.startZ + (query.endZ - query.startZ) * progress,
         progress,
       );
+    }
+    return result.count;
+  }
+
+  /**
+   * 使用一次平面投影和竖直范围判断收集弦线重叠目标。
+   *
+   * 弦线只关心当前重叠，不计算首次接触时间，也不进入箭矢胶囊二分求交。
+   */
+  public collectTetherOverlapHits(
+    query: Readonly<BattlefieldTetherQuery>,
+    result: BattlefieldArrowHitBuffer,
+  ): number {
+    if (![query.startX, query.startY, query.startZ, query.endX, query.endY,
+      query.endZ, query.radius].every(Number.isFinite) || query.radius <= 0) {
+      throw new Error('弦线重叠查询参数无效。');
+    }
+    result.reset();
+    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    const inverseScale = 1 / scale;
+    const startX = query.startX * inverseScale;
+    const startY = -query.startZ * inverseScale;
+    const endX = query.endX * inverseScale;
+    const endY = -query.endZ * inverseScale;
+    const radius = query.radius * inverseScale;
+    this.crowd.collectSegmentCandidates(startX, startY, endX, endY, radius, this.candidates);
+    for (let index = 0; index < this.candidates.count; index++) {
+      const populationId = this.candidates.populationIds[index] ?? 0;
+      const entityId = this.candidates.entityIndices[index] ?? 0;
+      const crowd = this.findGroup(populationId)?.crowdPopulation;
+      if (crowd === undefined
+        || (crowd.lifecycle[entityId] as MonsterLifecycleState) !== MonsterLifecycleState.Alive
+        || (crowd.participation[entityId] ?? 0) === 0) {
+        continue;
+      }
+      const targetX = (crowd.x[entityId] ?? 0) * scale;
+      const targetZ = -(crowd.y[entityId] ?? 0) * scale;
+      const centerY = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
+        + ((crowd.centerHeight[entityId] ?? 0) + (crowd.elevation[entityId] ?? 0)) * scale;
+      const expandedHalfHeight = (crowd.halfHeight[entityId] ?? 0) * scale + query.radius;
+      const progress = findTetherVerticalCapsuleOverlapProgress(
+        query.startX, query.startY, query.startZ,
+        query.endX, query.endY, query.endZ,
+        targetX, centerY, targetZ,
+        expandedHalfHeight,
+        query.radius + (crowd.radius[entityId] ?? 0) * scale,
+      );
+      if (progress < 0) {
+        continue;
+      }
+      const nearestX = query.startX + (query.endX - query.startX) * progress;
+      const lineY = query.startY + (query.endY - query.startY) * progress;
+      const nearestZ = query.startZ + (query.endZ - query.startZ) * progress;
+      result.include(populationId, entityId, nearestX, lineY, nearestZ, progress);
     }
     return result.count;
   }
