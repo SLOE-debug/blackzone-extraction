@@ -9,10 +9,15 @@ export function createVenomLobberCrowdPopulation(
   populationId: number,
 ): PlanarCrowdPopulation {
   const radius = new Float32Array(state.count);
+  const centerHeight = new Float32Array(state.count);
+  const halfHeight = new Float32Array(state.count);
   const inverseMass = new Float32Array(state.count);
   const participation = new Uint8Array(state.count);
   for (let index = 0; index < state.count; index++) {
     radius[index] = 3.8 * (state.data.morphology.scale[index] ?? 1);
+    const scale = state.data.morphology.scale[index] ?? 1;
+    centerHeight[index] = 2.25 * scale;
+    halfHeight[index] = 1.75 * scale;
     inverseMass[index] = VENOM_LOBBER_INVERSE_MASS;
     participation[index] = 1;
   }
@@ -26,6 +31,9 @@ export function createVenomLobberCrowdPopulation(
     x: state.data.transform.x,
     y: state.data.transform.y,
     radius,
+    centerHeight,
+    halfHeight,
+    elevation: state.data.effects.externalElevation,
     inverseMass,
   });
 }

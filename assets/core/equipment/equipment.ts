@@ -87,8 +87,11 @@ extends EquipmentDefinitionBase<TId, EquipmentCategory.Weapon> {
   readonly maximumChargeSpeedScale: number;
   readonly maximumChargePierceCount: number;
   readonly projectileCapacity: number;
-  readonly recallSpeed: number;
-  readonly automaticRecallSpeed: number;
+  readonly automaticRecallMinimumSpeed: number;
+  readonly automaticRecallMaximumSpeed: number;
+  readonly skillRecallMinimumSpeed: number;
+  readonly skillRecallMaximumSpeed: number;
+  readonly recallAccelerationDistance: number;
   readonly automaticRecallDamageScale: number;
   readonly skillRecallDamageScale: number;
   readonly extractionDamageScale: number;

@@ -349,7 +349,6 @@ export class BattlefieldPlayerEquipmentRuntime {
           ? this.projectileOriginZ
           : owner.positionZ,
         aimX: this.command.directionX,
-        aimY: 0,
         aimZ: this.command.directionZ,
         alive: owner.alive,
       });

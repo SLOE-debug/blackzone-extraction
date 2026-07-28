@@ -3,6 +3,7 @@ import {
   BATTLEFIELD_ARROW_CAPACITY,
   type BattlefieldArrowPopulation,
 } from './battlefield-arrow-population';
+import { embedBattlefieldArrowInGround } from './battlefield-arrow-ground-embedding';
 
 /** 推进直线去程并在射程耗尽时把箭固定为世界锚点。 */
 export class BattlefieldArrowFlightSystem {
@@ -25,8 +26,7 @@ export class BattlefieldArrowFlightSystem {
       arrows.remainingRange[index] = Math.max(0, (arrows.remainingRange[index] ?? 0) - travel);
       arrows.dirty[index] = 1;
       if ((arrows.remainingRange[index] ?? 0) <= 0) {
-        arrows.positionY[index] = groundY;
-        arrows.state[index] = BattlefieldArrowState.EmbeddedInWorld;
+        embedBattlefieldArrowInGround(arrows, index, groundY);
       }
     }
   }

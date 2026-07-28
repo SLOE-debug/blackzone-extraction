@@ -7,6 +7,7 @@ import {
   writeBattlefieldArrow,
   writeBattlefieldQuiver,
   writeBattlefieldTether,
+  writeBattlefieldTetherMarker,
 } from '../geometry/battlefield-arrow-batch-geometry';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
 import {
@@ -105,6 +106,7 @@ export class BattlefieldArrowRenderer {
         ready ? 1 : drawing ? 0 : arrows.directionY[index] ?? 0,
         drawing ? forwardZ : ready ? 0.06 * rightZ : arrows.directionZ[index] ?? 1,
         active,
+        ready || drawing ? 1 : calculateArrowVisualScale(x, z, ownerX, ownerZ),
       );
       arrows.dirty[index] = 0;
     }
@@ -112,16 +114,40 @@ export class BattlefieldArrowRenderer {
       const active = tethers.active && edge < tethers.tetherCount;
       const start = tethers.startArrowIndex[edge] ?? 0;
       const end = tethers.endArrowIndex[edge] ?? 0;
+      const startX = arrows.positionX[start] ?? ownerX;
+      const startY = arrows.positionY[start] ?? ownerY;
+      const startZ = arrows.positionZ[start] ?? ownerZ;
+      const endX = arrows.positionX[end] ?? ownerX;
+      const endY = arrows.positionY[end] ?? ownerY;
+      const endZ = arrows.positionZ[end] ?? ownerZ;
       writeBattlefieldTether(
         this.geometry,
         edge,
-        arrows.positionX[start] ?? ownerX,
-        arrows.positionY[start] ?? ownerY,
-        arrows.positionZ[start] ?? ownerZ,
-        arrows.positionX[end] ?? ownerX,
-        arrows.positionY[end] ?? ownerY,
-        arrows.positionZ[end] ?? ownerZ,
+        startX,
+        startY,
+        startZ,
+        endX,
+        endY,
+        endZ,
         active,
+        calculateTetherHalfWidth(
+          (startX + endX) * 0.5,
+          (startZ + endZ) * 0.5,
+          ownerX,
+          ownerZ,
+        ),
+      );
+    }
+    for (let index = 0; index < BATTLEFIELD_PERMANENT_ARROW_CAPACITY; index++) {
+      const state = arrows.state[index] as BattlefieldArrowState;
+      writeBattlefieldTetherMarker(
+        this.geometry,
+        index,
+        arrows.positionX[index] ?? ownerX,
+        arrows.positionY[index] ?? ownerY,
+        arrows.positionZ[index] ?? ownerZ,
+        tethers.active && (state === BattlefieldArrowState.EmbeddedInMonster
+          || state === BattlefieldArrowState.EmbeddedInWorld),
       );
     }
     writeBattlefieldQuiver(
@@ -178,4 +204,17 @@ export class BattlefieldArrowRenderer {
       this.batch.dispose();
     }
   }
+}
+
+function calculateArrowVisualScale(x: number, z: number, ownerX: number, ownerZ: number): number {
+  return 1 + Math.min(1, Math.hypot(x - ownerX, z - ownerZ) / 24) * 0.5;
+}
+
+function calculateTetherHalfWidth(
+  x: number,
+  z: number,
+  ownerX: number,
+  ownerZ: number,
+): number {
+  return 0.03 + Math.min(1, Math.hypot(x - ownerX, z - ownerZ) / 24) * 0.05;
 }

@@ -258,6 +258,9 @@ function createPopulation(targets: readonly TestTarget[]): PlanarCrowdPopulation
   const x = new Float32Array(count);
   const y = new Float32Array(count);
   const radius = new Float32Array(count);
+  const centerHeight = new Float32Array(count);
+  const halfHeight = new Float32Array(count);
+  const elevation = new Float32Array(count);
   const inverseMass = new Float32Array(count);
   for (let index = 0; index < count; index++) {
     const target = targets[index]!;
@@ -269,6 +272,8 @@ function createPopulation(targets: readonly TestTarget[]): PlanarCrowdPopulation
     previousX[index] = x[index] ?? 0;
     previousY[index] = y[index] ?? 0;
     radius[index] = (target.radius ?? 0.3) / scale;
+    centerHeight[index] = 1 / scale;
+    halfHeight[index] = 0.5 / scale;
     inverseMass[index] = 1;
   }
   return {
@@ -281,6 +286,9 @@ function createPopulation(targets: readonly TestTarget[]): PlanarCrowdPopulation
     x,
     y,
     radius,
+    centerHeight,
+    halfHeight,
+    elevation,
     inverseMass,
   };
 }

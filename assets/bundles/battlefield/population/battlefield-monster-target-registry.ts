@@ -12,12 +12,18 @@ import {
 } from '../combat/melee/battlefield-melee-query';
 import { type BattlefieldMonsterTargetGroup } from './battlefield-monster-target-group';
 import { BattlefieldMeleeAttackDirectionPlanner } from './battlefield-melee-attack-direction-planner';
-import { MonsterLifecycleState } from '../../../core/contracts/monster-lifecycle';
 import {
+  isMonsterLifecycleResident,
+  MonsterLifecycleState,
+} from '../../../core/contracts/monster-lifecycle';
+import {
+  type BattlefieldArrowAimQuery,
   type BattlefieldArrowHitBuffer,
   type BattlefieldArrowSweepQuery,
+  type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../equipment/projectile/model/battlefield-arrow-query';
+import { findArrowVerticalCapsuleContactProgress } from '../equipment/projectile/population/battlefield-arrow-capsule-intersection';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
 const DIRECTION_EPSILON = 0.000001;
@@ -182,27 +188,85 @@ export class BattlefieldMonsterTargetRegistry {
         || (crowd.participation[entityId] ?? 0) === 0) {
         continue;
       }
-      const targetX = crowd.x[entityId] ?? 0;
-      const targetY = crowd.y[entityId] ?? 0;
-      const contactRadius = radius + (crowd.radius[entityId] ?? 0);
-      if (distanceSquaredToSegment(targetX, targetY, startX, startY, endX, endY)
-        > contactRadius * contactRadius) {
+      const targetX = (crowd.x[entityId] ?? 0) * scale;
+      const targetZ = -(crowd.y[entityId] ?? 0) * scale;
+      const centerY = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
+        + ((crowd.centerHeight[entityId] ?? 0) + (crowd.elevation[entityId] ?? 0)) * scale;
+      const contactRadius = query.radius + (crowd.radius[entityId] ?? 0) * scale;
+      const progress = findArrowVerticalCapsuleContactProgress(
+        query.startX, query.startY, query.startZ,
+        query.endX, query.endY, query.endZ,
+        targetX, centerY, targetZ,
+        (crowd.halfHeight[entityId] ?? 0) * scale,
+        contactRadius,
+      );
+      if (progress < 0) {
         continue;
       }
-      const progress = segmentProgress(targetX, targetY, startX, startY, endX, endY);
       result.include(
         populationId,
         entityId,
-        targetX * scale,
+        query.startX + (query.endX - query.startX) * progress,
         query.startY + (query.endY - query.startY) * progress,
-        -targetY * scale,
+        query.startZ + (query.endZ - query.startZ) * progress,
         progress,
       );
     }
     return result.count;
   }
 
-  /** 为附着箭写入怪物当前平面姿态。 */
+  /** 沿给定平面方向选择最近的胶囊体，并只返回垂直辅助瞄准点。 */
+  public writeBestArrowAimTarget(
+    query: Readonly<BattlefieldArrowAimQuery>,
+    result: MutableBattlefieldArrowAimTarget,
+  ): boolean {
+    const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
+    const inverseScale = 1 / scale;
+    const endX = query.originX + query.directionX * query.maximumDistance;
+    const endZ = query.originZ + query.directionZ * query.maximumDistance;
+    this.crowd.collectSegmentCandidates(
+      query.originX * inverseScale,
+      -query.originZ * inverseScale,
+      endX * inverseScale,
+      -endZ * inverseScale,
+      query.projectileRadius * inverseScale,
+      this.candidates,
+    );
+    let bestProgress = Number.POSITIVE_INFINITY;
+    let found = false;
+    for (let index = 0; index < this.candidates.count; index++) {
+      const populationId = this.candidates.populationIds[index] ?? 0;
+      const entityId = this.candidates.entityIndices[index] ?? 0;
+      const crowd = this.findGroup(populationId)?.crowdPopulation;
+      if (crowd === undefined
+        || (crowd.lifecycle[entityId] as MonsterLifecycleState) !== MonsterLifecycleState.Alive
+        || (crowd.participation[entityId] ?? 0) === 0) {
+        continue;
+      }
+      const x = (crowd.x[entityId] ?? 0) * scale;
+      const z = -(crowd.y[entityId] ?? 0) * scale;
+      const progress = ((x - query.originX) * query.directionX
+        + (z - query.originZ) * query.directionZ) / query.maximumDistance;
+      if (progress < 0 || progress > 1 || progress >= bestProgress) {
+        continue;
+      }
+      const rayX = query.originX + query.directionX * query.maximumDistance * progress;
+      const rayZ = query.originZ + query.directionZ * query.maximumDistance * progress;
+      const contactRadius = query.projectileRadius + (crowd.radius[entityId] ?? 0) * scale;
+      if ((x - rayX) ** 2 + (z - rayZ) ** 2 > contactRadius * contactRadius) {
+        continue;
+      }
+      bestProgress = progress;
+      result.x = x;
+      result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
+        + ((crowd.centerHeight[entityId] ?? 0) + (crowd.elevation[entityId] ?? 0)) * scale;
+      result.z = z;
+      found = true;
+    }
+    return found;
+  }
+
+  /** 为附着箭写入怪物当前三维胶囊姿态。 */
   public writeArrowTargetPose(
     populationId: number,
     entityId: number,
@@ -210,15 +274,16 @@ export class BattlefieldMonsterTargetRegistry {
   ): boolean {
     const crowd = this.findGroup(populationId)?.crowdPopulation;
     if (crowd === undefined || entityId < 0 || entityId >= crowd.count
-      || (crowd.lifecycle[entityId] as MonsterLifecycleState) !== MonsterLifecycleState.Alive
-      || (crowd.participation[entityId] ?? 0) === 0) {
+      || !isMonsterLifecycleResident(crowd.lifecycle[entityId] as MonsterLifecycleState)) {
       return false;
     }
     const scale = BATTLEFIELD_MONSTER_SPAWN.modelScale;
-    result.x = (crowd.x[entityId] ?? 0) * scale;
-    result.y = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY;
-    result.z = -(crowd.y[entityId] ?? 0) * scale;
+    result.centerX = (crowd.x[entityId] ?? 0) * scale;
+    result.centerY = BATTLEFIELD_MONSTER_SPAWN.groundOffsetY
+      + ((crowd.centerHeight[entityId] ?? 0) + (crowd.elevation[entityId] ?? 0)) * scale;
+    result.centerZ = -(crowd.y[entityId] ?? 0) * scale;
     result.radius = (crowd.radius[entityId] ?? 0) * scale;
+    result.halfHeight = (crowd.halfHeight[entityId] ?? 0) * scale;
     return true;
   }
 
@@ -288,21 +353,4 @@ export function distanceSquaredToSegment(
   const deltaX = pointX - nearestX;
   const deltaY = pointY - nearestY;
   return deltaX * deltaX + deltaY * deltaY;
-}
-
-function segmentProgress(
-  pointX: number,
-  pointY: number,
-  startX: number,
-  startY: number,
-  endX: number,
-  endY: number,
-): number {
-  const segmentX = endX - startX;
-  const segmentY = endY - startY;
-  const lengthSquared = segmentX * segmentX + segmentY * segmentY;
-  return lengthSquared <= DIRECTION_EPSILON
-    ? 0
-    : Math.max(0, Math.min(1,
-      ((pointX - startX) * segmentX + (pointY - startY) * segmentY) / lengthSquared));
 }

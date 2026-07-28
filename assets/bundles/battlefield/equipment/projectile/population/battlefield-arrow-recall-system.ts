@@ -62,8 +62,11 @@ export class BattlefieldArrowRecallSystem {
     ownerX: number,
     ownerY: number,
     ownerZ: number,
-    automaticSpeed: number,
-    skillSpeed: number,
+    automaticMinimumSpeed: number,
+    automaticMaximumSpeed: number,
+    skillMinimumSpeed: number,
+    skillMaximumSpeed: number,
+    accelerationDistance: number,
     radius: number,
     automaticDamageScale: number,
     skillDamageScale: number,
@@ -90,7 +93,14 @@ export class BattlefieldArrowRecallSystem {
       }
       const inverseDistance = 1 / distance;
       const kind = arrows.recallKind[index] as BattlefieldArrowRecallKind;
-      const speed = kind === BattlefieldArrowRecallKind.Skill ? skillSpeed : automaticSpeed;
+      const speed = kind === BattlefieldArrowRecallKind.Skill
+        ? calculateRecallSpeed(distance, skillMinimumSpeed, skillMaximumSpeed, accelerationDistance)
+        : calculateRecallSpeed(
+          distance,
+          automaticMinimumSpeed,
+          automaticMaximumSpeed,
+          accelerationDistance,
+        );
       const travel = Math.min(distance, speed * safeDelta);
       const convergence = Math.min(1, distance / 5);
       const curve = (arrows.recallLateralSign[index] ?? 1) * CURVE_STRENGTH * convergence;
@@ -165,3 +175,15 @@ export class BattlefieldArrowRecallSystem {
 }
 
 type Mutable<T> = { -readonly [TKey in keyof T]: T[TKey] };
+
+/** 使用平滑曲线让远距离箭高速回收，并在靠近玩家时恢复可读速度。 */
+export function calculateRecallSpeed(
+  distance: number,
+  minimumSpeed: number,
+  maximumSpeed: number,
+  accelerationDistance: number,
+): number {
+  const ratio = Math.max(0, Math.min(1, (distance - 4) / accelerationDistance));
+  const smooth = ratio * ratio * (3 - 2 * ratio);
+  return minimumSpeed + (maximumSpeed - minimumSpeed) * smooth;
+}

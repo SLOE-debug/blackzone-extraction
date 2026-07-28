@@ -15,6 +15,10 @@ import {
   BattlefieldArrowState,
 } from '../model/battlefield-arrow-state';
 import { BattlefieldArrowAttachmentSystem } from './battlefield-arrow-attachment-system';
+import {
+  BattlefieldArrowAimSystem,
+  type MutableBattlefieldArrowAimDirection,
+} from './battlefield-arrow-aim-system';
 import { BattlefieldArrowCollisionSystem } from './battlefield-arrow-collision-system';
 import { BattlefieldArrowFlightSystem } from './battlefield-arrow-flight-system';
 import { BattlefieldArrowLaunchSystem } from './battlefield-arrow-launch-system';
@@ -35,7 +39,6 @@ export interface BattlefieldBowOwnerState {
   readonly projectileOriginY: number;
   readonly projectileOriginZ: number;
   readonly aimX: number;
-  readonly aimY: number;
   readonly aimZ: number;
   readonly alive: boolean;
 }
@@ -50,7 +53,9 @@ export class BattlefieldReturningBowRuntime {
   private readonly flightSystem = new BattlefieldArrowFlightSystem();
   private readonly collisionSystem = new BattlefieldArrowCollisionSystem();
   private readonly attachmentSystem = new BattlefieldArrowAttachmentSystem();
+  private readonly aimSystem = new BattlefieldArrowAimSystem();
   private readonly recallSystem = new BattlefieldArrowRecallSystem();
+  private readonly resolvedAim: MutableBattlefieldArrowAimDirection = { x: 0, y: 0, z: 1 };
   private attackSequenceId = 0;
   private skillSequenceId = 0;
   private launchRequested = false;
@@ -158,14 +163,14 @@ export class BattlefieldReturningBowRuntime {
     if (shouldRelease && this.launchRequested) {
       this.launch(owner);
     }
-    this.flightSystem.update(this.arrows, deltaTime);
+    this.flightSystem.update(this.arrows, deltaTime, owner.positionY);
     this.collisionSystem.update(
       this.arrows,
       this.target,
       this.damageEvents,
       this.definition.projectileRadius,
     );
-    this.attachmentSystem.update(this.arrows, this.target);
+    this.attachmentSystem.update(this.arrows, this.target, owner.positionY);
     const returned = this.recallSystem.update(
       this.arrows,
       this.target,
@@ -173,8 +178,11 @@ export class BattlefieldReturningBowRuntime {
       owner.projectileOriginX,
       owner.projectileOriginY,
       owner.projectileOriginZ,
-      this.definition.automaticRecallSpeed,
-      this.definition.recallSpeed,
+      this.definition.automaticRecallMinimumSpeed,
+      this.definition.automaticRecallMaximumSpeed,
+      this.definition.skillRecallMinimumSpeed,
+      this.definition.skillRecallMaximumSpeed,
+      this.definition.recallAccelerationDistance,
       this.definition.projectileRadius,
       this.definition.automaticRecallDamageScale,
       this.definition.skillRecallDamageScale,
@@ -225,6 +233,18 @@ export class BattlefieldReturningBowRuntime {
       return;
     }
     const chargeRatio = this.action.chargeSeconds / this.definition.chargeDurationSeconds;
+    this.aimSystem.writeDirection(
+      this.target,
+      owner.projectileOriginX,
+      owner.projectileOriginY,
+      owner.projectileOriginZ,
+      owner.aimX,
+      owner.aimZ,
+      this.definition.maximumRange,
+      this.definition.projectileRadius,
+      owner.positionY,
+      this.resolvedAim,
+    );
     this.launchSystem.launch(
       this.arrows,
       arrowIndex,
@@ -232,9 +252,9 @@ export class BattlefieldReturningBowRuntime {
       owner.projectileOriginX,
       owner.projectileOriginY,
       owner.projectileOriginZ,
-      owner.aimX,
-      owner.aimY,
-      owner.aimZ,
+      this.resolvedAim.x,
+      this.resolvedAim.y,
+      this.resolvedAim.z,
       chargeRatio,
       this.nextAttackSequence(),
     );

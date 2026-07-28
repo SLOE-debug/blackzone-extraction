@@ -7,6 +7,8 @@ export function createCurveCrawlerCrowdPopulation(
   populationId: number,
 ): PlanarCrowdPopulation {
   const radius = new Float32Array(state.count);
+  const centerHeight = new Float32Array(state.count);
+  const halfHeight = new Float32Array(state.count);
   const inverseMass = new Float32Array(state.count);
   const participation = new Uint8Array(state.count);
   const { morphology } = state.data;
@@ -17,6 +19,9 @@ export function createCurveCrawlerCrowdPopulation(
         + (morphology.legLength[index] ?? 0) * 0.46
         + (morphology.legWidth[index] ?? 0) * 0.2,
     );
+    const bodyWidth = morphology.bodyWidth[index] ?? 0;
+    centerHeight[index] = bodyWidth * 0.92;
+    halfHeight[index] = bodyWidth * 0.42;
     inverseMass[index] = 1;
     participation[index] = 1;
   }
@@ -30,6 +35,9 @@ export function createCurveCrawlerCrowdPopulation(
     x: state.data.transform.x,
     y: state.data.transform.y,
     radius,
+    centerHeight,
+    halfHeight,
+    elevation: state.data.effects.rootElevation,
     inverseMass,
   });
 }

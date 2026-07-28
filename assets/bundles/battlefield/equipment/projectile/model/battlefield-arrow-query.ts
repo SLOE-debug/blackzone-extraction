@@ -11,10 +11,29 @@ export interface BattlefieldArrowSweepQuery {
 
 /** 箭矢附着系统读取的稳定怪物世界姿态。 */
 export interface MutableBattlefieldArrowTargetPose {
+  centerX: number;
+  centerY: number;
+  centerZ: number;
+  radius: number;
+  halfHeight: number;
+}
+
+/** 只沿玩家给出的平面朝向寻找垂直辅助瞄准目标。 */
+export interface BattlefieldArrowAimQuery {
+  readonly originX: number;
+  readonly originY: number;
+  readonly originZ: number;
+  readonly directionX: number;
+  readonly directionZ: number;
+  readonly maximumDistance: number;
+  readonly projectileRadius: number;
+}
+
+/** 垂直辅助瞄准返回的怪物身体中心。 */
+export interface MutableBattlefieldArrowAimTarget {
   x: number;
   y: number;
   z: number;
-  radius: number;
 }
 
 /** 预分配的有序箭矢扫掠结果。 */
@@ -85,6 +104,10 @@ export class BattlefieldArrowHitBuffer {
 
 /** 归弦猎弓依赖的怪物空间查询与效果门面。 */
 export interface BattlefieldArrowCombatTarget {
+  writeBestArrowAimTarget(
+    query: Readonly<BattlefieldArrowAimQuery>,
+    result: MutableBattlefieldArrowAimTarget,
+  ): boolean;
   collectArrowSweepHits(
     query: Readonly<BattlefieldArrowSweepQuery>,
     result: BattlefieldArrowHitBuffer,

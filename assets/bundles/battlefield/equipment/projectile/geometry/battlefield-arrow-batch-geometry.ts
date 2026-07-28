@@ -3,15 +3,20 @@ import {
   GeometryIndexFormat,
   type UnlitColorBufferGeometry,
 } from '../../../../../core/geometry/buffer-geometry';
-import { BATTLEFIELD_ARROW_CAPACITY } from '../population/battlefield-arrow-population';
+import {
+  BATTLEFIELD_ARROW_CAPACITY,
+  BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
+} from '../population/battlefield-arrow-population';
 import { BATTLEFIELD_MAXIMUM_TETHER_COUNT } from '../population/battlefield-arrow-tether-system';
 
 export const BATTLEFIELD_ARROW_VERTICES_PER_SLOT = 18;
-export const BATTLEFIELD_TETHER_VERTICES_PER_SLOT = 6;
+export const BATTLEFIELD_TETHER_VERTICES_PER_SLOT = 12;
+export const BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT = 24;
 export const BATTLEFIELD_QUIVER_VERTEX_COUNT = 36;
 export const BATTLEFIELD_ARROW_BATCH_VERTEX_COUNT =
   BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
   + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+  + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT
   + BATTLEFIELD_QUIVER_VERTEX_COUNT;
 
 /** 创建箭体与弦线共享的固定非索引动态拓扑。 */
@@ -39,6 +44,7 @@ export function writeBattlefieldArrow(
   directionY: number,
   directionZ: number,
   visible: boolean,
+  visualScale: number,
 ): void {
   const first = slot * BATTLEFIELD_ARROW_VERTICES_PER_SLOT;
   if (!visible) {
@@ -52,26 +58,35 @@ export function writeBattlefieldArrow(
   const sx = Math.abs(dy) > 0.9 ? 1 : dz;
   const sy = 0;
   const sz = Math.abs(dy) > 0.9 ? 0 : -dx;
-  const shaftEnd = point(x - dx * 0.72, y - dy * 0.72, z - dz * 0.72);
-  const tip = point(x + dx * 0.24, y + dy * 0.24, z + dz * 0.24);
+  const shaftEnd = point(
+    x - dx * 0.72 * visualScale,
+    y - dy * 0.72 * visualScale,
+    z - dz * 0.72 * visualScale,
+  );
+  const tip = point(
+    x + dx * 0.24 * visualScale,
+    y + dy * 0.24 * visualScale,
+    z + dz * 0.24 * visualScale,
+  );
+  const width = visualScale;
   let vertex = first;
   vertex = writeQuad(geometry, vertex,
-    point(x + sx * 0.035, y + sy * 0.035, z + sz * 0.035),
-    point(x - sx * 0.035, y - sy * 0.035, z - sz * 0.035),
-    point(shaftEnd.x - sx * 0.022, shaftEnd.y, shaftEnd.z - sz * 0.022),
-    point(shaftEnd.x + sx * 0.022, shaftEnd.y, shaftEnd.z + sz * 0.022),
+    point(x + sx * 0.035 * width, y + sy * 0.035, z + sz * 0.035 * width),
+    point(x - sx * 0.035 * width, y - sy * 0.035, z - sz * 0.035 * width),
+    point(shaftEnd.x - sx * 0.022 * width, shaftEnd.y, shaftEnd.z - sz * 0.022 * width),
+    point(shaftEnd.x + sx * 0.022 * width, shaftEnd.y, shaftEnd.z + sz * 0.022 * width),
     0.48, 0.25, 0.07);
   vertex = writeQuad(geometry, vertex,
-    point(x, y + 0.035, z), point(x, y - 0.035, z),
-    point(shaftEnd.x, shaftEnd.y - 0.022, shaftEnd.z),
-    point(shaftEnd.x, shaftEnd.y + 0.022, shaftEnd.z),
+    point(x, y + 0.035 * width, z), point(x, y - 0.035 * width, z),
+    point(shaftEnd.x, shaftEnd.y - 0.022 * width, shaftEnd.z),
+    point(shaftEnd.x, shaftEnd.y + 0.022 * width, shaftEnd.z),
     0.31, 0.13, 0.035);
   vertex = writeTriangle(geometry, vertex,
-    point(x + sx * 0.13, y, z + sz * 0.13),
-    point(x - sx * 0.11, y, z - sz * 0.11), tip,
+    point(x + sx * 0.13 * width, y, z + sz * 0.13 * width),
+    point(x - sx * 0.11 * width, y, z - sz * 0.11 * width), tip,
     0.92, 0.48, 0.09);
   writeTriangle(geometry, vertex,
-    point(x, y + 0.12, z), point(x, y - 0.1, z), tip,
+    point(x, y + 0.12 * width, z), point(x, y - 0.1 * width, z), tip,
     0.7, 0.29, 0.045);
 }
 
@@ -86,6 +101,7 @@ export function writeBattlefieldTether(
   endY: number,
   endZ: number,
   visible: boolean,
+  halfWidth: number,
 ): void {
   const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
     + slot * BATTLEFIELD_TETHER_VERTICES_PER_SLOT;
@@ -96,14 +112,55 @@ export function writeBattlefieldTether(
   const dx = endX - startX;
   const dz = endZ - startZ;
   const inverse = 1 / Math.max(0.0001, Math.hypot(dx, dz));
-  const sideX = dz * inverse * 0.028;
-  const sideZ = -dx * inverse * 0.028;
+  const sideX = dz * inverse * halfWidth;
+  const sideZ = -dx * inverse * halfWidth;
+  const raisedStartY = startY + 0.06;
+  const raisedEndY = endY + 0.06;
   writeQuad(geometry, first,
-    point(startX + sideX, startY, startZ + sideZ),
-    point(startX - sideX, startY, startZ - sideZ),
-    point(endX - sideX, endY, endZ - sideZ),
-    point(endX + sideX, endY, endZ + sideZ),
+    point(startX + sideX, raisedStartY, startZ + sideZ),
+    point(startX - sideX, raisedStartY, startZ - sideZ),
+    point(endX - sideX, raisedEndY, endZ - sideZ),
+    point(endX + sideX, raisedEndY, endZ + sideZ),
     0.3, 0.88, 0.92);
+  writeQuad(geometry, first + 6,
+    point(startX, raisedStartY + halfWidth, startZ),
+    point(startX, raisedStartY - halfWidth, startZ),
+    point(endX, raisedEndY - halfWidth, endZ),
+    point(endX, raisedEndY + halfWidth, endZ),
+    0.22, 0.76, 0.94);
+}
+
+/** 在猎场织网期间写入可从远处辨认的八面锚点。 */
+export function writeBattlefieldTetherMarker(
+  geometry: UnlitColorBufferGeometry,
+  slot: number,
+  x: number,
+  y: number,
+  z: number,
+  visible: boolean,
+): void {
+  const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
+    + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+    + slot * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT;
+  if (!visible) {
+    collapse(geometry, first, BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT, x, y, z);
+    return;
+  }
+  const top = point(x, y + 0.48, z);
+  const bottom = point(x, y + 0.04, z);
+  const east = point(x + 0.16, y + 0.25, z);
+  const west = point(x - 0.16, y + 0.25, z);
+  const north = point(x, y + 0.25, z + 0.16);
+  const south = point(x, y + 0.25, z - 0.16);
+  let vertex = first;
+  vertex = writeTriangle(geometry, vertex, top, east, north, 0.18, 0.96, 1);
+  vertex = writeTriangle(geometry, vertex, top, north, west, 0.12, 0.72, 0.96);
+  vertex = writeTriangle(geometry, vertex, top, west, south, 0.18, 0.96, 1);
+  vertex = writeTriangle(geometry, vertex, top, south, east, 0.12, 0.72, 0.96);
+  vertex = writeTriangle(geometry, vertex, bottom, north, east, 0.1, 0.62, 0.84);
+  vertex = writeTriangle(geometry, vertex, bottom, west, north, 0.16, 0.86, 0.92);
+  vertex = writeTriangle(geometry, vertex, bottom, south, west, 0.1, 0.62, 0.84);
+  writeTriangle(geometry, vertex, bottom, east, south, 0.16, 0.86, 0.92);
 }
 
 /** 原地写入背部开放式六边箭袋，低段数轮廓带固定非均匀半径。 */
@@ -118,7 +175,8 @@ export function writeBattlefieldQuiver(
   forwardZ: number,
 ): void {
   const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
-    + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT;
+    + BATTLEFIELD_MAXIMUM_TETHER_COUNT * BATTLEFIELD_TETHER_VERTICES_PER_SLOT
+    + BATTLEFIELD_PERMANENT_ARROW_CAPACITY * BATTLEFIELD_TETHER_MARKER_VERTICES_PER_SLOT;
   const segmentScales = [0.93, 1.08, 0.97, 1.05, 0.9, 1.02] as const;
   let vertex = first;
   for (let segment = 0; segment < 6; segment++) {

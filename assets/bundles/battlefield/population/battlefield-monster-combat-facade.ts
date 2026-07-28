@@ -12,9 +12,11 @@ import { type BattlefieldMonsterEffectRuntime } from '../combat/effects/battlefi
 import { type BattlefieldHammerCombatTarget } from '../equipment/combat/battlefield-hammer-combat-target';
 import { type BattlefieldMonsterTargetRegistry } from './battlefield-monster-target-registry';
 import {
+  type BattlefieldArrowAimQuery,
   type BattlefieldArrowCombatTarget,
   type BattlefieldArrowHitBuffer,
   type BattlefieldArrowSweepQuery,
+  type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../equipment/projectile/model/battlefield-arrow-query';
 import { PlanarKnockbackCombineMode } from '../../../core/contracts/monster-effects';
@@ -117,6 +119,13 @@ implements BattlefieldHammerCombatTarget, BattlefieldArrowCombatTarget {
     result: BattlefieldArrowHitBuffer,
   ): number {
     return this.isActive() ? this.targets.collectArrowSweepHits(query, result) : 0;
+  }
+
+  public writeBestArrowAimTarget(
+    query: Readonly<BattlefieldArrowAimQuery>,
+    result: MutableBattlefieldArrowAimTarget,
+  ): boolean {
+    return this.isActive() && this.targets.writeBestArrowAimTarget(query, result);
   }
 
   public writeArrowTargetPose(

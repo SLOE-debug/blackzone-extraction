@@ -104,6 +104,9 @@ function createPopulation(
     x: Float32Array.of(x),
     y: Float32Array.of(0),
     radius: Float32Array.of(1),
+    centerHeight: Float32Array.of(1),
+    halfHeight: Float32Array.of(0.5),
+    elevation: Float32Array.of(0),
     inverseMass: Float32Array.of(inverseMass),
   };
 }

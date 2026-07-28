@@ -3,8 +3,10 @@ import { BATTLEFIELD_EQUIPMENT_LIBRARY } from '../../assets/bundles/battlefield/
 import { EquipmentId } from '../../assets/bundles/battlefield/equipment/catalog/equipment-id';
 import {
   BattlefieldArrowHitBuffer,
+  type BattlefieldArrowAimQuery,
   type BattlefieldArrowCombatTarget,
   type BattlefieldArrowSweepQuery,
+  type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-query';
 import { BattlefieldArrowState } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-state';
@@ -13,12 +15,18 @@ import {
   BATTLEFIELD_ARROW_VERTICES_PER_SLOT,
   createBattlefieldArrowBatchGeometry,
   writeBattlefieldArrow,
+  writeBattlefieldTether,
 } from '../../assets/bundles/battlefield/equipment/projectile/geometry/battlefield-arrow-batch-geometry';
 import { BattlefieldBowActionControl } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-bow-action-control';
 import { BattlefieldBowAction } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-bow-action-state';
 import { VanguardFacingPolicy } from '../../assets/player/vanguard/model/vanguard-facing-policy';
 import { BattlefieldArrowAttachmentSystem } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-attachment-system';
-import { BattlefieldArrowPopulation } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-population';
+import {
+  BATTLEFIELD_ARROW_CAPACITY,
+  BattlefieldArrowPopulation,
+} from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-population';
+import { findArrowVerticalCapsuleContactProgress } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-capsule-intersection';
+import { calculateRecallSpeed } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-recall-system';
 
 const OWNER = Object.freeze({
   entityId: 7,
@@ -29,7 +37,6 @@ const OWNER = Object.freeze({
   projectileOriginY: 2.45,
   projectileOriginZ: 0,
   aimX: 0,
-  aimY: 0,
   aimZ: 1,
   alive: true,
 });
@@ -75,6 +82,41 @@ describe('归弦猎弓固定实体箭循环', () => {
     expect(bow.readyArrowCount).toBe(6);
   });
 
+  it('没有平面锁敌时仍把箭垂直瞄向远处地表而非水平发射', () => {
+    const bow = createBow(new ArrowTargetFixture());
+    fireQuickShot(bow);
+    expect(bow.arrows.directionY[0]).toBeLessThan(0);
+  });
+
+  it('面向怪物射击时只修正垂直方向并瞄准躯干中心', () => {
+    const target = new ArrowTargetFixture();
+    target.aimAvailable = true;
+    const bow = createBow(target);
+    fireQuickShot(bow);
+    expect(bow.arrows.directionX[0]).toBeCloseTo(0);
+    expect(bow.arrows.directionZ[0]).toBeGreaterThan(0);
+    expect(bow.arrows.directionY[0]).toBeLessThan(0);
+  });
+
+  it('XZ 投影穿过怪物但高度越过胶囊体时不产生三维接触', () => {
+    expect(findArrowVerticalCapsuleContactProgress(
+      0, 5, 0,
+      0, 5, 2,
+      0, 1, 1,
+      0.5,
+      0.6,
+    )).toBe(-1);
+    const contactProgress = findArrowVerticalCapsuleContactProgress(
+      0, 1, 0,
+      0, 1, 2,
+      0, 1, 1,
+      0.5,
+      0.6,
+    );
+    expect(contactProgress).toBeGreaterThanOrEqual(0);
+    expect(contactProgress * 2).toBeCloseTo(0.4, 2);
+  });
+
   it('两支附着箭构成不重复弦线并遵守同线命中冷却', () => {
     const target = new ArrowTargetFixture();
     const bow = createBow(target);
@@ -109,8 +151,8 @@ describe('归弦猎弓固定实体箭循环', () => {
   it('箭槽被折叠并重复召回后仍会完整恢复位置与可见色', () => {
     const geometry = createBattlefieldArrowBatchGeometry();
     for (let cycle = 0; cycle < 2; cycle++) {
-      writeBattlefieldArrow(geometry, 0, 0, 1, 0, 0, 0, -1, false);
-      writeBattlefieldArrow(geometry, 0, cycle + 1, 1, 0, 0, 0, 1, true);
+      writeBattlefieldArrow(geometry, 0, 0, 1, 0, 0, 0, -1, false, 1);
+      writeBattlefieldArrow(geometry, 0, cycle + 1, 1, 0, 0, 0, 1, true, 1.5);
     }
     const alphas: number[] = [];
     for (let vertex = 0; vertex < BATTLEFIELD_ARROW_VERTICES_PER_SLOT; vertex++) {
@@ -123,7 +165,7 @@ describe('归弦猎弓固定实体箭循环', () => {
     )).size).toBeGreaterThan(3);
   });
 
-  it('附着目标离开存活生命周期后落为世界箭且不跟随复用槽位', () => {
+  it('附着目标死亡期间继续跟随，完成生命周期后才落为可见地面箭', () => {
     const arrows = new BattlefieldArrowPopulation();
     const target = new ArrowTargetFixture();
     arrows.state[0] = BattlefieldArrowState.EmbeddedInMonster;
@@ -132,16 +174,37 @@ describe('归弦猎弓固定实体箭循环', () => {
     arrows.positionZ[0] = 6;
     arrows.attachedPopulationId[0] = 3;
     arrows.attachedEntityId[0] = 11;
+    arrows.attachmentOffsetX[0] = 5;
+    arrows.attachmentOffsetZ[0] = 5;
+    target.poseX = 3;
+    new BattlefieldArrowAttachmentSystem().update(arrows, target);
+    expect(arrows.positionX[0]).toBe(8);
     target.poseAvailable = false;
     new BattlefieldArrowAttachmentSystem().update(arrows, target);
     expect(arrows.state[0]).toBe(BattlefieldArrowState.EmbeddedInWorld);
-    expect(arrows.positionX[0]).toBe(5);
+    expect(arrows.positionX[0]).toBe(8);
+    expect(arrows.positionY[0]).toBeGreaterThan(0);
+    expect(arrows.directionY[0]).toBeLessThan(0);
+    expect(arrows.attachedPopulationId[0]).toBe(0);
     expect(arrows.positionZ[0]).toBe(6);
     target.poseAvailable = true;
     target.poseX = 100;
     new BattlefieldArrowAttachmentSystem().update(arrows, target);
-    expect(arrows.positionX[0]).toBe(5);
+    expect(arrows.positionX[0]).toBe(8);
     expect(arrows.positionZ[0]).toBe(6);
+  });
+
+  it('远距离召回速度高于近距离且弦线拥有交叉厚度和有效透明度', () => {
+    expect(calculateRecallSpeed(24, 28, 68, 20))
+      .toBeGreaterThan(calculateRecallSpeed(6, 28, 68, 20));
+    const geometry = createBattlefieldArrowBatchGeometry();
+    writeBattlefieldTether(geometry, 0, -12, 0.1, 0, 12, 0.1, 0, true, 0.08);
+    const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT;
+    const tetherPositions = geometry.positions.slice(first * 3, (first + 12) * 3);
+    const tetherAlphas = geometry.colors.slice(first * 4, (first + 12) * 4)
+      .filter((_, index) => index % 4 === 3);
+    expect(Math.max(...tetherPositions) - Math.min(...tetherPositions)).toBeGreaterThan(0.15);
+    expect([...tetherAlphas].every((alpha) => alpha === 1)).toBe(true);
   });
 });
 
@@ -167,6 +230,17 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
   public slowCount = 0;
   public poseAvailable = true;
   public poseX = 0;
+  public aimAvailable = false;
+
+  public writeBestArrowAimTarget(
+    _query: Readonly<BattlefieldArrowAimQuery>,
+    result: MutableBattlefieldArrowAimTarget,
+  ): boolean {
+    result.x = 0;
+    result.y = 1;
+    result.z = 10;
+    return this.aimAvailable;
+  }
 
   public collectArrowSweepHits(
     query: Readonly<BattlefieldArrowSweepQuery>,
@@ -187,10 +261,11 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
     if (!this.poseAvailable || populationId !== 3 || entityId !== 11) {
       return false;
     }
-    result.x = this.poseX;
-    result.y = 0;
-    result.z = 1;
+    result.centerX = this.poseX;
+    result.centerY = 1;
+    result.centerZ = 1;
     result.radius = 0.5;
+    result.halfHeight = 0.5;
     return true;
   }
 

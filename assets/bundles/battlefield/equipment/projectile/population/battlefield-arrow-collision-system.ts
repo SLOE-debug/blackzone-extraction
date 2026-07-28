@@ -32,10 +32,11 @@ export class BattlefieldArrowCollisionSystem {
     radius: 0.16,
   };
   private readonly targetPose: MutableBattlefieldArrowTargetPose = {
-    x: 0,
-    y: 0,
-    z: 0,
+    centerX: 0,
+    centerY: 0,
+    centerZ: 0,
     radius: 0,
+    halfHeight: 0,
   };
 
   public update(
@@ -114,9 +115,11 @@ export class BattlefieldArrowCollisionSystem {
       arrows.attachedEntityId[arrowIndex] ?? 0,
       this.targetPose,
     );
-    arrows.attachmentOffsetX[arrowIndex] = hasPose ? hitX - this.targetPose.x : 0;
-    arrows.attachmentOffsetY[arrowIndex] = hasPose ? hitY - this.targetPose.y : Math.max(0.25, hitY);
-    arrows.attachmentOffsetZ[arrowIndex] = hasPose ? hitZ - this.targetPose.z : 0;
+    arrows.attachmentOffsetX[arrowIndex] = hasPose ? hitX - this.targetPose.centerX : 0;
+    arrows.attachmentOffsetY[arrowIndex] = hasPose
+      ? hitY - this.targetPose.centerY
+      : Math.max(0.25, hitY);
+    arrows.attachmentOffsetZ[arrowIndex] = hasPose ? hitZ - this.targetPose.centerZ : 0;
     arrows.state[arrowIndex] = BattlefieldArrowState.EmbeddedInMonster;
     arrows.dirty[arrowIndex] = 1;
   }

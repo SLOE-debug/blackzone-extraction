@@ -81,6 +81,9 @@ function createTargetPopulation(): PlanarCrowdPopulation {
     x: Float32Array.of(2 / scale, 3 / scale, 1 / scale),
     y: Float32Array.of(0, 0, 0),
     radius: Float32Array.of(0.3 / scale, 0.3 / scale, 0.3 / scale),
+    centerHeight: Float32Array.of(1 / scale, 1 / scale, 1 / scale),
+    halfHeight: Float32Array.of(0.5 / scale, 0.5 / scale, 0.5 / scale),
+    elevation: Float32Array.of(0, 0, 0),
     inverseMass: Float32Array.of(1, 1, 1),
   };
 }
