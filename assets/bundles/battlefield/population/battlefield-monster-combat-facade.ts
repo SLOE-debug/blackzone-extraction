@@ -20,6 +20,7 @@ import {
   type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../equipment/projectile/model/battlefield-arrow-query';
+import { type BattlefieldTetherHitBuffer } from '../equipment/projectile/model/battlefield-tether-hit-buffer';
 import { PlanarKnockbackCombineMode } from '../../../core/contracts/monster-effects';
 
 /** 聚合怪物目标查询、伤害与通用受力效果的稳定战斗门面。 */
@@ -124,7 +125,7 @@ implements BattlefieldHammerCombatTarget, BattlefieldArrowCombatTarget {
 
   public collectTetherOverlapHits(
     query: Readonly<BattlefieldTetherQuery>,
-    result: BattlefieldArrowHitBuffer,
+    result: BattlefieldTetherHitBuffer,
   ): number {
     return this.isActive() ? this.targets.collectTetherOverlapHits(query, result) : 0;
   }

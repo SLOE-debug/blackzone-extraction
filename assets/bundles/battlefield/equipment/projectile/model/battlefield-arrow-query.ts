@@ -1,3 +1,5 @@
+import { type BattlefieldTetherHitBuffer } from './battlefield-tether-hit-buffer';
+
 /** 箭头从上一帧到当前帧的连续胶囊扫掠。 */
 export interface BattlefieldArrowSweepQuery {
   readonly startX: number;
@@ -125,7 +127,7 @@ export interface BattlefieldArrowCombatTarget {
   ): number;
   collectTetherOverlapHits(
     query: Readonly<BattlefieldTetherQuery>,
-    result: BattlefieldArrowHitBuffer,
+    result: BattlefieldTetherHitBuffer,
   ): number;
   writeArrowTargetPose(
     populationId: number,

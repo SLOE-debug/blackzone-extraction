@@ -1,6 +1,5 @@
 import { type BattlefieldTetherQuery } from '../equipment/projectile/model/battlefield-arrow-query';
 
-const TETHER_DEBUG_ENABLED = true;
 const TETHER_DEBUG_INTERVAL_MILLISECONDS = 2000;
 const TETHER_DEBUG_EPSILON = 0.000001;
 
@@ -10,7 +9,7 @@ const TETHER_DEBUG_EPSILON = 0.000001;
  * 高频采样阶段只修改标量；仅在窗口结束时创建日志对象。
  */
 export class BattlefieldTetherOverlapDebugAggregate {
-  private windowStartedAt = performance.now();
+  private windowStartedAt: number;
 
   private queryCount = 0;
   private broadPhaseCandidateCount = 0;
@@ -30,9 +29,18 @@ export class BattlefieldTetherOverlapDebugAggregate {
   private sampleContactRadius = 0;
   private sampleProgress = 0;
 
+  /**
+   * 创建默认关闭的诊断聚合器。
+   *
+   * @param enabled 仅由开发环境诊断入口显式开启，生产查询不得传入 true。
+   */
+  constructor(private readonly enabled = false) {
+    this.windowStartedAt = enabled ? performance.now() : 0;
+  }
+
   /** 记录一次查询及其宽相位候选数量。 */
   public beginQuery(candidateCount: number): void {
-    if (!TETHER_DEBUG_ENABLED) {
+    if (!this.enabled) {
       return;
     }
 
@@ -45,7 +53,7 @@ export class BattlefieldTetherOverlapDebugAggregate {
 
   /** 记录一个因群体缺失、生命周期或参与状态被拒绝的候选。 */
   public rejectLifecycle(): void {
-    if (TETHER_DEBUG_ENABLED) {
+    if (this.enabled) {
       this.lifecycleRejectedCount++;
     }
   }
@@ -64,7 +72,7 @@ export class BattlefieldTetherOverlapDebugAggregate {
     contactRadius: number,
     actualProgress: number,
   ): void {
-    if (!TETHER_DEBUG_ENABLED) {
+    if (!this.enabled) {
       return;
     }
 
@@ -118,7 +126,7 @@ export class BattlefieldTetherOverlapDebugAggregate {
 
   /** 到达两秒窗口时输出聚合结果并开始新窗口。 */
   public flushIfDue(): void {
-    if (!TETHER_DEBUG_ENABLED) {
+    if (!this.enabled) {
       return;
     }
 

@@ -16,7 +16,7 @@ import {
   writeBattlefieldTetherMarker,
 } from '../geometry/battlefield-arrow-batch-geometry';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
-import { BATTLEFIELD_TETHER_GROUND_HEIGHT } from '../model/battlefield-tether-config';
+import { BATTLEFIELD_TETHER_WORLD_Y } from '../model/battlefield-tether-config';
 import {
   BATTLEFIELD_ARROW_CAPACITY,
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
@@ -183,7 +183,6 @@ export class BattlefieldArrowRenderer {
       this.arrowState[index] = state;
       arrows.dirty[index] = 0;
     }
-    const tetherY = ownerY + BATTLEFIELD_TETHER_GROUND_HEIGHT;
     for (let edge = 0; edge < BATTLEFIELD_MAXIMUM_TETHER_COUNT; edge++) {
       const active = tethers.active && edge < tethers.tetherCount;
       const start = tethers.startArrowIndex[edge] ?? 0;
@@ -196,23 +195,18 @@ export class BattlefieldArrowRenderer {
       const visibilityChanged = this.tetherVisibility[edge] !== visibility;
       const anchorsChanged = this.tetherStart[edge] !== start || this.tetherEnd[edge] !== end;
       if (visibilityChanged || anchorsChanged || (active
-        && (this.arrowUpdated[start] !== 0 || this.arrowUpdated[end] !== 0 || ownerChanged))) {
+        && (this.arrowUpdated[start] !== 0 || this.arrowUpdated[end] !== 0))) {
         writeBattlefieldTether(
           this.geometry,
           edge,
           startX,
-          tetherY,
+          BATTLEFIELD_TETHER_WORLD_Y,
           startZ,
           endX,
-          tetherY,
+          BATTLEFIELD_TETHER_WORLD_Y,
           endZ,
           active,
-          calculateTetherHalfWidth(
-            (startX + endX) * 0.5,
-            (startZ + endZ) * 0.5,
-            ownerX,
-            ownerZ,
-          ),
+          calculateTetherHalfWidth(startX, startZ, endX, endZ),
         );
         const first = BATTLEFIELD_ARROW_CAPACITY * BATTLEFIELD_ARROW_VERTICES_PER_SLOT
           + edge * BATTLEFIELD_TETHER_VERTICES_PER_SLOT;
@@ -243,13 +237,13 @@ export class BattlefieldArrowRenderer {
       const visibility = Number(visible);
       const visibilityChanged = this.markerVisibility[index] !== visibility;
       if (leadVisibilityChanged || (leadVisible
-        && (this.arrowUpdated[index] !== 0 || ownerChanged))) {
+        && this.arrowUpdated[index] !== 0)) {
         writeBattlefieldTetherLead(
           this.geometry,
           index,
           arrows.positionX[index] ?? ownerX,
-          arrows.positionY[index] ?? tetherY,
-          tetherY,
+          arrows.positionY[index] ?? BATTLEFIELD_TETHER_WORLD_Y,
+          BATTLEFIELD_TETHER_WORLD_Y,
           arrows.positionZ[index] ?? ownerZ,
           leadVisible,
           TETHER_LEAD_HALF_WIDTH,
@@ -398,10 +392,10 @@ function calculateArrowVisualScale(x: number, z: number, ownerX: number, ownerZ:
 }
 
 function calculateTetherHalfWidth(
-  x: number,
-  z: number,
-  ownerX: number,
-  ownerZ: number,
+  startX: number,
+  startZ: number,
+  endX: number,
+  endZ: number,
 ): number {
-  return 0.03 + Math.min(1, Math.hypot(x - ownerX, z - ownerZ) / 24) * 0.05;
+  return 0.03 + Math.min(1, Math.hypot(endX - startX, endZ - startZ) / 24) * 0.05;
 }

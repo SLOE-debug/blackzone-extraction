@@ -107,9 +107,15 @@ export interface BattlefieldDamageEvent {
 }
 
 function validateDamageEvent(event: Readonly<BattlefieldDamageEvent>): void {
-  if (![event.sourceEntityId, event.sourceWeaponId, event.attackSequenceId,
-    event.targetPopulationId, event.targetEntityId, event.damage,
-    event.hitPositionX, event.hitPositionY, event.hitPositionZ].every(Number.isFinite)
+  if (!Number.isFinite(event.sourceEntityId)
+    || !Number.isFinite(event.sourceWeaponId)
+    || !Number.isFinite(event.attackSequenceId)
+    || !Number.isFinite(event.targetPopulationId)
+    || !Number.isFinite(event.targetEntityId)
+    || !Number.isFinite(event.damage)
+    || !Number.isFinite(event.hitPositionX)
+    || !Number.isFinite(event.hitPositionY)
+    || !Number.isFinite(event.hitPositionZ)
     || !Number.isSafeInteger(event.attackSequenceId) || event.attackSequenceId <= 0
     || event.damage <= 0) {
     throw new Error('伤害事件参数无效。');

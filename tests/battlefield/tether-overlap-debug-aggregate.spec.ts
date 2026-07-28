@@ -17,12 +17,25 @@ describe('弦线重叠聚合诊断', () => {
     vi.restoreAllMocks();
   });
 
+  it('默认关闭且不会在生产查询路径输出诊断', () => {
+    const group = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => undefined);
+    const table = vi.spyOn(console, 'table').mockImplementation(() => undefined);
+    const aggregate = new BattlefieldTetherOverlapDebugAggregate();
+
+    aggregate.beginQuery(512);
+    aggregate.observeCandidate(1, 1, QUERY, 0, 0, 0, 1, 0.3, 0.5);
+    aggregate.flushIfDue();
+
+    expect(group).not.toHaveBeenCalled();
+    expect(table).not.toHaveBeenCalled();
+  });
+
   it('按拒绝阶段聚合并保留最近的 Y 轴漏判样本', () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(0);
     const group = vi.spyOn(console, 'groupCollapsed').mockImplementation(() => undefined);
     const table = vi.spyOn(console, 'table').mockImplementation(() => undefined);
     const groupEnd = vi.spyOn(console, 'groupEnd').mockImplementation(() => undefined);
-    const aggregate = new BattlefieldTetherOverlapDebugAggregate();
+    const aggregate = new BattlefieldTetherOverlapDebugAggregate(true);
 
     aggregate.beginQuery(3);
     aggregate.beginQuery(0);
@@ -71,7 +84,7 @@ describe('弦线重叠聚合诊断', () => {
     vi.spyOn(console, 'groupCollapsed').mockImplementation(() => undefined);
     const table = vi.spyOn(console, 'table').mockImplementation(() => undefined);
     vi.spyOn(console, 'groupEnd').mockImplementation(() => undefined);
-    const aggregate = new BattlefieldTetherOverlapDebugAggregate();
+    const aggregate = new BattlefieldTetherOverlapDebugAggregate(true);
 
     aggregate.beginQuery(1);
     aggregate.observeCandidate(2, 3, QUERY, 0, 0, 0.8, 1.2, 0.3, -1);

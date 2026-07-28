@@ -1,24 +1,26 @@
 import {
+  type BattlefieldDamageEvent,
   BattlefieldDamageEventBuffer,
   BattlefieldDamageKind,
   BattlefieldWeaponSourceId,
 } from '../../combat/battlefield-damage-event-buffer';
 import {
-  BattlefieldArrowHitBuffer,
   type BattlefieldArrowCombatTarget,
   type BattlefieldTetherQuery,
 } from '../model/battlefield-arrow-query';
+import { BattlefieldTetherHitBuffer } from '../model/battlefield-tether-hit-buffer';
 import { BattlefieldArrowState } from '../model/battlefield-arrow-state';
 import {
   BATTLEFIELD_TETHER_COLLISION_RADIUS,
-  BATTLEFIELD_TETHER_GROUND_HEIGHT,
+  BATTLEFIELD_TETHER_WORLD_Y,
 } from '../model/battlefield-tether-config';
 import {
   BATTLEFIELD_PERMANENT_ARROW_CAPACITY,
   type BattlefieldArrowPopulation,
 } from './battlefield-arrow-population';
 
-export const BATTLEFIELD_MAXIMUM_TETHER_COUNT = 6;
+/** 六支永久箭构成连续路径时最多产生五条弦线。 */
+export const BATTLEFIELD_MAXIMUM_TETHER_COUNT = BATTLEFIELD_PERMANENT_ARROW_CAPACITY - 1;
 const TETHER_TARGET_CAPACITY = 32;
 export const BATTLEFIELD_TETHER_QUERY_INTERVAL_SECONDS = 1 / 20;
 
@@ -35,7 +37,19 @@ export class BattlefieldArrowTetherSystem {
   private readonly cooldownUntil = new Float32Array(
     BATTLEFIELD_MAXIMUM_TETHER_COUNT * TETHER_TARGET_CAPACITY,
   );
-  private readonly hits = new BattlefieldArrowHitBuffer();
+  private readonly hits = new BattlefieldTetherHitBuffer();
+  private readonly damageEvent: Mutable<BattlefieldDamageEvent> = {
+    sourceEntityId: 0,
+    sourceWeaponId: BattlefieldWeaponSourceId.ReturningBow,
+    attackSequenceId: 0,
+    targetPopulationId: 0,
+    targetEntityId: 0,
+    damage: 0,
+    damageKind: BattlefieldDamageKind.Tether,
+    hitPositionX: 0,
+    hitPositionY: BATTLEFIELD_TETHER_WORLD_Y,
+    hitPositionZ: 0,
+  };
   private readonly query: Mutable<BattlefieldTetherQuery> = {
     startX: 0,
     startY: 0,
@@ -109,7 +123,6 @@ export class BattlefieldArrowTetherSystem {
     hitCooldownSeconds: number,
     slowScale: number,
     slowDurationSeconds: number,
-    groundY: number,
     deltaTime: number,
   ): void {
     if (!this.active) {
@@ -136,7 +149,6 @@ export class BattlefieldArrowTetherSystem {
       hitCooldownSeconds,
       slowScale,
       slowDurationSeconds,
-      groundY,
     );
   }
 
@@ -150,9 +162,7 @@ export class BattlefieldArrowTetherSystem {
     hitCooldownSeconds: number,
     slowScale: number,
     slowDurationSeconds: number,
-    groundY: number,
   ): void {
-    const tetherY = groundY + BATTLEFIELD_TETHER_GROUND_HEIGHT;
     for (let edge = 0; edge < this.tetherCountValue; edge++) {
       const start = this.startArrowIndex[edge] ?? 0;
       const end = this.endArrowIndex[edge] ?? 0;
@@ -161,10 +171,10 @@ export class BattlefieldArrowTetherSystem {
         continue;
       }
       this.query.startX = arrows.positionX[start] ?? 0;
-      this.query.startY = tetherY;
+      this.query.startY = BATTLEFIELD_TETHER_WORLD_Y;
       this.query.startZ = arrows.positionZ[start] ?? 0;
       this.query.endX = arrows.positionX[end] ?? 0;
-      this.query.endY = tetherY;
+      this.query.endY = BATTLEFIELD_TETHER_WORLD_Y;
       this.query.endZ = arrows.positionZ[end] ?? 0;
       target.collectTetherOverlapHits(this.query, this.hits);
       for (let hit = 0; hit < this.hits.count; hit++) {
@@ -173,18 +183,14 @@ export class BattlefieldArrowTetherSystem {
         if (!this.acceptCooldown(edge, populationId, entityId, hitCooldownSeconds)) {
           continue;
         }
-        events.append({
-          sourceEntityId: arrows.ownerEntityId[start] ?? 0,
-          sourceWeaponId: BattlefieldWeaponSourceId.ReturningBow,
-          attackSequenceId: this.skillSequenceId,
-          targetPopulationId: populationId,
-          targetEntityId: entityId,
-          damage: baseDamage * damageScale,
-          damageKind: BattlefieldDamageKind.Tether,
-          hitPositionX: this.hits.x[hit] ?? 0,
-          hitPositionY: tetherY,
-          hitPositionZ: this.hits.z[hit] ?? 0,
-        });
+        this.damageEvent.sourceEntityId = arrows.ownerEntityId[start] ?? 0;
+        this.damageEvent.attackSequenceId = this.skillSequenceId;
+        this.damageEvent.targetPopulationId = populationId;
+        this.damageEvent.targetEntityId = entityId;
+        this.damageEvent.damage = baseDamage * damageScale;
+        this.damageEvent.hitPositionX = this.hits.x[hit] ?? 0;
+        this.damageEvent.hitPositionZ = this.hits.z[hit] ?? 0;
+        events.append(this.damageEvent);
         target.applyArrowSlow(populationId, entityId, slowScale, slowDurationSeconds);
       }
     }

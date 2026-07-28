@@ -1,3 +1,6 @@
+/** 战场平坦地面的统一世界 Y 基准。 */
+export const BATTLEFIELD_GROUND_Y = 0.05;
+
 /** 战场地形、玩家、相机和怪物生成共享的空间布局。 */
 export const BATTLEFIELD_LAYOUT = Object.freeze({
   groundHalfExtent: 225,
@@ -5,7 +8,7 @@ export const BATTLEFIELD_LAYOUT = Object.freeze({
   groundRows: 100,
   playerPosition: Object.freeze({
     x: 0,
-    y: 0.05,
+    y: BATTLEFIELD_GROUND_Y,
     z: 0,
   }),
   camera: Object.freeze({

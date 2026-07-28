@@ -24,6 +24,7 @@ import {
   type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../equipment/projectile/model/battlefield-arrow-query';
+import { type BattlefieldTetherHitBuffer } from '../equipment/projectile/model/battlefield-tether-hit-buffer';
 import {
   findArrowVerticalCapsuleContactProgress,
 } from '../equipment/projectile/population/battlefield-arrow-capsule-intersection';
@@ -31,7 +32,7 @@ import {
   findTetherVerticalRangeOverlapProgress,
 } from '../equipment/projectile/population/battlefield-tether-range-overlap';
 import {
-  BattlefieldTetherOverlapDebugAggregate,
+  type BattlefieldTetherOverlapDebugAggregate,
 } from './battlefield-tether-overlap-debug-aggregate';
 
 const MAXIMUM_CROWD_CANDIDATES = 512;
@@ -41,12 +42,14 @@ const DIRECTION_EPSILON = 0.000001;
 export class BattlefieldMonsterTargetRegistry {
   private readonly groups: BattlefieldMonsterTargetGroup[] = [];
   private readonly candidates = new PlanarCrowdCandidateBuffer(MAXIMUM_CROWD_CANDIDATES);
-  private readonly tetherOverlapDebug = new BattlefieldTetherOverlapDebugAggregate();
   private readonly attackDirectionPlanner = new BattlefieldMeleeAttackDirectionPlanner(
     MAXIMUM_CROWD_CANDIDATES,
   );
 
-  constructor(private readonly crowd: PlanarCrowdSeparationSystem) {}
+  constructor(
+    private readonly crowd: PlanarCrowdSeparationSystem,
+    private readonly tetherOverlapDebug: BattlefieldTetherOverlapDebugAggregate | null = null,
+  ) {}
 
   public register(group: BattlefieldMonsterTargetGroup): void {
     if (this.groups.includes(group)
@@ -176,8 +179,14 @@ export class BattlefieldMonsterTargetRegistry {
     query: Readonly<BattlefieldArrowSweepQuery>,
     result: BattlefieldArrowHitBuffer,
   ): number {
-    if (![query.startX, query.startY, query.startZ, query.endX, query.endY,
-      query.endZ, query.radius].every(Number.isFinite) || query.radius <= 0) {
+    if (!Number.isFinite(query.startX)
+      || !Number.isFinite(query.startY)
+      || !Number.isFinite(query.startZ)
+      || !Number.isFinite(query.endX)
+      || !Number.isFinite(query.endY)
+      || !Number.isFinite(query.endZ)
+      || !Number.isFinite(query.radius)
+      || query.radius <= 0) {
       throw new Error('箭矢连续扫掠查询参数无效。');
     }
     result.reset();
@@ -232,10 +241,16 @@ export class BattlefieldMonsterTargetRegistry {
    */
   public collectTetherOverlapHits(
     query: Readonly<BattlefieldTetherQuery>,
-    result: BattlefieldArrowHitBuffer,
+    result: BattlefieldTetherHitBuffer,
   ): number {
-    if (![query.startX, query.startY, query.startZ, query.endX, query.endY,
-      query.endZ, query.radius].every(Number.isFinite) || query.radius <= 0) {
+    if (!Number.isFinite(query.startX)
+      || !Number.isFinite(query.startY)
+      || !Number.isFinite(query.startZ)
+      || !Number.isFinite(query.endX)
+      || !Number.isFinite(query.endY)
+      || !Number.isFinite(query.endZ)
+      || !Number.isFinite(query.radius)
+      || query.radius <= 0) {
       throw new Error('弦线重叠查询参数无效。');
     }
     result.reset();
@@ -247,7 +262,7 @@ export class BattlefieldMonsterTargetRegistry {
     const endY = -query.endZ * inverseScale;
     const radius = query.radius * inverseScale;
     this.crowd.collectSegmentCandidates(startX, startY, endX, endY, radius, this.candidates);
-    this.tetherOverlapDebug.beginQuery(this.candidates.count);
+    this.tetherOverlapDebug?.beginQuery(this.candidates.count);
     for (let index = 0; index < this.candidates.count; index++) {
       const populationId = this.candidates.populationIds[index] ?? 0;
       const entityId = this.candidates.entityIndices[index] ?? 0;
@@ -255,7 +270,7 @@ export class BattlefieldMonsterTargetRegistry {
       if (crowd === undefined
         || (crowd.lifecycle[entityId] as MonsterLifecycleState) !== MonsterLifecycleState.Alive
         || (crowd.participation[entityId] ?? 0) === 0) {
-        this.tetherOverlapDebug.rejectLifecycle();
+        this.tetherOverlapDebug?.rejectLifecycle();
         continue;
       }
       const targetX = (crowd.x[entityId] ?? 0) * scale;
@@ -275,7 +290,7 @@ export class BattlefieldMonsterTargetRegistry {
         minimumY, maximumY,
         contactRadius,
       );
-      this.tetherOverlapDebug.observeCandidate(
+      this.tetherOverlapDebug?.observeCandidate(
         populationId,
         entityId,
         query,
@@ -290,11 +305,10 @@ export class BattlefieldMonsterTargetRegistry {
         continue;
       }
       const nearestX = query.startX + (query.endX - query.startX) * progress;
-      const lineY = query.startY + (query.endY - query.startY) * progress;
       const nearestZ = query.startZ + (query.endZ - query.startZ) * progress;
-      result.include(populationId, entityId, nearestX, lineY, nearestZ, progress);
+      result.include(populationId, entityId, nearestX, nearestZ);
     }
-    this.tetherOverlapDebug.flushIfDue();
+    this.tetherOverlapDebug?.flushIfDue();
     return result.count;
   }
 

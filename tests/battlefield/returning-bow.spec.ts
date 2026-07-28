@@ -10,6 +10,7 @@ import {
   type MutableBattlefieldArrowAimTarget,
   type MutableBattlefieldArrowTargetPose,
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-query';
+import { BattlefieldTetherHitBuffer } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-tether-hit-buffer';
 import { BattlefieldArrowState } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-arrow-state';
 import { BattlefieldReturningBowRuntime } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-returning-bow-runtime';
 import { BATTLEFIELD_MAXIMUM_TETHER_COUNT } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-arrow-tether-system';
@@ -39,7 +40,7 @@ import {
 } from '../../assets/bundles/battlefield/equipment/projectile/population/battlefield-tether-range-overlap';
 import {
   BATTLEFIELD_TETHER_COLLISION_RADIUS,
-  BATTLEFIELD_TETHER_GROUND_HEIGHT,
+  BATTLEFIELD_TETHER_WORLD_Y,
 } from '../../assets/bundles/battlefield/equipment/projectile/model/battlefield-tether-config';
 
 const OWNER = Object.freeze({
@@ -150,16 +151,34 @@ describe('归弦猎弓固定实体箭循环', () => {
     expect(bow.damageEvents.count).toBe(1);
     expect(target.slowCount).toBe(1);
     expect(target.tetherQueryCount).toBe(1);
-    expect(target.lastTetherStartY).toBeCloseTo(
-      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
-    );
-    expect(target.lastTetherEndY).toBeCloseTo(
-      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
-    );
+    expect(target.lastTetherStartY).toBeCloseTo(BATTLEFIELD_TETHER_WORLD_Y);
+    expect(target.lastTetherEndY).toBeCloseTo(BATTLEFIELD_TETHER_WORLD_Y);
     expect(target.lastTetherRadius).toBe(BATTLEFIELD_TETHER_COLLISION_RADIUS);
     expect(target.arrowSweepQueryCount).toBe(0);
     bow.update(0.01, OWNER);
     expect(target.tetherQueryCount).toBe(2);
+  });
+
+  it('六支锚点派生五条弦线并在查询帧内同步完成全部判定', () => {
+    const target = new ArrowTargetFixture();
+    const bow = createBow(target);
+    for (let index = 0; index < 6; index++) {
+      bow.arrows.state[index] = BattlefieldArrowState.EmbeddedInWorld;
+      bow.arrows.positionX[index] = index * 2;
+    }
+
+    expect(BATTLEFIELD_MAXIMUM_TETHER_COUNT).toBe(5);
+    expect(bow.requestTether()).toBe(true);
+    expect(bow.tethers.tetherCount).toBe(BATTLEFIELD_MAXIMUM_TETHER_COUNT);
+
+    bow.update(0.05, OWNER);
+    expect(target.tetherQueryCount).toBe(BATTLEFIELD_MAXIMUM_TETHER_COUNT);
+    for (let frame = 0; frame < 4; frame++) {
+      bow.update(0.01, OWNER);
+    }
+    expect(target.tetherQueryCount).toBe(BATTLEFIELD_MAXIMUM_TETHER_COUNT);
+    bow.update(0.01, OWNER);
+    expect(target.tetherQueryCount).toBe(BATTLEFIELD_MAXIMUM_TETHER_COUNT * 2);
   });
 
   it('高度不同的两个锚点仍生成地面弦线并伤害全部平面重叠目标', () => {
@@ -190,12 +209,8 @@ describe('归弦猎弓固定实体箭循环', () => {
 
     expect(bow.damageEvents.count).toBe(4);
     expect(target.slowCount).toBe(4);
-    expect(target.lastTetherStartY).toBeCloseTo(
-      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
-    );
-    expect(target.lastTetherEndY).toBeCloseTo(
-      OWNER.positionY + BATTLEFIELD_TETHER_GROUND_HEIGHT,
-    );
+    expect(target.lastTetherStartY).toBeCloseTo(BATTLEFIELD_TETHER_WORLD_Y);
+    expect(target.lastTetherEndY).toBeCloseTo(BATTLEFIELD_TETHER_WORLD_Y);
   });
 
   it('弦网按箭矢 XZ 投影选择最近锚点而不受附着高度影响', () => {
@@ -374,7 +389,7 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
 
   public collectTetherOverlapHits(
     query: Readonly<BattlefieldTetherQuery>,
-    result: BattlefieldArrowHitBuffer,
+    result: BattlefieldTetherHitBuffer,
   ): number {
     this.tetherQueryCount++;
     this.lastTetherStartY = query.startY;
@@ -386,13 +401,11 @@ class ArrowTargetFixture implements BattlefieldArrowCombatTarget {
         hit.populationId,
         hit.entityId,
         query.startX + (query.endX - query.startX) * hit.progress,
-        query.startY,
         query.startZ + (query.endZ - query.startZ) * hit.progress,
-        hit.progress,
       );
     }
     if (this.sweepHitEnabled && this.tetherHits.length === 0) {
-      result.include(3, 11, query.endX, query.endY, query.endZ, 0.5);
+      result.include(3, 11, query.endX, query.endZ);
     }
     return result.count;
   }

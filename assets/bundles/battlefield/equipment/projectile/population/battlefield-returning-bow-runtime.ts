@@ -197,7 +197,6 @@ export class BattlefieldReturningBowRuntime {
       this.definition.tetherHitCooldownSeconds,
       this.definition.tetherSlowScale,
       this.definition.tetherSlowDurationSeconds,
-      owner.positionY,
       deltaTime,
     );
     if (returned > 0 && this.action.action === BattlefieldBowAction.AutoRecalling) {
