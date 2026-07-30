@@ -1,6 +1,12 @@
 import { type Material, Node } from 'cc';
 import { GeometryIndexFormat } from '../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../core/mesh/mesh-dirty';
+import {
+  LIT_COLOR_LAYOUT,
+  type VertexLayout,
+  type VertexSemantic,
+  UNLIT_COLOR_LAYOUT,
+} from '../../../core/mesh/vertex-layout';
 import { CompiledMeshBatchRenderer } from '../../../core/rendering/compiled-mesh-batch-renderer';
 import { VanguardMeshEvaluator } from '../geometry/vanguard-mesh-evaluator';
 import { type VanguardMeshPlan } from '../geometry/vanguard-mesh-plan';
@@ -16,6 +22,20 @@ export enum VanguardRenderLayer {
   Character = 'character',
 }
 
+interface VanguardBatchRenderer {
+  update(requested: MeshDirty, bounds?: Readonly<VanguardBounds>): void;
+  dispose(): void;
+}
+
+interface VanguardBounds {
+  readonly minX: number;
+  readonly minY: number;
+  readonly minZ: number;
+  readonly maxX: number;
+  readonly maxY: number;
+  readonly maxZ: number;
+}
+
 /** 组合主角单一材质层的编译式固定拓扑动态网格。 */
 export class VanguardRenderer {
   private readonly materials: VanguardMaterials;
@@ -27,11 +47,8 @@ export class VanguardRenderer {
     maxY: 0,
     maxZ: 0,
   };
-  private batches: CompiledMeshBatchRenderer<
-    VanguardState,
-    VanguardMeshPlan,
-    VanguardRenderLayer
-  > | null = null;
+  private batches: VanguardBatchRenderer | null = null;
+  private readonly poseDirty: MeshDirty;
   private previousHitFlash = 0;
   private disposed = false;
 
@@ -42,32 +59,28 @@ export class VanguardRenderer {
     renderMode: VanguardRenderMode,
   ) {
     this.materials = new VanguardMaterials(surfaceMaterialTemplate, renderMode);
+    this.poseDirty = renderMode === VanguardRenderMode.Lit
+      ? MeshDirty.Geometry
+      : MeshDirty.Position | MeshDirty.Bounds;
     writeVanguardBounds(state, this.bounds);
     try {
-      this.batches = new CompiledMeshBatchRenderer({
-        parent,
-        state,
-        entityCount: state.count,
-        requestedBatchSize: state.count,
-        indexFormat: GeometryIndexFormat.Uint16,
-        bounds: this.bounds,
-        surfaceOptions: Object.freeze({
-          castShadows: renderMode === VanguardRenderMode.Lit,
-          receiveShadows: renderMode === VanguardRenderMode.Lit,
-        }),
-        layers: Object.freeze([
-          Object.freeze({
-            id: VanguardRenderLayer.Character,
-            nodeName: 'VanguardCharacter',
-            material: this.materials.character,
-            plan: VANGUARD_MATTE_MESH_PLAN,
-            evaluator: new VanguardMeshEvaluator(
-              VANGUARD_MATTE_MESH_PLAN,
-              VANGUARD_MATTE_MESH_PALETTE,
-            ),
-          }),
-        ]),
-      });
+      this.batches = renderMode === VanguardRenderMode.Lit
+        ? createVanguardBatchRenderer(
+          parent,
+          state,
+          this.materials.character,
+          this.bounds,
+          LIT_COLOR_LAYOUT,
+          renderMode,
+        )
+        : createVanguardBatchRenderer(
+          parent,
+          state,
+          this.materials.character,
+          this.bounds,
+          UNLIT_COLOR_LAYOUT,
+          renderMode,
+        );
     } catch (error: unknown) {
       this.batches?.dispose();
       this.materials.dispose();
@@ -84,7 +97,7 @@ export class VanguardRenderer {
     const hitFlash = state.data.animation.hitFlash[0] ?? 0;
     const colorChanged = Math.abs(hitFlash - this.previousHitFlash) > 0.001;
     this.batches.update(
-      colorChanged ? MeshDirty.All : MeshDirty.Geometry,
+      colorChanged ? this.poseDirty | MeshDirty.Color : this.poseDirty,
       this.bounds,
     );
     this.previousHitFlash = hitFlash;
@@ -100,4 +113,45 @@ export class VanguardRenderer {
     this.materials.dispose();
     this.disposed = true;
   }
+}
+
+function createVanguardBatchRenderer<TSemantics extends VertexSemantic>(
+  parent: Node,
+  state: VanguardState,
+  material: Material,
+  bounds: Readonly<VanguardBounds>,
+  layout: VertexLayout<TSemantics>,
+  renderMode: VanguardRenderMode,
+): VanguardBatchRenderer {
+  return new CompiledMeshBatchRenderer<
+    VanguardState,
+    VanguardMeshPlan,
+    VanguardRenderLayer,
+    TSemantics
+  >({
+    parent,
+    state,
+    entityCount: state.count,
+    requestedBatchSize: state.count,
+    indexFormat: GeometryIndexFormat.Uint16,
+    layout,
+    bounds,
+    surfaceOptions: Object.freeze({
+      castShadows: renderMode === VanguardRenderMode.Lit,
+      receiveShadows: renderMode === VanguardRenderMode.Lit,
+    }),
+    layers: Object.freeze([
+      Object.freeze({
+        id: VanguardRenderLayer.Character,
+        nodeName: 'VanguardCharacter',
+        material,
+        plan: VANGUARD_MATTE_MESH_PLAN,
+        evaluator: new VanguardMeshEvaluator(
+          VANGUARD_MATTE_MESH_PLAN,
+          VANGUARD_MATTE_MESH_PALETTE,
+          layout,
+        ),
+      }),
+    ]),
+  });
 }

@@ -2,6 +2,8 @@ import { type Material, Node } from 'cc';
 import { type EntityRange } from '../entities/entity-range';
 import {
   createSurfaceGeometry,
+  createUnlitColorGeometry,
+  type VertexLayoutBufferGeometry,
   type GeometryBounds,
   GeometryIndexFormat,
 } from '../geometry/buffer-geometry';
@@ -13,6 +15,12 @@ import {
 } from '../mesh/mesh-plan';
 import { copyMeshPlanIndices } from '../mesh/mesh-plan-indices';
 import { createVertexStreams, type VertexStreams } from '../mesh/vertex-streams';
+import {
+  type LitColorVertexSemantic,
+  type VertexLayout,
+  VertexLayoutId,
+  type VertexSemantic,
+} from '../mesh/vertex-layout';
 import { partitionBatches } from './batch-partition';
 import {
   DynamicMeshBatch,
@@ -24,6 +32,7 @@ export interface CompiledMeshRenderLayer<
   TState,
   TPlan extends MeshPlan,
   TLayerId extends string,
+  TSemantics extends VertexSemantic = LitColorVertexSemantic,
 > {
   /** 领域侧识别渲染层的稳定标识。 */
   readonly id: TLayerId;
@@ -34,7 +43,7 @@ export interface CompiledMeshRenderLayer<
   /** 一个实体共享的固定局部拓扑计划。 */
   readonly plan: TPlan;
   /** 根据领域状态原地更新该层动态顶点流的求值器。 */
-  readonly evaluator: MeshEvaluator<TState, TPlan>;
+  readonly evaluator: MeshEvaluator<TState, TPlan, TSemantics>;
 }
 
 /** 编译式动态网格批渲染器的初始化参数。 */
@@ -42,6 +51,7 @@ export interface CompiledMeshBatchRendererOptions<
   TState,
   TPlan extends MeshPlan,
   TLayerId extends string,
+  TSemantics extends VertexSemantic = LitColorVertexSemantic,
 > {
   /** 动态网格节点的父节点。 */
   readonly parent: Node;
@@ -53,24 +63,39 @@ export interface CompiledMeshBatchRendererOptions<
   readonly requestedBatchSize: number;
   /** 动态网格索引缓冲的目标格式。 */
   readonly indexFormat: GeometryIndexFormat;
+  /** 所有层共享的精确动态顶点布局。 */
+  readonly layout: VertexLayout<TSemantics>;
   /** 初始化时提交给每个批次的模型空间包围盒。 */
   readonly bounds: GeometryBounds;
   /** Cocos 动态网格的受光和阴影选项。 */
   readonly surfaceOptions: Readonly<DynamicMeshBatchOptions>;
   /** 需要以相同实体范围切分的编译后渲染层。 */
-  readonly layers: readonly CompiledMeshRenderLayer<TState, TPlan, TLayerId>[];
+  readonly layers: readonly CompiledMeshRenderLayer<
+    TState,
+    TPlan,
+    TLayerId,
+    TSemantics
+  >[];
 }
 
-interface CompiledMeshLayerChunk<TState, TPlan extends MeshPlan> {
+interface CompiledMeshLayerChunk<
+  TState,
+  TPlan extends MeshPlan,
+  TSemantics extends VertexSemantic,
+> {
   readonly plan: TPlan;
-  readonly evaluator: MeshEvaluator<TState, TPlan>;
-  readonly streams: VertexStreams;
+  readonly evaluator: MeshEvaluator<TState, TPlan, TSemantics>;
+  readonly streams: VertexStreams<TSemantics>;
   readonly batch: DynamicMeshBatch;
 }
 
-interface CompiledMeshRenderChunk<TState, TPlan extends MeshPlan> {
+interface CompiledMeshRenderChunk<
+  TState,
+  TPlan extends MeshPlan,
+  TSemantics extends VertexSemantic,
+> {
   readonly range: EntityRange;
-  readonly layers: CompiledMeshLayerChunk<TState, TPlan>[];
+  readonly layers: CompiledMeshLayerChunk<TState, TPlan, TSemantics>[];
 }
 
 /**
@@ -82,8 +107,9 @@ export class CompiledMeshBatchRenderer<
   TState,
   TPlan extends MeshPlan,
   TLayerId extends string,
+  TSemantics extends VertexSemantic = LitColorVertexSemantic,
 > {
-  private readonly chunks: CompiledMeshRenderChunk<TState, TPlan>[] = [];
+  private readonly chunks: CompiledMeshRenderChunk<TState, TPlan, TSemantics>[] = [];
   private disposed = false;
 
   /**
@@ -91,7 +117,12 @@ export class CompiledMeshBatchRenderer<
    *
    * @param options 强类型领域状态、计划和 Cocos 渲染配置。
    */
-  constructor(private readonly options: CompiledMeshBatchRendererOptions<TState, TPlan, TLayerId>) {
+  constructor(private readonly options: CompiledMeshBatchRendererOptions<
+    TState,
+    TPlan,
+    TLayerId,
+    TSemantics
+  >) {
     if (options.layers.length === 0) {
       throw new Error('编译式网格批渲染器至少需要一个渲染层。');
     }
@@ -113,11 +144,12 @@ export class CompiledMeshBatchRenderer<
       );
 
       for (const partition of partitions) {
-        const layers: CompiledMeshLayerChunk<TState, TPlan>[] = [];
+        const layers: CompiledMeshLayerChunk<TState, TPlan, TSemantics>[] = [];
         this.chunks.push({ range: partition.range, layers });
 
         for (const layer of options.layers) {
-          const geometry = createSurfaceGeometry(
+          const geometry = createCompiledGeometry(
+            options.layout,
             getBatchElementCount(layer.plan.vertexCount, partition.range.count, '顶点'),
             getBatchElementCount(layer.plan.indexCount, partition.range.count, '索引'),
             options.indexFormat,
@@ -125,13 +157,15 @@ export class CompiledMeshBatchRenderer<
           geometry.commitCounts(geometry.maxVertices, geometry.maxIndices);
           copyMeshPlanIndices(layer.plan, partition.range.count, geometry.getIndexView());
 
-          const streams = createVertexStreams(geometry);
+          const streams = createVertexStreams(
+            geometry as VertexLayoutBufferGeometry<TSemantics>,
+          );
           layer.evaluator.evaluate(
             options.state,
             layer.plan,
             streams,
             partition.range,
-            MeshDirty.All,
+            getLayoutAllDirty(options.layout),
           );
 
           const batch = new DynamicMeshBatch();
@@ -208,6 +242,31 @@ export class CompiledMeshBatchRenderer<
     this.chunks.length = 0;
     this.disposed = true;
   }
+}
+
+/** 根据精确布局创建带颜色的动态几何。 */
+function createCompiledGeometry<TSemantics extends VertexSemantic>(
+  layout: VertexLayout<TSemantics>,
+  vertexCount: number,
+  indexCount: number,
+  indexFormat: GeometryIndexFormat,
+) {
+  if (layout.id === VertexLayoutId.LitColor) {
+    return createSurfaceGeometry(vertexCount, indexCount, indexFormat);
+  }
+  if (layout.id === VertexLayoutId.UnlitColor) {
+    return createUnlitColorGeometry(vertexCount, indexCount, indexFormat);
+  }
+  throw new Error(`编译式动态渲染器不支持顶点布局：${String(layout.id)}。`);
+}
+
+/** 返回目标布局初始化时真正允许求值的属性集合。 */
+function getLayoutAllDirty<TSemantics extends VertexSemantic>(
+  layout: VertexLayout<TSemantics>,
+): MeshDirty {
+  return layout.id === VertexLayoutId.LitColor
+    ? MeshDirty.All
+    : MeshDirty.Position | MeshDirty.Color | MeshDirty.Bounds;
 }
 
 /** 验证动态批渲染器可分配的单实体计划。 */

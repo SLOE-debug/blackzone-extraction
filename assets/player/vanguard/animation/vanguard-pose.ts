@@ -9,6 +9,7 @@ import {
 } from '../model/vanguard-bone';
 import {
   writeSegmentFrame,
+  writeYawPitchRollFrame,
   writeYawRollFrame,
 } from './vanguard-pose-frame';
 import { writeVanguardWeaponRootFrame } from './vanguard-weapon-root-pose';
@@ -30,6 +31,10 @@ import {
   type VanguardTwoHandWeaponTrajectoryPose,
 } from './vanguard-two-hand-weapon-trajectory';
 import { writeVanguardLocomotionLegPose } from './vanguard-locomotion-leg-pose';
+import {
+  type VanguardGaitPoseState,
+  VANGUARD_GAIT_REST_POSE,
+} from './vanguard-gait-state';
 
 /** 创建供程序化人体拓扑预计算绑定坐标使用的中立骨骼矩阵。 */
 export function createVanguardBindPoseMatrices(): Float64Array {
@@ -57,6 +62,7 @@ export function createVanguardBindPoseMatrices(): Float64Array {
     VANGUARD_WEAPON_ANIMATION_REST_STATE,
     createVanguardTwoHandIkWorkspace(),
     createVanguardTwoHandWeaponTrajectoryPose(),
+    VANGUARD_GAIT_REST_POSE,
   );
   return matrices;
 }
@@ -102,6 +108,7 @@ export function writeVanguardPoseMatrices(
   weaponAnimation: Readonly<VanguardWeaponAnimationPoseState>,
   twoHandIkWorkspace: Float64Array,
   weaponTrajectory: Readonly<VanguardTwoHandWeaponTrajectoryPose>,
+  gait: Readonly<VanguardGaitPoseState>,
 ): void {
   const entityOffset = entityIndex
     * VanguardBone.Count
@@ -122,12 +129,11 @@ export function writeVanguardPoseMatrices(
   const contactCrouch = (weaponAction === VanguardWeaponAction.SwingLeft
     || weaponAction === VanguardWeaponAction.SwingRight
     || weaponAction === VanguardWeaponAction.Spin) ? attackAmount * 0.11 : 0;
-  const bodyBob = Math.abs(Math.cos(locomotionPhase)) * 0.065 * locomotion;
+  const bodyBob = gait.bodyBob;
   const pelvisBodyBob = bodyBob - contactCrouch;
   const idleWeight = 1 - locomotion * 0.72;
   const breath = Math.sin(phase * 2) * 0.018 * idleWeight;
-  const sway = Math.sin(phase) * 0.018 * idleWeight
-    + Math.cos(locomotionPhase) * 0.025 * locomotion;
+  const sway = Math.sin(phase) * 0.018 * idleWeight + gait.pelvisShiftX;
   const shrugWave = Math.max(0, -Math.sin(phase));
   const shoulderLift = shrugWave * shrugWave * shrugWave * shrugWave * 0.035 * idleWeight;
   const headYaw = (Math.sin(phase) * 0.16 + Math.sin(phase * 2) * 0.025) * idleWeight;
@@ -148,37 +154,39 @@ export function writeVanguardPoseMatrices(
     heading,
     scale,
   );
-  writeYawRollFrame(
+  writeYawPitchRollFrame(
     matrices,
     entityOffset,
     VanguardBone.Pelvis,
     sway,
     VANGUARD_ANATOMY.pelvisY + pelvisBodyBob,
-    0,
+    gait.pelvisShiftZ,
     weaponPelvisYaw,
-    -sway * 0.5,
+    gait.leanForward * 0.45,
+    -sway * 0.5 + gait.leanRight * 0.55,
     positionX,
     positionY,
     positionZ,
     heading,
     scale,
   );
-  writeYawRollFrame(
+  writeYawPitchRollFrame(
     matrices,
     entityOffset,
     VanguardBone.Chest,
     sway * 0.35,
     VANGUARD_ANATOMY.chestY + breath + bodyBob,
-    0.012 + locomotion * 0.1,
+    0.012 + locomotion * 0.1 + gait.pelvisShiftZ * 0.55,
     weaponBodyYaw,
-    sway * 0.42,
+    gait.leanForward,
+    sway * 0.42 + gait.leanRight,
     positionX,
     positionY,
     positionZ,
     heading,
     scale,
   );
-  writeYawRollFrame(
+  writeYawPitchRollFrame(
     matrices,
     entityOffset,
     VanguardBone.Neck,
@@ -186,14 +194,15 @@ export function writeVanguardPoseMatrices(
     VANGUARD_ANATOMY.neckY + breath * 0.75 + bodyBob,
     0.018 + locomotion * 0.075,
     weaponBodyYaw * 0.7 + headYaw * 0.46,
-    0,
+    gait.leanForward * 0.42,
+    gait.leanRight * 0.35,
     positionX,
     positionY,
     positionZ,
     heading,
     scale,
   );
-  writeYawRollFrame(
+  writeYawPitchRollFrame(
     matrices,
     entityOffset,
     VanguardBone.Head,
@@ -201,7 +210,8 @@ export function writeVanguardPoseMatrices(
     VANGUARD_ANATOMY.headPivotY + breath * 0.7 + bodyBob,
     0.018 + locomotion * 0.055,
     weaponBodyYaw * 0.45 + headYaw,
-    -sway * 0.15,
+    gait.leanForward * 0.2,
+    -sway * 0.15 + gait.leanRight * 0.18,
     positionX,
     positionY,
     positionZ,
@@ -433,6 +443,7 @@ export function writeVanguardPoseMatrices(
     locomotionRight,
     sway,
     pelvisBodyBob,
+    gait,
   );
 
   if (!analyticTwoHand) {

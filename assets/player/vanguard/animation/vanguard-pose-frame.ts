@@ -128,6 +128,53 @@ export function writeYawRollFrame(
   );
 }
 
+/** 写入依次包含局部偏航、俯仰和侧倾的稳定躯干矩阵。 */
+export function writeYawPitchRollFrame(
+  matrices: VanguardBoneMatrixArray,
+  entityOffset: number,
+  bone: VanguardBone,
+  originX: number,
+  originY: number,
+  originZ: number,
+  yaw: number,
+  pitch: number,
+  roll: number,
+  positionX: number,
+  positionY: number,
+  positionZ: number,
+  heading: number,
+  scale: number,
+): void {
+  const yawCosine = Math.cos(yaw);
+  const yawSine = Math.sin(yaw);
+  const pitchCosine = Math.cos(pitch);
+  const pitchSine = Math.sin(pitch);
+  const rollCosine = Math.cos(roll);
+  const rollSine = Math.sin(roll);
+  writeWorldFrame(
+    matrices,
+    entityOffset,
+    bone,
+    originX,
+    originY,
+    originZ,
+    yawCosine * rollCosine + yawSine * pitchSine * rollSine,
+    pitchCosine * rollSine,
+    -yawSine * rollCosine + yawCosine * pitchSine * rollSine,
+    -yawCosine * rollSine + yawSine * pitchSine * rollCosine,
+    pitchCosine * rollCosine,
+    yawSine * rollSine + yawCosine * pitchSine * rollCosine,
+    yawSine * pitchCosine,
+    -pitchSine,
+    yawCosine * pitchCosine,
+    positionX,
+    positionY,
+    positionZ,
+    heading,
+    scale,
+  );
+}
+
 /** 写入围绕局部右轴俯仰的武器根矩阵。 */
 export function writePitchFrame(
   matrices: VanguardBoneMatrixArray,

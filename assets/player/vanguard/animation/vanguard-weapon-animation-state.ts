@@ -1,4 +1,5 @@
 import { damp } from '../../../core/math/scalar';
+import { updateSecondOrderResponse } from '../../../core/math/second-order-response';
 import { type VanguardData } from '../model/vanguard-schema';
 import { VanguardWeaponAction } from '../model/vanguard-weapon-action';
 import { VanguardWeaponPose } from '../model/vanguard-weapon-pose';
@@ -43,20 +44,22 @@ export function updateVanguardWeaponAnimationState(
 ): void {
   const action = data.intent.weaponAction[index] as VanguardWeaponAction;
   const weapon = data.weaponAnimation;
-  updateCriticalSpring(
+  updateSecondOrderResponse(
     weapon.chestYaw,
     weapon.chestYawVelocity,
     index,
     trajectory.chestYaw,
     15,
+    1,
     deltaTime,
   );
-  updateCriticalSpring(
+  updateSecondOrderResponse(
     weapon.pelvisYaw,
     weapon.pelvisYawVelocity,
     index,
     trajectory.pelvisYaw,
     13,
+    1,
     deltaTime,
   );
 
@@ -116,12 +119,13 @@ export function updateVanguardWeaponAnimationState(
   const lagTarget = action === VanguardWeaponAction.Spin
     ? -0.12
     : -trajectory.chestYaw * 0.24;
-  updateCriticalSpring(
+  updateSecondOrderResponse(
     weapon.hammerLag,
     weapon.hammerLagVelocity,
     index,
     ready ? lagTarget : 0,
-    11,
+    10.5,
+    0.72,
     deltaTime,
   );
 }
@@ -144,26 +148,4 @@ export function writeVanguardWeaponAnimationPoseState(
   result.mainGripWeight = source.mainGripWeight[index] ?? 0;
   result.supportGripWeight = source.supportGripWeight[index] ?? 0;
   result.hammerLag = source.hammerLag[index] ?? 0;
-}
-
-function updateCriticalSpring(
-  values: Float32Array,
-  velocities: Float32Array,
-  index: number,
-  target: number,
-  angularFrequency: number,
-  deltaTime: number,
-): void {
-  const value = values[index] ?? 0;
-  const velocity = velocities[index] ?? 0;
-  const frequencyStep = angularFrequency * deltaTime;
-  const denominator = 1 + 2 * frequencyStep + frequencyStep * frequencyStep;
-  values[index] = (
-    value * (1 + 2 * frequencyStep)
-      + velocity * deltaTime
-      + target * frequencyStep * frequencyStep
-  ) / denominator;
-  velocities[index] = (
-    velocity + angularFrequency * angularFrequency * deltaTime * (target - value)
-  ) / denominator;
 }

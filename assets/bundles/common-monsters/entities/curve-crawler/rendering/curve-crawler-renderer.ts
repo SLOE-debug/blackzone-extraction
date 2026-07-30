@@ -1,6 +1,7 @@
 import { type Material, Node } from 'cc';
 import { GeometryIndexFormat } from '../../../../../core/geometry/buffer-geometry';
 import { MeshDirty } from '../../../../../core/mesh/mesh-dirty';
+import { LIT_COLOR_LAYOUT } from '../../../../../core/mesh/vertex-layout';
 import { CompiledMeshBatchRenderer } from '../../../../../core/rendering/compiled-mesh-batch-renderer';
 import { EntityRenderDirty } from '../../../../../core/rendering/dynamic-entities/entity-render-dirty';
 import { curveCrawlerMeshPlan } from '../geometry/curve-crawler-mesh-compiler';
@@ -54,6 +55,7 @@ export class CurveCrawlerRenderer implements CurveCrawlerPopulationRendering {
         entityCount: state.count,
         requestedBatchSize: state.count,
         indexFormat: GeometryIndexFormat.Uint32,
+        layout: LIT_COLOR_LAYOUT,
         bounds: this.bounds,
         surfaceOptions: Object.freeze({
           castShadows: true,

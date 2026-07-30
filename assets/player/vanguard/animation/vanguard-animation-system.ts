@@ -17,20 +17,27 @@ import {
   createVanguardTwoHandWeaponTrajectoryPose,
   writeVanguardTwoHandWeaponTrajectory,
 } from './vanguard-two-hand-weapon-trajectory';
+import {
+  createVanguardGaitPoseState,
+  updateVanguardGaitState,
+  writeVanguardGaitPoseState,
+} from './vanguard-gait-state';
 
 const IDLE_CYCLE_SECONDS = 6.4;
 
-/** 负责主角待机细节、旧版直接骨段步态与武器姿势混合。 */
+/** 负责主角待机细节、脚底锁定步态与武器姿势混合。 */
 export class VanguardAnimationSystem implements EntitySystem<VanguardState, number> {
   private readonly weaponPoseState: VanguardWeaponAnimationPoseState = {
     ...VANGUARD_WEAPON_ANIMATION_REST_STATE,
   };
   private readonly twoHandIkWorkspace = createVanguardTwoHandIkWorkspace();
   private readonly weaponTrajectory = createVanguardTwoHandWeaponTrajectoryPose();
+  private readonly gaitPose = createVanguardGaitPoseState();
 
   /** 在渲染器创建前写入完整绑定姿态。 */
   public initialize(state: VanguardState): void {
     for (let index = 0; index < state.count; index++) {
+      updateVanguardGaitState(state.data, index, 0);
       this.writePose(state, index);
     }
   }
@@ -49,16 +56,9 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
           + deltaTime / IDLE_CYCLE_SECONDS * TAU,
       );
       const speed = motion.speed[index] ?? 0;
-      const locomotionForward = (motion.locomotionForward[index] ?? 0)
-        / VANGUARD_CONFIG.maximumMoveSpeed;
-      const locomotionRight = (motion.locomotionRight[index] ?? 0)
-        / VANGUARD_CONFIG.maximumMoveSpeed;
-      const reversing = locomotionForward < -0.05
-        && Math.abs(locomotionForward) >= Math.abs(locomotionRight) * 0.35;
       animation.locomotionPhase[index] = wrapAngle(
         (animation.locomotionPhase[index] ?? 0)
-          + speed * VANGUARD_CONFIG.locomotionCyclesPerMeter * TAU * deltaTime
-            * (reversing ? -1 : 1),
+          + speed * VANGUARD_CONFIG.locomotionCyclesPerMeter * TAU * deltaTime,
       );
       animation.locomotionBlend[index] = damp(
         animation.locomotionBlend[index] ?? 0,
@@ -66,6 +66,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
         speed > 0.05 ? 13 : 18,
         deltaTime,
       );
+      updateVanguardGaitState(state.data, index, deltaTime);
       const requestedWeaponPose = intent.weaponPose[index] as VanguardWeaponPose;
       const currentWeaponPose = animation.weaponPose[index] as VanguardWeaponPose;
       if (requestedWeaponPose !== VanguardWeaponPose.Unarmed
@@ -99,6 +100,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
   private writePose(state: VanguardState, index: number): void {
     const { transform, morphology, intent, animation, pose } = state.data;
     writeVanguardWeaponAnimationPoseState(state.data, index, this.weaponPoseState);
+    writeVanguardGaitPoseState(state.data, index, this.gaitPose);
     this.sampleWeaponTrajectory(state, index);
     writeVanguardPoseMatrices(
       pose.boneMatrices,
@@ -123,6 +125,7 @@ export class VanguardAnimationSystem implements EntitySystem<VanguardState, numb
       this.weaponPoseState,
       this.twoHandIkWorkspace,
       this.weaponTrajectory,
+      this.gaitPose,
     );
   }
 

@@ -59,6 +59,8 @@ export interface VanguardMeshPlan extends MeshPlan {
   readonly semanticIds: Uint8Array;
   /** 每个最终顶点的确定性分面颜色变体。 */
   readonly colorVariantIds: Uint8Array;
+  /** 每个最终顶点在绑定姿态中预烘的稳定亮度系数。 */
+  readonly prebakedShadeFactors: Float32Array;
   /** 按表面顺序连续排列的语义范围。 */
   readonly semanticSpans: readonly VanguardSemanticSpan[];
 }

@@ -421,10 +421,10 @@ function addLeg(
   const thighBone = side < 0 ? VanguardBone.LeftThigh : VanguardBone.RightThigh;
   const shinBone = side < 0 ? VanguardBone.LeftShin : VanguardBone.RightShin;
   const footBone = side < 0 ? VanguardBone.LeftFoot : VanguardBone.RightFoot;
-  const thigh = addLimbSection(builder, side, side * 0.35, 1.3, 0.2, 0.17, 0.21, 0.17, thighBone);
-  const knee = addLimbSection(builder, side, side * 0.35, 0.91, 0.145, 0.12, 0.12, 0.1, thighBone, shinBone, 0.52);
-  const calf = addLimbSection(builder, side, side * 0.36, 0.56, 0.175, 0.135, 0.15, 0.12, shinBone);
-  const ankle = addLimbSection(builder, side, side * 0.36, 0.19, 0.125, 0.1, 0.095, 0.078, shinBone, footBone, 0.48);
+  const thigh = addLimbSection(builder, side, side * 0.35, 1.3, 0.22, 0.185, 0.225, 0.19, thighBone);
+  const knee = addLimbSection(builder, side, side * 0.35, 0.91, 0.165, 0.14, 0.145, 0.12, thighBone, shinBone, 0.52);
+  const calf = addLimbSection(builder, side, side * 0.36, 0.56, 0.195, 0.155, 0.175, 0.145, shinBone);
+  const ankle = addLimbSection(builder, side, side * 0.36, 0.19, 0.145, 0.115, 0.13, 0.105, shinBone, footBone, 0.48);
   connectLimbBand(builder, side, hip, thigh, VanguardMatteSurface.Pants, 0.008);
   connectLimbBand(builder, side, thigh, knee, VanguardMatteSurface.Pants, 0.009);
   connectLimbBand(builder, side, knee, calf, VanguardMatteSurface.Leather, 0.008);

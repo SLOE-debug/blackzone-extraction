@@ -1,4 +1,7 @@
 import {
+  calculatePrebakedFacetShade,
+} from '../../../core/geometry/faceted/prebaked-facet-color';
+import {
   getPatchTriangleCount,
   type VanguardCageDefinition,
   type VanguardCagePatch,
@@ -10,6 +13,8 @@ import {
   type VanguardMeshPlan,
   type VanguardSemanticSpan,
 } from './vanguard-mesh-plan';
+import { getVanguardPrebakedFacetRole } from './vanguard-prebaked-shading';
+import { VanguardMatteSurface } from './vanguard-surface';
 
 const VANGUARD_COLOR_VARIANT_COUNT = 7;
 
@@ -31,6 +36,9 @@ export function compileVanguardMeshPlan(
   }
   if (definition.surfaceTriangleCounts.length !== surfaceCount) {
     throw new Error('主角控制笼表面数量与编译契约不一致。');
+  }
+  if (definition.bindPositions.length !== definition.vertices.length * 3) {
+    throw new Error('主角控制笼绑定姿态坐标数量与顶点数量不一致。');
   }
 
   const vertexCount = definition.triangleCount * 3;
@@ -139,6 +147,19 @@ export function compileVanguardMeshPlan(
   const semanticIds = new Uint8Array(vertexCount);
   const colorVariantIds = new Uint8Array(vertexCount);
   compileSemanticIds(semanticSpans, semanticIds, colorVariantIds);
+  const prebakedShadeFactors = compilePrebakedShadeFactors(
+    definition,
+    renderVertexKinds,
+    renderToControlVertex,
+    renderToFacetedCenter,
+    facetedCenterA,
+    facetedCenterB,
+    facetedCenterC,
+    facetedCenterD,
+    facetedCenterRidges,
+    semanticIds,
+    colorVariantIds,
+  );
 
   return Object.freeze({
     vertexCount,
@@ -163,8 +184,121 @@ export function compileVanguardMeshPlan(
     facetedCenterRidges: Float64Array.from(facetedCenterRidges),
     semanticIds,
     colorVariantIds,
+    prebakedShadeFactors,
     semanticSpans,
   });
+}
+
+/** 从绑定姿态三角形和显式表面语义编译稳定的分面亮度。 */
+function compilePrebakedShadeFactors(
+  definition: Readonly<VanguardCageDefinition>,
+  renderVertexKinds: readonly number[],
+  renderToControlVertex: readonly number[],
+  renderToFacetedCenter: readonly number[],
+  facetedCenterA: readonly number[],
+  facetedCenterB: readonly number[],
+  facetedCenterC: readonly number[],
+  facetedCenterD: readonly number[],
+  facetedCenterRidges: readonly number[],
+  semanticIds: Uint8Array,
+  colorVariantIds: Uint8Array,
+): Float32Array {
+  const centerPositions = compileBindFacetedCenters(
+    definition.bindPositions,
+    facetedCenterA,
+    facetedCenterB,
+    facetedCenterC,
+    facetedCenterD,
+    facetedCenterRidges,
+  );
+  const renderPositions = new Float64Array(renderVertexKinds.length * 3);
+  for (let vertex = 0; vertex < renderVertexKinds.length; vertex++) {
+    const control = renderVertexKinds[vertex] === VanguardRenderVertexKind.Control;
+    const sourceIndex = control
+      ? renderToControlVertex[vertex] ?? 0
+      : renderToFacetedCenter[vertex] ?? 0;
+    const source = control ? definition.bindPositions : centerPositions;
+    const sourceOffset = sourceIndex * 3;
+    const targetOffset = vertex * 3;
+    renderPositions[targetOffset] = source[sourceOffset] ?? 0;
+    renderPositions[targetOffset + 1] = source[sourceOffset + 1] ?? 0;
+    renderPositions[targetOffset + 2] = source[sourceOffset + 2] ?? 0;
+  }
+
+  const factors = new Float32Array(renderVertexKinds.length);
+  for (let vertex = 0; vertex < renderVertexKinds.length; vertex += 3) {
+    const offset = vertex * 3;
+    const ax = renderPositions[offset] ?? 0;
+    const ay = renderPositions[offset + 1] ?? 0;
+    const az = renderPositions[offset + 2] ?? 0;
+    const abX = (renderPositions[offset + 3] ?? 0) - ax;
+    const abY = (renderPositions[offset + 4] ?? 0) - ay;
+    const abZ = (renderPositions[offset + 5] ?? 0) - az;
+    const acX = (renderPositions[offset + 6] ?? 0) - ax;
+    const acY = (renderPositions[offset + 7] ?? 0) - ay;
+    const acZ = (renderPositions[offset + 8] ?? 0) - az;
+    let normalX = abY * acZ - abZ * acY;
+    let normalY = abZ * acX - abX * acZ;
+    let normalZ = abX * acY - abY * acX;
+    const inverseLength = 1 / Math.max(Math.hypot(normalX, normalY, normalZ), 0.000001);
+    normalX *= inverseLength;
+    normalY *= inverseLength;
+    normalZ *= inverseLength;
+    const surface = (semanticIds[vertex] ?? 0) as VanguardMatteSurface;
+    const shade = calculatePrebakedFacetShade(
+      getVanguardPrebakedFacetRole(surface),
+      colorVariantIds[vertex] ?? 0,
+      normalX,
+      normalY,
+      normalZ,
+    );
+    factors[vertex] = shade;
+    factors[vertex + 1] = shade;
+    factors[vertex + 2] = shade;
+  }
+  return factors;
+}
+
+function compileBindFacetedCenters(
+  bindPositions: Float64Array,
+  centerA: readonly number[],
+  centerB: readonly number[],
+  centerC: readonly number[],
+  centerD: readonly number[],
+  ridges: readonly number[],
+): Float64Array {
+  const centers = new Float64Array(centerA.length * 3);
+  for (let center = 0; center < centerA.length; center++) {
+    const a = (centerA[center] ?? 0) * 3;
+    const b = (centerB[center] ?? 0) * 3;
+    const c = (centerC[center] ?? 0) * 3;
+    const d = (centerD[center] ?? 0) * 3;
+    const ax = bindPositions[a] ?? 0;
+    const ay = bindPositions[a + 1] ?? 0;
+    const az = bindPositions[a + 2] ?? 0;
+    const abX = (bindPositions[b] ?? 0) - ax;
+    const abY = (bindPositions[b + 1] ?? 0) - ay;
+    const abZ = (bindPositions[b + 2] ?? 0) - az;
+    const adX = (bindPositions[d] ?? 0) - ax;
+    const adY = (bindPositions[d + 1] ?? 0) - ay;
+    const adZ = (bindPositions[d + 2] ?? 0) - az;
+    let normalX = abY * adZ - abZ * adY;
+    let normalY = abZ * adX - abX * adZ;
+    let normalZ = abX * adY - abY * adX;
+    const inverseLength = 1 / Math.max(Math.hypot(normalX, normalY, normalZ), 0.000001);
+    normalX *= inverseLength;
+    normalY *= inverseLength;
+    normalZ *= inverseLength;
+    const target = center * 3;
+    const ridge = ridges[center] ?? 0;
+    centers[target] = (ax + (bindPositions[b] ?? 0) + (bindPositions[c] ?? 0)
+      + (bindPositions[d] ?? 0)) * 0.25 + normalX * ridge;
+    centers[target + 1] = (ay + (bindPositions[b + 1] ?? 0) + (bindPositions[c + 1] ?? 0)
+      + (bindPositions[d + 1] ?? 0)) * 0.25 + normalY * ridge;
+    centers[target + 2] = (az + (bindPositions[b + 2] ?? 0) + (bindPositions[c + 2] ?? 0)
+      + (bindPositions[d + 2] ?? 0)) * 0.25 + normalZ * ridge;
+  }
+  return centers;
 }
 
 /** 验证动态披风绑定不会覆盖控制笼之外的顶点。 */

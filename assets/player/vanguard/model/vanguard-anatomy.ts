@@ -8,6 +8,8 @@ export const VANGUARD_ANATOMY = Object.freeze({
   shoulderY: 2.84,
   shoulderHalfWidth: 0.68,
   hipHalfWidth: 0.34,
+  thighLength: 0.79,
+  shinLength: 0.74,
   kneeY: 0.9,
   ankleY: 0.17,
   toeY: 0.07,

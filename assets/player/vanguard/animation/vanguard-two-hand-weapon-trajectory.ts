@@ -173,7 +173,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         IDLE_VELOCITY,
         LEFT_WINDUP_VELOCITY,
         SWING_WINDUP_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, 1.3),
       );
       break;
     case VanguardWeaponAction.WindupRight:
@@ -184,7 +184,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         IDLE_VELOCITY,
         RIGHT_WINDUP_VELOCITY,
         SWING_WINDUP_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, 1.3),
       );
       break;
     case VanguardWeaponAction.SwingLeft:
@@ -195,7 +195,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         LEFT_WINDUP_VELOCITY,
         LEFT_FOLLOW_THROUGH_VELOCITY,
         SWING_CONTACT_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, -1),
       );
       break;
     case VanguardWeaponAction.SwingRight:
@@ -206,7 +206,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         RIGHT_WINDUP_VELOCITY,
         RIGHT_FOLLOW_THROUGH_VELOCITY,
         SWING_CONTACT_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, -1),
       );
       break;
     case VanguardWeaponAction.ChainPrepareLeft:
@@ -217,7 +217,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         RIGHT_FOLLOW_THROUGH_VELOCITY,
         LEFT_WINDUP_VELOCITY,
         CHAIN_PREPARE_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, 0.8),
       );
       break;
     case VanguardWeaponAction.ChainPrepareRight:
@@ -228,7 +228,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         LEFT_FOLLOW_THROUGH_VELOCITY,
         RIGHT_WINDUP_VELOCITY,
         CHAIN_PREPARE_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, 0.8),
       );
       break;
     case VanguardWeaponAction.Recover: {
@@ -245,7 +245,7 @@ export function writeVanguardTwoHandWeaponTrajectory(
         startVelocity,
         IDLE_VELOCITY,
         RECOVER_SECONDS,
-        amount,
+        warpPreservingBoundaryVelocity(amount, -0.8),
       );
       break;
     }
@@ -321,6 +321,16 @@ export function writeVanguardTwoHandWeaponTrajectory(
       break;
   }
   rotateAndNormalizeShaft(result, yawLag);
+}
+
+/** 调整阶段内部节奏，同时保持零和一处的进度速度为一。 */
+function warpPreservingBoundaryVelocity(progress: number, strength: number): number {
+  const amount = Math.max(0, Math.min(1, progress));
+  const complement = 1 - amount;
+  return amount + strength
+    * amount * amount
+    * complement * complement
+    * (amount * 2 - 1);
 }
 
 function writeRoundTripPose(

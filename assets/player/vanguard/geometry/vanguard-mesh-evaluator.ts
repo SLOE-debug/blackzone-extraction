@@ -3,6 +3,13 @@ import { writeSequentialFlatNormals } from '../../../core/geometry/faceted/seque
 import { MeshDirty } from '../../../core/mesh/mesh-dirty';
 import { type MeshEvaluator } from '../../../core/mesh/mesh-evaluator';
 import { type VertexStreams } from '../../../core/mesh/vertex-streams';
+import {
+  LIT_COLOR_LAYOUT,
+  type LitColorVertexSemantic,
+  type VertexLayout,
+  VertexLayoutId,
+  VertexSemantic,
+} from '../../../core/mesh/vertex-layout';
 import { VANGUARD_MANTLE_PARTICLE_COUNT } from '../model/vanguard-mantle-particles';
 import { VanguardBone, VANGUARD_BONE_MATRIX_COMPONENTS } from '../model/vanguard-bone';
 import { type VanguardState } from '../model/vanguard-state';
@@ -34,8 +41,9 @@ export interface VanguardMeshPalette {
  *
  * 每帧仅蒙皮共享控制点、计算 FacetedQuad 派生中心、展开独立顶点并重算法线。
  */
-export class VanguardMeshEvaluator
-implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
+export class VanguardMeshEvaluator<
+  TSemantics extends VertexSemantic = LitColorVertexSemantic,
+> implements MeshEvaluator<VanguardState, VanguardMeshPlan, TSemantics> {
   private readonly deformedControlPositions: Float64Array;
   private readonly facetedCenterPositions: Float64Array;
   private readonly renderPositions: Float64Array;
@@ -46,6 +54,8 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
   constructor(
     private readonly compiledPlan: Readonly<VanguardMeshPlan>,
     private readonly palette: Readonly<VanguardMeshPalette>,
+    private readonly layout: VertexLayout<TSemantics>
+      = LIT_COLOR_LAYOUT as VertexLayout<TSemantics>,
   ) {
     this.deformedControlPositions = new Float64Array(compiledPlan.controlVertexCount * 3);
     this.facetedCenterPositions = new Float64Array(compiledPlan.facetedCenterA.length * 3);
@@ -57,30 +67,49 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
   public evaluate(
     state: VanguardState,
     plan: VanguardMeshPlan,
-    streams: VertexStreams,
+    streams: VertexStreams<TSemantics>,
     range: EntityRange,
     requested: MeshDirty,
   ): MeshDirty {
     if (plan !== this.compiledPlan) {
       throw new Error('主角网格求值器收到的计划与初始化计划不一致。');
     }
-    validateStreamCapacity(streams, plan.vertexCount * range.count);
+    const streamMap = streams as Partial<Record<VertexSemantic, Float32Array>>;
+    const positions = streamMap[VertexSemantic.Position];
+    const normals = streamMap[VertexSemantic.Normal] ?? null;
+    const colors = streamMap[VertexSemantic.Color];
+    if (positions === undefined || colors === undefined) {
+      throw new Error('主角动态网格缺少位置或颜色流。');
+    }
+    validateStreamCapacity(
+      positions,
+      normals,
+      colors,
+      plan.vertexCount * range.count,
+    );
 
     let changed = MeshDirty.None;
     const requestedPose = requested & MeshDirty.Pose;
-    if (requestedPose !== MeshDirty.None && requestedPose !== MeshDirty.Pose) {
-      throw new Error('主角姿态几何必须同时请求 Position 和 Normal 流。');
+    if (this.layout.id === VertexLayoutId.LitColor) {
+      if (normals === null) {
+        throw new Error('主角 Lit 顶点布局缺少法线流。');
+      }
+      if (requestedPose !== MeshDirty.None && requestedPose !== MeshDirty.Pose) {
+        throw new Error('主角姿态几何必须同时请求 Position 和 Normal 流。');
+      }
+    } else if ((requested & MeshDirty.Normal) !== MeshDirty.None) {
+      throw new Error('主角 Unlit 顶点布局不接受法线求值请求。');
     }
-    if (requestedPose === MeshDirty.Pose) {
+    if ((requested & MeshDirty.Position) !== MeshDirty.None) {
       for (let localEntity = 0; localEntity < range.count; localEntity++) {
         const entityIndex = range.start + localEntity;
         const vertexOffset = localEntity * plan.vertexCount;
-        this.evaluateGeometry(state, entityIndex, streams, vertexOffset);
+        this.evaluateGeometry(state, entityIndex, positions, normals, vertexOffset);
       }
-      changed |= MeshDirty.Pose;
+      changed |= normals === null ? MeshDirty.Position : MeshDirty.Pose;
     }
     if ((requested & MeshDirty.Color) !== MeshDirty.None) {
-      this.evaluateColors(state, streams.colors, range);
+      this.evaluateColors(state, colors, range);
       changed |= MeshDirty.Color;
     }
     if ((requested & MeshDirty.Bounds) !== MeshDirty.None) {
@@ -93,14 +122,17 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
   private evaluateGeometry(
     state: VanguardState,
     entityIndex: number,
-    streams: VertexStreams,
+    positions: Float32Array,
+    normals: Float32Array | null,
     vertexOffset: number,
   ): void {
     this.skinControlVertices(state, entityIndex);
     this.applyMantleControls(state, entityIndex);
     this.evaluateFacetedCenters();
-    this.expandRenderPositions(streams.positions, vertexOffset);
-    writeSequentialFlatNormals(this.renderPositions, streams.normals, vertexOffset);
+    this.expandRenderPositions(positions, vertexOffset);
+    if (normals !== null) {
+      writeSequentialFlatNormals(this.renderPositions, normals, vertexOffset);
+    }
   }
 
   /** 用角色本地披风中面和粒子法线覆盖骨骼蒙皮后的自由披片控制点。 */
@@ -350,8 +382,9 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
         }
         const variant = ((plan.colorVariantIds[vertex] ?? 0) + entityVariantOffset)
           % COLOR_VARIANT_COUNT;
-        const shade = 1 - color.facetVariation * 0.55
-          + variant / (COLOR_VARIANT_COUNT - 1) * color.facetVariation;
+        const entityVariation = (variant / (COLOR_VARIANT_COUNT - 1) - 0.5)
+          * color.facetVariation * 0.35;
+        const shade = (plan.prebakedShadeFactors[vertex] ?? 1) + entityVariation;
         const offset = (vertexOffset + vertex) * 4;
         const baseRed = Math.min(1, color.red * shade);
         const baseGreen = Math.min(1, color.green * shade);
@@ -366,10 +399,15 @@ implements MeshEvaluator<VanguardState, VanguardMeshPlan> {
 }
 
 /** 验证运行时流能够容纳整个实体范围。 */
-function validateStreamCapacity(streams: VertexStreams, vertexCount: number): void {
-  if (streams.positions.length < vertexCount * 3
-    || streams.normals.length < vertexCount * 3
-    || streams.colors.length < vertexCount * 4) {
+function validateStreamCapacity(
+  positions: Float32Array,
+  normals: Float32Array | null,
+  colors: Float32Array,
+  vertexCount: number,
+): void {
+  if (positions.length < vertexCount * 3
+    || (normals !== null && normals.length < vertexCount * 3)
+    || colors.length < vertexCount * 4) {
     throw new Error('主角网格运行时顶点流容量不足。');
   }
 }

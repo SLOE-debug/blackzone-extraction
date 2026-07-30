@@ -46,6 +46,7 @@ function initializeVanguardData(
     motion,
     vitality,
     animation,
+    gait,
     weaponAnimation,
     mantle,
   } = data;
@@ -83,6 +84,32 @@ function initializeVanguardData(
   animation.weaponPose[0] = VanguardWeaponPose.Unarmed;
   animation.weaponStanceBlend[0] = 0;
   animation.hitFlash[0] = 0;
+  gait.initialized[0] = 0;
+  gait.leftPhase[0] = 0;
+  gait.rightPhase[0] = 0;
+  gait.leftAnchorX[0] = options.position.x;
+  gait.leftAnchorZ[0] = options.position.z;
+  gait.rightAnchorX[0] = options.position.x;
+  gait.rightAnchorZ[0] = options.position.z;
+  gait.leftSwingStartX[0] = options.position.x;
+  gait.leftSwingStartZ[0] = options.position.z;
+  gait.rightSwingStartX[0] = options.position.x;
+  gait.rightSwingStartZ[0] = options.position.z;
+  gait.leftLandingX[0] = options.position.x;
+  gait.leftLandingZ[0] = options.position.z;
+  gait.rightLandingX[0] = options.position.x;
+  gait.rightLandingZ[0] = options.position.z;
+  gait.pelvisShiftX[0] = 0;
+  gait.pelvisShiftXVelocity[0] = 0;
+  gait.pelvisShiftZ[0] = 0;
+  gait.pelvisShiftZVelocity[0] = 0;
+  gait.leanForward[0] = 0;
+  gait.leanForwardVelocity[0] = 0;
+  gait.leanRight[0] = 0;
+  gait.leanRightVelocity[0] = 0;
+  gait.previousVelocityX[0] = 0;
+  gait.previousVelocityZ[0] = 0;
+  gait.previousHeading[0] = options.heading;
   weaponAnimation.chestYaw[0] = 0;
   weaponAnimation.chestYawVelocity[0] = 0;
   weaponAnimation.pelvisYaw[0] = 0;

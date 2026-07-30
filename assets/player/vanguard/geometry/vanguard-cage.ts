@@ -43,6 +43,8 @@ export interface VanguardCagePatch {
 /** 完整固定拓扑笼及其按表面连续排列的三角形数量。 */
 export interface VanguardCageDefinition {
   readonly vertices: readonly VanguardCageVertexSpec[];
+  /** 编译预烘分面色使用的绑定姿态世界坐标。 */
+  readonly bindPositions: Float64Array;
   readonly patches: readonly VanguardCagePatch[];
   readonly surfaceTriangleCounts: readonly number[];
   readonly triangleCount: number;
@@ -243,6 +245,7 @@ export class VanguardCageBuilder {
     }
     return Object.freeze({
       vertices: Object.freeze(this.vertices.slice()),
+      bindPositions: Float64Array.from(this.bindPositions),
       patches: Object.freeze(patches),
       surfaceTriangleCounts: Object.freeze(surfaceTriangleCounts),
       triangleCount,
@@ -302,6 +305,7 @@ export function mergeVanguardCages(
   surfaceCount: number,
 ): VanguardCageDefinition {
   const vertices: VanguardCageVertexSpec[] = [];
+  const bindPositions: number[] = [];
   const patchesBySurface: VanguardCagePatch[][] = Array.from(
     { length: surfaceCount },
     () => [],
@@ -313,6 +317,7 @@ export function mergeVanguardCages(
     }
     const vertexOffset = vertices.length;
     vertices.push(...definition.vertices);
+    bindPositions.push(...definition.bindPositions);
     for (const patch of definition.patches) {
       const target = patchesBySurface[patch.surface];
       if (target === undefined) {
@@ -342,6 +347,7 @@ export function mergeVanguardCages(
   }
   return Object.freeze({
     vertices: Object.freeze(vertices),
+    bindPositions: Float64Array.from(bindPositions),
     patches: Object.freeze(patches),
     surfaceTriangleCounts: Object.freeze(surfaceTriangleCounts),
     triangleCount,
